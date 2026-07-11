@@ -1,4 +1,15 @@
-enum SceneType { city, lake, mountain, desert, village, driving, hiking }
+import 'package:luma_nest/src/core/location/geo_point.dart';
+
+enum SceneType {
+  unknown,
+  city,
+  lake,
+  mountain,
+  desert,
+  village,
+  driving,
+  hiking,
+}
 
 enum DayPhase { dawn, day, sunset, blueHour, night }
 
@@ -16,6 +27,18 @@ class ContextSnapshot {
     List<String> opportunityIds = const [],
     List<String> safetyEventIds = const [],
     List<String> wildlifeEventIds = const [],
+    this.location,
+    this.temperatureCelsius,
+    this.windSpeedMetersPerSecond,
+    this.windDirectionDegrees,
+    this.visibilityKilometers,
+    this.precipitationMillimeters,
+    this.cloudCoverPercent,
+    this.solarElevationDegrees,
+    this.solarAzimuthDegrees,
+    this.sunrise,
+    this.sunset,
+    this.isStale = false,
   }) : opportunityIds = List.unmodifiable(opportunityIds),
        safetyEventIds = List.unmodifiable(safetyEventIds),
        wildlifeEventIds = List.unmodifiable(wildlifeEventIds);
@@ -30,4 +53,43 @@ class ContextSnapshot {
   final List<String> opportunityIds;
   final List<String> safetyEventIds;
   final List<String> wildlifeEventIds;
+  final GeoPoint? location;
+  final double? temperatureCelsius;
+  final double? windSpeedMetersPerSecond;
+  final double? windDirectionDegrees;
+  final double? visibilityKilometers;
+  final double? precipitationMillimeters;
+  final double? cloudCoverPercent;
+  final double? solarElevationDegrees;
+  final double? solarAzimuthDegrees;
+  final DateTime? sunrise;
+  final DateTime? sunset;
+  final bool isStale;
+
+  ContextSnapshot asStale() {
+    return ContextSnapshot(
+      id: id,
+      observedAt: observedAt,
+      expiresAt: expiresAt,
+      primaryScene: primaryScene,
+      dayPhase: dayPhase,
+      weather: weather,
+      activeRoute: activeRoute,
+      opportunityIds: opportunityIds,
+      safetyEventIds: safetyEventIds,
+      wildlifeEventIds: wildlifeEventIds,
+      location: location,
+      temperatureCelsius: temperatureCelsius,
+      windSpeedMetersPerSecond: windSpeedMetersPerSecond,
+      windDirectionDegrees: windDirectionDegrees,
+      visibilityKilometers: visibilityKilometers,
+      precipitationMillimeters: precipitationMillimeters,
+      cloudCoverPercent: cloudCoverPercent,
+      solarElevationDegrees: solarElevationDegrees,
+      solarAzimuthDegrees: solarAzimuthDegrees,
+      sunrise: sunrise,
+      sunset: sunset,
+      isStale: true,
+    );
+  }
 }

@@ -98,6 +98,7 @@ abstract final class ManifestPolicy {
     if (opportunitySummary != null) return opportunitySummary;
 
     return switch (snapshot.primaryScene) {
+      SceneType.unknown => '环境数据已更新，暂时没有明确拍摄窗口。',
       SceneType.city => '光线平静，适合观察线条与人流。',
       SceneType.lake => '湖面暂时没有明显拍摄窗口。',
       SceneType.mountain => '山体光线条件暂不突出。',
