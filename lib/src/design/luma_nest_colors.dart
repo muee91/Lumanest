@@ -17,9 +17,7 @@ abstract final class LumaNestColors {
   static const Color onSurfaceDark = Color(0xFFE8E4DD);
 
   static const Color backgroundLight = Color(0xFFF5F0E8); // warm parchment
-  static const Color onBackgroundLight = Color(0xFF2D2D2D);
   static const Color backgroundDark = Color(0xFF0F0F1A);
-  static const Color onBackgroundDark = Color(0xFFD5D0C8);
 
   // ── Accent ──
   static const Color accentLight = Color(0xFF5B8C5A); // muted sage

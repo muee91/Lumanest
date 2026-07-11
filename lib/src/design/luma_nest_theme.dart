@@ -10,6 +10,7 @@ abstract final class LumaNestTheme {
     colorScheme: const ColorScheme.light(
       primary: LumaNestColors.primaryLight,
       onPrimary: LumaNestColors.onPrimaryLight,
+      secondary: LumaNestColors.accentLight,
       surface: LumaNestColors.surfaceLight,
       onSurface: LumaNestColors.onSurfaceLight,
       error: LumaNestColors.safetyLight,
@@ -23,6 +24,7 @@ abstract final class LumaNestTheme {
     colorScheme: const ColorScheme.dark(
       primary: LumaNestColors.primaryDark,
       onPrimary: LumaNestColors.onPrimaryDark,
+      secondary: LumaNestColors.accentDark,
       surface: LumaNestColors.surfaceDark,
       onSurface: LumaNestColors.onSurfaceDark,
       error: LumaNestColors.safetyDark,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../../../design/luma_nest_colors.dart';
+import 'package:luma_nest/src/design/luma_nest_colors.dart';
 
 /// A static, non-interactive environment color layer.
 ///
@@ -11,9 +10,14 @@ import '../../../design/luma_nest_colors.dart';
 /// The canvas does not intercept pointer events so interactive
 /// content stacked on top remains fully functional.
 class AmbientCanvas extends StatefulWidget {
-  const AmbientCanvas({super.key, this.reduceMotion = false});
+  const AmbientCanvas({
+    super.key,
+    this.reduceMotion = false,
+    this.reduceFlashing = false,
+  });
 
   final bool reduceMotion;
+  final bool reduceFlashing;
 
   @override
   State<AmbientCanvas> createState() => _AmbientCanvasState();
@@ -95,7 +99,13 @@ class _AmbientCanvasState extends State<AmbientCanvas>
         animation: _curvedAnimation!,
         builder: (_, child) {
           final t = _curvedAnimation!.value;
-          final midColor = Color.lerp(topColor, bottomColor, 0.3 + t * 0.4)!;
+          final range = widget.reduceFlashing ? 0.1 : 0.4;
+          final start = widget.reduceFlashing ? 0.45 : 0.3;
+          final midColor = Color.lerp(
+            topColor,
+            bottomColor,
+            start + t * range,
+          )!;
           return Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(

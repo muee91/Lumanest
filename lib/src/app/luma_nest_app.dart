@@ -62,7 +62,10 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot> {
           fit: StackFit.expand,
           children: [
             if (preferences.ambientBackgroundEnabled)
-              AmbientCanvas(reduceMotion: preferences.reduceMotion),
+              AmbientCanvas(
+                reduceMotion: preferences.reduceMotion,
+                reduceFlashing: preferences.reduceFlashing,
+              ),
             ?child,
           ],
         );

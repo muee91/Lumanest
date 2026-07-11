@@ -25,7 +25,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: TodayPage(manifest: manifest)));
 
     expect(find.byKey(const Key('primary-opportunity')), findsOneWidget);
-    expect(find.text('倒影条件改善'), findsWidgets);
+    expect(find.text('倒影条件改善'), findsOneWidget);
   });
 
   testWidgets('safety content is separate from inspiration', (tester) async {

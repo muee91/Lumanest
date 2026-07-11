@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/design/luma_nest_colors.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 
 /// WCAG 2.1 relative luminance.
@@ -53,6 +54,17 @@ void main() {
       expect(
         lightTheme.colorScheme.surface,
         isNot(equals(darkTheme.colorScheme.surface)),
+      );
+    });
+
+    test('maps the LumaNest accent tokens to secondary colors', () {
+      expect(
+        LumaNestTheme.light.colorScheme.secondary,
+        LumaNestColors.accentLight,
+      );
+      expect(
+        LumaNestTheme.dark.colorScheme.secondary,
+        LumaNestColors.accentDark,
       );
     });
 

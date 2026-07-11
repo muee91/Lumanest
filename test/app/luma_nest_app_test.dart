@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/app/luma_nest_app.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
 
 void main() {
   testWidgets('shows the LumaNest brand and five destinations', (tester) async {
@@ -11,5 +12,13 @@ void main() {
     expect(find.text('路线'), findsOneWidget);
     expect(find.text('灵感'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
+  });
+
+  testWidgets('accepts an injected context snapshot', (tester) async {
+    await tester.pumpWidget(
+      LumaNestApp(initialContext: ContextFixtures.lakeSunset()),
+    );
+
+    expect(find.text('倒影条件改善'), findsWidgets);
   });
 }

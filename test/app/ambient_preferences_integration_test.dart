@@ -33,6 +33,19 @@ void main() {
 
     await tester.tap(
       find.ancestor(
+        of: find.text('减少闪烁'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      tester.widget<AmbientCanvas>(find.byType(AmbientCanvas)).reduceFlashing,
+      isTrue,
+    );
+
+    await tester.tap(
+      find.ancestor(
         of: find.text('动态背景'),
         matching: find.byType(SwitchListTile),
       ),

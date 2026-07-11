@@ -63,4 +63,29 @@ void main() {
     );
     expect(manifest.inspirationPreview, isNot(contains('雷暴')));
   });
+
+  test('wildlife opportunities and risks enter separate channels', () {
+    final manifest = ManifestPolicy.build(
+      ContextSnapshot(
+        id: 'wildlife-context',
+        observedAt: DateTime.utc(2026, 7, 11),
+        expiresAt: DateTime.utc(2026, 7, 11, 0, 10),
+        primaryScene: SceneType.hiking,
+        dayPhase: DayPhase.dawn,
+        weather: WeatherType.clear,
+        activeRoute: true,
+        wildlifeEventIds: const ['migratory-birds', 'bear-risk'],
+      ),
+    );
+
+    expect(
+      manifest.creativeItems.map((item) => item.id),
+      contains('migratory-birds'),
+    );
+    expect(manifest.safety.map((item) => item.id), contains('bear-risk'));
+    expect(
+      manifest.creativeItems.map((item) => item.id),
+      isNot(contains('bear-risk')),
+    );
+  });
 }
