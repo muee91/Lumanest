@@ -3,6 +3,9 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 
+export 'package:luma_nest/src/core/location/location_repository.dart'
+    show LocationFailureKind, LocationRepositoryFailure;
+
 enum PlatformLocationPermission { denied, deniedForever, whileInUse, always }
 
 class PlatformPosition {
@@ -29,22 +32,6 @@ abstract interface class LocationPlatformGateway {
   Future<PlatformLocationPermission> requestPermission();
 
   Future<PlatformPosition> getCurrentPosition();
-}
-
-enum LocationFailureKind {
-  serviceDisabled,
-  permissionDenied,
-  permissionDeniedForever,
-  unavailable,
-}
-
-class LocationRepositoryFailure implements Exception {
-  const LocationRepositoryFailure(this.kind);
-
-  final LocationFailureKind kind;
-
-  @override
-  String toString() => 'LocationRepositoryFailure($kind)';
 }
 
 class GeolocatorRepository implements LocationRepository {

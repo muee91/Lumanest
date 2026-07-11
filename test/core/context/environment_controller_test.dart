@@ -13,7 +13,6 @@ import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
-import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart';
 
 void main() {
   late _FakeLocationRepository location;

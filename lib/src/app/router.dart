@@ -1,16 +1,13 @@
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/app_shell.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
 import 'package:luma_nest/src/features/inspiration/presentation/inspiration_page.dart';
 import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
 import 'package:luma_nest/src/features/route/presentation/route_page.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
 
-GoRouter createLumaNestRouter(ContextSnapshot snapshot) {
-  final manifest = ManifestPolicy.build(snapshot);
-
+GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
   return GoRouter(
     initialLocation: '/today',
     routes: [
@@ -24,7 +21,9 @@ GoRouter createLumaNestRouter(ContextSnapshot snapshot) {
               GoRoute(
                 path: '/today',
                 pageBuilder: (context, state) =>
-                    NoTransitionPage(child: TodayPage(manifest: manifest)),
+                    NoTransitionPage(
+                      child: LiveTodayPage(initialSnapshot: initialContext),
+                    ),
               ),
             ],
           ),

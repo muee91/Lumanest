@@ -41,6 +41,7 @@ dependencies:
   path: ^1.9.1
   sqlite3: ^3.3.4
   amap_map: ^1.0.15
+  x_amap_base: ^1.0.3
   geolocator: ^14.0.3
   dio: ^5.10.0
   nrel_spa: ^1.0.1

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/location_repository.dart';
 
 /// Sanitized, user-facing diagnostic category for the environment stack.
 ///
@@ -156,6 +158,10 @@ final environmentDiagnosticStatusProvider =
         return EnvironmentDiagnosticStatus.qweatherConfigMissing;
       }
 
+      if (!ref.watch(environmentConsentProvider)) {
+        return EnvironmentDiagnosticStatus.operational;
+      }
+
       final snapshot = ref.watch(environmentSnapshotProvider);
 
       final snapshotStatus = snapshot.when(
@@ -169,7 +175,7 @@ final environmentDiagnosticStatusProvider =
               EnvironmentFailureKind.configMissing =>
                 EnvironmentDiagnosticStatus.qweatherConfigMissing,
               EnvironmentFailureKind.location =>
-                EnvironmentDiagnosticStatus.locationPermissionDenied,
+                _locationStatus(error.cause),
               EnvironmentFailureKind.weather =>
                 EnvironmentDiagnosticStatus.staleCache,
             };
@@ -185,3 +191,19 @@ final environmentDiagnosticStatusProvider =
 
       return snapshotStatus;
     });
+
+EnvironmentDiagnosticStatus _locationStatus(Object? cause) {
+  if (cause is LocationRepositoryFailure) {
+    return switch (cause.kind) {
+      LocationFailureKind.permissionDenied =>
+        EnvironmentDiagnosticStatus.locationPermissionDenied,
+      LocationFailureKind.permissionDeniedForever =>
+        EnvironmentDiagnosticStatus.locationPermissionDeniedForever,
+      LocationFailureKind.serviceDisabled =>
+        EnvironmentDiagnosticStatus.locationServiceDisabled,
+      LocationFailureKind.unavailable =>
+        EnvironmentDiagnosticStatus.locationPermissionDenied,
+    };
+  }
+  return EnvironmentDiagnosticStatus.locationPermissionDenied;
+}

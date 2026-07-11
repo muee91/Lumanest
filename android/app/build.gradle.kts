@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.muee.lumanest"
-    compileSdk = flutter.compileSdkVersion
+    // `flutter_plugin_android_lifecycle` (used by the map stack) requires
+    // Android API 36 metadata. This does not change runtime target behavior.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

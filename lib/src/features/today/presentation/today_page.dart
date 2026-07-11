@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
@@ -118,6 +120,69 @@ class TodayPage extends StatelessWidget {
       };
     }
     return '数据加载失败';
+  }
+}
+
+/// Runtime entry point for Today. It keeps the privacy choice ahead of the
+/// platform location prompt and only starts the live provider after consent.
+class LiveTodayPage extends ConsumerWidget {
+  const LiveTodayPage({super.key, this.initialSnapshot});
+
+  /// Test and preview-only snapshot injection. Normal runtime leaves this
+  /// null and never substitutes fixture data for live environment data.
+  final ContextSnapshot? initialSnapshot;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (initialSnapshot case final snapshot?) {
+      return TodayPage(snapshotAsync: AsyncData(snapshot));
+    }
+
+    final granted = ref.watch(environmentConsentProvider);
+    if (!granted) {
+      return _EnvironmentConsentPrompt(
+        onGrant: () => ref.read(environmentConsentProvider.notifier).grant(),
+      );
+    }
+
+    final snapshot = ref.watch(environmentSnapshotProvider);
+    return TodayPage(
+      snapshotAsync: snapshot,
+      onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
+    );
+  }
+}
+
+class _EnvironmentConsentPrompt extends StatelessWidget {
+  const _EnvironmentConsentPrompt({required this.onGrant});
+
+  final VoidCallback onGrant;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.explore_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text('从当前位置开始', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              const Text('允许后，栖光会使用当前位置和天气生成此刻的拍摄建议。'),
+              const SizedBox(height: 16),
+              FilledButton(onPressed: onGrant, child: const Text('同意并继续')),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

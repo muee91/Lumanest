@@ -9,12 +9,12 @@ void main() {
     await tester.pumpWidget(const LumaNestApp());
     await tester.pump();
 
-    expect(find.text('探索附近'), findsOneWidget);
+    expect(find.text('从当前位置开始'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
 
     await tester.tap(find.text('探索'));
     await tester.pump();
-    expect(find.text('查看附近'), findsOneWidget);
+    expect(find.text('地图尚未配置'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
 
     await tester.tap(find.text('路线'));
