@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_colors.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
 
 /// A static, non-interactive environment color layer.
 ///
 /// Renders a low-motion layered gradient behind the app content.
-/// When [reduceMotion] is true the canvas is completely static;
-/// otherwise a subtle animation shifts the gradient stops.
+/// When [palette] is provided, its colors replace the default
+/// theme-based ambient stops. When [reduceMotion] is true the
+/// canvas is completely static; otherwise a subtle animation
+/// shifts the gradient stops.
 ///
 /// The canvas does not intercept pointer events so interactive
 /// content stacked on top remains fully functional.
 class AmbientCanvas extends StatefulWidget {
   const AmbientCanvas({
     super.key,
+    this.palette,
     this.reduceMotion = false,
     this.reduceFlashing = false,
   });
 
+  final AmbientPalette? palette;
   final bool reduceMotion;
   final bool reduceFlashing;
 
@@ -76,13 +81,14 @@ class _AmbientCanvasState extends State<AmbientCanvas>
 
   @override
   Widget build(BuildContext context) {
+    final palette = widget.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final topColor = isDark
-        ? LumaNestColors.ambientTopDark
-        : LumaNestColors.ambientTopLight;
-    final bottomColor = isDark
-        ? LumaNestColors.ambientBottomDark
-        : LumaNestColors.ambientBottomLight;
+    final topColor = palette?.topColor ??
+        (isDark ? LumaNestColors.ambientTopDark : LumaNestColors.ambientTopLight);
+    final bottomColor = palette?.bottomColor ??
+        (isDark
+            ? LumaNestColors.ambientBottomDark
+            : LumaNestColors.ambientBottomLight);
 
     Widget gradientLayer = Container(
       decoration: BoxDecoration(

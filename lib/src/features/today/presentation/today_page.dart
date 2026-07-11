@@ -1,17 +1,69 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 class TodayPage extends StatelessWidget {
-  const TodayPage({super.key, required this.manifest});
+  const TodayPage({
+    super.key,
+    required this.snapshotAsync,
+    this.onRetry,
+  });
 
-  final UiManifest manifest;
+  final AsyncValue<ContextSnapshot> snapshotAsync;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
+    return snapshotAsync.when(
+      data: (snapshot) => _buildContent(context, snapshot),
+      loading: () => _buildLoading(),
+      error: (error, _) => _buildError(context, error),
+    );
+  }
+
+  Widget _buildLoading() {
+    return const SafeArea(
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildError(BuildContext context, Object error) {
+    final message = _errorMessage(error);
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
+              const SizedBox(height: 16),
+              Text(message, style: Theme.of(context).textTheme.bodyLarge),
+              if (onRetry != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.tonal(
+                  onPressed: onRetry,
+                  child: const Text('重试'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, ContextSnapshot snapshot) {
+    final manifest = ManifestPolicy.build(snapshot);
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (snapshot.isStale)
+            _StaleLabel(),
           Text('栖光', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 4),
           Text('循光而行，择光而栖。', style: Theme.of(context).textTheme.bodySmall),
@@ -52,6 +104,39 @@ class TodayPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           FilledButton.tonal(onPressed: () {}, child: const Text('探索附近')),
+        ],
+      ),
+    );
+  }
+
+  static String _errorMessage(Object error) {
+    if (error is EnvironmentLoadFailure) {
+      return switch (error.kind) {
+        EnvironmentFailureKind.configMissing => '环境配置未就绪',
+        EnvironmentFailureKind.location => '无法获取位置信息',
+        EnvironmentFailureKind.weather => '天气数据获取失败',
+      };
+    }
+    return '数据加载失败';
+  }
+}
+
+class _StaleLabel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.access_time, size: 14, color: Theme.of(context).colorScheme.tertiary),
+          const SizedBox(width: 4),
+          Text(
+            '数据已过期',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.tertiary,
+            ),
+          ),
         ],
       ),
     );
