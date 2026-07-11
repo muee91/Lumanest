@@ -49,6 +49,49 @@ void main() {
       expect((top.g * 255).round(), greaterThan((top.b * 255).round()));
     });
 
+    test('clear weather dayPhase produces meaningfully different palettes', () {
+      final dawn = resolve(WeatherType.clear, DayPhase.dawn, Brightness.light);
+      final day = resolve(WeatherType.clear, DayPhase.day, Brightness.light);
+      final sunset = resolve(
+        WeatherType.clear,
+        DayPhase.sunset,
+        Brightness.light,
+      );
+      final blueHour = resolve(
+        WeatherType.clear,
+        DayPhase.blueHour,
+        Brightness.light,
+      );
+
+      // Every dayPhase must produce a distinct palette.
+      final palettes = {dawn, day, sunset, blueHour};
+      expect(
+        palettes.length,
+        equals(4),
+        reason:
+            'Expected 4 distinct palettes for dawn/day/sunset/blueHour, '
+            'but dayPhase is being ignored.',
+      );
+
+      // Dawn should lean warmer (more red) than day.
+      expect(
+        (dawn.topColor.r * 255).round(),
+        greaterThan((day.topColor.r * 255).round()),
+      );
+
+      // Sunset should lean warmer (more red) than day.
+      expect(
+        (sunset.topColor.r * 255).round(),
+        greaterThan((day.topColor.r * 255).round()),
+      );
+
+      // BlueHour should lean cooler (more blue) than day.
+      expect(
+        (blueHour.topColor.b * 255).round(),
+        greaterThan((day.topColor.b * 255).round()),
+      );
+    });
+
     test('clear weather nighttime returns dark palette', () {
       final palette = resolve(
         WeatherType.clear,
@@ -68,21 +111,13 @@ void main() {
         DayPhase.day,
         Brightness.light,
       );
-      final clear = resolve(
-        WeatherType.clear,
-        DayPhase.day,
-        Brightness.light,
-      );
+      final clear = resolve(WeatherType.clear, DayPhase.day, Brightness.light);
 
       expect(cloudy, isNot(equals(clear)));
     });
 
     test('rain weather returns cool palette distinct from cloudy', () {
-      final rain = resolve(
-        WeatherType.rain,
-        DayPhase.day,
-        Brightness.light,
-      );
+      final rain = resolve(WeatherType.rain, DayPhase.day, Brightness.light);
       final cloudy = resolve(
         WeatherType.cloudy,
         DayPhase.day,
@@ -92,44 +127,31 @@ void main() {
       expect(rain, isNot(equals(cloudy)));
     });
 
-    test('thunder-like weather (rain at night dark) returns dramatic tones', () {
-      final palette = resolve(
-        WeatherType.rain,
-        DayPhase.night,
-        Brightness.dark,
-      );
+    test(
+      'thunder-like weather (rain at night dark) returns dramatic tones',
+      () {
+        final palette = resolve(
+          WeatherType.rain,
+          DayPhase.night,
+          Brightness.dark,
+        );
 
-      // Dark, cool palette — blue channels prominent in dark mode rain.
-      expect((palette.topColor.r * 255).round(), lessThan(0x40));
-      expect((palette.topColor.g * 255).round(), lessThan(0x40));
-    });
+        // Dark, cool palette — blue channels prominent in dark mode rain.
+        expect((palette.topColor.r * 255).round(), lessThan(0x40));
+        expect((palette.topColor.g * 255).round(), lessThan(0x40));
+      },
+    );
 
     test('snow weather returns ice palette distinct from rain', () {
-      final snow = resolve(
-        WeatherType.snow,
-        DayPhase.day,
-        Brightness.light,
-      );
-      final rain = resolve(
-        WeatherType.rain,
-        DayPhase.day,
-        Brightness.light,
-      );
+      final snow = resolve(WeatherType.snow, DayPhase.day, Brightness.light);
+      final rain = resolve(WeatherType.rain, DayPhase.day, Brightness.light);
 
       expect(snow, isNot(equals(rain)));
     });
 
     test('dust weather returns dusty palette distinct from clear', () {
-      final dust = resolve(
-        WeatherType.dust,
-        DayPhase.day,
-        Brightness.light,
-      );
-      final clear = resolve(
-        WeatherType.clear,
-        DayPhase.day,
-        Brightness.light,
-      );
+      final dust = resolve(WeatherType.dust, DayPhase.day, Brightness.light);
+      final clear = resolve(WeatherType.clear, DayPhase.day, Brightness.light);
 
       expect(dust, isNot(equals(clear)));
     });

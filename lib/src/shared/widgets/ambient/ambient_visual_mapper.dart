@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 
 class AmbientPalette {
-  const AmbientPalette({
-    required this.topColor,
-    required this.bottomColor,
-  });
+  const AmbientPalette({required this.topColor, required this.bottomColor});
 
   final Color topColor;
   final Color bottomColor;
@@ -23,15 +20,36 @@ class AmbientPalette {
 class AmbientVisualMapper {
   const AmbientVisualMapper();
 
+  static const _dayPhaseBlendRatio = 0.15;
+
   AmbientPalette resolve(
     WeatherType weather,
     DayPhase dayPhase,
     Brightness brightness,
   ) {
-    if (brightness == Brightness.dark) {
-      return _darkPalette(weather);
-    }
-    return _lightPalette(weather);
+    final base = brightness == Brightness.dark
+        ? _darkPalette(weather)
+        : _lightPalette(weather);
+    return _applyDayPhase(base, dayPhase);
+  }
+
+  static AmbientPalette _applyDayPhase(AmbientPalette base, DayPhase dayPhase) {
+    final tint = _tintForDayPhase(dayPhase);
+    if (tint == null) return base;
+    return AmbientPalette(
+      topColor: Color.lerp(base.topColor, tint, _dayPhaseBlendRatio)!,
+      bottomColor: Color.lerp(base.bottomColor, tint, _dayPhaseBlendRatio)!,
+    );
+  }
+
+  static Color? _tintForDayPhase(DayPhase dayPhase) {
+    return switch (dayPhase) {
+      DayPhase.dawn => const Color(0xFFFFC080),
+      DayPhase.day => null,
+      DayPhase.sunset => const Color(0xFFFF7043),
+      DayPhase.blueHour => const Color(0xFF8090E0),
+      DayPhase.night => null,
+    };
   }
 
   static AmbientPalette _lightPalette(WeatherType weather) {
