@@ -74,10 +74,7 @@ class _ConsentPrompt extends StatelessWidget {
             const SizedBox(height: LumaNestSpacing.sm),
             const Text('开启地图前需要同意高德地图隐私政策。'),
             const Spacer(),
-            FilledButton(
-              onPressed: onAccept,
-              child: const Text('同意并开启地图'),
-            ),
+            FilledButton(onPressed: onAccept, child: const Text('同意并开启地图')),
           ],
         ),
       ),
@@ -85,17 +82,26 @@ class _ConsentPrompt extends StatelessWidget {
   }
 }
 
-class _MapView extends StatelessWidget {
+class _MapView extends StatefulWidget {
   const _MapView({required this.mapBuilder, required this.onInit});
 
   final MapSurfaceBuilder? mapBuilder;
   final void Function(BuildContext context) onInit;
 
   @override
-  Widget build(BuildContext context) {
-    onInit(context);
+  State<_MapView> createState() => _MapViewState();
+}
 
-    final builder = mapBuilder ?? (() => AMapWidget());
+class _MapViewState extends State<_MapView> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onInit(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final builder = widget.mapBuilder ?? (() => AMapWidget());
     return builder();
   }
 }

@@ -33,31 +33,36 @@ class MapConsentController extends Notifier<MapConsentState> {
   }
 
   void grantConsent() {
+    if (state is MapConsentConfigurationMissing) return;
     if (state is MapConsentReady) return;
 
     final gateway = ref.read(amapInitializerGatewayProvider);
-    gateway.updatePrivacyAgree(const AMapPrivacyStatement(
-      hasContains: true,
-      hasShow: true,
-      hasAgree: true,
-    ));
+    gateway.updatePrivacyAgree(
+      const AMapPrivacyStatement(
+        hasContains: true,
+        hasShow: true,
+        hasAgree: true,
+      ),
+    );
 
     state = const MapConsentReady();
   }
 
   void ensureInitialized(BuildContext context) {
+    if (state is! MapConsentReady) {
+      throw StateError('Cannot initialize map before consent is granted');
+    }
     if (_initialized) return;
     _initialized = true;
 
     final config = ref.read(environmentConfigProvider);
-    ref.read(amapInitializerGatewayProvider).init(
-      context,
-      apiKey: AMapApiKey(androidKey: config.amapAndroidKey),
-    );
+    ref
+        .read(amapInitializerGatewayProvider)
+        .init(context, apiKey: AMapApiKey(androidKey: config.amapAndroidKey));
   }
 }
 
 final mapConsentControllerProvider =
     NotifierProvider<MapConsentController, MapConsentState>(
-  MapConsentController.new,
-);
+      MapConsentController.new,
+    );

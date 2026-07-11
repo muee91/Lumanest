@@ -41,14 +41,16 @@ ProviderContainer createMapTestContainer({
   required String amapKey,
   AmapInitializerGateway? gateway,
 }) {
-  final container = ProviderContainer(overrides: [
-    environmentConfigProvider.overrideWithValue(
-      EnvironmentConfig(amapAndroidKey: amapKey),
-    ),
-    amapInitializerGatewayProvider.overrideWithValue(
-      gateway ?? FakeAmapInitializerGateway(),
-    ),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      environmentConfigProvider.overrideWithValue(
+        EnvironmentConfig(amapAndroidKey: amapKey),
+      ),
+      amapInitializerGatewayProvider.overrideWithValue(
+        gateway ?? FakeAmapInitializerGateway(),
+      ),
+    ],
+  );
   addTearDown(container.dispose);
   return container;
 }

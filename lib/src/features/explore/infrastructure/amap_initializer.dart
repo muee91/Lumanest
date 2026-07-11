@@ -28,7 +28,3 @@ final amapInitializerGatewayProvider = Provider<AmapInitializerGateway>((ref) {
 });
 
 typedef MapSurfaceBuilder = Widget Function();
-
-final mapSurfaceBuilderProvider = Provider<MapSurfaceBuilder>((ref) {
-  return () => const AMapWidget();
-});

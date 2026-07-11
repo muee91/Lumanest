@@ -77,26 +77,58 @@ void main() {
     );
 
     container.read(mapConsentControllerProvider.notifier).grantConsent();
-    container.read(mapConsentControllerProvider.notifier).ensureInitialized(
-      FakeBuildContext(),
-    );
+    container
+        .read(mapConsentControllerProvider.notifier)
+        .ensureInitialized(FakeBuildContext());
 
     expect(gateway.lastApiKey?.androidKey, 'config-key-123');
   });
 
-  test('init is called after privacy agree when flow is triggered correctly', () {
+  test(
+    'init is called after privacy agree when flow is triggered correctly',
+    () {
+      final gateway = FakeAmapInitializerGateway();
+      final container = createMapTestContainer(
+        amapKey: 'test-key',
+        gateway: gateway,
+      );
+
+      container.read(mapConsentControllerProvider.notifier).grantConsent();
+      container
+          .read(mapConsentControllerProvider.notifier)
+          .ensureInitialized(FakeBuildContext());
+
+      expect(gateway.privacyCallIndex, lessThan(gateway.initCallIndex));
+      expect(gateway.initialized, isTrue);
+    },
+  );
+
+  test('grantConsent when config is missing does not enter ready', () {
+    final gateway = FakeAmapInitializerGateway();
+    final container = createMapTestContainer(amapKey: '', gateway: gateway);
+
+    container.read(mapConsentControllerProvider.notifier).grantConsent();
+
+    expect(gateway.privacyAgreed, isFalse);
+    expect(
+      container.read(mapConsentControllerProvider),
+      isA<MapConsentConfigurationMissing>(),
+    );
+  });
+
+  test('ensureInitialized when not in ready state throws', () {
     final gateway = FakeAmapInitializerGateway();
     final container = createMapTestContainer(
       amapKey: 'test-key',
       gateway: gateway,
     );
 
-    container.read(mapConsentControllerProvider.notifier).grantConsent();
-    container.read(mapConsentControllerProvider.notifier).ensureInitialized(
-      FakeBuildContext(),
+    expect(
+      () => container
+          .read(mapConsentControllerProvider.notifier)
+          .ensureInitialized(FakeBuildContext()),
+      throwsA(isA<StateError>()),
     );
-
-    expect(gateway.privacyCallIndex, lessThan(gateway.initCallIndex));
-    expect(gateway.initialized, isTrue);
+    expect(gateway.initialized, isFalse);
   });
 }

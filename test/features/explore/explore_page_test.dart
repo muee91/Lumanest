@@ -26,10 +26,8 @@ Widget wrapExplorePage({
   );
 }
 
-Widget fakeMapSurface() => const SizedBox(
-      key: Key('map-surface'),
-      child: Text('map-placeholder'),
-    );
+Widget fakeMapSurface() =>
+    const SizedBox(key: Key('map-surface'), child: Text('map-placeholder'));
 
 void main() {
   testWidgets('missing key shows configuration state, not map widget', (
@@ -102,5 +100,36 @@ void main() {
     await tester.pump();
 
     expect(find.text('同意并开启地图'), findsNothing);
+  });
+
+  testWidgets('map init is invoked once, not re-fired on rebuild', (
+    tester,
+  ) async {
+    final gateway = FakeAmapInitializerGateway();
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        gateway: gateway,
+        mapBuilder: fakeMapSurface,
+      ),
+    );
+
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+
+    expect(gateway.initialized, isTrue);
+
+    // Simulate a parent rebuild that keeps MapConsentReady state
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        gateway: gateway,
+        mapBuilder: fakeMapSurface,
+      ),
+    );
+    await tester.pump();
+
+    // With StatefulWidget+initState, init is not re-called during rebuild
+    expect(gateway.initialized, isTrue);
   });
 }
