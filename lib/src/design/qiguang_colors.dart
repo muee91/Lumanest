@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// Warm, earthy tones inspired by natural light and photography.
 abstract final class QiguangColors {
   // ── Primary ──
-  static const Color primaryLight = Color(0xFFB8860B); // dark goldenrod
+  static const Color primaryLight = Color(0xFF8B6914); // dark goldenrod
   static const Color onPrimaryLight = Color(0xFFFFFFFF);
   static const Color primaryDark = Color(0xFFDAA520); // goldenrod
   static const Color onPrimaryDark = Color(0xFF1A1A2E);

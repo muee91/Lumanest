@@ -3,13 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qiguang/src/shared/widgets/ambient/ambient_canvas.dart';
 
 void main() {
-  testWidgets('renders a static non-interactive environment color layer', (tester) async {
+  testWidgets('renders a static non-interactive environment color layer', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: AmbientCanvas(),
-        ),
-      ),
+      const MaterialApp(home: Scaffold(body: AmbientCanvas())),
     );
 
     expect(find.byType(AmbientCanvas), findsOneWidget);
@@ -38,36 +36,60 @@ void main() {
     expect(tapped, isTrue);
   });
 
-  testWidgets('reduceMotion true produces no continuously ticking animation', (tester) async {
+  testWidgets('reduceMotion true produces no continuously ticking animation', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: AmbientCanvas(reduceMotion: true),
-        ),
+        home: Scaffold(body: AmbientCanvas(reduceMotion: true)),
       ),
     );
 
-    final ambientFinder = find.byType(AmbientCanvas);
-    expect(ambientFinder, findsOneWidget);
+    expect(find.byType(AmbientCanvas), findsOneWidget);
 
-    final element = tester.element(ambientFinder);
-    final initialHash = element.hashCode;
-
+    // Pump several frames — with reduceMotion: true, no animation
+    // controller exists, so the widget tree should not tick.
+    final callbackCount = tester.binding.transientCallbackCount;
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(seconds: 2));
 
-    // With reduceMotion true, the widget should not rebuild due to animation
-    expect(element.hashCode, initialHash);
+    // transientCallbackCount should not have grown from a new ticker.
+    expect(tester.binding.transientCallbackCount, callbackCount);
   });
 
-  testWidgets('ambient canvas fills available space', (tester) async {
+  testWidgets('runtime reduceMotion toggle stops and starts animation', (
+    tester,
+  ) async {
+    // Start with animation enabled.
     await tester.pumpWidget(
       const MaterialApp(
-        home: AmbientCanvas(),
+        home: Scaffold(body: AmbientCanvas(reduceMotion: false)),
       ),
     );
 
-    final canvas = tester.widget<AmbientCanvas>(find.byType(AmbientCanvas));
-    expect(canvas, isNotNull);
+    // With reduceMotion false, an AnimationController is active.
+    expect(tester.binding.transientCallbackCount, greaterThan(0));
+    final initialCount = tester.binding.transientCallbackCount;
+
+    // Toggle reduceMotion to true — animation should stop.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: AmbientCanvas(reduceMotion: true)),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.binding.transientCallbackCount, lessThan(initialCount));
+
+    // Toggle reduceMotion back to false — animation should restart.
+    final stoppedCount = tester.binding.transientCallbackCount;
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: AmbientCanvas(reduceMotion: false)),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.binding.transientCallbackCount, greaterThan(stoppedCount));
   });
 }

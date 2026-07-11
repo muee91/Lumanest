@@ -20,30 +20,54 @@ class AmbientCanvas extends StatefulWidget {
 }
 
 class _AmbientCanvasState extends State<AmbientCanvas>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController? _controller;
-  late final Animation<double>? _animation;
+    with TickerProviderStateMixin {
+  AnimationController? _controller;
+  CurvedAnimation? _curvedAnimation;
+
+  void _startAnimation() {
+    _stopAnimation();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    )..repeat(reverse: true);
+    _curvedAnimation = CurvedAnimation(
+      parent: _controller!,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _stopAnimation() {
+    _controller?.stop();
+    _controller?.dispose();
+    _curvedAnimation?.dispose();
+    _controller = null;
+    _curvedAnimation = null;
+  }
 
   @override
   void initState() {
     super.initState();
-    if (widget.reduceMotion) {
-      _controller = null;
-      _animation = null;
-    } else {
-      _controller = AnimationController(
-        duration: const Duration(seconds: 20),
-        vsync: this,
-      )..repeat(reverse: true);
-      _animation = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _controller!, curve: Curves.easeInOut),
-      );
+    if (!widget.reduceMotion) {
+      _startAnimation();
     }
   }
 
   @override
+  void didUpdateWidget(AmbientCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reduceMotion == oldWidget.reduceMotion) return;
+
+    if (widget.reduceMotion) {
+      _stopAnimation();
+    } else {
+      _startAnimation();
+    }
+    setState(() {});
+  }
+
+  @override
   void dispose() {
-    _controller?.dispose();
+    _stopAnimation();
     super.dispose();
   }
 
@@ -67,11 +91,11 @@ class _AmbientCanvasState extends State<AmbientCanvas>
       ),
     );
 
-    if (_animation != null) {
+    if (_curvedAnimation != null) {
       gradientLayer = AnimatedBuilder(
-        animation: _animation,
+        animation: _curvedAnimation!,
         builder: (_, child) {
-          final t = _animation.value;
+          final t = _curvedAnimation!.value;
           final midColor = Color.lerp(topColor, bottomColor, 0.3 + t * 0.4)!;
           return Container(
             decoration: BoxDecoration(
@@ -87,10 +111,6 @@ class _AmbientCanvasState extends State<AmbientCanvas>
       );
     }
 
-    return SizedBox.expand(
-      child: IgnorePointer(
-        child: gradientLayer,
-      ),
-    );
+    return SizedBox.expand(child: IgnorePointer(child: gradientLayer));
   }
 }
