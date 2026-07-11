@@ -33,7 +33,8 @@ final weatherRepositoryProvider = Provider<WeatherRepository>((ref) {
   return QWeatherRepository(
     QWeatherClient(
       apiHost: config.qweatherApiHost,
-      apiKey: config.qweatherApiKey,
+      tokenEndpoint: config.qweatherTokenEndpoint,
+      serviceToken: config.lumaNestServiceToken,
       transport: DioQWeatherTransport(dio),
     ),
   );

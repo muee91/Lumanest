@@ -66,11 +66,12 @@ App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私�
   "QWEATHER_API_HOST": "https://你的项目.qweatherapi.com",
   "QWEATHER_KEY_ID": "你的和风天气凭据 ID",
   "QWEATHER_PROJECT_ID": "你的和风天气项目 ID",
-  "QWEATHER_TOKEN_ENDPOINT": "https://你的服务域名/api/qweather/token"
+  "QWEATHER_TOKEN_ENDPOINT": "https://你的服务域名/v1/qweather/token",
+  "LUMANEST_SERVICE_TOKEN": "NAS JWT 服务的访问令牌"
 }
 ```
 
-Ed25519 私钥是唯一例外：它必须独立保存在 `.secrets/qweather/ed25519-private.pem`，不能写入 JSON。`.secrets/` 已被 Git 忽略。启动方式：
+`QWEATHER_KEY_ID`、`QWEATHER_PROJECT_ID` 和 Ed25519 私钥仅用于 NAS 上的 JWT 服务；Flutter 只读取 API Host、JWT 端点和服务访问令牌。私钥必须独立保存在 `.secrets/qweather/ed25519-private.pem`，不能写入 JSON。`.secrets/` 已被 Git 忽略。启动方式：
 
 ```bash
 flutter run --dart-define-from-file=.secrets/environment.debug.json

@@ -10,16 +10,18 @@ void main() {
 
   setUp(() {
     transport = _FakeTransport();
+    transport.postResponse = {'token': 'header.payload.signature'};
     repository = QWeatherRepository(
       QWeatherClient(
         apiHost: 'https://weather.example.com',
-        apiKey: 'secret-key',
+        tokenEndpoint: 'https://broker.example.com/v1/qweather/token',
+        serviceToken: 'broker-secret',
         transport: transport,
       ),
     );
   });
 
-  test('requests current weather with coordinate and header', () async {
+  test('requests a broker JWT then uses it for the weather request', () async {
     transport.response = _successBody();
 
     await repository.fetchCurrent(
@@ -29,7 +31,9 @@ void main() {
     expect(transport.path, '/v7/weather/now');
     expect(transport.baseUrl, 'https://weather.example.com');
     expect(transport.query, {'location': '121.4737,31.2304'});
-    expect(transport.headers, {'X-QW-Api-Key': 'secret-key'});
+    expect(transport.postBaseUrl, 'https://broker.example.com/v1/qweather/token');
+    expect(transport.postHeaders, {'Authorization': 'Bearer broker-secret'});
+    expect(transport.headers, {'Authorization': 'Bearer header.payload.signature'});
   });
 
   test('parses QWeather units and optional fields', () async {
@@ -118,6 +122,9 @@ Map<String, Object?> _successBody() {
 class _FakeTransport implements QWeatherTransport {
   Map<String, Object?>? response;
   QWeatherTransportException? error;
+  Map<String, Object?>? postResponse;
+  String? postBaseUrl;
+  Map<String, String>? postHeaders;
   String? path;
   String? baseUrl;
   Map<String, String>? query;
@@ -136,5 +143,17 @@ class _FakeTransport implements QWeatherTransport {
     this.headers = headers;
     if (error case final error?) throw error;
     return response!;
+  }
+
+  @override
+  Future<Map<String, Object?>> post(
+    String path, {
+    required String baseUrl,
+    required Map<String, String> headers,
+  }) async {
+    postBaseUrl = '$baseUrl$path';
+    postHeaders = headers;
+    if (error case final error?) throw error;
+    return postResponse!;
   }
 }

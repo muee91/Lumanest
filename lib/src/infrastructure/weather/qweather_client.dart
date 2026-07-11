@@ -22,6 +22,12 @@ abstract interface class QWeatherTransport {
     required Map<String, String> query,
     required Map<String, String> headers,
   });
+
+  Future<Map<String, Object?>> post(
+    String path, {
+    required String baseUrl,
+    required Map<String, String> headers,
+  });
 }
 
 class DioQWeatherTransport implements QWeatherTransport {
@@ -54,30 +60,70 @@ class DioQWeatherTransport implements QWeatherTransport {
       throw const QWeatherTransportException.network();
     }
   }
+
+  @override
+  Future<Map<String, Object?>> post(
+    String path, {
+    required String baseUrl,
+    required Map<String, String> headers,
+  }) async {
+    try {
+      final response = await _dio.post<Object?>(
+        '$baseUrl$path',
+        options: Options(headers: headers),
+      );
+      final data = response.data;
+      if (data is! Map) return const {};
+      return Map<String, Object?>.from(data);
+    } on DioException catch (error) {
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.receiveTimeout) {
+        throw const QWeatherTransportException.timeout();
+      }
+      throw const QWeatherTransportException.network();
+    }
+  }
 }
 
 class QWeatherClient {
   factory QWeatherClient({
     required String apiHost,
-    required String apiKey,
+    required String tokenEndpoint,
+    required String serviceToken,
     required QWeatherTransport transport,
   }) {
-    return QWeatherClient._(apiHost, apiKey, transport);
+    return QWeatherClient._(apiHost, tokenEndpoint, serviceToken, transport);
   }
 
-  const QWeatherClient._(this._apiHost, this._apiKey, this._transport);
+  const QWeatherClient._(
+    this._apiHost,
+    this._tokenEndpoint,
+    this._serviceToken,
+    this._transport,
+  );
 
   final String _apiHost;
-  final String _apiKey;
+  final String _tokenEndpoint;
+  final String _serviceToken;
   final QWeatherTransport _transport;
 
-  Future<Map<String, Object?>> fetchCurrent(GeoPoint point) {
+  Future<Map<String, Object?>> fetchCurrent(GeoPoint point) async {
     point.validate();
+    final brokerResponse = await _transport.post(
+      '',
+      baseUrl: _tokenEndpoint,
+      headers: {'Authorization': 'Bearer $_serviceToken'},
+    );
+    final token = brokerResponse['token'];
+    if (token is! String || token.split('.').length != 3) {
+      throw const QWeatherTransportException.network();
+    }
     return _transport.get(
       '/v7/weather/now',
       baseUrl: _apiHost,
       query: {'location': '${point.longitude},${point.latitude}'},
-      headers: {'X-QW-Api-Key': _apiKey},
+      headers: {'Authorization': 'Bearer $token'},
     );
   }
 }

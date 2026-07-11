@@ -284,11 +284,13 @@ void main() {
     (tester) async {
       const sensitiveTokens = <String>[
         'AMAP_ANDROID_KEY',
-        'QWEATHER_API_KEY',
         'QWEATHER_API_HOST',
+        'QWEATHER_TOKEN_ENDPOINT',
+        'LUMANEST_SERVICE_TOKEN',
         'amapAndroidKey',
-        'qweatherApiKey',
         'qweatherApiHost',
+        'qweatherTokenEndpoint',
+        'lumaNestServiceToken',
       ];
 
       for (final status in EnvironmentDiagnosticStatus.values) {

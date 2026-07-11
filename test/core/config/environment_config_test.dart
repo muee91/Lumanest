@@ -13,12 +13,14 @@ void main() {
     final config = EnvironmentConfig(
       amapAndroidKey: '  amap-secret  ',
       qweatherApiHost: ' https://example.qweatherapi.com/// ',
-      qweatherApiKey: '  weather-secret ',
+      qweatherTokenEndpoint: ' https://weather.example.com/v1/qweather/token/// ',
+      lumaNestServiceToken: '  broker-secret ',
     );
 
     expect(config.amapAndroidKey, 'amap-secret');
     expect(config.qweatherApiHost, 'https://example.qweatherapi.com');
-    expect(config.qweatherApiKey, 'weather-secret');
+    expect(config.qweatherTokenEndpoint, 'https://weather.example.com/v1/qweather/token');
+    expect(config.lumaNestServiceToken, 'broker-secret');
     expect(config.isAmapConfigured, isTrue);
     expect(config.isQWeatherConfigured, isTrue);
   });
@@ -27,10 +29,11 @@ void main() {
     final config = EnvironmentConfig(
       amapAndroidKey: 'amap-secret',
       qweatherApiHost: 'https://example.qweatherapi.com',
-      qweatherApiKey: 'weather-secret',
+      qweatherTokenEndpoint: 'https://weather.example.com/v1/qweather/token',
+      lumaNestServiceToken: 'broker-secret',
     );
 
     expect(config.toString(), isNot(contains('amap-secret')));
-    expect(config.toString(), isNot(contains('weather-secret')));
+    expect(config.toString(), isNot(contains('broker-secret')));
   });
 }

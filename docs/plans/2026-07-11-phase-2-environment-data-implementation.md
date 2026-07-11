@@ -14,7 +14,7 @@
 
 - `AMAP_ANDROID_KEY`: injected with `--dart-define`; never committed.
 - `QWEATHER_API_HOST`: the per-project API Host from QWeather Console; injected with `--dart-define`.
-- `QWEATHER_API_KEY`: sent in `X-QW-Api-Key`; injected with `--dart-define`; never logged or committed.
+- `QWEATHER_TOKEN_ENDPOINT` and `LUMANEST_SERVICE_TOKEN`: injected with `--dart-define`; used only to obtain a short-lived JWT from the NAS broker; never logged or committed.
 - Missing configuration is a typed `EnvironmentConfigMissing` state, not a crash.
 - AMap SDK is not initialized until the user accepts the AMap/privacy disclosure.
 - Current user permission and privacy consent are distinct: privacy consent first, OS location permission second.
@@ -87,9 +87,9 @@ flutter analyze
 - Create: `lib/src/infrastructure/weather/qweather_repository.dart`
 - Test: `test/infrastructure/weather/qweather_repository_test.dart`
 
-**RED:** With Dio `MockAdapter` or a minimal fake transport, verify request path `/v7/weather/now`, `location=longitude,latitude`, `X-QW-Api-Key` header, successful parsing, API-code failure, malformed body and timeout mapping.
+**RED:** With Dio `MockAdapter` or a minimal fake transport, verify broker JWT request, weather request path `/v7/weather/now`, `location=longitude,latitude`, `Authorization: Bearer` header, successful parsing, API-code failure, malformed body and timeout mapping.
 
-**GREEN:** Never log headers or complete request URLs. Map QWeather `now` fields to `WeatherObservation`; missing cloud/gust fields remain null. Throw typed repository failures carrying safe user-readable categories, not raw credentials or response bodies.
+**GREEN:** Never log headers or complete request URLs. Obtain a short-lived JWT from the NAS broker before calling QWeather, then map QWeather `now` fields to `WeatherObservation`; missing cloud/gust fields remain null. Throw typed repository failures carrying safe user-readable categories, not raw credentials or response bodies.
 
 **Verify:** `flutter test test/infrastructure/weather`
 
@@ -213,4 +213,3 @@ flutter build apk --debug
 - AMap is never initialized before explicit privacy consent.
 - Today and ambient visuals respond to real weather/solar data without introducing empty placeholders.
 - Android APK builds without keys and can perform live verification when keys are injected.
-
