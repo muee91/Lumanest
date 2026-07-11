@@ -36,7 +36,9 @@ void main() {
       expect(find.textContaining('缓存'), findsNothing);
     });
 
-    testWidgets('shows concise message for missing AMap config', (tester) async {
+    testWidgets('shows concise message for missing AMap config', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: EnvironmentDiagnostics(
@@ -198,25 +200,24 @@ void main() {
       },
     );
 
-    testWidgets(
-      'does not render an action button when the callback is null',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: EnvironmentDiagnostics(
-              status: EnvironmentDiagnosticStatus.staleCache,
-              actions: const EnvironmentDiagnosticsActions(),
-            ),
+    testWidgets('does not render an action button when the callback is null', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EnvironmentDiagnostics(
+            status: EnvironmentDiagnosticStatus.staleCache,
+            actions: const EnvironmentDiagnosticsActions(),
           ),
-        );
+        ),
+      );
 
-        expect(find.textContaining('缓存'), findsOneWidget);
-        expect(
-          find.text('重试'),
-          findsNothing,
-          reason: 'no retry button should render without a callback',
-        );
-      },
-    );
+      expect(find.textContaining('缓存'), findsOneWidget);
+      expect(
+        find.text('重试'),
+        findsNothing,
+        reason: 'no retry button should render without a callback',
+      );
+    });
   });
 }

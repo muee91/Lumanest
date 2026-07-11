@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/context/environment_providers.dart';
 import '../application/profile_preferences_controller.dart';
 import 'environment_diagnostics.dart';
 
@@ -12,9 +11,22 @@ import 'environment_diagnostics.dart';
 /// groups or placeholder counts are rendered.
 ///
 /// Environment diagnostics appear only when a problem or stale fallback
-/// exists; a healthy system reserves no space.
+/// exists; a healthy system reserves no space. Recovery action callbacks are
+/// injected via [actions]; when left at the default empty value, no action
+/// buttons render — a clickable button with no effect is worse than no button.
+/// Wiring real callbacks (navigation, platform invocation) is the caller's
+/// responsibility.
 class ProfilePage extends ConsumerWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({
+    super.key,
+    this.actions = const EnvironmentDiagnosticsActions(),
+  });
+
+  /// Recovery action callbacks forwarded to [EnvironmentDiagnostics].
+  ///
+  /// Defaults to an empty [EnvironmentDiagnosticsActions] so the production
+  /// page renders no action buttons until the caller wires real handlers.
+  final EnvironmentDiagnosticsActions actions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,15 +38,7 @@ class ProfilePage extends ConsumerWidget {
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
         children: [
-          EnvironmentDiagnostics(
-            status: diagnosticStatus,
-            actions: EnvironmentDiagnosticsActions(
-              onRetry: () =>
-                  ref.read(environmentSnapshotProvider.notifier).refresh(),
-              onOpenLocationSettings: () {},
-              onOpenPrivacyConsent: () {},
-            ),
-          ),
+          EnvironmentDiagnostics(status: diagnosticStatus, actions: actions),
           SwitchListTile(
             title: const Text('动态背景'),
             value: preferences.ambientBackgroundEnabled,
