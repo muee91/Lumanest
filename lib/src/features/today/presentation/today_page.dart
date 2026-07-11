@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:qiguang/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 class TodayPage extends StatelessWidget {
   const TodayPage({super.key, required this.manifest});

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../design/qiguang_colors.dart';
+import '../../../design/luma_nest_colors.dart';
 
 /// A static, non-interactive environment color layer.
 ///
@@ -38,8 +38,8 @@ class _AmbientCanvasState extends State<AmbientCanvas>
 
   void _stopAnimation() {
     _controller?.stop();
-    _controller?.dispose();
     _curvedAnimation?.dispose();
+    _controller?.dispose();
     _controller = null;
     _curvedAnimation = null;
   }
@@ -62,7 +62,6 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     } else {
       _startAnimation();
     }
-    setState(() {});
   }
 
   @override
@@ -75,11 +74,11 @@ class _AmbientCanvasState extends State<AmbientCanvas>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final topColor = isDark
-        ? QiguangColors.ambientTopDark
-        : QiguangColors.ambientTopLight;
+        ? LumaNestColors.ambientTopDark
+        : LumaNestColors.ambientTopLight;
     final bottomColor = isDark
-        ? QiguangColors.ambientBottomDark
-        : QiguangColors.ambientBottomLight;
+        ? LumaNestColors.ambientBottomDark
+        : LumaNestColors.ambientBottomLight;
 
     Widget gradientLayer = Container(
       decoration: BoxDecoration(

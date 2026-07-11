@@ -1,5 +1,5 @@
-import 'package:qiguang/src/core/context/context_snapshot.dart';
-import 'package:qiguang/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 abstract final class ManifestPolicy {
   static UiManifest build(ContextSnapshot snapshot) {

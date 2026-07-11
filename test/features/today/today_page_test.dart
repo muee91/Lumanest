@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/core/context/context_fixture.dart';
-import 'package:qiguang/src/core/context/context_snapshot.dart';
-import 'package:qiguang/src/core/manifest/manifest_policy.dart';
-import 'package:qiguang/src/features/today/presentation/today_page.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
+import 'package:luma_nest/src/features/today/presentation/today_page.dart';
 
 void main() {
   testWidgets('quiet context renders no opportunity placeholder', (

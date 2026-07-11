@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/core/context/context_fixture.dart';
-import 'package:qiguang/src/core/context/context_snapshot.dart';
-import 'package:qiguang/src/core/manifest/manifest_policy.dart';
-import 'package:qiguang/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 void main() {
   test('quiet city emits no dynamic opportunity placeholders', () {

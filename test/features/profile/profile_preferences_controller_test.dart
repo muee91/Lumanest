@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/features/profile/application/profile_preferences_controller.dart';
-import 'package:qiguang/src/features/profile/domain/profile_preferences.dart';
+import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
 
 void main() {
   late ProviderContainer container;

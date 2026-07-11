@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/features/profile/presentation/profile_page.dart';
+import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
 
 void main() {
   testWidgets(

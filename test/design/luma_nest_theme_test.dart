@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/design/qiguang_theme.dart';
+import 'package:luma_nest/src/design/luma_nest_theme.dart';
 
 /// WCAG 2.1 relative luminance.
 double _relativeLuminance(Color color) {
@@ -27,24 +27,24 @@ double _contrastRatio(Color a, Color b) {
 }
 
 void main() {
-  group('QiguangTheme', () {
+  group('LumaNestTheme', () {
     test('light theme exposes readable color scheme', () {
-      final theme = QiguangTheme.light;
+      final theme = LumaNestTheme.light;
 
       expect(theme.colorScheme, isNotNull);
       expect(theme.brightness, Brightness.light);
     });
 
     test('dark theme exposes readable color scheme', () {
-      final theme = QiguangTheme.dark;
+      final theme = LumaNestTheme.dark;
 
       expect(theme.colorScheme, isNotNull);
       expect(theme.brightness, Brightness.dark);
     });
 
     test('light and dark themes produce different color schemes', () {
-      final lightTheme = QiguangTheme.light;
-      final darkTheme = QiguangTheme.dark;
+      final lightTheme = LumaNestTheme.light;
+      final darkTheme = LumaNestTheme.dark;
 
       expect(
         lightTheme.colorScheme.primary,
@@ -58,7 +58,7 @@ void main() {
 
     group('WCAG contrast', () {
       test('light primary/onPrimary contrast ≥ 4.5:1', () {
-        final theme = QiguangTheme.light;
+        final theme = LumaNestTheme.light;
         final ratio = _contrastRatio(
           theme.colorScheme.primary,
           theme.colorScheme.onPrimary,
@@ -67,7 +67,7 @@ void main() {
       });
 
       test('dark primary/onPrimary contrast ≥ 4.5:1', () {
-        final theme = QiguangTheme.dark;
+        final theme = LumaNestTheme.dark;
         final ratio = _contrastRatio(
           theme.colorScheme.primary,
           theme.colorScheme.onPrimary,

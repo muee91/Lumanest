@@ -29,10 +29,10 @@
 Generated boilerplate is the explicit TDD exception. Run:
 
 ```bash
-flutter create --project-name qiguang --org com.muee --platforms android,ios .
+flutter create --project-name luma_nest --org com.muee --platforms android,ios .
 ```
 
-Expected: Android application id is `com.muee.qiguang`; existing `docs/` remains intact.
+Expected: Android application id is `com.muee.lumanest`; existing `docs/` remains intact.
 
 **Step 2: Add foundation dependencies**
 
@@ -56,26 +56,26 @@ Expected: both commands pass before custom code starts.
 
 ```bash
 git add .
-git commit -m "build: scaffold qiguang flutter app"
+git commit -m "build: scaffold luma_nest flutter app"
 ```
 
 ## Task 2: Establish brand identity and app entry point
 
 **Files:**
-- Create: `lib/src/app/qiguang_app.dart`
+- Create: `lib/src/app/luma_nest_app.dart`
 - Modify: `lib/main.dart`
 - Modify: `android/app/src/main/AndroidManifest.xml`
-- Test: `test/app/qiguang_app_test.dart`
+- Test: `test/app/luma_nest_app_test.dart`
 
 **Step 1: Write the failing widget test**
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/app/qiguang_app.dart';
+import 'package:luma_nest/src/app/luma_nest_app.dart';
 
 void main() {
-  testWidgets('shows the Qiguang brand and five destinations', (tester) async {
-    await tester.pumpWidget(const QiguangApp());
+  testWidgets('shows the LumaNest brand and five destinations', (tester) async {
+    await tester.pumpWidget(const LumaNestApp());
 
     expect(find.text('栖光'), findsOneWidget);
     expect(find.text('今日'), findsOneWidget);
@@ -90,10 +90,10 @@ void main() {
 **Step 2: Verify RED**
 
 ```bash
-flutter test test/app/qiguang_app_test.dart
+flutter test test/app/luma_nest_app_test.dart
 ```
 
-Expected: FAIL because `QiguangApp` does not exist.
+Expected: FAIL because `LumaNestApp` does not exist.
 
 **Step 3: Implement the minimum app shell**
 
@@ -102,7 +102,7 @@ Create a temporary `MaterialApp` with an `AppBar(title: Text('栖光'))` and a f
 **Step 4: Verify GREEN**
 
 ```bash
-flutter test test/app/qiguang_app_test.dart
+flutter test test/app/luma_nest_app_test.dart
 flutter test
 ```
 
@@ -112,7 +112,7 @@ Expected: PASS.
 
 ```bash
 git add lib android/app/src/main/AndroidManifest.xml test/app
-git commit -m "feat: add qiguang app identity and navigation shell"
+git commit -m "feat: add luma_nest app identity and navigation shell"
 ```
 
 ## Task 3: Define the context domain and deterministic fixtures
@@ -197,11 +197,11 @@ git commit -m "feat: add context driven ui manifest policy"
 ## Task 5: Build the design foundation and ambient baseline — Qoder CLI CN
 
 **Files:**
-- Create: `lib/src/design/qiguang_colors.dart`
-- Create: `lib/src/design/qiguang_spacing.dart`
-- Create: `lib/src/design/qiguang_theme.dart`
+- Create: `lib/src/design/luma_nest_colors.dart`
+- Create: `lib/src/design/luma_nest_spacing.dart`
+- Create: `lib/src/design/luma_nest_theme.dart`
 - Create: `lib/src/shared/widgets/ambient/ambient_canvas.dart`
-- Test: `test/design/qiguang_theme_test.dart`
+- Test: `test/design/luma_nest_theme_test.dart`
 - Test: `test/shared/widgets/ambient/ambient_canvas_test.dart`
 
 **Step 1: Write failing tests**
@@ -228,7 +228,7 @@ Expected: PASS.
 
 ```bash
 git add lib/src/design lib/src/shared/widgets/ambient test/design test/shared/widgets/ambient
-git commit -m "feat: add qiguang design foundation"
+git commit -m "feat: add luma_nest design foundation"
 ```
 
 ## Task 6: Build local profile preferences — CodeBuddy
@@ -276,7 +276,7 @@ git commit -m "feat: add local accessibility preferences"
 - Create: `lib/src/features/explore/presentation/explore_page.dart`
 - Create: `lib/src/features/route/presentation/route_page.dart`
 - Create: `lib/src/features/inspiration/presentation/inspiration_page.dart`
-- Modify: `lib/src/app/qiguang_app.dart`
+- Modify: `lib/src/app/luma_nest_app.dart`
 - Test: `test/app/navigation_test.dart`
 - Test: `test/features/today/today_page_test.dart`
 
@@ -360,7 +360,7 @@ git commit -m "test: verify phase one foundation"
 
 ## Phase 1 acceptance criteria
 
-- Android debug APK builds with display name `栖光` and application id `com.muee.qiguang`.
+- Android debug APK builds with display name `栖光` and application id `com.muee.lumanest`.
 - Five navigation destinations work and preserve shell state.
 - Context fixtures deterministically produce UI manifests.
 - Dynamic opportunity slots disappear without placeholder height when empty.

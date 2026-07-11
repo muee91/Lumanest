@@ -1,17 +1,21 @@
-# qiguang
+# LumaNest
 
-A new Flutter project.
+栖光——循光而行，择光而栖。
 
-## Getting Started
+An environment-aware photography companion for landscape, outdoor, and
+humanity-focused exploration.
 
-This project is a starting point for a Flutter application.
+## Current milestone
 
-A few resources to get you started if this is your first Flutter project:
+- Android-first Flutter foundation with iOS-compatible structure.
+- Context snapshots drive a no-placeholder UI manifest.
+- Five persistent destinations: Today, Explore, Route, Inspiration, Profile.
+- Low-motion ambient canvas with accessibility controls.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Verify
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter analyze
+flutter test
+flutter build apk --debug
+```

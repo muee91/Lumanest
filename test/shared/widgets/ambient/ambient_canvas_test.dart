@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/shared/widgets/ambient/ambient_canvas.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 
 void main() {
   testWidgets('renders a static non-interactive environment color layer', (

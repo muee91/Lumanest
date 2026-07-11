@@ -1,5 +1,5 @@
-/// Spatial rhythm tokens for the Qiguang design system.
-abstract final class QiguangSpacing {
+/// Spatial rhythm tokens for the LumaNest design system.
+abstract final class LumaNestSpacing {
   /// 4 px
   static const double xxs = 4;
 

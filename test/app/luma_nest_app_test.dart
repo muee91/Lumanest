@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qiguang/src/app/qiguang_app.dart';
+import 'package:luma_nest/src/app/luma_nest_app.dart';
 
 void main() {
-  testWidgets('shows the Qiguang brand and five destinations', (tester) async {
-    await tester.pumpWidget(const QiguangApp());
+  testWidgets('shows the LumaNest brand and five destinations', (tester) async {
+    await tester.pumpWidget(const LumaNestApp());
 
     expect(find.text('栖光'), findsOneWidget);
     expect(find.text('今日'), findsOneWidget);

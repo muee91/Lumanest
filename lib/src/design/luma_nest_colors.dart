@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Brand color tokens for the Qiguang design system.
+/// Brand color tokens for the LumaNest design system.
 ///
 /// Warm, earthy tones inspired by natural light and photography.
-abstract final class QiguangColors {
+abstract final class LumaNestColors {
   // ── Primary ──
   static const Color primaryLight = Color(0xFF8B6914); // dark goldenrod
   static const Color onPrimaryLight = Color(0xFFFFFFFF);

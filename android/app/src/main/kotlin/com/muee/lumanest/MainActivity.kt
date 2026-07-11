@@ -1,4 +1,4 @@
-package com.muee.qiguang
+package com.muee.lumanest
 
 import io.flutter.embedding.android.FlutterActivity
 
