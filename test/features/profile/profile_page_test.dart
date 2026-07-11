@@ -196,6 +196,90 @@ void main() {
   });
 
   testWidgets(
+    'does not render action buttons by default when no actions are injected',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            environmentDiagnosticStatusProvider.overrideWithValue(
+              EnvironmentDiagnosticStatus.staleCache,
+            ),
+          ],
+          child: const MaterialApp(home: ProfilePage()),
+        ),
+      );
+
+      expect(
+        find.textContaining('缓存'),
+        findsOneWidget,
+        reason: 'the diagnostic message must still render',
+      );
+      expect(
+        find.text('重试'),
+        findsNothing,
+        reason:
+            'no fake action buttons should render when no real callbacks are '
+            'wired — a clickable button with no effect is worse than no button',
+      );
+    },
+  );
+
+  testWidgets('tapping the retry button invokes an injected onRetry spy', (
+    tester,
+  ) async {
+    var retryCalled = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.staleCache,
+          ),
+        ],
+        child: MaterialApp(
+          home: ProfilePage(
+            actions: EnvironmentDiagnosticsActions(
+              onRetry: () => retryCalled++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+
+    expect(retryCalled, 1);
+  });
+
+  testWidgets(
+    'tapping the open-settings button invokes an injected onOpenLocationSettings spy',
+    (tester) async {
+      var settingsCalled = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            environmentDiagnosticStatusProvider.overrideWithValue(
+              EnvironmentDiagnosticStatus.locationPermissionDenied,
+            ),
+          ],
+          child: MaterialApp(
+            home: ProfilePage(
+              actions: EnvironmentDiagnosticsActions(
+                onOpenLocationSettings: () => settingsCalled++,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('打开设置'));
+      await tester.pump();
+
+      expect(settingsCalled, 1);
+    },
+  );
+
+  testWidgets(
     'never renders sensitive key or host values in the profile page',
     (tester) async {
       const sensitiveTokens = <String>[

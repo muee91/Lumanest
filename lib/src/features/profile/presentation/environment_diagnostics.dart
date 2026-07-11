@@ -95,10 +95,8 @@ class EnvironmentDiagnostics extends StatelessWidget {
   String _messageFor(EnvironmentDiagnosticStatus status) {
     return switch (status) {
       EnvironmentDiagnosticStatus.operational => '',
-      EnvironmentDiagnosticStatus.amapConfigMissing =>
-        '地图配置未完成，无法显示探索地图',
-      EnvironmentDiagnosticStatus.qweatherConfigMissing =>
-        '天气配置未完成，无法获取实时天气',
+      EnvironmentDiagnosticStatus.amapConfigMissing => '地图配置未完成，无法显示探索地图',
+      EnvironmentDiagnosticStatus.qweatherConfigMissing => '天气配置未完成，无法获取实时天气',
       EnvironmentDiagnosticStatus.locationPermissionDenied =>
         '未授予定位权限，无法获取当前位置',
       EnvironmentDiagnosticStatus.locationPermissionDeniedForever =>
@@ -161,10 +159,9 @@ final environmentDiagnosticStatusProvider =
       final snapshot = ref.watch(environmentSnapshotProvider);
 
       final snapshotStatus = snapshot.when(
-        data: (data) =>
-            data.isStale
-                ? EnvironmentDiagnosticStatus.staleCache
-                : EnvironmentDiagnosticStatus.operational,
+        data: (data) => data.isStale
+            ? EnvironmentDiagnosticStatus.staleCache
+            : EnvironmentDiagnosticStatus.operational,
         loading: () => EnvironmentDiagnosticStatus.operational,
         error: (error, stackTrace) {
           if (error is EnvironmentLoadFailure) {
