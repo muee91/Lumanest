@@ -10,9 +10,12 @@ import 'package:luma_nest/src/core/weather/weather_repository.dart';
 enum EnvironmentFailureKind { configMissing, location, weather }
 
 class EnvironmentLoadFailure implements Exception {
-  const EnvironmentLoadFailure(this.kind);
+  const EnvironmentLoadFailure(this.kind, {this.cause});
 
   final EnvironmentFailureKind kind;
+  /// A typed, sanitized domain failure for recovery UI. Never include it in
+  /// string output because adapters may carry transport details.
+  final Object? cause;
 
   @override
   String toString() => 'EnvironmentLoadFailure($kind)';
@@ -53,15 +56,15 @@ class EnvironmentLoader {
     final LocationReading location;
     try {
       location = await locationRepository.current();
-    } on Object {
-      return _cachedOrThrow(EnvironmentFailureKind.location);
+    } catch (error) {
+      return _cachedOrThrow(EnvironmentFailureKind.location, error);
     }
 
     final WeatherObservation weather;
     try {
       weather = await weatherRepository.fetchCurrent(location.point);
-    } on Object {
-      return _cachedOrThrow(EnvironmentFailureKind.weather);
+    } catch (error) {
+      return _cachedOrThrow(EnvironmentFailureKind.weather, error);
     }
 
     final generatedAt = now().toUtc();
@@ -81,9 +84,12 @@ class EnvironmentLoader {
     return snapshot;
   }
 
-  Future<ContextSnapshot> _cachedOrThrow(EnvironmentFailureKind kind) async {
+  Future<ContextSnapshot> _cachedOrThrow(
+    EnvironmentFailureKind kind,
+    Object cause,
+  ) async {
     final cached = await cache.readLatest();
     if (cached != null) return cached.asStale();
-    throw EnvironmentLoadFailure(kind);
+    throw EnvironmentLoadFailure(kind, cause: cause);
   }
 }

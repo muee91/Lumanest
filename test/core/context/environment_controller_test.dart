@@ -13,6 +13,7 @@ import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
+import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart';
 
 void main() {
   late _FakeLocationRepository location;
@@ -81,6 +82,33 @@ void main() {
     },
   );
 
+  test('preserves sanitized location failure category for recovery UI', () async {
+    location.error = const LocationRepositoryFailure(
+      LocationFailureKind.permissionDeniedForever,
+    );
+
+    await expectLater(
+      createLoader().load(),
+      throwsA(
+        isA<EnvironmentLoadFailure>()
+            .having(
+              (failure) => failure.kind,
+              'kind',
+              EnvironmentFailureKind.location,
+            )
+            .having(
+              (failure) => failure.cause,
+              'cause',
+              isA<LocationRepositoryFailure>().having(
+                (failure) => failure.kind,
+                'location kind',
+                LocationFailureKind.permissionDeniedForever,
+              ),
+            ),
+      ),
+    );
+  });
+
   test('returns a stale cached snapshot when weather refresh fails', () async {
     final cached = ContextSnapshot(
       id: 'cached',
@@ -143,11 +171,13 @@ class _FakeLocationRepository implements LocationRepository {
 
   final LocationReading value;
   Future<LocationReading>? pending;
+  Object? error;
   int calls = 0;
 
   @override
   Future<LocationReading> current() {
     calls += 1;
+    if (error case final error?) return Future.error(error);
     return pending ?? Future.value(value);
   }
 }
