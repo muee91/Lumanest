@@ -58,17 +58,19 @@ App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私�
 
 ## 四、我下一步需要你准备什么
 
-你无需把任何私钥、API Key 或 JWT 发给我。完成服务端 JWT 端点后，只需在本机 `.secrets/environment.debug.json` 中保存下面这些非私钥配置：
+你无需把任何私钥、API Key 或 JWT 发给我。所有可配置项统一保存在本机唯一的 JSON 文件 `.secrets/environment.debug.json`；不要再新建第二个 JSON 文件：
 
 ```json
 {
   "AMAP_ANDROID_KEY": "你的本地高德 Android Key",
   "QWEATHER_API_HOST": "https://你的项目.qweatherapi.com",
+  "QWEATHER_KEY_ID": "你的和风天气凭据 ID",
+  "QWEATHER_PROJECT_ID": "你的和风天气项目 ID",
   "QWEATHER_TOKEN_ENDPOINT": "https://你的服务域名/api/qweather/token"
 }
 ```
 
-`.secrets/` 已被 Git 忽略。启动方式：
+Ed25519 私钥是唯一例外：它必须独立保存在 `.secrets/qweather/ed25519-private.pem`，不能写入 JSON。`.secrets/` 已被 Git 忽略。启动方式：
 
 ```bash
 flutter run --dart-define-from-file=.secrets/environment.debug.json
