@@ -37,9 +37,11 @@ Expected: Android application id is `com.muee.qiguang`; existing `docs/` remains
 **Step 2: Add foundation dependencies**
 
 ```bash
-flutter pub add flutter_riverpod go_router drift sqlite3_flutter_libs path_provider path
+flutter pub add flutter_riverpod go_router drift sqlite3 path_provider path
 flutter pub add --dev build_runner drift_dev
 ```
+
+`sqlite3` 3.x uses Native Assets. Do not add the EOL `sqlite3_flutter_libs` package.
 
 **Step 3: Verify generated baseline**
 
@@ -366,4 +368,3 @@ git commit -m "test: verify phase one foundation"
 - Design tokens and low-motion ambient baseline are reusable.
 - Reduce-motion and reduce-flashing controls are testable.
 - No real map, weather, wildlife or model integration is falsely represented in the UI.
-
