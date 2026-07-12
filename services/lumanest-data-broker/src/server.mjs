@@ -152,6 +152,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const configuration = configurationFromEnvironment();
   const server = createTokenBrokerServer(configuration);
   server.listen(configuration.port, '0.0.0.0', () => {
-    console.log(`qweather-token-broker listening on ${configuration.port}`);
+    console.log(`lumanest-data-broker listening on ${configuration.port}`);
   });
 }

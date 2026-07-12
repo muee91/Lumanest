@@ -21,10 +21,10 @@ https://weather.example.com/v1/qweather/token
 
 ## NAS 部署
 
-1. 将整个 `services/qweather-token-broker` 目录复制到 NAS，例如：
+1. 将整个 `services/lumanest-data-broker` 目录复制到 NAS，例如：
 
    ```text
-   /volume1/docker/lumanest/qweather-token-broker
+   /volume1/docker/lumanest/data-broker
    ```
 
 2. 将本机生成的 `ed25519-private.pem` 安全复制到 NAS，例如：
