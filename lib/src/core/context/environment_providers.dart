@@ -99,4 +99,8 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
 final environmentSnapshotProvider =
     AsyncNotifierProvider<LiveEnvironmentController, ContextSnapshot>(
       LiveEnvironmentController.new,
+      // Environment failures need an explicit, understandable recovery UI.
+      // Retrying automatically would replace that state with an endless
+      // spinner when the device has no GPS fix or network connection.
+      retry: (_, _) => null,
     );

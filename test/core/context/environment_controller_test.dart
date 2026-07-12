@@ -33,6 +33,8 @@ void main() {
   EnvironmentLoader createLoader({
     bool configured = true,
     WildlifeRepository? wildlifeRepository,
+    Duration locationTimeout = const Duration(seconds: 15),
+    Duration weatherTimeout = const Duration(seconds: 10),
   }) {
     return EnvironmentLoader(
       qweatherConfigured: configured,
@@ -42,6 +44,8 @@ void main() {
       snapshotBuilder: const ContextSnapshotBuilder(),
       cache: cache,
       wildlifeRepository: wildlifeRepository,
+      locationTimeout: locationTimeout,
+      weatherTimeout: weatherTimeout,
       now: () => now,
       utcOffset: () => const Duration(hours: 8),
     );
@@ -117,6 +121,22 @@ void main() {
     },
   );
 
+  test('bounds the complete location acquisition chain', () async {
+    final neverCompletes = Completer<LocationReading>();
+    location.pending = neverCompletes.future;
+
+    await expectLater(
+      createLoader(locationTimeout: const Duration(milliseconds: 1)).load(),
+      throwsA(
+        isA<EnvironmentLoadFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          EnvironmentFailureKind.location,
+        ),
+      ),
+    );
+  });
+
   test('returns a stale cached snapshot when weather refresh fails', () async {
     final cached = ContextSnapshot(
       id: 'cached',
@@ -137,6 +157,22 @@ void main() {
     expect(snapshot.observedAt, cached.observedAt);
   });
 
+  test('bounds the complete weather acquisition chain', () async {
+    final neverCompletes = Completer<WeatherObservation>();
+    weather.pending = neverCompletes.future;
+
+    await expectLater(
+      createLoader(weatherTimeout: const Duration(milliseconds: 1)).load(),
+      throwsA(
+        isA<EnvironmentLoadFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          EnvironmentFailureKind.weather,
+        ),
+      ),
+    );
+  });
+
   test('adds wildlife only as optional creative context', () async {
     final snapshot = await createLoader(
       wildlifeRepository: _FakeWildlifeRepository(hasActivity: true),
@@ -144,6 +180,7 @@ void main() {
 
     expect(snapshot.wildlifeEventIds, ['regional-wildlife']);
     expect(snapshot.safetyEventIds, isEmpty);
+    expect(snapshot.wildlifeActivity?.groups, [WildlifeGroup.mammal]);
   });
 
   test('keeps weather snapshot available when wildlife lookup fails', () async {
@@ -165,6 +202,29 @@ void main() {
 
     expect(snapshot.location?.latitude, 31.2304);
   });
+
+  test(
+    'provider keeps a location failure visible instead of retrying itself',
+    () async {
+      location.error = const LocationRepositoryFailure(
+        LocationFailureKind.unavailable,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          environmentLoaderProvider.overrideWithValue(createLoader()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await expectLater(
+        container.read(environmentSnapshotProvider.future),
+        throwsA(isA<EnvironmentLoadFailure>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+
+      expect(container.read(environmentSnapshotProvider).hasError, isTrue);
+    },
+  );
 }
 
 LocationReading _location(DateTime now) => LocationReading(
@@ -213,13 +273,14 @@ class _FakeWeatherRepository implements WeatherRepository {
 
   final WeatherObservation value;
   Object? error;
+  Future<WeatherObservation>? pending;
   int calls = 0;
 
   @override
   Future<WeatherObservation> fetchCurrent(GeoPoint point) async {
     calls += 1;
     if (error case final error?) throw error;
-    return value;
+    return pending ?? value;
   }
 }
 

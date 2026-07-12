@@ -1,4 +1,5 @@
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
 enum SceneType {
   unknown,
@@ -27,6 +28,7 @@ class ContextSnapshot {
     List<String> opportunityIds = const [],
     List<String> safetyEventIds = const [],
     List<String> wildlifeEventIds = const [],
+    this.wildlifeActivity,
     this.location,
     this.temperatureCelsius,
     this.windSpeedMetersPerSecond,
@@ -53,6 +55,7 @@ class ContextSnapshot {
   final List<String> opportunityIds;
   final List<String> safetyEventIds;
   final List<String> wildlifeEventIds;
+  final RegionalWildlifeActivity? wildlifeActivity;
   final GeoPoint? location;
   final double? temperatureCelsius;
   final double? windSpeedMetersPerSecond;
@@ -78,6 +81,7 @@ class ContextSnapshot {
       opportunityIds: opportunityIds,
       safetyEventIds: safetyEventIds,
       wildlifeEventIds: wildlifeEventIds,
+      wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,
       windSpeedMetersPerSecond: windSpeedMetersPerSecond,
@@ -93,7 +97,7 @@ class ContextSnapshot {
     );
   }
 
-  ContextSnapshot withWildlifeEventIds(List<String> eventIds) {
+  ContextSnapshot withWildlifeActivity(RegionalWildlifeActivity activity) {
     return ContextSnapshot(
       id: id,
       observedAt: observedAt,
@@ -104,7 +108,10 @@ class ContextSnapshot {
       activeRoute: activeRoute,
       opportunityIds: opportunityIds,
       safetyEventIds: safetyEventIds,
-      wildlifeEventIds: eventIds,
+      wildlifeEventIds: activity.hasActivity
+          ? const ['regional-wildlife']
+          : const [],
+      wildlifeActivity: activity,
       location: location,
       temperatureCelsius: temperatureCelsius,
       windSpeedMetersPerSecond: windSpeedMetersPerSecond,

@@ -84,7 +84,11 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
   void _performAction(InspirationNote note) {
     switch (note.action) {
       case ManifestAction.openExplore:
-        context.go('/explore');
+        context.go(
+          note.id == 'regional-wildlife'
+              ? '/explore?focus=wildlife'
+              : '/explore',
+        );
       case ManifestAction.openShootingWindow:
       case ManifestAction.openWeather:
         showModalBottomSheet<void>(

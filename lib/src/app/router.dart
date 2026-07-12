@@ -30,8 +30,12 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             routes: [
               GoRoute(
                 path: '/explore',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: ExplorePage()),
+                pageBuilder: (context, state) => NoTransitionPage(
+                  child: ExplorePage(
+                    focusWildlife:
+                        state.uri.queryParameters['focus'] == 'wildlife',
+                  ),
+                ),
               ),
             ],
           ),

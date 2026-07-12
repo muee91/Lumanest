@@ -33,6 +33,8 @@ class EnvironmentLoader {
     required this.snapshotBuilder,
     required this.cache,
     this.wildlifeRepository,
+    this.locationTimeout = const Duration(seconds: 15),
+    this.weatherTimeout = const Duration(seconds: 10),
     required this.now,
     required this.utcOffset,
   });
@@ -44,6 +46,8 @@ class EnvironmentLoader {
   final ContextSnapshotBuilder snapshotBuilder;
   final ContextCache cache;
   final WildlifeRepository? wildlifeRepository;
+  final Duration locationTimeout;
+  final Duration weatherTimeout;
   final DateTime Function() now;
   final Duration Function() utcOffset;
 
@@ -60,14 +64,16 @@ class EnvironmentLoader {
 
     final LocationReading location;
     try {
-      location = await locationRepository.current();
+      location = await locationRepository.current().timeout(locationTimeout);
     } catch (error) {
       return _cachedOrThrow(EnvironmentFailureKind.location, error);
     }
 
     final WeatherObservation weather;
     try {
-      weather = await weatherRepository.fetchCurrent(location.point);
+      weather = await weatherRepository
+          .fetchCurrent(location.point)
+          .timeout(weatherTimeout);
     } catch (error) {
       return _cachedOrThrow(EnvironmentFailureKind.weather, error);
     }
@@ -101,7 +107,7 @@ class EnvironmentLoader {
           .fetchRegionalWildlifeActivity(location)
           .timeout(const Duration(seconds: 3));
       if (activity.hasActivity) {
-        return snapshot.withWildlifeEventIds(const ['regional-wildlife']);
+        return snapshot.withWildlifeActivity(activity);
       }
     } catch (_) {
       // Public historical records are optional creative context. A timeout or

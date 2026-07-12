@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
@@ -13,9 +14,10 @@ import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.d
 import 'package:x_amap_base/x_amap_base.dart';
 
 class ExplorePage extends ConsumerWidget {
-  const ExplorePage({super.key, this.mapBuilder});
+  const ExplorePage({super.key, this.mapBuilder, this.focusWildlife = false});
 
   final MapSurfaceBuilder? mapBuilder;
+  final bool focusWildlife;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,6 +32,7 @@ class ExplorePage extends ConsumerWidget {
       ),
       MapConsentReady() => _MapView(
         mapBuilder: mapBuilder,
+        focusWildlife: focusWildlife,
         onInit: (context) {
           ref
               .read(mapConsentControllerProvider.notifier)
@@ -90,9 +93,14 @@ class _ConsentPrompt extends StatelessWidget {
 }
 
 class _MapView extends ConsumerStatefulWidget {
-  const _MapView({required this.mapBuilder, required this.onInit});
+  const _MapView({
+    required this.mapBuilder,
+    required this.focusWildlife,
+    required this.onInit,
+  });
 
   final MapSurfaceBuilder? mapBuilder;
+  final bool focusWildlife;
   final void Function(BuildContext context) onInit;
 
   @override
@@ -171,7 +179,14 @@ class _MapViewState extends ConsumerState<_MapView> {
               left: 12,
               right: 12,
               bottom: 12,
-              child: SafeArea(top: false, child: _NearbyResultPanel(places)),
+              child: SafeArea(
+                top: false,
+                child: _NearbyResultPanel(
+                  places,
+                  wildlifeActivity: value.wildlifeActivity,
+                  focusWildlife: widget.focusWildlife,
+                ),
+              ),
             ),
           ],
         );
@@ -217,9 +232,15 @@ class _CategoryBar extends ConsumerWidget {
 }
 
 class _NearbyResultPanel extends StatelessWidget {
-  const _NearbyResultPanel(this.places);
+  const _NearbyResultPanel(
+    this.places, {
+    this.wildlifeActivity,
+    this.focusWildlife = false,
+  });
 
   final AsyncValue<List<NearbyPlace>> places;
+  final RegionalWildlifeActivity? wildlifeActivity;
+  final bool focusWildlife;
 
   @override
   Widget build(BuildContext context) {
@@ -227,62 +248,145 @@ class _NearbyResultPanel extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
-      child: places.when(
-        loading: () => const SizedBox(
-          height: 88,
-          child: Center(child: CircularProgressIndicator()),
-        ),
-        error: (_, _) =>
-            const SizedBox(height: 88, child: Center(child: Text('附近数据暂时不可用'))),
-        data: (items) {
-          if (items.isEmpty) {
-            return const SizedBox(
-              height: 88,
-              child: Center(child: Text('这个范围内暂未找到相关地点')),
-            );
-          }
-          return SizedBox(
-            height: 116,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(12),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final place = items[index];
-                return SizedBox(
-                  width: 210,
-                  child: ListTile(
-                    dense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                    title: Text(
-                      place.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${_MapViewState._distanceLabel(place.distanceMeters)}${place.address == null ? '' : ' · ${place.address}'}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: const Icon(Icons.arrow_outward, size: 18),
-                    onTap: () {
-                      final target = Uri(
-                        path: '/route',
-                        queryParameters: {
-                          'name': place.name,
-                          'lat': '${place.point.latitude}',
-                          'lon': '${place.point.longitude}',
-                        },
-                      );
-                      context.go(target.toString());
-                    },
-                  ),
-                );
-              },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (wildlifeActivity case final activity?) ...[
+            _WildlifeActivitySummary(
+              activity: activity,
+              highlighted: focusWildlife,
             ),
-          );
-        },
+            Divider(
+              height: 1,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ],
+          places.when(
+            loading: () => const SizedBox(
+              height: 88,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, _) => const SizedBox(
+              height: 88,
+              child: Center(child: Text('附近数据暂时不可用')),
+            ),
+            data: (items) {
+              if (items.isEmpty) {
+                return const SizedBox(
+                  height: 88,
+                  child: Center(child: Text('这个范围内暂未找到相关地点')),
+                );
+              }
+              return SizedBox(
+                height: 116,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final place = items[index];
+                    return SizedBox(
+                      width: 210,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                        ),
+                        title: Text(
+                          place.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${_MapViewState._distanceLabel(place.distanceMeters)}${place.address == null ? '' : ' · ${place.address}'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.arrow_outward, size: 18),
+                        onTap: () {
+                          final target = Uri(
+                            path: '/route',
+                            queryParameters: {
+                              'name': place.name,
+                              'lat': '${place.point.latitude}',
+                              'lon': '${place.point.longitude}',
+                            },
+                          );
+                          context.go(target.toString());
+                        },
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WildlifeActivitySummary extends StatelessWidget {
+  const _WildlifeActivitySummary({
+    required this.activity,
+    required this.highlighted,
+  });
+
+  final RegionalWildlifeActivity activity;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = activity.groups.map((group) => group.label).join(' · ');
+    final hasMammals = activity.groups.contains(WildlifeGroup.mammal);
+    final advice = hasMammals ? '仅在公共区域远观，不追逐、不投喂。' : '保持安静和距离，避免追逐、投喂或使用闪光灯。';
+    return Semantics(
+      container: true,
+      label: '野外观察线索，GBIF 区域公开记录',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: highlighted
+              ? Theme.of(context).colorScheme.tertiaryContainer
+              : Colors.transparent,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.pets_outlined, size: 19),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '野外观察线索',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${activity.radiusKilometers} km 区域记录 · $labels',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(advice, style: Theme.of(context).textTheme.bodySmall),
+                    const SizedBox(height: 3),
+                    Text(
+                      'GBIF 公开历史记录，不代表实时分布或风险。',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
