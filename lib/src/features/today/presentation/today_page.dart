@@ -8,11 +8,7 @@ import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 class TodayPage extends StatelessWidget {
-  const TodayPage({
-    super.key,
-    required this.snapshotAsync,
-    this.onRetry,
-  });
+  const TodayPage({super.key, required this.snapshotAsync, this.onRetry});
 
   final AsyncValue<ContextSnapshot> snapshotAsync;
   final VoidCallback? onRetry;
@@ -27,9 +23,7 @@ class TodayPage extends StatelessWidget {
   }
 
   Widget _buildLoading() {
-    return const SafeArea(
-      child: Center(child: CircularProgressIndicator()),
-    );
+    return const SafeArea(child: Center(child: CircularProgressIndicator()));
   }
 
   Widget _buildError(BuildContext context, Object error) {
@@ -41,15 +35,16 @@ class TodayPage extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
+              Icon(
+                Icons.cloud_off,
+                size: 48,
+                color: Theme.of(context).colorScheme.error,
+              ),
               const SizedBox(height: 16),
               Text(message, style: Theme.of(context).textTheme.bodyLarge),
               if (onRetry != null) ...[
                 const SizedBox(height: 16),
-                FilledButton.tonal(
-                  onPressed: onRetry,
-                  child: const Text('重试'),
-                ),
+                FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
               ],
             ],
           ),
@@ -62,28 +57,25 @@ class TodayPage extends StatelessWidget {
     final manifest = ManifestPolicy.build(snapshot);
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
         children: [
-          if (snapshot.isStale)
-            _StaleLabel(),
-          Text('栖光', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 4),
-          Text('循光而行，择光而栖。', style: Theme.of(context).textTheme.bodySmall),
+          if (snapshot.isStale) _StaleLabel(),
+          _TodayMasthead(snapshot: snapshot),
           const SizedBox(height: 28),
-          Text(
-            manifest.summary,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+          _DecisionHero(summary: manifest.summary, dayPhase: snapshot.dayPhase),
+          const SizedBox(height: 16),
+          _EnvironmentStrip(snapshot: snapshot),
+          const SizedBox(height: 20),
           if (manifest.safety.isNotEmpty) ...[
-            const SizedBox(height: 20),
             _SafetyRegion(items: manifest.safety),
+            const SizedBox(height: 20),
           ],
           if (manifest.primary case final primary?) ...[
-            const SizedBox(height: 20),
             _OpportunityCard(
               key: const Key('primary-opportunity'),
               item: primary,
             ),
+            const SizedBox(height: 12),
           ],
           if (manifest.secondary.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -98,14 +90,14 @@ class TodayPage extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 24),
-          Text(
-            manifest.inspirationPreview,
-            key: const Key('inspiration-preview'),
-            style: Theme.of(context).textTheme.titleMedium,
+          const SizedBox(height: 18),
+          _InspirationTeaser(note: manifest.inspirationPreview),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.explore_outlined),
+            label: const Text('探索附近'),
           ),
-          const SizedBox(height: 16),
-          FilledButton.tonal(onPressed: () {}, child: const Text('探索附近')),
         ],
       ),
     );
@@ -121,6 +113,187 @@ class TodayPage extends StatelessWidget {
     }
     return '数据加载失败';
   }
+}
+
+class _TodayMasthead extends StatelessWidget {
+  const _TodayMasthead({required this.snapshot});
+  final ContextSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final scene = switch (snapshot.primaryScene) {
+      SceneType.city => '城市观察',
+      SceneType.lake => '湖岸光线',
+      SceneType.mountain => '山地光线',
+      SceneType.desert => '荒野纹理',
+      SceneType.village => '人文漫游',
+      SceneType.driving => '在路上',
+      SceneType.hiking => '徒步中',
+      SceneType.unknown => '此刻环境',
+    };
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('栖光', style: Theme.of(context).textTheme.displaySmall),
+              const SizedBox(height: 3),
+              Text('循光而行，择光而栖。', style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: .72),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(scene, style: Theme.of(context).textTheme.labelLarge),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DecisionHero extends StatelessWidget {
+  const _DecisionHero({required this.summary, required this.dayPhase});
+  final String summary;
+  final DayPhase dayPhase;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (dayPhase) {
+      DayPhase.dawn => '晨光判断',
+      DayPhase.day => '今日判断',
+      DayPhase.sunset => '落日判断',
+      DayPhase.blueHour => '蓝调判断',
+      DayPhase.night => '夜间判断',
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: .82),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 10),
+            Text(summary, style: Theme.of(context).textTheme.headlineSmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EnvironmentStrip extends StatelessWidget {
+  const _EnvironmentStrip({required this.snapshot});
+  final ContextSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <(IconData, String)>[
+      (
+        Icons.device_thermostat_outlined,
+        snapshot.temperatureCelsius == null
+            ? '温度 --'
+            : '${snapshot.temperatureCelsius!.round()}°',
+      ),
+      (
+        Icons.air_outlined,
+        snapshot.windSpeedMetersPerSecond == null
+            ? '风力 --'
+            : '${snapshot.windSpeedMetersPerSecond!.toStringAsFixed(1)} m/s',
+      ),
+      (
+        Icons.visibility_outlined,
+        snapshot.visibilityKilometers == null
+            ? '能见度 --'
+            : '${snapshot.visibilityKilometers!.round()} km',
+      ),
+    ];
+    return Row(
+      children: [
+        for (final entry in entries)
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(right: entry == entries.last ? 0 : 8),
+              child: _MetricPill(icon: entry.$1, label: entry.$2),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Theme.of(
+        context,
+      ).colorScheme.surfaceContainer.withValues(alpha: .8),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: Column(
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _InspirationTeaser extends StatelessWidget {
+  const _InspirationTeaser({required this.note});
+  final String note;
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome_outlined, size: 19),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              note,
+              key: const Key('inspiration-preview'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          const Icon(Icons.arrow_outward, size: 18),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Runtime entry point for Today. It keeps the privacy choice ahead of the
@@ -194,7 +367,11 @@ class _StaleLabel extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.access_time, size: 14, color: Theme.of(context).colorScheme.tertiary),
+          Icon(
+            Icons.access_time,
+            size: 14,
+            color: Theme.of(context).colorScheme.tertiary,
+          ),
           const SizedBox(width: 4),
           Text(
             '数据已过期',
