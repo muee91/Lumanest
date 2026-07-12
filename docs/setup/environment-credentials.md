@@ -58,11 +58,12 @@ App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私�
 
 ## 四、我下一步需要你准备什么
 
-你无需把任何私钥、API Key 或 JWT 发给我。所有可配置项统一保存在本机唯一的 JSON 文件 `.secrets/environment.debug.json`；不要再新建第二个 JSON 文件：
+所有可配置项统一保存在本机唯一的 JSON 文件 `.secrets/environment.debug.json`。其中 `AMAP_WEB_KEY`、`QWEATHER_KEY_ID` 和 `QWEATHER_PROJECT_ID` 只供 NAS 部署读取，不能传入 Flutter 构建：
 
 ```json
 {
   "AMAP_ANDROID_KEY": "你的本地高德 Android Key",
+  "AMAP_WEB_KEY": "仅部署到 NAS 的高德 Web 服务 Key",
   "QWEATHER_API_HOST": "https://你的项目.qweatherapi.com",
   "QWEATHER_KEY_ID": "你的和风天气凭据 ID",
   "QWEATHER_PROJECT_ID": "你的和风天气项目 ID",
@@ -71,17 +72,16 @@ App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私�
 }
 ```
 
-`QWEATHER_KEY_ID`、`QWEATHER_PROJECT_ID` 和 Ed25519 私钥仅用于 NAS 上的 JWT 服务；Flutter 只读取 API Host、JWT 端点和服务访问令牌。私钥必须独立保存在 `.secrets/qweather/ed25519-private.pem`，不能写入 JSON。`.secrets/` 已被 Git 忽略。启动方式：
+`AMAP_WEB_KEY`、`QWEATHER_KEY_ID`、`QWEATHER_PROJECT_ID` 和 Ed25519 私钥仅用于 NAS 服务；Flutter 只读取经过白名单筛选的客户端字段。私钥必须独立保存在 `.secrets/qweather/ed25519-private.pem`，不能写入 JSON。`.secrets/` 已被 Git 忽略。启动方式：
 
 ```bash
-flutter run --dart-define-from-file=.secrets/environment.debug.json
+tool/flutter_with_environment.sh run
 ```
 
 构建 Debug APK：
 
 ```bash
-flutter build apk --debug \
-  --dart-define-from-file=.secrets/environment.debug.json
+tool/flutter_with_environment.sh build apk --debug
 ```
 
 ## 五、隐私顺序
