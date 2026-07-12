@@ -35,9 +35,13 @@ abstract interface class LocationPlatformGateway {
 }
 
 class GeolocatorRepository implements LocationRepository {
-  const GeolocatorRepository(this._gateway);
+  const GeolocatorRepository(
+    this._gateway, {
+    this.positionTimeout = const Duration(seconds: 15),
+  });
 
   final LocationPlatformGateway _gateway;
+  final Duration positionTimeout;
 
   @override
   Future<LocationReading> current() async {
@@ -68,7 +72,12 @@ class GeolocatorRepository implements LocationRepository {
     }
 
     try {
-      final position = await _gateway.getCurrentPosition();
+      // Some device location stacks ignore the plugin's platform time limit
+      // while waiting for a first GNSS fix. Keep the UI recoverable instead of
+      // allowing the environment snapshot to stay loading indefinitely.
+      final position = await _gateway.getCurrentPosition().timeout(
+        positionTimeout,
+      );
       final point = GeoPoint(
         latitude: position.latitude,
         longitude: position.longitude,

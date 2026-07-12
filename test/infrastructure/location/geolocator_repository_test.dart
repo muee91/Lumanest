@@ -78,6 +78,38 @@ void main() {
     expect(reading.accuracyMeters, 6);
     expect(reading.recordedAt, DateTime.utc(2026, 7, 11, 12));
   });
+
+  test(
+    'turns an unresponsive platform request into a recoverable failure',
+    () async {
+      gateway.permission = PlatformLocationPermission.whileInUse;
+      gateway.positionFuture = Future<PlatformPosition>.delayed(
+        const Duration(milliseconds: 30),
+        () => PlatformPosition(
+          latitude: 31.2304,
+          longitude: 121.4737,
+          accuracyMeters: 6,
+          altitudeMeters: 14,
+          recordedAt: DateTime.utc(2026, 7, 11, 12),
+        ),
+      );
+      repository = GeolocatorRepository(
+        gateway,
+        positionTimeout: const Duration(milliseconds: 1),
+      );
+
+      await expectLater(
+        repository.current(),
+        throwsA(
+          isA<LocationRepositoryFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            LocationFailureKind.unavailable,
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _FakeLocationGateway implements LocationPlatformGateway {
@@ -87,12 +119,14 @@ class _FakeLocationGateway implements LocationPlatformGateway {
       PlatformLocationPermission.denied;
   int requestCount = 0;
   late PlatformPosition position;
+  Future<PlatformPosition>? positionFuture;
 
   @override
   Future<PlatformLocationPermission> checkPermission() async => permission;
 
   @override
-  Future<PlatformPosition> getCurrentPosition() async => position;
+  Future<PlatformPosition> getCurrentPosition() async =>
+      positionFuture ?? position;
 
   @override
   Future<bool> isServiceEnabled() async => serviceEnabled;
