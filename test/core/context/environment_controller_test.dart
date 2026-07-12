@@ -13,6 +13,8 @@ import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
+import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
+import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
 
 void main() {
   late _FakeLocationRepository location;
@@ -28,7 +30,10 @@ void main() {
     cache = InMemoryContextCache();
   });
 
-  EnvironmentLoader createLoader({bool configured = true}) {
+  EnvironmentLoader createLoader({
+    bool configured = true,
+    WildlifeRepository? wildlifeRepository,
+  }) {
     return EnvironmentLoader(
       qweatherConfigured: configured,
       locationRepository: location,
@@ -36,6 +41,7 @@ void main() {
       solarService: solar,
       snapshotBuilder: const ContextSnapshotBuilder(),
       cache: cache,
+      wildlifeRepository: wildlifeRepository,
       now: () => now,
       utcOffset: () => const Duration(hours: 8),
     );
@@ -81,32 +87,35 @@ void main() {
     },
   );
 
-  test('preserves sanitized location failure category for recovery UI', () async {
-    location.error = const LocationRepositoryFailure(
-      LocationFailureKind.permissionDeniedForever,
-    );
+  test(
+    'preserves sanitized location failure category for recovery UI',
+    () async {
+      location.error = const LocationRepositoryFailure(
+        LocationFailureKind.permissionDeniedForever,
+      );
 
-    await expectLater(
-      createLoader().load(),
-      throwsA(
-        isA<EnvironmentLoadFailure>()
-            .having(
-              (failure) => failure.kind,
-              'kind',
-              EnvironmentFailureKind.location,
-            )
-            .having(
-              (failure) => failure.cause,
-              'cause',
-              isA<LocationRepositoryFailure>().having(
+      await expectLater(
+        createLoader().load(),
+        throwsA(
+          isA<EnvironmentLoadFailure>()
+              .having(
                 (failure) => failure.kind,
-                'location kind',
-                LocationFailureKind.permissionDeniedForever,
+                'kind',
+                EnvironmentFailureKind.location,
+              )
+              .having(
+                (failure) => failure.cause,
+                'cause',
+                isA<LocationRepositoryFailure>().having(
+                  (failure) => failure.kind,
+                  'location kind',
+                  LocationFailureKind.permissionDeniedForever,
+                ),
               ),
-            ),
-      ),
-    );
-  });
+        ),
+      );
+    },
+  );
 
   test('returns a stale cached snapshot when weather refresh fails', () async {
     final cached = ContextSnapshot(
@@ -126,6 +135,24 @@ void main() {
     expect(snapshot.id, 'cached');
     expect(snapshot.isStale, isTrue);
     expect(snapshot.observedAt, cached.observedAt);
+  });
+
+  test('adds wildlife only as optional creative context', () async {
+    final snapshot = await createLoader(
+      wildlifeRepository: _FakeWildlifeRepository(hasActivity: true),
+    ).load();
+
+    expect(snapshot.wildlifeEventIds, ['regional-wildlife']);
+    expect(snapshot.safetyEventIds, isEmpty);
+  });
+
+  test('keeps weather snapshot available when wildlife lookup fails', () async {
+    final snapshot = await createLoader(
+      wildlifeRepository: _FakeWildlifeRepository(error: StateError('offline')),
+    ).load();
+
+    expect(snapshot.wildlifeEventIds, isEmpty);
+    expect(snapshot.isStale, isFalse);
   });
 
   test('Riverpod controller exposes the loader result', () async {
@@ -211,5 +238,32 @@ class _FakeSolarService implements SolarService {
   }) {
     calls += 1;
     return value;
+  }
+}
+
+class _FakeWildlifeRepository implements WildlifeRepository {
+  _FakeWildlifeRepository({this.hasActivity = false, this.error});
+
+  final bool hasActivity;
+  final Object? error;
+
+  @override
+  Future<RegionalWildlifeActivity> fetchRegionalWildlifeActivity(
+    GeoPoint location,
+  ) async {
+    if (error case final failure?) throw failure;
+    return RegionalWildlifeActivity(
+      radiusKilometers: 20,
+      occurrenceSampleSize: hasActivity ? 1 : 0,
+      taxa: hasActivity
+          ? const [
+              WildlifeTaxon(
+                scientificName: 'Lutra lutra',
+                group: WildlifeGroup.mammal,
+                records: 1,
+              ),
+            ]
+          : const [],
+    );
   }
 }

@@ -9,6 +9,7 @@
 - JWT 签发：`POST /v1/qweather/token`
 - 周边 POI：`GET /v1/amap/nearby`
 - 驾车路线：`GET /v1/amap/driving`
+- 野生动物区域线索：`GET /v1/wildlife/nearby`
 - JWT 签发接口需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
 
 将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 端点是：
@@ -18,6 +19,8 @@ https://weather.example.com/v1/qweather/token
 ```
 
 不要把 NAS 的 `8787` 端口直接暴露到公网；仅让 NAS 的 HTTPS 反向代理访问它，并在反向代理处启用速率限制。
+
+野生动物接口只返回 GBIF 公开观测的区域级物种汇总（鸟类、兽类、两爬、昆虫等），不会返回观测坐标，也会过滤常见家养种。它仅用于创作线索，不能视为实时动物分布或安全预警；风险提示必须来自独立、权威或人工核验的风险区数据。
 
 ## NAS 部署
 

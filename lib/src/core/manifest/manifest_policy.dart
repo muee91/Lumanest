@@ -66,9 +66,9 @@ abstract final class ManifestPolicy {
 
   static ManifestItem? _wildlifeCreativeItem(String id) {
     return switch (id) {
-      'migratory-birds' => const ManifestItem(
-        id: 'migratory-birds',
-        title: '候鸟活动可能性较高',
+      'regional-wildlife' => const ManifestItem(
+        id: 'regional-wildlife',
+        title: '附近有野外线索',
         action: ManifestAction.openExplore,
       ),
       _ => null,
@@ -92,7 +92,7 @@ abstract final class ManifestPolicy {
       'blue-hour' => '天色即将进入蓝调，城市光线会更干净。',
       'alpenglow' => '低角度光线与山体条件正在靠近有效窗口。',
       'mist' => '雾气正在为画面增加层次。',
-      'migratory-birds' => '当前季节与环境适合留意候鸟活动。',
+      'regional-wildlife' => '附近有公开的野生动物活动记录，适合放慢脚步观察。',
       _ => null,
     };
     if (opportunitySummary != null) return opportunitySummary;
@@ -115,7 +115,7 @@ abstract final class ManifestPolicy {
       'blue-hour' => '蓝调了🌆',
       'alpenglow' => '金山⛰️',
       'mist' => '起雾了🌫️',
-      'migratory-birds' => '候鸟来了🦅',
+      'regional-wildlife' => '野外线索🦌',
       _ => '回头看👀',
     };
   }

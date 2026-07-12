@@ -7,6 +7,8 @@ import { createQWeatherJwt } from './jwt.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
+const gbifBaseUrl = 'https://api.gbif.org';
+const wildlifeCacheTtlMilliseconds = 60 * 60 * 1000;
 
 function writeJson(response, status, body) {
   response.writeHead(status, {
@@ -38,13 +40,13 @@ function clampInteger(value, { fallback, min, max }) {
   return Math.min(max, Math.max(min, parsed));
 }
 
-async function forwardAmap(response, path, parameters, amapWebKey) {
+async function forwardAmap(response, path, parameters, amapWebKey, fetcher) {
   const url = new URL(path, amapBaseUrl);
   for (const [key, value] of Object.entries({ ...parameters, key: amapWebKey })) {
     if (value) url.searchParams.set(key, value);
   }
   try {
-    const upstream = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const upstream = await fetcher(url, { signal: AbortSignal.timeout(10_000) });
     const body = await upstream.json();
     if (!upstream.ok || body.status !== '1') {
       writeJson(response, 502, { error: 'upstream_unavailable' });
@@ -56,6 +58,100 @@ async function forwardAmap(response, path, parameters, amapWebKey) {
   }
 }
 
+const wildlifeGroups = new Map([
+  ['Aves', 'bird'],
+  ['Mammalia', 'mammal'],
+  ['Reptilia', 'reptile'],
+  ['Amphibia', 'amphibian'],
+  ['Insecta', 'insect'],
+]);
+
+const wildlifeClassKeys = [
+  212, // Aves
+  359, // Mammalia
+  358, // Reptilia
+  131, // Amphibia
+  216, // Insecta
+];
+
+const excludedDomesticSpecies = new Set([
+  'Felis catus',
+  'Canis lupus familiaris',
+  'Bos taurus',
+  'Equus caballus',
+  'Capra hircus',
+  'Ovis aries',
+  'Sus scrofa domesticus',
+  'Gallus gallus domesticus',
+].map((name) => name.toLowerCase()));
+
+function regionalWildlifeGeometry(location, radiusKm) {
+  const [longitude, latitude] = location.split(',').map(Number);
+  const latitudeDelta = radiusKm / 111.32;
+  const longitudeDelta = radiusKm / (111.32 * Math.cos(latitude * Math.PI / 180));
+  const west = longitude - longitudeDelta;
+  const east = longitude + longitudeDelta;
+  const south = latitude - latitudeDelta;
+  const north = latitude + latitudeDelta;
+  return `POLYGON((${west} ${south},${east} ${south},${east} ${north},${west} ${north},${west} ${south}))`;
+}
+
+function wildlifeGroupFor(record) {
+  return wildlifeGroups.get(record.class) ?? 'other';
+}
+
+async function regionalWildlifeSummary({ location, radiusKm, fetcher, cache, now }) {
+  const [longitude, latitude] = location.split(',').map(Number);
+  const cacheKey = `${longitude.toFixed(1)},${latitude.toFixed(1)}:${radiusKm}`;
+  const cached = cache.get(cacheKey);
+  if (cached && now().getTime() - cached.createdAt < wildlifeCacheTtlMilliseconds) {
+    return cached.body;
+  }
+  try {
+    const responses = await Promise.all(wildlifeClassKeys.map(async (classKey) => {
+      const url = new URL('/v1/occurrence/search', gbifBaseUrl);
+      url.searchParams.set('kingdom', 'Animalia');
+      url.searchParams.set('classKey', String(classKey));
+      url.searchParams.set('hasCoordinate', 'true');
+      url.searchParams.set('limit', '25');
+      url.searchParams.set('geometry', regionalWildlifeGeometry(location, radiusKm));
+      const upstream = await fetcher(url, { signal: AbortSignal.timeout(10_000) });
+      const body = await upstream.json();
+      return upstream.ok && Array.isArray(body.results) ? body.results : [];
+    }));
+    const records = responses.flat();
+    if (records.length === 0) return null;
+    const grouped = new Map();
+    for (const record of records) {
+      const scientificName = record.species || record.scientificName;
+      if (typeof scientificName !== 'string' || scientificName.length === 0) continue;
+      if (excludedDomesticSpecies.has(scientificName.toLowerCase())) continue;
+      const existing = grouped.get(scientificName) ?? {
+        scientificName,
+        commonName: typeof record.vernacularName === 'string' ? record.vernacularName : null,
+        animalClass: wildlifeGroupFor(record),
+        records: 0,
+      };
+      existing.records += 1;
+      grouped.set(scientificName, existing);
+    }
+    const taxa = [...grouped.values()]
+      .sort((a, b) => b.records - a.records)
+      .slice(0, 12);
+    const sanitized = {
+      source: 'GBIF',
+      scope: 'regional_wildlife_observations',
+      radiusKm,
+      occurrenceSampleSize: records.length,
+      taxa,
+    };
+    cache.set(cacheKey, { createdAt: now().getTime(), body: sanitized });
+    return sanitized;
+  } catch {
+    return null;
+  }
+}
+
 export function createTokenBrokerServer({
   privateKey,
   keyId,
@@ -63,7 +159,9 @@ export function createTokenBrokerServer({
   serviceToken,
   amapWebKey,
   now = () => new Date(),
+  fetcher = fetch,
 }) {
+  const wildlifeCache = new Map();
   return createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
     if (request.method === 'GET' && requestUrl.pathname === '/healthz') {
@@ -89,7 +187,7 @@ export function createTokenBrokerServer({
         radius: String(clampInteger(requestUrl.searchParams.get('radius'), { fallback: 5000, min: 100, max: 50000 })),
         offset: String(clampInteger(requestUrl.searchParams.get('offset'), { fallback: 20, min: 1, max: 25 })),
         extensions: 'all',
-      }, amapWebKey);
+      }, amapWebKey, fetcher);
       return;
     }
 
@@ -105,7 +203,33 @@ export function createTokenBrokerServer({
         destination,
         extensions: 'all',
         strategy: '0',
-      }, amapWebKey);
+      }, amapWebKey, fetcher);
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/wildlife/nearby') {
+      const location = requestUrl.searchParams.get('location');
+      if (!validCoordinate(location)) {
+        writeJson(response, 400, { error: 'invalid_location' });
+        return;
+      }
+      const radiusKm = clampInteger(requestUrl.searchParams.get('radiusKm'), {
+        fallback: 20,
+        min: 5,
+        max: 50,
+      });
+      const body = await regionalWildlifeSummary({
+        location,
+        radiusKm,
+        fetcher,
+        cache: wildlifeCache,
+        now,
+      });
+      if (body == null) {
+        writeJson(response, 502, { error: 'upstream_unavailable' });
+        return;
+      }
+      writeJson(response, 200, body);
       return;
     }
 

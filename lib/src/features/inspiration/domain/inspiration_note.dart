@@ -90,13 +90,13 @@ abstract final class InspirationNotes {
         priority: 100,
         ttl: Duration(minutes: 40),
       ),
-      'migratory-birds' => const InspirationNote(
-        id: 'migratory-birds',
-        label: '候鸟来了',
-        emoji: '🦅',
+      'regional-wildlife' => const InspirationNote(
+        id: 'regional-wildlife',
+        label: '野外线索',
+        emoji: '🦌',
         category: InspirationCategory.wildlife,
         action: ManifestAction.openExplore,
-        detail: '留意水岸和开阔天空，保持距离，不追逐野生动物。',
+        detail: '来自 GBIF 区域公开记录。保持距离，不追逐或投喂野生动物。',
         priority: 95,
         ttl: Duration(hours: 2),
       ),

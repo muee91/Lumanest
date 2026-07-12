@@ -74,13 +74,13 @@ void main() {
         dayPhase: DayPhase.dawn,
         weather: WeatherType.clear,
         activeRoute: true,
-        wildlifeEventIds: const ['migratory-birds', 'bear-risk'],
+        wildlifeEventIds: const ['regional-wildlife', 'bear-risk'],
       ),
     );
 
     expect(
       manifest.creativeItems.map((item) => item.id),
-      contains('migratory-birds'),
+      contains('regional-wildlife'),
     );
     expect(manifest.safety.map((item) => item.id), contains('bear-risk'));
     expect(

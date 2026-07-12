@@ -92,4 +92,31 @@ class ContextSnapshot {
       isStale: true,
     );
   }
+
+  ContextSnapshot withWildlifeEventIds(List<String> eventIds) {
+    return ContextSnapshot(
+      id: id,
+      observedAt: observedAt,
+      expiresAt: expiresAt,
+      primaryScene: primaryScene,
+      dayPhase: dayPhase,
+      weather: weather,
+      activeRoute: activeRoute,
+      opportunityIds: opportunityIds,
+      safetyEventIds: safetyEventIds,
+      wildlifeEventIds: eventIds,
+      location: location,
+      temperatureCelsius: temperatureCelsius,
+      windSpeedMetersPerSecond: windSpeedMetersPerSecond,
+      windDirectionDegrees: windDirectionDegrees,
+      visibilityKilometers: visibilityKilometers,
+      precipitationMillimeters: precipitationMillimeters,
+      cloudCoverPercent: cloudCoverPercent,
+      solarElevationDegrees: solarElevationDegrees,
+      solarAzimuthDegrees: solarAzimuthDegrees,
+      sunrise: sunrise,
+      sunset: sunset,
+      isStale: isStale,
+    );
+  }
 }

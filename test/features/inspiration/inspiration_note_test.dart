@@ -31,4 +31,25 @@ void main() {
       isNot(contains('雷暴')),
     );
   });
+
+  test('regional wildlife becomes a creative note, never a safety alert', () {
+    final notes = InspirationNotes.build(
+      ContextSnapshot(
+        id: 'wildlife',
+        observedAt: DateTime.utc(2026, 7, 12),
+        expiresAt: DateTime.utc(2026, 7, 12, 0, 10),
+        primaryScene: SceneType.hiking,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        wildlifeEventIds: const ['regional-wildlife'],
+      ),
+    );
+
+    expect(notes.map((note) => note.id), contains('regional-wildlife'));
+    expect(
+      notes.singleWhere((note) => note.id == 'regional-wildlife').detail,
+      contains('GBIF'),
+    );
+  });
 }
