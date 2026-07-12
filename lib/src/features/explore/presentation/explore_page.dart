@@ -1,6 +1,7 @@
 import 'package:amap_map/amap_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
@@ -265,6 +266,17 @@ class _NearbyResultPanel extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     trailing: const Icon(Icons.arrow_outward, size: 18),
+                    onTap: () {
+                      final target = Uri(
+                        path: '/route',
+                        queryParameters: {
+                          'name': place.name,
+                          'lat': '${place.point.latitude}',
+                          'lon': '${place.point.longitude}',
+                        },
+                      );
+                      context.go(target.toString());
+                    },
                   ),
                 );
               },

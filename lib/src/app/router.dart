@@ -20,10 +20,9 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             routes: [
               GoRoute(
                 path: '/today',
-                pageBuilder: (context, state) =>
-                    NoTransitionPage(
-                      child: LiveTodayPage(initialSnapshot: initialContext),
-                    ),
+                pageBuilder: (context, state) => NoTransitionPage(
+                  child: LiveTodayPage(initialSnapshot: initialContext),
+                ),
               ),
             ],
           ),
@@ -40,8 +39,16 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             routes: [
               GoRoute(
                 path: '/route',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: RoutePage()),
+                pageBuilder: (context, state) {
+                  final query = state.uri.queryParameters;
+                  return NoTransitionPage(
+                    child: RoutePage(
+                      destinationName: query['name'],
+                      destinationLatitude: double.tryParse(query['lat'] ?? ''),
+                      destinationLongitude: double.tryParse(query['lon'] ?? ''),
+                    ),
+                  );
+                },
               ),
             ],
           ),

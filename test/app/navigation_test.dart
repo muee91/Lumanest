@@ -19,11 +19,11 @@ void main() {
 
     await tester.tap(find.text('路线'));
     await tester.pump();
-    expect(find.text('创建路线'), findsOneWidget);
+    expect(find.text('去探索目的地'), findsOneWidget);
 
     await tester.tap(find.text('灵感'));
     await tester.pump();
-    expect(find.text('抽一张纸条'), findsOneWidget);
+    expect(find.text('灵感瓶'), findsOneWidget);
 
     await tester.tap(find.text('我的'));
     await tester.pump();
