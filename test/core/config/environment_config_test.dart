@@ -13,13 +13,19 @@ void main() {
     final config = EnvironmentConfig(
       amapAndroidKey: '  amap-secret  ',
       qweatherApiHost: ' https://example.qweatherapi.com/// ',
-      qweatherTokenEndpoint: ' https://weather.example.com/v1/qweather/token/// ',
+      qweatherTokenEndpoint:
+          ' https://weather.example.com/v1/qweather/token/// ',
       lumaNestServiceToken: '  broker-secret ',
     );
 
     expect(config.amapAndroidKey, 'amap-secret');
     expect(config.qweatherApiHost, 'https://example.qweatherapi.com');
-    expect(config.qweatherTokenEndpoint, 'https://weather.example.com/v1/qweather/token');
+    expect(
+      config.qweatherTokenEndpoint,
+      'https://weather.example.com/v1/qweather/token',
+    );
+    expect(config.dataBrokerBaseUrl, 'https://weather.example.com');
+    expect(config.isDataBrokerConfigured, isTrue);
     expect(config.lumaNestServiceToken, 'broker-secret');
     expect(config.isAmapConfigured, isTrue);
     expect(config.isQWeatherConfigured, isTrue);

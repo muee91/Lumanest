@@ -45,6 +45,20 @@ class EnvironmentConfig {
       qweatherTokenEndpoint.isNotEmpty &&
       lumaNestServiceToken.isNotEmpty;
 
+  /// The QWeather JWT and AMap proxy share the same trusted NAS origin.
+  /// Deriving the origin avoids adding another duplicated configuration value.
+  String get dataBrokerBaseUrl {
+    final uri = Uri.tryParse(qweatherTokenEndpoint);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return '';
+    return uri
+        .replace(path: '', query: null, fragment: null)
+        .toString()
+        .replaceFirst(RegExp(r'/$'), '');
+  }
+
+  bool get isDataBrokerConfigured =>
+      dataBrokerBaseUrl.isNotEmpty && lumaNestServiceToken.isNotEmpty;
+
   static String _normalizeHost(String value) {
     return value.trim().replaceFirst(RegExp(r'/+$'), '');
   }

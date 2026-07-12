@@ -1,12 +1,15 @@
-enum CoordinateSystem { wgs84 }
+enum CoordinateSystem { wgs84, gcj02 }
 
 class GeoPoint {
-  const GeoPoint({required this.latitude, required this.longitude});
+  const GeoPoint({
+    required this.latitude,
+    required this.longitude,
+    this.coordinateSystem = CoordinateSystem.wgs84,
+  });
 
   final double latitude;
   final double longitude;
-
-  CoordinateSystem get coordinateSystem => CoordinateSystem.wgs84;
+  final CoordinateSystem coordinateSystem;
 
   GeoPoint validate() {
     if (latitude < -90 || latitude > 90) {
