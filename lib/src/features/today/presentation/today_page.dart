@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
@@ -91,10 +92,13 @@ class TodayPage extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 18),
-          _InspirationTeaser(note: manifest.inspirationPreview),
+          _InspirationTeaser(
+            note: manifest.inspirationPreview,
+            onTap: () => context.go('/inspiration'),
+          ),
           const SizedBox(height: 18),
           FilledButton.icon(
-            onPressed: () {},
+            onPressed: () => context.go('/explore'),
             icon: const Icon(Icons.explore_outlined),
             label: const Text('探索附近'),
           ),
@@ -268,29 +272,34 @@ class _MetricPill extends StatelessWidget {
 }
 
 class _InspirationTeaser extends StatelessWidget {
-  const _InspirationTeaser({required this.note});
+  const _InspirationTeaser({required this.note, required this.onTap});
   final String note;
+  final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        children: [
-          const Icon(Icons.auto_awesome_outlined, size: 19),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              note,
-              key: const Key('inspiration-preview'),
-              style: Theme.of(context).textTheme.titleMedium,
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            const Icon(Icons.auto_awesome_outlined, size: 19),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                note,
+                key: const Key('inspiration-preview'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-          ),
-          const Icon(Icons.arrow_outward, size: 18),
-        ],
+            const Icon(Icons.arrow_outward, size: 18),
+          ],
+        ),
       ),
     ),
   );
