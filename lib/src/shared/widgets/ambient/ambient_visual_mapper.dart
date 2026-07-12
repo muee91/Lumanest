@@ -1,6 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 
+/// The deterministic visual parameters that turn an environment snapshot into
+/// background behavior. This deliberately contains no AI-generated values.
+class AmbientVisualState {
+  const AmbientVisualState({
+    required this.palette,
+    required this.flowDirection,
+    required this.motionIntensity,
+    required this.precipitationIntensity,
+    required this.thunderstorm,
+  });
+
+  final AmbientPalette palette;
+
+  /// Meteorological direction in degrees, normalized to 0–360.
+  final double flowDirection;
+
+  /// Kept deliberately low so the background remains behind the information.
+  final double motionIntensity;
+
+  /// A 0–1 texture density, not a weather severity indicator.
+  final double precipitationIntensity;
+  final bool thunderstorm;
+}
+
 class AmbientPalette {
   const AmbientPalette({required this.topColor, required this.bottomColor});
 
@@ -31,6 +55,21 @@ class AmbientVisualMapper {
         ? _darkPalette(weather)
         : _lightPalette(weather);
     return _applyDayPhase(base, dayPhase);
+  }
+
+  AmbientVisualState resolveSnapshot(
+    ContextSnapshot snapshot,
+    Brightness brightness,
+  ) {
+    final wind = snapshot.windSpeedMetersPerSecond ?? 0;
+    final rain = snapshot.precipitationMillimeters ?? 0;
+    return AmbientVisualState(
+      palette: resolve(snapshot.weather, snapshot.dayPhase, brightness),
+      flowDirection: (snapshot.windDirectionDegrees ?? 0) % 360,
+      motionIntensity: (0.08 + wind / 30).clamp(0.08, 0.4),
+      precipitationIntensity: (rain / 8).clamp(0, 1),
+      thunderstorm: snapshot.safetyEventIds.contains('thunderstorm'),
+    );
   }
 
   static AmbientPalette _applyDayPhase(AmbientPalette base, DayPhase dayPhase) {

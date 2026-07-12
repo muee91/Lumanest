@@ -17,11 +17,7 @@ class LumaNestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
-      child: _LumaNestRoot(
-        initialContext: initialContext,
-      ),
-    );
+    return ProviderScope(child: _LumaNestRoot(initialContext: initialContext));
   }
 }
 
@@ -69,7 +65,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot> {
           children: [
             if (preferences.ambientBackgroundEnabled)
               AmbientCanvas(
-                palette: _ambientPalette(
+                visualState: _ambientVisualState(
                   context,
                   widget.initialContext ?? _snapshotValue(liveSnapshot),
                 ),
@@ -83,14 +79,13 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot> {
     );
   }
 
-  AmbientPalette? _ambientPalette(
+  AmbientVisualState? _ambientVisualState(
     BuildContext context,
     ContextSnapshot? snapshot,
   ) {
     if (snapshot == null) return null;
-    return const AmbientVisualMapper().resolve(
-      snapshot.weather,
-      snapshot.dayPhase,
+    return const AmbientVisualMapper().resolveSnapshot(
+      snapshot,
       Theme.of(context).brightness,
     );
   }

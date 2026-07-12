@@ -168,5 +168,29 @@ void main() {
         }
       }
     });
+
+    test('snapshot maps wind, rain and thunder into visual parameters', () {
+      final state = mapper.resolveSnapshot(
+        ContextSnapshot(
+          id: 'storm',
+          observedAt: DateTime.utc(2026, 7, 12),
+          expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+          primaryScene: SceneType.hiking,
+          dayPhase: DayPhase.sunset,
+          weather: WeatherType.rain,
+          activeRoute: true,
+          windDirectionDegrees: 285,
+          windSpeedMetersPerSecond: 12,
+          precipitationMillimeters: 6,
+          safetyEventIds: const ['thunderstorm'],
+        ),
+        Brightness.dark,
+      );
+
+      expect(state.flowDirection, 285);
+      expect(state.motionIntensity, greaterThan(.08));
+      expect(state.precipitationIntensity, closeTo(.75, .001));
+      expect(state.thunderstorm, isTrue);
+    });
   });
 }
