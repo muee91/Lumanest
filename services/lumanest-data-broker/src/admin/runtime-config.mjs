@@ -1,6 +1,7 @@
 import { createPrivateKey } from 'node:crypto';
 
 import { defaultRuntimeSettings, validateRuntimeSettings } from './runtime-settings.mjs';
+import { validateLLMProfile } from '../llm/profile.mjs';
 
 const configurableFields = new Set([
   'qweatherPrivateKeyPem',
@@ -11,6 +12,8 @@ const configurableFields = new Set([
   'aiApiKey',
   'aiBaseUrl',
   'aiModel',
+  'llmProfiles',
+  'llmRouting',
   'settings',
 ]);
 
@@ -40,6 +43,18 @@ function validatePatch(patch) {
       validateRuntimeSettings(value, { partial: true });
       continue;
     }
+    if (name === 'llmProfiles') {
+      if (!Array.isArray(value) || value.length > 20) {
+        throw new TypeError('llmProfiles must be an array with at most 20 profiles');
+      }
+      continue;
+    }
+    if (name === 'llmRouting') {
+      if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+        throw new TypeError('llmRouting must be an object');
+      }
+      continue;
+    }
     if (typeof value !== 'string') {
       throw new TypeError(`${name} must be a string or null`);
     }
@@ -63,11 +78,84 @@ function mergedOverrides(current, patch) {
       delete result[name];
     } else if (name === 'settings') {
       result.settings = { ...(result.settings ?? {}), ...value };
+    } else if (name === 'llmProfiles') {
+      const existingProfiles = new Map((result.llmProfiles ?? []).map((profile) => [profile.id, profile]));
+      result.llmProfiles = value.map((profile) => {
+        if (profile?.apiKey !== undefined) return profile;
+        const existing = existingProfiles.get(profile?.id);
+        return existing == null ? profile : { ...profile, apiKey: existing.apiKey };
+      });
+    } else if (name === 'llmRouting') {
+      result.llmRouting = { ...(result.llmRouting ?? {}), ...value };
     } else {
       result[name] = value;
     }
   }
   return result;
+}
+
+const defaultLLMRouting = Object.freeze({
+  primaryProfileId: null,
+  fallbackEnabled: false,
+  fallbackProfileIds: Object.freeze([]),
+  maximumAttempts: 3,
+});
+
+function normalizedProfiles(value) {
+  if (!Array.isArray(value) || value.length > 20) {
+    throw new TypeError('llmProfiles must be an array with at most 20 profiles');
+  }
+  const profiles = value.map((profile) => validateLLMProfile(profile));
+  const ids = new Set();
+  for (const profile of profiles) {
+    if (ids.has(profile.id)) throw new TypeError(`Duplicate LLM profile: ${profile.id}`);
+    ids.add(profile.id);
+  }
+  return Object.freeze(profiles);
+}
+
+function normalizedRouting(value, profiles) {
+  const input = { ...defaultLLMRouting, ...(value ?? {}) };
+  const allowed = new Set(Object.keys(defaultLLMRouting));
+  for (const name of Object.keys(input)) {
+    if (!allowed.has(name)) throw new TypeError(`Unknown LLM routing field: ${name}`);
+  }
+  if (input.primaryProfileId !== null && typeof input.primaryProfileId !== 'string') {
+    throw new TypeError('primaryProfileId must be a profile ID or null');
+  }
+  if (typeof input.fallbackEnabled !== 'boolean') {
+    throw new TypeError('fallbackEnabled must be a boolean');
+  }
+  if (!Array.isArray(input.fallbackProfileIds) ||
+      input.fallbackProfileIds.some((id) => typeof id !== 'string')) {
+    throw new TypeError('fallbackProfileIds must be an array of profile IDs');
+  }
+  if (!Number.isInteger(input.maximumAttempts) || input.maximumAttempts < 1 || input.maximumAttempts > 3) {
+    throw new RangeError('maximumAttempts must be between 1 and 3');
+  }
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  if (input.primaryProfileId !== null) {
+    const primary = profilesById.get(input.primaryProfileId);
+    if (primary == null || !primary.enabled) {
+      throw new TypeError('primaryProfileId must reference an enabled profile');
+    }
+  }
+  const fallbackIds = [...input.fallbackProfileIds];
+  if (new Set(fallbackIds).size !== fallbackIds.length) {
+    throw new TypeError('fallbackProfileIds must not contain duplicates');
+  }
+  for (const id of fallbackIds) {
+    const fallback = profilesById.get(id);
+    if (fallback == null || !fallback.enabled || !fallback.allowFallback || id === input.primaryProfileId) {
+      throw new TypeError('fallbackProfileIds must reference distinct enabled fallback profiles');
+    }
+  }
+  return Object.freeze({
+    primaryProfileId: input.primaryProfileId,
+    fallbackEnabled: input.fallbackEnabled,
+    fallbackProfileIds: Object.freeze(fallbackIds),
+    maximumAttempts: input.maximumAttempts,
+  });
 }
 
 function privateKeyFrom(defaults, overrides) {
@@ -80,6 +168,15 @@ function privateKeyFrom(defaults, overrides) {
 }
 
 function buildSnapshot(defaults, overrides, revision) {
+  const llmProfiles = normalizedProfiles(overrides.llmProfiles ?? []);
+  const llmRouting = normalizedRouting(overrides.llmRouting, llmProfiles);
+  const legacyLLMImportCandidate = defaults.aiApiKey
+    ? Object.freeze({
+      apiKey: defaults.aiApiKey,
+      baseUrl: defaults.aiBaseUrl,
+      model: defaults.aiModel,
+    })
+    : null;
   const effective = {
     privateKey: privateKeyFrom(defaults, overrides),
     keyId: overrides.keyId ?? defaults.keyId,
@@ -89,6 +186,9 @@ function buildSnapshot(defaults, overrides, revision) {
     aiApiKey: overrides.aiApiKey ?? defaults.aiApiKey ?? '',
     aiBaseUrl: overrides.aiBaseUrl ?? defaults.aiBaseUrl,
     aiModel: overrides.aiModel ?? defaults.aiModel,
+    llmProfiles,
+    llmRouting,
+    legacyLLMImportCandidate,
     port: defaults.port,
     settings: validateRuntimeSettings({
       ...defaultRuntimeSettings,
