@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { generateKeyPairSync } from 'node:crypto';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
-import { createTokenBrokerServer } from '../src/server.mjs';
+import { createBrokerServices, createTokenBrokerServer } from '../src/server.mjs';
 
 async function withServer(run, {
   fetcher,
@@ -39,6 +43,38 @@ test('health check never requires a service token', async () => {
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: 'ok' });
   });
+});
+
+test('starts isolated App and admin listeners without exposing admin on App API', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lumanest-services-'));
+  const privateKeyPath = join(directory, 'qweather.pem');
+  const { privateKey } = generateKeyPairSync('ed25519');
+  await writeFile(privateKeyPath, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  const services = await createBrokerServices({
+    QWEATHER_PRIVATE_KEY_PATH: privateKeyPath,
+    QWEATHER_KEY_ID: 'key-id', QWEATHER_PROJECT_ID: 'project-id',
+    LUMANEST_SERVICE_TOKEN: 'service-token', AMAP_WEB_KEY: 'amap-key',
+    LUMANEST_CONFIG_MASTER_KEY: Buffer.alloc(32, 3).toString('base64'),
+    LUMANEST_ADMIN_PASSWORD: 'initial-password', LUMANEST_DATA_DIR: directory,
+    PORT: '0', ADMIN_PORT: '0',
+  });
+  await Promise.all([
+    new Promise((resolve) => services.appServer.listen(0, '127.0.0.1', resolve)),
+    new Promise((resolve) => services.adminServer.listen(0, '127.0.0.1', resolve)),
+  ]);
+  try {
+    const appUrl = `http://127.0.0.1:${services.appServer.address().port}`;
+    const adminUrl = `http://127.0.0.1:${services.adminServer.address().port}`;
+    assert.equal((await fetch(`${appUrl}/healthz`)).status, 200);
+    assert.equal((await fetch(`${appUrl}/admin`)).status, 404);
+    assert.equal((await fetch(`${adminUrl}/admin`)).status, 200);
+  } finally {
+    await Promise.all([
+      new Promise((resolve) => services.appServer.close(resolve)),
+      new Promise((resolve) => services.adminServer.close(resolve)),
+    ]);
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('wildlife endpoint returns regional aggregates without observation coordinates', async () => {

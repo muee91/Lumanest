@@ -4,12 +4,16 @@
 
 ## 网络与接口
 
-- 容器端口：`8787`
+- App API 端口：`8787`
+- 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`
 - 健康检查：`GET /healthz`
 - JWT 签发：`POST /v1/qweather/token`
 - 周边 POI：`GET /v1/amap/nearby`
 - 驾车路线：`GET /v1/amap/driving`
+- 步行路线：`GET /v1/amap/walking`
+- 路线高程剖面：`GET /v1/elevation/profile`
 - 野生动物区域线索：`GET /v1/wildlife/nearby`
+- AI 创作文案：`POST /v1/narrative`
 - JWT 签发接口需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
 
 将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 端点是：
@@ -18,28 +22,32 @@
 https://weather.example.com/v1/qweather/token
 ```
 
-不要把 NAS 的 `8787` 端口直接暴露到公网；仅让 NAS 的 HTTPS 反向代理访问它，并在反向代理处启用速率限制。
+不要把 NAS 的端口直接映射到公网。路由器反向代理只能指向 `8787`；禁止为 `8788` 创建公网反向代理规则。
 
 野生动物接口只返回 GBIF 公开观测的区域级物种汇总（鸟类、兽类、两爬、昆虫等），不会返回观测坐标，也会过滤常见家养种。它仅用于创作线索，不能视为实时动物分布或安全预警；风险提示必须来自独立、权威或人工核验的风险区数据。
+
+路线高程接口通过 Open-Meteo Elevation API 获取最多 64 个路线采样点的高程，仅返回高程数组，不返回坐标。使用和展示时需保留 Open-Meteo 数据来源说明；高程用于行程估算，不替代专业测绘或户外安全设备。
+
+AI 文案接口默认使用通义千问的 OpenAI 兼容接口。模型只接收场景、时间阶段、天气类型、路线状态、已成立创作事件 ID 和确定性模板摘要；不接收坐标、安全事件或跳转动作。未配置、超时、返回越权字段或格式错误时，App 自动继续使用本地模板。
 
 ## NAS 部署
 
 1. 将整个 `services/lumanest-data-broker` 目录复制到 NAS，例如：
 
    ```text
-   /volume1/docker/lumanest/data-broker
+   /vol2/docker/lumanest/qweather-token-broker
    ```
 
 2. 将本机生成的 `ed25519-private.pem` 安全复制到 NAS，例如：
 
    ```text
-   /volume1/docker/lumanest/secrets/ed25519-private.pem
+   /vol2/docker/lumanest/secrets/ed25519-private.pem
    ```
 
    在 NAS 上限制私钥文件权限：
 
    ```bash
-   chmod 600 /volume1/docker/lumanest/secrets/ed25519-private.pem
+   chmod 600 /vol2/docker/lumanest/secrets/ed25519-private.pem
    ```
 
 3. 复制环境变量模板并填写值：
@@ -53,6 +61,17 @@ https://weather.example.com/v1/qweather/token
    - `QWEATHER_PRIVATE_KEY_FILE`：NAS 私钥的绝对路径。
    - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
+   - `AI_API_KEY`：通义千问 API Key，仅保存在 NAS；留空时 AI 文案接口关闭。
+   - `AI_BASE_URL`：可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
+   - `AI_MODEL`：可选，默认 `qwen-plus`。
+   - `LUMANEST_CONFIG_MASTER_KEY`：32 字节随机密钥的 Base64，用于加密持久化配置。
+   - `LUMANEST_ADMIN_PASSWORD`：首次启动时写入 Argon2id 哈希；之后修改 Key 不会要求重复输入密码。
+
+   生成配置加密密钥时，不要把结果粘贴到聊天或提交到 Git：
+
+   ```bash
+   openssl rand -base64 32
+   ```
 
 4. 启动容器：
 
@@ -72,6 +91,8 @@ https://weather.example.com/v1/qweather/token
    {"status":"ok"}
    ```
 
+6. 在局域网浏览器打开 `http://NAS_IP:8788/admin`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
+
 ## 域名反向代理
 
 在 NAS 的反向代理管理页创建规则：
@@ -84,6 +105,8 @@ https://weather.example.com/v1/qweather/token
 | 目标协议 | HTTP |
 | 目标主机 | `127.0.0.1` 或 NAS 内网地址 |
 | 目标端口 | `8787` |
+
+管理端口 `8788` 不得加入这条规则，也不得创建独立公网规则。
 
 绑定 TLS 证书后，再请求：
 
@@ -102,6 +125,9 @@ docker compose logs --tail=100 qweather-token-broker
 
 # 更新后重新构建
 docker compose up -d --build
+
+# 忘记管理密码时，在 NAS 本机通过环境文件重置；不会输出哈希
+docker compose --env-file qweather-token-broker.env run --rm qweather-token-broker node src/admin/admin-cli.mjs reset-password
 ```
 
 如果泄露了 `LUMANEST_SERVICE_TOKEN`，生成一个新随机值、更新 NAS 的 `qweather-token-broker.env` 并重启容器即可。若怀疑 Ed25519 私钥泄露，需要在和风控制台删除旧凭据、生成新密钥对并重新上传公钥。

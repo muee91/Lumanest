@@ -5,6 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 import { createQWeatherJwt } from './jwt.mjs';
 import { validateRuntimeSettings } from './admin/runtime-settings.mjs';
+import { EncryptedConfigStore } from './admin/config-store.mjs';
+import { RuntimeConfigService } from './admin/runtime-config.mjs';
+import { AdminAuthService } from './admin/auth.mjs';
+import { AuditLog } from './admin/audit-log.mjs';
+import { createAdminServer } from './admin/admin-server.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
@@ -340,6 +345,12 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (requestUrl.pathname === '/admin' || requestUrl.pathname === '/admin/' ||
+        requestUrl.pathname.startsWith('/admin-assets/')) {
+      writeJson(response, 404, { error: 'not_found' });
+      return;
+    }
+
     if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken)) {
       writeJson(response, 401, { error: 'unauthorized' });
       return;
@@ -534,10 +545,48 @@ export function configurationFromEnvironment(environment = process.env) {
   };
 }
 
+export async function createBrokerServices(environment = process.env, {
+  exit = (code) => process.exit(code),
+} = {}) {
+  const defaults = configurationFromEnvironment(environment);
+  const dataDirectory = environment.LUMANEST_DATA_DIR?.trim() || '/var/lib/lumanest';
+  const masterKey = environment.LUMANEST_CONFIG_MASTER_KEY?.trim();
+  if (!masterKey) throw new Error('Missing required environment variable: LUMANEST_CONFIG_MASTER_KEY');
+
+  const configStore = new EncryptedConfigStore({
+    filePath: `${dataDirectory}/runtime-config.enc.json`,
+    masterKey,
+  });
+  const runtimeConfig = new RuntimeConfigService({ defaults, store: configStore });
+  await runtimeConfig.initialize();
+
+  const authService = new AdminAuthService({
+    filePath: `${dataDirectory}/admin-auth.json`,
+    bootstrapPassword: environment.LUMANEST_ADMIN_PASSWORD ?? '',
+  });
+  await authService.initialize();
+  const auditLog = new AuditLog();
+  const appServer = createTokenBrokerServer({ runtimeConfig });
+  const adminServer = createAdminServer({
+    authService,
+    runtimeConfig,
+    auditLog,
+    restart: async () => exit(0),
+  });
+  return {
+    appServer,
+    adminServer,
+    appPort: defaults.port,
+    adminPort: Number.parseInt(environment.ADMIN_PORT ?? '8788', 10),
+  };
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const configuration = configurationFromEnvironment();
-  const server = createTokenBrokerServer(configuration);
-  server.listen(configuration.port, '0.0.0.0', () => {
-    console.log(`lumanest-data-broker listening on ${configuration.port}`);
+  const services = await createBrokerServices();
+  services.appServer.listen(services.appPort, '0.0.0.0', () => {
+    console.log(`lumanest-data-broker app API listening on ${services.appPort}`);
+  });
+  services.adminServer.listen(services.adminPort, '0.0.0.0', () => {
+    console.log(`lumanest-data-broker LAN admin listening on ${services.adminPort}`);
   });
 }

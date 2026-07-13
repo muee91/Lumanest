@@ -49,3 +49,4 @@ app.*.map.json
 
 # NAS Docker deployment secrets
 /services/qweather-token-broker/qweather-token-broker.env
+/services/lumanest-data-broker/qweather-token-broker.env

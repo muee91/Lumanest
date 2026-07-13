@@ -3,17 +3,37 @@ services:
     build: .
     container_name: lumanest-qweather-token-broker
     restart: unless-stopped
-    env_file:
-      - ./qweather-token-broker.env
     environment:
       PORT: "8787"
+      ADMIN_PORT: "8788"
+      LUMANEST_DATA_DIR: /var/lib/lumanest
       QWEATHER_PRIVATE_KEY_PATH: /run/secrets/qweather-ed25519-private.pem
+      QWEATHER_KEY_ID: ${QWEATHER_KEY_ID:?Set QWEATHER_KEY_ID}
+      QWEATHER_PROJECT_ID: ${QWEATHER_PROJECT_ID:?Set QWEATHER_PROJECT_ID}
+      LUMANEST_SERVICE_TOKEN: ${LUMANEST_SERVICE_TOKEN:?Set LUMANEST_SERVICE_TOKEN}
+      AMAP_WEB_KEY: ${AMAP_WEB_KEY:?Set AMAP_WEB_KEY}
+      LUMANEST_CONFIG_MASTER_KEY: ${LUMANEST_CONFIG_MASTER_KEY:?Set LUMANEST_CONFIG_MASTER_KEY}
+      LUMANEST_ADMIN_PASSWORD: ${LUMANEST_ADMIN_PASSWORD:?Set LUMANEST_ADMIN_PASSWORD}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      AI_MODEL: ${AI_MODEL:-qwen-plus}
     ports:
       - "8787:8787"
+      - "8788:8788"
     volumes:
       - ${QWEATHER_PRIVATE_KEY_FILE:?Set QWEATHER_PRIVATE_KEY_FILE in qweather-token-broker.env}:/run/secrets/qweather-ed25519-private.pem:ro
+      - lumanest-data:/var/lib/lumanest
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8787/healthz >/dev/null && wget -qO- http://127.0.0.1:8788/admin >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  lumanest-data:
