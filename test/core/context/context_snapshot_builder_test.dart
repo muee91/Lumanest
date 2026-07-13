@@ -76,4 +76,25 @@ void main() {
     expect(snapshot.safetyEventIds, contains('thunderstorm'));
     expect(snapshot.opportunityIds, isNot(contains('thunderstorm')));
   });
+
+  test('stale copy removes weather-dependent creative opportunities', () {
+    final now = DateTime.utc(2026, 7, 13, 10);
+    final live = ContextSnapshot(
+      id: 'live',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.lake,
+      dayPhase: DayPhase.sunset,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      opportunityIds: const ['reflection'],
+      safetyEventIds: const ['thunderstorm'],
+    );
+
+    final stale = live.asStale();
+
+    expect(stale.opportunityIds, isEmpty);
+    expect(stale.safetyEventIds, contains('thunderstorm'));
+    expect(stale.isStale, isTrue);
+  });
 }

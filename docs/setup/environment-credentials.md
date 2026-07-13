@@ -68,7 +68,8 @@ App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私�
   "QWEATHER_KEY_ID": "你的和风天气凭据 ID",
   "QWEATHER_PROJECT_ID": "你的和风天气项目 ID",
   "QWEATHER_TOKEN_ENDPOINT": "https://你的服务域名/v1/qweather/token",
-  "LUMANEST_SERVICE_TOKEN": "NAS JWT 服务的访问令牌"
+  "LUMANEST_SERVICE_TOKEN": "NAS JWT 服务的访问令牌",
+  "SENTRY_DSN": "可选，Sentry Flutter 项目的 DSN"
 }
 ```
 
@@ -84,9 +85,53 @@ tool/flutter_with_environment.sh run
 tool/flutter_with_environment.sh build apk --debug
 ```
 
-## 五、隐私顺序
+## 五、Android 正式签名
+
+Debug APK 继续使用 Android 调试签名。正式 APK/AAB 必须使用独立的发布签名；项目会在缺少发布签名时主动终止 release 构建，不再回退到 debug 签名。
+
+首次发布前，在本机创建签名库（别名可以保留为 `lumanest`）：
+
+```bash
+keytool -genkeypair -v \
+  -keystore .secrets/android/lumanest-release.jks \
+  -alias lumanest \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+然后创建被 Git 忽略的 `android/key.properties`：
+
+```properties
+storePassword=你的签名库密码
+keyPassword=你的密钥密码
+keyAlias=lumanest
+storeFile=../../.secrets/android/lumanest-release.jks
+```
+
+验证签名并取得用于高德正式 Android Key 的 SHA1：
+
+```bash
+keytool -list -v -keystore .secrets/android/lumanest-release.jks -alias lumanest
+```
+
+发布构建：
+
+```bash
+tool/flutter_with_environment.sh build appbundle --release
+```
+
+签名库、密码和 `key.properties` 都只保存在本机安全目录并另行加密备份。丢失发布签名后将无法正常更新已发布的 Android 应用。
+
+## 六、隐私顺序
 
 1. 先展示 App 内的环境数据与定位说明。
 2. 用户明确同意后，才请求系统前台定位权限。
 3. 高德地图首次开启时，单独展示并记录高德隐私授权，再初始化高德 SDK。
 4. 定位、天气和地图权限都可在“我的”页恢复或关闭；后续会加入持久化记录。
+
+Android 正式包默认关闭系统应用数据备份，避免位置快照、路线记录和偏好数据进入设备云备份。App 只申请前台精确/粗略定位，不申请后台定位，也不申请修改 Wi-Fi 状态。
+
+## 七、可选崩溃监控
+
+在 Sentry 创建 Flutter 项目后，将项目 DSN 写入唯一配置文件 `.secrets/environment.debug.json` 的 `SENTRY_DSN`。DSN 会随 APK 配置进入客户端，这是 Sentry 的公开项目入口，不是账户 API Token。
+
+未配置 DSN 时，Sentry 完全不初始化。配置后仅发送异常类型、堆栈、App 版本以及系统和设备技术信息；项目明确关闭默认 PII、截图、视图层级、交互记录、网络请求上下文、面包屑和性能追踪。定位、路线和用户收藏不写入崩溃事件。

@@ -1,7 +1,26 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val releaseKeyPropertiesFile = rootProject.file("key.properties")
+val releaseKeyProperties = Properties().apply {
+    if (releaseKeyPropertiesFile.exists()) {
+        releaseKeyPropertiesFile.inputStream().use(::load)
+    }
+}
+val releaseBuildRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.contains("release", ignoreCase = true)
+}
+
+if (releaseBuildRequested && !releaseKeyPropertiesFile.exists()) {
+    throw GradleException(
+        "Release signing is not configured. Create android/key.properties " +
+            "and a private release keystore before building a release artifact.",
+    )
 }
 
 android {
@@ -17,7 +36,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.muee.lumanest"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -27,13 +45,32 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+
+    signingConfigs {
+        if (releaseKeyPropertiesFile.exists()) {
+            create("release") {
+                keyAlias = releaseKeyProperties.getProperty("keyAlias")
+                keyPassword = releaseKeyProperties.getProperty("keyPassword")
+                storeFile = file(releaseKeyProperties.getProperty("storeFile"))
+                storePassword = releaseKeyProperties.getProperty("storePassword")
+            }
         }
     }
+
+    buildTypes {
+        release {
+            if (releaseKeyPropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+}
+
+dependencies {
+    // The map plugin consumes this internally, but the automatic-location
+    // fallback is implemented in MainActivity and therefore needs the same
+    // AMap location SDK on the app module's Kotlin compile classpath.
+    implementation("com.amap.api:3dmap-location-search:10.1.200_loc6.4.9_sea9.7.4")
 }
 
 kotlin {

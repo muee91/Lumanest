@@ -18,7 +18,8 @@ jq '{
   AMAP_ANDROID_KEY,
   QWEATHER_API_HOST,
   QWEATHER_TOKEN_ENDPOINT,
-  LUMANEST_SERVICE_TOKEN
+  LUMANEST_SERVICE_TOKEN,
+  SENTRY_DSN
 }' "$source_file" > "$safe_file"
 
 cd "$workspace_root"

@@ -1,0 +1,30 @@
+import 'package:luma_nest/src/core/location/geo_point.dart';
+
+class LocationSearchResult {
+  const LocationSearchResult({
+    required this.id,
+    required this.name,
+    required this.point,
+    this.address,
+  });
+
+  final String id;
+  final String name;
+  final GeoPoint point;
+  final String? address;
+}
+
+abstract interface class LocationSearchRepository {
+  Future<List<LocationSearchResult>> search(String keywords);
+}
+
+enum LocationSearchFailureKind { configuration, network, response }
+
+class LocationSearchFailure implements Exception {
+  const LocationSearchFailure(this.kind);
+
+  final LocationSearchFailureKind kind;
+
+  @override
+  String toString() => 'LocationSearchFailure($kind)';
+}

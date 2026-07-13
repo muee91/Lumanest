@@ -1,4 +1,5 @@
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
 enum SceneType {
@@ -28,6 +29,7 @@ class ContextSnapshot {
     List<String> opportunityIds = const [],
     List<String> safetyEventIds = const [],
     List<String> wildlifeEventIds = const [],
+    List<ContextEvent> events = const [],
     this.wildlifeActivity,
     this.location,
     this.temperatureCelsius,
@@ -43,7 +45,8 @@ class ContextSnapshot {
     this.isStale = false,
   }) : opportunityIds = List.unmodifiable(opportunityIds),
        safetyEventIds = List.unmodifiable(safetyEventIds),
-       wildlifeEventIds = List.unmodifiable(wildlifeEventIds);
+       wildlifeEventIds = List.unmodifiable(wildlifeEventIds),
+       events = List.unmodifiable(events);
 
   final String id;
   final DateTime observedAt;
@@ -55,6 +58,7 @@ class ContextSnapshot {
   final List<String> opportunityIds;
   final List<String> safetyEventIds;
   final List<String> wildlifeEventIds;
+  final List<ContextEvent> events;
   final RegionalWildlifeActivity? wildlifeActivity;
   final GeoPoint? location;
   final double? temperatureCelsius;
@@ -78,9 +82,12 @@ class ContextSnapshot {
       dayPhase: dayPhase,
       weather: weather,
       activeRoute: activeRoute,
-      opportunityIds: opportunityIds,
+      opportunityIds: const [],
       safetyEventIds: safetyEventIds,
       wildlifeEventIds: wildlifeEventIds,
+      events: events
+          .where((event) => event.channel != ContextEventChannel.opportunity)
+          .toList(growable: false),
       wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -98,6 +105,18 @@ class ContextSnapshot {
   }
 
   ContextSnapshot withWildlifeActivity(RegionalWildlifeActivity activity) {
+    final wildlifeEvents = activity.hasActivity
+        ? [
+            ContextEvent(
+              id: 'regional-wildlife',
+              channel: ContextEventChannel.wildlifeOpportunity,
+              source: ContextEventSource.wildlifeHistorical,
+              observedAt: observedAt,
+              expiresAt: expiresAt,
+              confidence: (activity.occurrenceSampleSize / 20).clamp(0.25, 0.8),
+            ),
+          ]
+        : const <ContextEvent>[];
     return ContextSnapshot(
       id: id,
       observedAt: observedAt,
@@ -111,6 +130,12 @@ class ContextSnapshot {
       wildlifeEventIds: activity.hasActivity
           ? const ['regional-wildlife']
           : const [],
+      events: [
+        ...events.where(
+          (event) => event.channel != ContextEventChannel.wildlifeOpportunity,
+        ),
+        ...wildlifeEvents,
+      ],
       wildlifeActivity: activity,
       location: location,
       temperatureCelsius: temperatureCelsius,

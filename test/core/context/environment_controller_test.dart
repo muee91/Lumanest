@@ -7,6 +7,9 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
+import 'package:luma_nest/src/core/context/scene_classifier.dart';
+import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
@@ -15,8 +18,25 @@ import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('default location timeout leaves orchestration margin for fallback', () {
+    final now = DateTime.utc(2026, 7, 11, 12);
+    final loader = EnvironmentLoader(
+      qweatherConfigured: true,
+      locationRepository: _FakeLocationRepository(_location(now)),
+      weatherRepository: _FakeWeatherRepository(_weather(now)),
+      solarService: _FakeSolarService(_solar(now)),
+      snapshotBuilder: const ContextSnapshotBuilder(),
+      cache: InMemoryContextCache(),
+      now: DateTime.now,
+      utcOffset: () => Duration.zero,
+    );
+
+    expect(loader.locationTimeout, const Duration(seconds: 21));
+  });
+
   late _FakeLocationRepository location;
   late _FakeWeatherRepository weather;
   late _FakeSolarService solar;
@@ -33,6 +53,7 @@ void main() {
   EnvironmentLoader createLoader({
     bool configured = true,
     WildlifeRepository? wildlifeRepository,
+    SceneEvidenceRepository? sceneEvidenceRepository,
     Duration locationTimeout = const Duration(seconds: 15),
     Duration weatherTimeout = const Duration(seconds: 10),
   }) {
@@ -44,6 +65,7 @@ void main() {
       snapshotBuilder: const ContextSnapshotBuilder(),
       cache: cache,
       wildlifeRepository: wildlifeRepository,
+      sceneEvidenceRepository: sceneEvidenceRepository,
       locationTimeout: locationTimeout,
       weatherTimeout: weatherTimeout,
       now: () => now,
@@ -157,6 +179,42 @@ void main() {
     expect(snapshot.observedAt, cached.observedAt);
   });
 
+  test(
+    'persistent cache survives a new loader instance while offline',
+    () async {
+      final preferences = SharedPreferencesAsync();
+      const storageKey = 'environment-controller-restart-cache';
+      final firstLoader = EnvironmentLoader(
+        qweatherConfigured: true,
+        locationRepository: location,
+        weatherRepository: weather,
+        solarService: solar,
+        snapshotBuilder: const ContextSnapshotBuilder(),
+        cache: PersistentContextCache(preferences, storageKey: storageKey),
+        now: () => now,
+        utcOffset: () => const Duration(hours: 8),
+      );
+      final live = await firstLoader.load();
+
+      weather.error = StateError('offline after restart');
+      final restartedLoader = EnvironmentLoader(
+        qweatherConfigured: true,
+        locationRepository: location,
+        weatherRepository: weather,
+        solarService: solar,
+        snapshotBuilder: const ContextSnapshotBuilder(),
+        cache: PersistentContextCache(preferences, storageKey: storageKey),
+        now: () => now.add(const Duration(minutes: 20)),
+        utcOffset: () => const Duration(hours: 8),
+      );
+      final offline = await restartedLoader.load();
+
+      expect(offline.id, live.id);
+      expect(offline.isStale, isTrue);
+      expect(offline.location?.latitude, live.location?.latitude);
+    },
+  );
+
   test('bounds the complete weather acquisition chain', () async {
     final neverCompletes = Completer<WeatherObservation>();
     weather.pending = neverCompletes.future;
@@ -189,6 +247,29 @@ void main() {
     ).load();
 
     expect(snapshot.wildlifeEventIds, isEmpty);
+    expect(snapshot.isStale, isFalse);
+  });
+
+  test('uses optional semantic evidence to classify the live scene', () async {
+    final snapshot = await createLoader(
+      sceneEvidenceRepository: const _FakeSceneEvidenceRepository(
+        SceneEvidence(waterBody: true),
+      ),
+    ).load();
+
+    expect(snapshot.primaryScene, SceneType.lake);
+    expect(snapshot.opportunityIds, contains('reflection'));
+  });
+
+  test('keeps environment available when semantic evidence fails', () async {
+    final snapshot = await createLoader(
+      sceneEvidenceRepository: _FakeSceneEvidenceRepository(
+        const SceneEvidence(),
+        error: StateError('offline'),
+      ),
+    ).load();
+
+    expect(snapshot.primaryScene, SceneType.unknown);
     expect(snapshot.isStale, isFalse);
   });
 
@@ -326,5 +407,17 @@ class _FakeWildlifeRepository implements WildlifeRepository {
             ]
           : const [],
     );
+  }
+}
+
+class _FakeSceneEvidenceRepository implements SceneEvidenceRepository {
+  const _FakeSceneEvidenceRepository(this.evidence, {this.error});
+  final SceneEvidence evidence;
+  final Object? error;
+
+  @override
+  Future<SceneEvidence> fetch(GeoPoint location) async {
+    if (error case final failure?) throw failure;
+    return evidence;
   }
 }

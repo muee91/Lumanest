@@ -2,11 +2,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
+import 'package:luma_nest/src/infrastructure/location/amap_location_gateway.dart';
 
 export 'package:luma_nest/src/core/location/location_repository.dart'
     show LocationFailureKind, LocationRepositoryFailure;
 
 enum PlatformLocationPermission { denied, deniedForever, whileInUse, always }
+
+enum PlatformLocationAccuracy { high, balanced }
 
 class PlatformPosition {
   const PlatformPosition({
@@ -31,17 +34,31 @@ abstract interface class LocationPlatformGateway {
 
   Future<PlatformLocationPermission> requestPermission();
 
-  Future<PlatformPosition> getCurrentPosition();
+  Future<PlatformPosition?> getLastKnownPosition();
+
+  Future<PlatformPosition> getCurrentPosition(
+    PlatformLocationAccuracy accuracy,
+  );
 }
 
 class GeolocatorRepository implements LocationRepository {
   const GeolocatorRepository(
     this._gateway, {
-    this.positionTimeout = const Duration(seconds: 15),
+    this.highAccuracyTimeout = const Duration(seconds: 8),
+    this.balancedAccuracyTimeout = const Duration(seconds: 5),
+    this.maximumLastKnownAge = const Duration(minutes: 15),
+    this.fallbackSettleDelay = const Duration(milliseconds: 300),
+    this.amapGateway,
+    this.amapTimeout = const Duration(seconds: 6),
   });
 
   final LocationPlatformGateway _gateway;
-  final Duration positionTimeout;
+  final Duration highAccuracyTimeout;
+  final Duration balancedAccuracyTimeout;
+  final Duration maximumLastKnownAge;
+  final Duration fallbackSettleDelay;
+  final AmapLocationGateway? amapGateway;
+  final Duration amapTimeout;
 
   @override
   Future<LocationReading> current() async {
@@ -71,28 +88,93 @@ class GeolocatorRepository implements LocationRepository {
       );
     }
 
-    try {
-      // Some device location stacks ignore the plugin's platform time limit
-      // while waiting for a first GNSS fix. Keep the UI recoverable instead of
-      // allowing the environment snapshot to stay loading indefinitely.
-      final position = await _gateway.getCurrentPosition().timeout(
-        positionTimeout,
-      );
-      final point = GeoPoint(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      ).validate();
+    // On Android in China, AMap's fused location is the primary source. It
+    // combines satellite, Wi-Fi and base-station signals and avoids waiting
+    // for a system fused provider that may never publish a fix.
+    final amap = await _tryAmapPosition();
+    if (amap != null) {
       return LocationReading(
-        point: point,
-        recordedAt: position.recordedAt,
-        accuracyMeters: position.accuracyMeters,
-        altitudeMeters: position.altitudeMeters,
+        point: amap.point,
+        recordedAt: amap.recordedAt,
+        accuracyMeters: amap.accuracyMeters,
+        altitudeMeters: amap.altitudeMeters,
       );
-    } on LocationRepositoryFailure {
-      rethrow;
-    } on Object {
-      throw const LocationRepositoryFailure(LocationFailureKind.unavailable);
     }
+
+    final recent = await _lastKnownPosition();
+    if (recent != null) return _readingFrom(recent);
+
+    // Android high accuracy delegates to the system GNSS fusion. On supported
+    // hardware this includes BeiDou alongside GPS, Galileo and GLONASS.
+    final highAccuracy = await _tryPosition(
+      PlatformLocationAccuracy.high,
+      highAccuracyTimeout,
+    );
+    if (highAccuracy != null) return _readingFrom(highAccuracy);
+
+    // The Android plugin cancels its native request asynchronously after its
+    // own time limit. Give that cancellation a brief head start before a
+    // second request is sent through the same method channel.
+    await Future<void>.delayed(fallbackSettleDelay);
+
+    // Indoor, urban canyon and first-fix cases need a second path. Android's
+    // balanced request can use Wi-Fi, base-station and network fusion.
+    final balanced = await _tryPosition(
+      PlatformLocationAccuracy.balanced,
+      balancedAccuracyTimeout,
+    );
+    if (balanced != null) return _readingFrom(balanced);
+
+    throw const LocationRepositoryFailure(LocationFailureKind.unavailable);
+  }
+
+  Future<PlatformPosition?> _lastKnownPosition() async {
+    try {
+      final position = await _gateway.getLastKnownPosition();
+      if (position == null) return null;
+      final age = DateTime.now().toUtc().difference(
+        position.recordedAt.toUtc(),
+      );
+      return age >= Duration.zero && age <= maximumLastKnownAge
+          ? position
+          : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<PlatformPosition?> _tryPosition(
+    PlatformLocationAccuracy accuracy,
+    Duration timeout,
+  ) async {
+    try {
+      return await _gateway.getCurrentPosition(accuracy).timeout(timeout);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<AmapLocationFix?> _tryAmapPosition() async {
+    final gateway = amapGateway;
+    if (gateway == null) return null;
+    try {
+      return await gateway.getCurrentPosition().timeout(amapTimeout);
+    } on Object {
+      return null;
+    }
+  }
+
+  LocationReading _readingFrom(PlatformPosition position) {
+    final point = GeoPoint(
+      latitude: position.latitude,
+      longitude: position.longitude,
+    ).validate();
+    return LocationReading(
+      point: point,
+      recordedAt: position.recordedAt,
+      accuracyMeters: position.accuracyMeters,
+      altitudeMeters: position.altitudeMeters,
+    );
   }
 }
 
@@ -105,11 +187,20 @@ class GeolocatorGateway implements LocationPlatformGateway {
   }
 
   @override
-  Future<PlatformPosition> getCurrentPosition() async {
+  Future<PlatformPosition> getCurrentPosition(
+    PlatformLocationAccuracy accuracy,
+  ) async {
     final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 15),
+      locationSettings: LocationSettings(
+        accuracy: accuracy == PlatformLocationAccuracy.high
+            ? LocationAccuracy.high
+            : LocationAccuracy.medium,
+        timeLimit: accuracy == PlatformLocationAccuracy.high
+            // Keep the plugin's own timeout below the repository safety
+            // timeout. This lets it cancel the native GNSS request before the
+            // balanced network request begins.
+            ? const Duration(seconds: 7)
+            : const Duration(seconds: 4),
       ),
     );
     return PlatformPosition(
@@ -123,6 +214,19 @@ class GeolocatorGateway implements LocationPlatformGateway {
 
   @override
   Future<bool> isServiceEnabled() => Geolocator.isLocationServiceEnabled();
+
+  @override
+  Future<PlatformPosition?> getLastKnownPosition() async {
+    final position = await Geolocator.getLastKnownPosition();
+    if (position == null) return null;
+    return PlatformPosition(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyMeters: position.accuracy,
+      altitudeMeters: position.altitude,
+      recordedAt: position.timestamp,
+    );
+  }
 
   @override
   Future<PlatformLocationPermission> requestPermission() async {

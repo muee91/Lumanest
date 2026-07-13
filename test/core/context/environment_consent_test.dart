@@ -35,6 +35,21 @@ void main() {
 
     expect(container.read(environmentConsentProvider), isTrue);
   });
+
+  test('revokes consent immediately and persists the choice', () async {
+    final store = _FakeEnvironmentConsentStore(granted: true);
+    final container = ProviderContainer(
+      overrides: [environmentConsentStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    container.read(environmentConsentProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    await container.read(environmentConsentProvider.notifier).revoke();
+
+    expect(container.read(environmentConsentProvider), isFalse);
+    expect(store.granted, isFalse);
+  });
 }
 
 class _FakeEnvironmentConsentStore implements EnvironmentConsentStore {
@@ -46,7 +61,7 @@ class _FakeEnvironmentConsentStore implements EnvironmentConsentStore {
   Future<bool?> readGranted() async => granted;
 
   @override
-  Future<void> saveGranted() async {
-    granted = true;
+  Future<void> writeGranted(bool granted) async {
+    this.granted = granted;
   }
 }

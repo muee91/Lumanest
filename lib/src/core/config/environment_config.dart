@@ -4,12 +4,14 @@ class EnvironmentConfig {
     String qweatherApiHost = '',
     String qweatherTokenEndpoint = '',
     String lumaNestServiceToken = '',
+    String sentryDsn = '',
   }) {
     return EnvironmentConfig._(
       amapAndroidKey: amapAndroidKey.trim(),
       qweatherApiHost: _normalizeHost(qweatherApiHost),
       qweatherTokenEndpoint: _normalizeHost(qweatherTokenEndpoint),
       lumaNestServiceToken: lumaNestServiceToken.trim(),
+      sentryDsn: sentryDsn.trim(),
     );
   }
 
@@ -18,6 +20,7 @@ class EnvironmentConfig {
     required this.qweatherApiHost,
     required this.qweatherTokenEndpoint,
     required this.lumaNestServiceToken,
+    required this.sentryDsn,
   });
 
   factory EnvironmentConfig.fromEnvironment() {
@@ -30,6 +33,7 @@ class EnvironmentConfig {
       lumaNestServiceToken: const String.fromEnvironment(
         'LUMANEST_SERVICE_TOKEN',
       ),
+      sentryDsn: const String.fromEnvironment('SENTRY_DSN'),
     );
   }
 
@@ -37,6 +41,7 @@ class EnvironmentConfig {
   final String qweatherApiHost;
   final String qweatherTokenEndpoint;
   final String lumaNestServiceToken;
+  final String sentryDsn;
 
   bool get isAmapConfigured => amapAndroidKey.isNotEmpty;
 
@@ -59,6 +64,8 @@ class EnvironmentConfig {
   bool get isDataBrokerConfigured =>
       dataBrokerBaseUrl.isNotEmpty && lumaNestServiceToken.isNotEmpty;
 
+  bool get isSentryConfigured => sentryDsn.isNotEmpty;
+
   static String _normalizeHost(String value) {
     return value.trim().replaceFirst(RegExp(r'/+$'), '');
   }
@@ -67,6 +74,7 @@ class EnvironmentConfig {
   String toString() {
     return 'EnvironmentConfig('
         'amapConfigured: $isAmapConfigured, '
-        'qweatherConfigured: $isQWeatherConfigured)';
+        'qweatherConfigured: $isQWeatherConfigured, '
+        'sentryConfigured: $isSentryConfigured)';
   }
 }

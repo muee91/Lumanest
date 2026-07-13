@@ -1,0 +1,34 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
+import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
+import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
+
+abstract interface class EnvironmentPrivacyService {
+  Future<void> revokeAndClear();
+}
+
+class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
+  RiverpodEnvironmentPrivacyService(this._ref);
+
+  final Ref _ref;
+
+  @override
+  Future<void> revokeAndClear() async {
+    // Stop new environment work before removing any stored state.
+    await _ref.read(environmentConsentProvider.notifier).revoke();
+    _ref.read(mapConsentControllerProvider.notifier).revokeConsent();
+    _ref.read(manualLocationProvider.notifier).clear();
+    await _ref.read(contextCacheProvider).clear();
+
+    // Drop in-memory snapshots and generated wording. These providers stay
+    // dormant while consent is false and rebuild only after a new opt-in.
+    _ref.invalidate(environmentSnapshotProvider);
+    _ref.invalidate(manifestNarrativeCoordinatorProvider);
+  }
+}
+
+final environmentPrivacyServiceProvider = Provider<EnvironmentPrivacyService>(
+  RiverpodEnvironmentPrivacyService.new,
+);

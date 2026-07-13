@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 abstract interface class EnvironmentConsentStore {
   Future<bool?> readGranted();
 
-  Future<void> saveGranted();
+  Future<void> writeGranted(bool granted);
 }
 
 class SharedPreferencesEnvironmentConsentStore
@@ -20,7 +20,8 @@ class SharedPreferencesEnvironmentConsentStore
   Future<bool?> readGranted() => _preferences.getBool(_key);
 
   @override
-  Future<void> saveGranted() => _preferences.setBool(_key, true);
+  Future<void> writeGranted(bool granted) =>
+      _preferences.setBool(_key, granted);
 }
 
 final environmentConsentStoreProvider = Provider<EnvironmentConsentStore>((
@@ -33,7 +34,7 @@ final environmentConsentStoreProvider = Provider<EnvironmentConsentStore>((
 /// data. This is distinct from the operating system location permission:
 /// users opt in here first, then the platform may ask for location access.
 class EnvironmentConsentController extends Notifier<bool> {
-  var _grantedThisSession = false;
+  var _changedThisSession = false;
 
   @override
   bool build() {
@@ -45,13 +46,19 @@ class EnvironmentConsentController extends Notifier<bool> {
     final restored = await ref
         .read(environmentConsentStoreProvider)
         .readGranted();
-    if (!_grantedThisSession && restored == true) state = true;
+    if (!_changedThisSession && restored == true) state = true;
   }
 
   void grant() {
-    _grantedThisSession = true;
+    _changedThisSession = true;
     state = true;
-    unawaited(ref.read(environmentConsentStoreProvider).saveGranted());
+    unawaited(ref.read(environmentConsentStoreProvider).writeGranted(true));
+  }
+
+  Future<void> revoke() async {
+    _changedThisSession = true;
+    state = false;
+    await ref.read(environmentConsentStoreProvider).writeGranted(false);
   }
 }
 

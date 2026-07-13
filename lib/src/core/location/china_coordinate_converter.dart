@@ -45,6 +45,30 @@ abstract final class ChinaCoordinateConverter {
     );
   }
 
+  /// Converts an AMap/GCJ-02 coordinate back to canonical WGS84.
+  ///
+  /// The forward transform is non-linear, so use a few correction rounds
+  /// instead of treating the GCJ offset as a constant. This keeps weather,
+  /// solar and global data sources in their expected coordinate system.
+  static GeoPoint gcj02ToWgs84(GeoPoint point) {
+    point.validate();
+    if (point.coordinateSystem != CoordinateSystem.gcj02) return point;
+    if (_outsideMainland(point.latitude, point.longitude)) {
+      return GeoPoint(latitude: point.latitude, longitude: point.longitude);
+    }
+
+    var latitude = point.latitude;
+    var longitude = point.longitude;
+    for (var iteration = 0; iteration < 4; iteration++) {
+      final estimated = wgs84ToGcj02(
+        GeoPoint(latitude: latitude, longitude: longitude),
+      );
+      latitude += point.latitude - estimated.latitude;
+      longitude += point.longitude - estimated.longitude;
+    }
+    return GeoPoint(latitude: latitude, longitude: longitude).validate();
+  }
+
   static bool _outsideMainland(double latitude, double longitude) =>
       longitude < 72.004 ||
       longitude > 137.8347 ||

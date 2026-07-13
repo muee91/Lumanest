@@ -1,6 +1,8 @@
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
+import 'package:luma_nest/src/core/context/scene_classifier.dart';
+import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -8,6 +10,7 @@ import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
+import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
 enum EnvironmentFailureKind { configMissing, location, weather }
 
@@ -33,7 +36,11 @@ class EnvironmentLoader {
     required this.snapshotBuilder,
     required this.cache,
     this.wildlifeRepository,
-    this.locationTimeout = const Duration(seconds: 15),
+    this.sceneEvidenceRepository,
+    // GeolocatorRepository tries native AMap first, then a recent system fix,
+    // GNSS and Android's balanced network provider. Keep this outer guard
+    // above the whole recovery chain so every fallback remains available.
+    this.locationTimeout = const Duration(seconds: 21),
     this.weatherTimeout = const Duration(seconds: 10),
     required this.now,
     required this.utcOffset,
@@ -46,6 +53,7 @@ class EnvironmentLoader {
   final ContextSnapshotBuilder snapshotBuilder;
   final ContextCache cache;
   final WildlifeRepository? wildlifeRepository;
+  final SceneEvidenceRepository? sceneEvidenceRepository;
   final Duration locationTimeout;
   final Duration weatherTimeout;
   final DateTime Function() now;
@@ -69,6 +77,11 @@ class EnvironmentLoader {
       return _cachedOrThrow(EnvironmentFailureKind.location, error);
     }
 
+    // Optional context lookups start as soon as a location is available and
+    // run beside weather. Their failures never block the base environment.
+    final sceneEvidenceFuture = _fetchSceneEvidence(location.point);
+    final wildlifeFuture = _fetchWildlifeActivity(location.point);
+
     final WeatherObservation weather;
     try {
       weather = await weatherRepository
@@ -85,35 +98,48 @@ class EnvironmentLoader {
       utcOffset: utcOffset(),
       altitudeMeters: location.altitudeMeters ?? 0,
     );
+    final sceneEvidence = await sceneEvidenceFuture;
     var snapshot = snapshotBuilder.build(
       location: location,
       weather: weather,
       solar: solar,
       generatedAt: generatedAt,
+      sceneEvidence: sceneEvidence,
     );
-    snapshot = await _addWildlifeActivity(snapshot, location.point);
+    final wildlifeActivity = await wildlifeFuture;
+    if (wildlifeActivity?.hasActivity == true) {
+      snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);
+    }
     await cache.write(snapshot);
     return snapshot;
   }
 
-  Future<ContextSnapshot> _addWildlifeActivity(
-    ContextSnapshot snapshot,
+  Future<SceneEvidence> _fetchSceneEvidence(GeoPoint location) async {
+    final repository = sceneEvidenceRepository;
+    if (repository == null) return const SceneEvidence();
+    try {
+      return await repository
+          .fetch(location)
+          .timeout(const Duration(seconds: 3));
+    } catch (_) {
+      return const SceneEvidence();
+    }
+  }
+
+  Future<RegionalWildlifeActivity?> _fetchWildlifeActivity(
     GeoPoint location,
   ) async {
     final repository = wildlifeRepository;
-    if (repository == null) return snapshot;
+    if (repository == null) return null;
     try {
-      final activity = await repository
+      return await repository
           .fetchRegionalWildlifeActivity(location)
           .timeout(const Duration(seconds: 3));
-      if (activity.hasActivity) {
-        return snapshot.withWildlifeActivity(activity);
-      }
     } catch (_) {
       // Public historical records are optional creative context. A timeout or
       // upstream failure must never delay the safety or weather snapshot.
+      return null;
     }
-    return snapshot;
   }
 
   Future<ContextSnapshot> _cachedOrThrow(

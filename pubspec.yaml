@@ -46,6 +46,8 @@ dependencies:
   dio: ^5.10.0
   nrel_spa: ^1.0.1
   shared_preferences: ^2.5.4
+  battery_plus: ^7.1.0
+  sentry_flutter: ^9.24.0
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +62,7 @@ dev_dependencies:
   build_runner: ^2.15.1
   drift_dev: ^2.34.0
   shared_preferences_platform_interface: ^2.4.2
+  battery_plus_platform_interface: ^2.0.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

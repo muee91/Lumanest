@@ -22,4 +22,14 @@ void main() {
     expect(converted.longitude, 139.6503);
     expect(converted.coordinateSystem, CoordinateSystem.gcj02);
   });
+
+  test('round-trips a mainland GCJ-02 point back to WGS84', () {
+    const original = GeoPoint(latitude: 31.2304, longitude: 121.4737);
+    final gcj02 = ChinaCoordinateConverter.wgs84ToGcj02(original);
+    final converted = ChinaCoordinateConverter.gcj02ToWgs84(gcj02);
+
+    expect(converted.coordinateSystem, CoordinateSystem.wgs84);
+    expect(converted.latitude, closeTo(original.latitude, .00001));
+    expect(converted.longitude, closeTo(original.longitude, .00001));
+  });
 }

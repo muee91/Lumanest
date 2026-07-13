@@ -7,6 +7,7 @@ void main() {
 
     expect(config.isAmapConfigured, isFalse);
     expect(config.isQWeatherConfigured, isFalse);
+    expect(config.isSentryConfigured, isFalse);
   });
 
   test('configured values trim whitespace and host trailing slashes', () {
@@ -16,6 +17,7 @@ void main() {
       qweatherTokenEndpoint:
           ' https://weather.example.com/v1/qweather/token/// ',
       lumaNestServiceToken: '  broker-secret ',
+      sentryDsn: ' https://public@example.ingest.sentry.io/123 ',
     );
 
     expect(config.amapAndroidKey, 'amap-secret');
@@ -29,6 +31,8 @@ void main() {
     expect(config.lumaNestServiceToken, 'broker-secret');
     expect(config.isAmapConfigured, isTrue);
     expect(config.isQWeatherConfigured, isTrue);
+    expect(config.isSentryConfigured, isTrue);
+    expect(config.sentryDsn, 'https://public@example.ingest.sentry.io/123');
   });
 
   test('string representation never exposes key values', () {
@@ -37,9 +41,11 @@ void main() {
       qweatherApiHost: 'https://example.qweatherapi.com',
       qweatherTokenEndpoint: 'https://weather.example.com/v1/qweather/token',
       lumaNestServiceToken: 'broker-secret',
+      sentryDsn: 'https://public@example.ingest.sentry.io/123',
     );
 
     expect(config.toString(), isNot(contains('amap-secret')));
     expect(config.toString(), isNot(contains('broker-secret')));
+    expect(config.toString(), isNot(contains('example.ingest.sentry.io')));
   });
 }
