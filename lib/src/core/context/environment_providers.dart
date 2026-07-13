@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/fixed_location_repository.dart';
@@ -15,6 +16,7 @@ import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
 import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart';
 import 'package:luma_nest/src/infrastructure/location/amap_location_gateway.dart';
 import 'package:luma_nest/src/infrastructure/location/amap_scene_evidence_repository.dart';
+import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
 import 'package:luma_nest/src/infrastructure/solar/nrel_solar_service.dart';
 import 'package:luma_nest/src/infrastructure/weather/qweather_client.dart';
 import 'package:luma_nest/src/infrastructure/weather/qweather_repository.dart';
@@ -131,6 +133,26 @@ final contextCacheProvider = Provider<ContextCache>((ref) {
   return PersistentContextCache(SharedPreferencesAsync());
 });
 
+final remoteContextRepositoryProvider = Provider<RemoteContextRepository?>((
+  ref,
+) {
+  final config = ref.watch(environmentConfigProvider);
+  if (!config.isDataBrokerConfigured) return null;
+  return DataBrokerContextRepository(
+    brokerBaseUrl: config.dataBrokerBaseUrl,
+    serviceToken: config.lumaNestServiceToken,
+    transport: DioContextDataTransport(
+      Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 3),
+          receiveTimeout: const Duration(seconds: 3),
+          sendTimeout: const Duration(seconds: 3),
+        ),
+      ),
+    ),
+  );
+});
+
 final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
   final config = ref.watch(environmentConfigProvider);
   return EnvironmentLoader(
@@ -142,6 +164,7 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
     cache: ref.watch(contextCacheProvider),
     wildlifeRepository: ref.watch(wildlifeRepositoryProvider),
     sceneEvidenceRepository: ref.watch(sceneEvidenceRepositoryProvider),
+    remoteContextRepository: ref.watch(remoteContextRepositoryProvider),
     now: DateTime.now,
     utcOffset: () => DateTime.now().timeZoneOffset,
   );

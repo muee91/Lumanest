@@ -3,6 +3,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
+import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -37,6 +38,7 @@ class EnvironmentLoader {
     required this.cache,
     this.wildlifeRepository,
     this.sceneEvidenceRepository,
+    this.remoteContextRepository,
     // GeolocatorRepository tries native AMap first, then a recent system fix,
     // GNSS and Android's balanced network provider. Keep this outer guard
     // above the whole recovery chain so every fallback remains available.
@@ -54,6 +56,7 @@ class EnvironmentLoader {
   final ContextCache cache;
   final WildlifeRepository? wildlifeRepository;
   final SceneEvidenceRepository? sceneEvidenceRepository;
+  final RemoteContextRepository? remoteContextRepository;
   final Duration locationTimeout;
   final Duration weatherTimeout;
   final DateTime Function() now;
@@ -106,6 +109,16 @@ class EnvironmentLoader {
       generatedAt: generatedAt,
       sceneEvidence: sceneEvidence,
     );
+    final remoteRepository = remoteContextRepository;
+    if (remoteRepository != null) {
+      try {
+        snapshot = await remoteRepository
+            .enrich(base: snapshot, weather: weather, solar: solar)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        // The local deterministic snapshot remains the offline-safe source.
+      }
+    }
     final wildlifeActivity = await wildlifeFuture;
     if (wildlifeActivity?.hasActivity == true) {
       snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);

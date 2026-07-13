@@ -151,4 +151,43 @@ class ContextSnapshot {
       isStale: isStale,
     );
   }
+
+  ContextSnapshot withRemoteContext({
+    required String id,
+    required DateTime expiresAt,
+    required SceneType primaryScene,
+    required List<ContextEvent> events,
+  }) {
+    return ContextSnapshot(
+      id: id,
+      observedAt: observedAt,
+      expiresAt: expiresAt,
+      primaryScene: primaryScene,
+      dayPhase: dayPhase,
+      weather: weather,
+      activeRoute: activeRoute,
+      opportunityIds: events
+          .where((event) => event.channel == ContextEventChannel.opportunity)
+          .map((event) => event.id)
+          .toList(growable: false),
+      safetyEventIds: events
+          .where((event) => event.channel == ContextEventChannel.safety)
+          .map((event) => event.id)
+          .toList(growable: false),
+      events: events,
+      wildlifeActivity: wildlifeActivity,
+      location: location,
+      temperatureCelsius: temperatureCelsius,
+      windSpeedMetersPerSecond: windSpeedMetersPerSecond,
+      windDirectionDegrees: windDirectionDegrees,
+      visibilityKilometers: visibilityKilometers,
+      precipitationMillimeters: precipitationMillimeters,
+      cloudCoverPercent: cloudCoverPercent,
+      solarElevationDegrees: solarElevationDegrees,
+      solarAzimuthDegrees: solarAzimuthDegrees,
+      sunrise: sunrise,
+      sunset: sunset,
+      isStale: isStale,
+    );
+  }
 }
