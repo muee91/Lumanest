@@ -114,6 +114,7 @@ export function createAdminServer({
   testConnection = async () => ({ status: 'ok' }),
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
+  listContextSources = async () => ({ ok: false, error: 'not_configured' }),
   clearCache = async () => {},
   restart = async () => {},
 }) {
@@ -163,6 +164,17 @@ export function createAdminServer({
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/llm/providers') {
       return json(response, 200, { providers: publicProviderCatalog() });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/context/sources') {
+      const result = await listContextSources();
+      auditLog.record({
+        remoteAddress,
+        operation: 'list_context_sources',
+        result: result.ok ? 'ok' : result.error,
+      });
+      return json(response, result.ok ? 200 : 503, result.ok
+        ? { sources: result.sources }
+        : { sources: [], error: result.error });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/llm/profiles') {
       const snapshot = runtimeConfig.snapshot();

@@ -186,6 +186,8 @@ function buildSnapshot(defaults, overrides, revision) {
     llmProfiles,
     llmRouting,
     legacyLLMImportCandidate,
+    contextServiceUrl: defaults.contextServiceUrl ?? '',
+    contextInternalToken: defaults.contextInternalToken ?? '',
     port: defaults.port,
     settings: validateRuntimeSettings({
       ...defaultRuntimeSettings,

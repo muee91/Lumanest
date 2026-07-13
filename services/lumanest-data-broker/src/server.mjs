@@ -16,6 +16,7 @@ import {
   createLLMProfileTester,
 } from './admin/connection-tester.mjs';
 import { routeNarrative } from './llm/router.mjs';
+import { forwardContextSnapshot, listContextSources, validContextRequest } from './context/proxy.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
@@ -307,6 +308,8 @@ export function createTokenBrokerServer({
   },
   settings,
   runtimeConfig,
+  contextServiceUrl = '',
+  contextInternalToken = '',
   now = () => new Date(),
   fetcher = fetch,
 }) {
@@ -318,6 +321,8 @@ export function createTokenBrokerServer({
     amapWebKey,
     llmProfiles: Object.freeze([...llmProfiles]),
     llmRouting: Object.freeze({ ...llmRouting }),
+    contextServiceUrl,
+    contextInternalToken,
     settings: validateRuntimeSettings(settings ?? {}),
   });
   const configurationSource = runtimeConfig ?? { snapshot: () => fixedSnapshot };
@@ -492,6 +497,29 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/snapshot') {
+      const body = await readJsonBody(request, 16 * 1024);
+      if (body == null || !validContextRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_context_request' });
+        return;
+      }
+      const result = await forwardContextSnapshot({
+        body,
+        serviceUrl: configuration.contextServiceUrl,
+        internalToken: configuration.contextInternalToken,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
+          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      writeJson(response, 200, result.body);
+      return;
+    }
+
     if (request.method !== 'POST' || requestUrl.pathname !== '/v1/qweather/token') {
       writeJson(response, 404, { error: 'not_found' });
       return;
@@ -532,6 +560,8 @@ export function configurationFromEnvironment(environment = process.env) {
     // exposes a non-empty legacy tuple only as a manual import candidate.
     aiBaseUrl: environment.AI_BASE_URL?.trim() ?? '',
     aiModel: environment.AI_MODEL?.trim() ?? '',
+    contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
+    contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
@@ -565,6 +595,13 @@ export async function createBrokerServices(environment = process.env, {
     testConnection: createConnectionTester({ runtimeConfig }),
     testLLMProfile: createLLMProfileTester({ runtimeConfig }),
     listLLMModels: createLLMModelLister(),
+    listContextSources: async () => {
+      const snapshot = runtimeConfig.snapshot();
+      return listContextSources({
+        serviceUrl: snapshot.contextServiceUrl,
+        internalToken: snapshot.contextInternalToken,
+      });
+    },
     restart: async () => exit(0),
   });
   return {

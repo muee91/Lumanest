@@ -35,6 +35,10 @@ migrate_working_dir/
 /android/build/
 /coverage/
 **/node_modules/
+**/.venv/
+**/.pytest_cache/
+**/__pycache__/
+**/*.egg-info/
 
 # Symbolication related
 app.*.symbols

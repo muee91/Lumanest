@@ -14,6 +14,7 @@
 - 路线高程剖面：`GET /v1/elevation/profile`
 - 野生动物区域线索：`GET /v1/wildlife/nearby`
 - AI 创作文案：`POST /v1/narrative`
+- 在线情境快照：`POST /v1/context/snapshot`
 - JWT 签发接口需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
 
 将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 端点是：
@@ -90,6 +91,13 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    ```
 
 6. 在局域网浏览器打开 `http://NAS_IP:8788/admin`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
+
+完整情境服务还需要两个仅保存在 NAS 环境文件中的值：
+
+- `CONTEXT_INTERNAL_TOKEN`：Broker 与 FastAPI 情境服务之间的独立随机令牌，不能传入 Flutter。
+- `LUMANEST_DATABASE_PASSWORD`：PostgreSQL 专用随机密码，不能与管理密码或 App 服务令牌复用。
+
+Compose 不向宿主机映射 FastAPI、PostgreSQL 或 Redis 端口。App 仍只能访问 `8787`，管理台仍只能通过局域网 `8788` 访问。
 
 ## 模型服务
 

@@ -18,6 +18,8 @@ async function withServer(run, {
   aiModel,
   settings,
   runtimeConfig,
+  contextServiceUrl = '',
+  contextInternalToken = '',
 } = {}) {
   const llmProfiles = aiApiKey ? [{
     id: 'test-profile', name: 'Test profile', providerId: 'custom_openai',
@@ -40,6 +42,8 @@ async function withServer(run, {
     },
     settings,
     runtimeConfig,
+    contextServiceUrl,
+    contextInternalToken,
     fetcher,
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -57,6 +61,78 @@ test('health check never requires a service token', async () => {
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: 'ok' });
   });
+});
+
+test('context snapshot accepts only the bounded v2 contract and forwards with an internal token', async () => {
+  let upstreamRequest;
+  const requestBody = {
+    contractVersion: 2,
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+    observedAt: '2026-07-14T10:00:00+08:00',
+    locale: 'zh-CN',
+    intent: 'photography',
+    route: { mode: 'none', stage: 'none' },
+    evidence: { urban: false, waterBody: true, mountainous: false, aridLand: false, settlement: false },
+    weather: {
+      observedAt: '2026-07-14T10:00:00+08:00', condition: 'clear',
+      windSpeedMps: 2, precipitationMm: 0, visibilityKm: 20,
+      thunder: false, stale: false,
+    },
+    solar: { dayPhase: 'sunset' },
+  };
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).scene, 'lake');
+  }, {
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    fetcher: async (url, options) => {
+      upstreamRequest = { url, options };
+      return new Response(JSON.stringify({
+        contractVersion: 2,
+        contextId: 'ctx_1234567890abcdef12345678',
+        generatedAt: '2026-07-14T02:00:00Z',
+        expiresAt: '2026-07-14T02:15:00Z',
+        scene: 'lake', fingerprint: '1234567890abcdef12345678', stale: false,
+        events: [], manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
+      }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamRequest.url.pathname, '/internal/v1/evaluate');
+  assert.equal(upstreamRequest.options.headers['X-Internal-Service-Token'], 'internal-context-token');
+  assert.deepEqual(JSON.parse(upstreamRequest.options.body), requestBody);
+});
+
+test('context snapshot rejects identity fields without contacting the context service', async () => {
+  let calls = 0;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ contractVersion: 2, deviceId: 'forbidden' }),
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'invalid_context_request' });
+  }, {
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    fetcher: async () => {
+      calls += 1;
+      throw new Error('must not be called');
+    },
+  });
+  assert.equal(calls, 0);
 });
 
 test('starts isolated App and admin listeners without exposing admin on App API', async () => {
