@@ -78,6 +78,29 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    docker compose up -d --build
    ```
 
+   NAS 正式更新应从按提交号隔离的 release 目录执行，并使用仓库内的部署脚本。脚本会先校验 Compose，停止旧栈以一致性归档现有命名卷，再构建新栈；健康检查或管理端口边界失败时会自动重新启动旧栈：
+
+   release 可用 `rsync --delete` 更新，但必须排除 NAS 上独立维护的环境文件，避免同步删除密钥：
+
+   ```bash
+   rsync -az --delete --exclude qweather-token-broker.env \
+     services/lumanest-data-broker/ NAS:/vol2/docker/lumanest/releases/<commit>/qweather-token-broker/
+   ```
+
+   ```bash
+   cd /vol2/docker/lumanest/releases/<commit>/qweather-token-broker
+   sudo ./scripts/nas-deploy.sh
+   ```
+
+   成功后，备份位置写入 `/vol2/docker/lumanest/last-backup`。需要恢复旧配置和卷时必须显式确认破坏性卷恢复：
+
+   ```bash
+   backup=$(cat /vol2/docker/lumanest/last-backup)
+   sudo env CONFIRM_ROLLBACK=yes ./scripts/nas-rollback.sh "$backup"
+   ```
+
+   回滚会停止当前 release、清空目标命名卷并从归档恢复，再启动备份记录中的旧 Broker；执行前应确认备份路径和时间。
+
 5. 在 NAS 本机或局域网验证：
 
    ```bash
