@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { isLanAddress } from './lan-address.mjs';
 import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
+import { validateLLMProfile } from '../llm/profile.mjs';
 
 const maximumBodyBytes = 16 * 1024;
 const publicRoot = new URL('./public/', import.meta.url);
@@ -112,6 +113,7 @@ export function createAdminServer({
   auditLog,
   testConnection = async () => ({ status: 'ok' }),
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
+  listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
   clearCache = async () => {},
   restart = async () => {},
 }) {
@@ -168,6 +170,24 @@ export function createAdminServer({
         profiles: (snapshot.llmProfiles ?? []).map(safeLLMProfile),
         routing: snapshot.llmRouting,
       });
+    }
+    if (request.method === 'POST' && url.pathname === '/admin-api/llm/models') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      try {
+        const existing = (runtimeConfig.snapshot().llmProfiles ?? []).find((profile) =>
+          profile.id === parsed.value.id) ?? null;
+        const profile = validateLLMProfile(parsed.value, { existing });
+        const result = await listLLMModels(profile);
+        auditLog.record({
+          remoteAddress, operation: 'list_llm_models', fields: ['providerId'],
+          result: result.ok ? 'ok' : result.error,
+        });
+        return json(response, 200, result.ok ? { models: result.models } : { models: [], error: result.error });
+      } catch {
+        return json(response, 400, { error: 'invalid_profile' });
+      }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/llm/profiles') {
       const parsed = await body(request);

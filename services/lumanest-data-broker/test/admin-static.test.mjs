@@ -81,5 +81,6 @@ test('LLM console starts empty and requires explicit provider selection', async 
   assert.match(script, /api\('llm\/providers'\)/);
   assert.match(script, /api\('llm\/profiles'\)/);
   assert.match(script, /api\('llm\/routing'/);
+  assert.match(script, /api\('llm\/models'/);
   assert.match(script, /window\.confirm/);
 });

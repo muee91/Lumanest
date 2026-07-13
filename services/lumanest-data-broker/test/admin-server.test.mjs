@@ -41,6 +41,7 @@ async function withAdmin(run) {
     clearCache: async () => operations.push('clear'),
     restart: async () => operations.push('restart'),
     testLLMProfile: async (profileId) => ({ status: 'ok', profileId }),
+    listLLMModels: async (profile) => ({ ok: true, models: [`${profile.providerId}-model`] }),
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -145,5 +146,27 @@ test('manages masked LLM profiles and explicit routing without a default provide
       method: 'POST', headers: writeHeaders, body: '{}',
     });
     assert.deepEqual(await tested.json(), { status: 'ok', profileId: 'deepseek-main' });
+  });
+});
+
+test('lists models for a draft profile without persisting or returning its key', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const headers = {
+      Cookie: credentials.cookie, 'X-CSRF-Token': credentials.csrf, 'Content-Type': 'application/json',
+    };
+    const draft = {
+      id: 'openai-main', name: 'OpenAI 主模型', providerId: 'openai',
+      protocol: 'openai_compatible', apiKey: 'profile-secret-9876',
+      baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1',
+      enabled: true, timeoutMs: 8_000, allowFallback: false,
+    };
+    const response = await fetch(`${baseUrl}/admin-api/llm/models`, {
+      method: 'POST', headers, body: JSON.stringify(draft),
+    });
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.equal(text.includes('profile-secret-9876'), false);
+    assert.deepEqual(JSON.parse(text), { models: ['openai-model'] });
   });
 });

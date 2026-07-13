@@ -1,4 +1,5 @@
 import { requestNarrative } from '../llm/adapters/index.mjs';
+import { listModels } from '../llm/model-lister.mjs';
 
 const severity = new Map([
   ['ok', 0], ['unconfigured', 0], ['local_signing_ready', 0],
@@ -71,5 +72,11 @@ export function createLLMProfileTester({ runtimeConfig, fetcher = fetch, request
     } catch {
       return { status: 'invalid_response', profileId };
     }
+  };
+}
+
+export function createLLMModelLister({ fetcher = fetch, lister = listModels } = {}) {
+  return async function listLLMModels(profile) {
+    return lister({ profile, fetcher });
   };
 }
