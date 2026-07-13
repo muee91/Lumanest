@@ -3,74 +3,75 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light">
   <title>栖光 · 管理台</title>
   <link rel="stylesheet" href="/admin-assets/styles.css">
   <link rel="stylesheet" href="/admin-assets/llm.css">
   <script src="/admin-assets/app.js" defer></script>
 </head>
 <body>
-  <div class="terrain" aria-hidden="true"></div>
   <main class="shell">
     <header class="brand">
-      <div class="mark" aria-hidden="true"><span></span></div>
-      <div><p class="eyebrow">LUMANEST / LOCAL CONTROL</p><h1>栖光管理台</h1></div>
-      <p class="lan-badge"><i></i>仅限局域网</p>
+      <div class="mark" aria-hidden="true">L</div>
+      <div><h1>栖光</h1><p>本地数据管理</p></div>
+      <p class="lan-badge"><i></i>局域网</p>
     </header>
 
     <section id="login-view" class="login-panel">
       <div class="login-copy">
-        <p class="index">01 / ACCESS</p>
-        <h2>回到你的<br>数据营地</h2>
-        <p>配置只保存在 NAS。登录状态持续 30 天，修改密钥无需重复验证。</p>
+        <p class="eyebrow">LUMANEST ADMINISTRATOR</p>
+        <h2>管理你的<br>摄影数据服务</h2>
+        <p>密钥和模型档案仅加密保存在 NAS。登录有效期为 30 天，日常修改配置无需重复输入密码。</p>
       </div>
       <form id="login-form" class="card auth-card">
         <label for="password">管理密码</label>
         <input id="password" name="password" type="password" minlength="8" maxlength="256" autocomplete="current-password" required>
-        <button type="submit">进入管理台 <span>→</span></button>
+        <button type="submit">继续</button>
         <p id="login-status" class="status" role="status" aria-live="polite"></p>
       </form>
     </section>
 
     <section id="app-view" class="app-view" hidden>
       <nav class="rail" aria-label="管理页面">
+        <p class="sidebar-label">管理</p>
         <button class="nav-item active" data-page="overview">概览</button>
         <button class="nav-item" data-page="services">密钥与服务</button>
         <button class="nav-item" data-page="llm">模型服务</button>
         <button class="nav-item" data-page="runtime">运行设置</button>
+        <p class="sidebar-label security-label">系统</p>
         <button class="nav-item" data-page="security">安全与维护</button>
-        <button id="logout" class="nav-item logout">退出</button>
+        <button id="logout" class="nav-item logout">退出登录</button>
       </nav>
       <div class="content">
-        <div class="content-head"><div><p class="eyebrow">SYSTEM FIELD NOTES</p><h2 id="page-title">概览</h2></div><p id="global-status" class="status" role="status" aria-live="polite"></p></div>
+        <div class="content-head"><div><h2 id="page-title">概览</h2><p class="page-subtitle">查看栖光数据服务的状态与配置。</p></div><p id="global-status" class="status" role="status" aria-live="polite"></p></div>
 
         <section class="page active" data-panel="overview">
-          <div class="hero-card"><p>运行状态</p><strong><i></i>服务在线</strong><span id="revision">配置版本 —</span></div>
+          <div class="hero-card"><div><p>服务状态</p><strong><i></i>运行正常</strong></div><span id="revision">配置版本 —</span></div>
           <div id="service-grid" class="service-grid" aria-label="服务配置状态"></div>
         </section>
 
         <section class="page" data-panel="services" hidden>
           <form id="services-form" class="form-grid">
-            <div class="section-note"><h3>密钥与服务</h3><p>当前值只显示末四位。输入框留空表示不修改。</p></div>
+            <div class="section-note"><h3>服务凭据</h3><p>当前凭据只显示末四位。输入框留空即保留原有值。</p></div>
             <label>和风凭据 ID<input name="keyId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="keyId"></small></label>
             <label>和风项目 ID<input name="projectId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="projectId"></small></label>
             <label class="wide">和风 Ed25519 私钥 PEM<textarea name="qweatherPrivateKeyPem" rows="5" autocomplete="off" placeholder="留空表示不修改"></textarea><small data-mask="qweatherPrivateKey"></small></label>
             <label>高德 Web Key<input name="amapWebKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="amapWebKey"></small></label>
             <label>App 服务令牌<input name="serviceToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="serviceToken"></small></label>
-            <p class="warning wide">更换 App 服务令牌后，现有 APK 将无法访问服务，必须同步更新本地配置并重新构建。</p>
+            <p class="warning wide">更换 App 服务令牌后，现有 APK 将无法访问服务，需要同步更新 App 配置并重新构建。</p>
             <div class="actions wide"><button type="button" id="test-services" class="secondary">测试连接</button><button type="submit">保存修改</button></div>
           </form>
         </section>
 
         <section class="page" data-panel="llm" hidden>
           <div class="llm-head">
-            <div><p class="eyebrow">MODEL SERVICE CONTROL</p><h3>模型服务</h3><p>选择供应商后再创建档案。未保存档案时，栖光仅使用本地确定性文案。</p></div>
-            <button id="add-llm-profile">新增供应商档案</button>
+            <div><h3>模型服务</h3><p>在这里管理用于创作表达的模型档案。没有档案时，栖光只使用本地确定性文案。</p></div>
+            <button id="add-llm-profile">添加模型档案</button>
           </div>
           <div class="llm-layout">
             <aside class="profile-rail"><div id="llm-profile-list" aria-label="LLM 档案列表"></div></aside>
             <div class="llm-detail">
-              <div id="llm-empty-state" class="empty-state"><p class="index">NO ACTIVE PROVIDER</p><h3>尚未配置模型服务</h3><p>不会自动启用任何供应商。新增后，你可以指定主模型和可选备用链。</p></div>
+              <div id="llm-empty-state" class="empty-state"><div class="empty-icon" aria-hidden="true">✦</div><h3>尚未添加模型</h3><p>不会自动启用任何供应商。添加档案后，可指定主模型和可选备用链。</p><button type="button" class="secondary empty-action" id="add-llm-profile-empty">添加第一个模型</button></div>
               <form id="llm-profile-form" class="profile-form" hidden>
                 <div class="detail-head"><div><p id="llm-provider-protocol" class="index"></p><h3 id="llm-profile-title">新建档案</h3></div><span id="llm-profile-status" class="status-chip"></span></div>
                 <input name="id" type="hidden">
@@ -90,7 +91,7 @@
             </div>
           </div>
           <form id="llm-routing-form" class="routing-card">
-            <div><p class="index">ROUTING POLICY</p><h3>主模型与备用链</h3><p>备用默认关闭；只在超时、限流或临时上游故障时按顺序尝试，单次最多三家。</p></div>
+            <div><h3>主模型与备用链</h3><p>备用默认关闭；只在超时、限流或临时上游故障时按顺序尝试，单次最多三家。</p></div>
             <label>主模型<select name="primaryProfileId" id="llm-primary-select"><option value="">未选择</option></select></label>
             <label class="toggle"><input name="fallbackEnabled" type="checkbox"><span>启用自动备用</span></label>
             <label>最多尝试次数<select name="maximumAttempts"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
@@ -101,7 +102,7 @@
 
         <section class="page" data-panel="runtime" hidden>
           <form id="runtime-form" class="form-grid">
-            <div class="section-note"><h3>运行设置</h3><p>所有数值仍会经过服务端范围校验，不会静默截断。</p></div>
+            <div class="section-note"><h3>运行设置</h3><p>这些设置会在保存后立即生效，服务端会继续校验有效范围。</p></div>
             <label class="toggle wide"><input name="aiEnabled" type="checkbox"><span>启用 AI 文案</span></label>
             <label>AI 超时（毫秒）<input name="aiTimeoutMs" type="number" min="2000" max="30000"></label>
             <label>野生动物范围（公里）<input name="wildlifeRadiusKm" type="number" min="5" max="50"></label>
@@ -117,9 +118,9 @@
 
         <section class="page" data-panel="security" hidden>
           <div class="maintenance-grid">
-            <form id="password-form" class="card"><p class="index">PASSWORD</p><h3>更换管理密码</h3><label for="new-password">新密码</label><input id="new-password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" required><button type="submit">更换并退出</button></form>
-            <div class="card"><p class="index">CACHE</p><h3>清理运行缓存</h3><p>不会删除加密配置、登录密码和审计记录。</p><button id="clear-cache" class="secondary">清理缓存</button></div>
-            <div class="card danger"><p class="index">PROCESS</p><h3>重启服务</h3><p>Docker 将自动拉起进程，期间 App API 会短暂中断。</p><button id="restart" class="danger-button">重启 Broker</button></div>
+            <form id="password-form" class="card"><p class="card-kicker">账户</p><h3>更换管理密码</h3><label for="new-password">新密码</label><input id="new-password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" required><button type="submit">更换并退出</button></form>
+            <div class="card"><p class="card-kicker">存储</p><h3>清理运行缓存</h3><p>不会删除加密配置、登录密码和审计记录。</p><button id="clear-cache" class="secondary">清理缓存</button></div>
+            <div class="card danger"><p class="card-kicker">服务</p><h3>重启服务</h3><p>Docker 会自动拉起进程，期间 App API 会短暂中断。</p><button id="restart" class="danger-button">重启服务</button></div>
           </div>
           <div class="audit"><h3>最近操作</h3><ol id="audit-list"></ol></div>
         </section>
@@ -127,7 +128,7 @@
     </section>
   </main>
   <dialog id="provider-dialog" class="provider-dialog">
-    <form method="dialog"><div class="dialog-head"><div><p class="eyebrow">ADD MODEL PROFILE</p><h3>选择供应商</h3></div><button class="icon-button" value="cancel" aria-label="关闭">×</button></div><p>供应商模板仅填写协议和建议端点；不会创建档案，直到你保存。</p><div id="provider-options" class="provider-options"></div></form>
+    <form method="dialog"><div class="dialog-head"><div><h3>添加模型档案</h3><p>选择供应商后再填写模型与密钥。</p></div><button class="icon-button" value="cancel" aria-label="关闭">×</button></div><div id="provider-options" class="provider-options"></div></form>
   </dialog>
 </body>
 </html>
