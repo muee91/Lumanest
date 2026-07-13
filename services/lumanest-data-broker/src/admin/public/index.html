@@ -79,7 +79,7 @@
                 <input name="protocol" type="hidden">
                 <div class="form-grid compact">
                   <label>档案名称<input name="name" maxlength="80" required></label>
-                  <label>模型 ID<div class="model-input"><input name="model" list="llm-model-options" maxlength="160" required><button id="refresh-llm-models" type="button" class="secondary">刷新列表</button></div><small id="llm-model-hint">填写端点与 Key 后可读取可用模型。</small></label>
+                  <label>模型 ID<div class="model-input"><input name="model" maxlength="160" required><button id="refresh-llm-models" type="button" class="secondary">刷新列表</button></div><select id="llm-model-select" aria-label="从已读取模型中选择" disabled><option>刷新后在此选择模型</option></select><small id="llm-model-hint">填写端点与 Key 后可读取可用模型，也可手动输入。</small></label>
                   <label class="wide">服务端点<input name="baseUrl" type="url" maxlength="500" required><small>预设端点可在高级场景中覆盖；Ollama 请填写 NAS 可访问地址。</small></label>
                   <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small id="llm-key-mask"></small></label>
                   <label>请求超时（毫秒）<input name="timeoutMs" type="number" min="2000" max="30000" value="8000" required></label>
@@ -88,7 +88,6 @@
                   <div class="actions wide"><button type="button" id="test-llm-profile" class="secondary">测试此档案</button><button type="button" id="delete-llm-profile" class="danger-button">删除</button><button type="submit">保存档案</button></div>
                 </div>
               </form>
-              <datalist id="llm-model-options"></datalist>
             </div>
           </div>
           <form id="llm-routing-form" class="routing-card">

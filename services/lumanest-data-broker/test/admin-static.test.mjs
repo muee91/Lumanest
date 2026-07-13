@@ -76,6 +76,8 @@ test('LLM console starts empty and requires explicit provider selection', async 
   assert.match(html, /id="provider-dialog"/);
   assert.match(html, /id="llm-profile-form"/);
   assert.match(html, /id="llm-routing-form"/);
+  assert.match(html, /id="llm-model-select"/);
+  assert.doesNotMatch(html, /<datalist/);
   assert.match(html, /选择供应商后再填写模型与密钥/);
   assert.doesNotMatch(html, /qwen-plus|通义千问 · 默认/);
   assert.match(script, /api\('llm\/providers'\)/);
