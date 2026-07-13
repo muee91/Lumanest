@@ -177,6 +177,22 @@ export class AdminAuthService {
     });
   }
 
+  issueCsrf(sessionToken) {
+    return this.#enqueue(async () => {
+      this.#requireInitialized();
+      if (typeof sessionToken !== 'string' || sessionToken.length === 0) return null;
+      const now = this.#now().getTime();
+      const tokenDigest = digest(sessionToken);
+      const session = this.#state.sessions.find((candidate) =>
+        sameDigest(candidate.tokenDigest, tokenDigest) && candidate.expiresAt > now);
+      if (session == null) return null;
+      const csrfToken = this.#randomBytes(32).toString('base64url');
+      session.csrfDigest = digest(csrfToken);
+      await this.#persist();
+      return csrfToken;
+    });
+  }
+
   changePassword(password) {
     return this.#enqueue(async () => {
       this.#requireInitialized();
