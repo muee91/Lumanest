@@ -11,6 +11,7 @@ import { AdminAuthService } from './admin/auth.mjs';
 import { AuditLog } from './admin/audit-log.mjs';
 import { createAdminServer } from './admin/admin-server.mjs';
 import { createConnectionTester } from './admin/connection-tester.mjs';
+import { routeNarrative } from './llm/router.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
@@ -108,45 +109,24 @@ function validNarrativeText(value, minimumLength, maximumLength) {
     !/[\r\n]/.test(value) && !/https?:\/\//i.test(value);
 }
 
-async function generateNarrative({ body, aiApiKey, aiBaseUrl, aiModel, fetcher, timeoutMs }) {
-  if (!aiApiKey) return null;
-  const url = new URL('chat/completions', `${aiBaseUrl.replace(/\/+$/, '')}/`);
-  const allowedIds = new Set(body.creativeEventIds);
+function narrativePrompt(body) {
+  return {
+    system: '你是摄影助手的文案编辑。只能改写给定模板和已成立创作事件的短标签，不得增加事实、地点、安全结论、坐标、链接或动作。只输出 JSON：{"summary":"不超过80字","noteLabels":{"事件ID":"2到8字"}}。noteLabels 的键只能来自 allowedCreativeEventIds。',
+    user: JSON.stringify({
+      scene: body.scene,
+      dayPhase: body.dayPhase,
+      weather: body.weather,
+      activeRoute: body.activeRoute,
+      allowedCreativeEventIds: body.creativeEventIds,
+      templateSummary: body.templateSummary,
+    }),
+  };
+}
+
+function parsedNarrative(text, creativeEventIds) {
+  const allowedIds = new Set(creativeEventIds);
   try {
-    const upstream = await fetcher(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${aiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: aiModel,
-        temperature: 0.4,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: '你是摄影助手的文案编辑。只能改写给定模板和已成立创作事件的短标签，不得增加事实、地点、安全结论、坐标、链接或动作。只输出 JSON：{"summary":"不超过80字","noteLabels":{"事件ID":"2到8字"}}。noteLabels 的键只能来自 allowedCreativeEventIds。',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              scene: body.scene,
-              dayPhase: body.dayPhase,
-              weather: body.weather,
-              activeRoute: body.activeRoute,
-              allowedCreativeEventIds: body.creativeEventIds,
-              templateSummary: body.templateSummary,
-            }),
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const upstreamBody = await upstream.json();
-    const content = upstreamBody?.choices?.[0]?.message?.content;
-    if (!upstream.ok || typeof content !== 'string') return null;
-    const candidate = JSON.parse(content);
+    const candidate = JSON.parse(text);
     if (!validNarrativeText(candidate.summary, 1, 80)) return null;
     if (candidate.noteLabels == null || typeof candidate.noteLabels !== 'object' ||
         Array.isArray(candidate.noteLabels)) return null;
@@ -319,6 +299,13 @@ export function createTokenBrokerServer({
   aiApiKey = '',
   aiBaseUrl = defaultAiBaseUrl,
   aiModel = defaultAiModel,
+  llmProfiles = [],
+  llmRouting = {
+    primaryProfileId: null,
+    fallbackEnabled: false,
+    fallbackProfileIds: [],
+    maximumAttempts: 3,
+  },
   settings,
   runtimeConfig,
   now = () => new Date(),
@@ -333,6 +320,8 @@ export function createTokenBrokerServer({
     aiApiKey,
     aiBaseUrl,
     aiModel,
+    llmProfiles: Object.freeze([...llmProfiles]),
+    llmRouting: Object.freeze({ ...llmRouting }),
     settings: validateRuntimeSettings(settings ?? {}),
   });
   const configurationSource = runtimeConfig ?? { snapshot: () => fixedSnapshot };
@@ -479,7 +468,7 @@ export function createTokenBrokerServer({
     }
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/narrative') {
-      if (!configuration.settings.aiEnabled || !configuration.aiApiKey) {
+      if (!configuration.settings.aiEnabled || configuration.llmRouting.primaryProfileId == null) {
         writeJson(response, 503, { error: 'ai_unconfigured' });
         return;
       }
@@ -488,14 +477,17 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_narrative_request' });
         return;
       }
-      const narrative = await generateNarrative({
-        body,
-        aiApiKey: configuration.aiApiKey,
-        aiBaseUrl: configuration.aiBaseUrl,
-        aiModel: configuration.aiModel,
+      const routed = await routeNarrative({
+        profiles: configuration.llmProfiles,
+        routing: configuration.llmRouting,
+        prompt: narrativePrompt(body),
         fetcher,
-        timeoutMs: configuration.settings.aiTimeoutMs,
       });
+      if (!routed.ok) {
+        writeJson(response, 502, { error: 'upstream_unavailable' });
+        return;
+      }
+      const narrative = parsedNarrative(routed.text, body.creativeEventIds);
       if (narrative == null) {
         writeJson(response, 502, { error: 'upstream_unavailable' });
         return;

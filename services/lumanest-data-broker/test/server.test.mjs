@@ -15,15 +15,25 @@ async function withServer(run, {
   settings,
   runtimeConfig,
 } = {}) {
+  const llmProfiles = aiApiKey ? [{
+    id: 'test-profile', name: 'Test profile', providerId: 'custom_openai',
+    protocol: 'openai_compatible', apiKey: aiApiKey,
+    baseUrl: aiBaseUrl ?? 'https://model.example/v1',
+    model: aiModel ?? 'test-model', enabled: true, timeoutMs: 8_000, allowFallback: false,
+  }] : [];
   const server = createTokenBrokerServer({
     privateKey: {},
     keyId: 'test-key',
     projectId: 'test-project',
     serviceToken: 'test-service-token',
     amapWebKey: 'test-amap-key',
-    aiApiKey,
-    aiBaseUrl,
-    aiModel,
+    llmProfiles,
+    llmRouting: {
+      primaryProfileId: llmProfiles[0]?.id ?? null,
+      fallbackEnabled: false,
+      fallbackProfileIds: [],
+      maximumAttempts: 3,
+    },
     settings,
     runtimeConfig,
     fetcher,
