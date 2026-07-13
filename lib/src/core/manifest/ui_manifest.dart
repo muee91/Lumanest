@@ -1,3 +1,5 @@
+import 'package:luma_nest/src/core/context/context_event.dart';
+
 enum LayoutMode { quiet, opportunity, operation }
 
 enum ManifestAction { openExplore, openShootingWindow, openWeather, openSafety }
@@ -7,11 +9,28 @@ class ManifestItem {
     required this.id,
     required this.title,
     required this.action,
+    this.source,
+    this.confidence,
+    this.expiresAt,
   });
 
   final String id;
   final String title;
   final ManifestAction action;
+  final ContextEventSource? source;
+  final double? confidence;
+  final DateTime? expiresAt;
+
+  ManifestItem withEvent(ContextEvent? event) => event == null
+      ? this
+      : ManifestItem(
+          id: id,
+          title: title,
+          action: action,
+          source: event.source,
+          confidence: event.confidence,
+          expiresAt: event.expiresAt,
+        );
 }
 
 class UiManifest {

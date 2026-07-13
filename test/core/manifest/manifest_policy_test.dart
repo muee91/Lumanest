@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
@@ -86,6 +87,48 @@ void main() {
     expect(
       manifest.creativeItems.map((item) => item.id),
       isNot(contains('bear-risk')),
+    );
+  });
+
+  test('manifest carries metadata and drops expired structured events', () {
+    final now = DateTime.utc(2026, 7, 13, 10);
+    final snapshot = ContextSnapshot(
+      id: 'metadata',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.city,
+      dayPhase: DayPhase.blueHour,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      opportunityIds: const ['blue-hour', 'reflection'],
+      events: [
+        ContextEvent(
+          id: 'blue-hour',
+          channel: ContextEventChannel.opportunity,
+          source: ContextEventSource.solar,
+          observedAt: now,
+          expiresAt: now.add(const Duration(minutes: 10)),
+          confidence: .9,
+        ),
+        ContextEvent(
+          id: 'reflection',
+          channel: ContextEventChannel.opportunity,
+          source: ContextEventSource.rule,
+          observedAt: now.subtract(const Duration(hours: 1)),
+          expiresAt: now.subtract(const Duration(minutes: 1)),
+          confidence: .8,
+        ),
+      ],
+    );
+
+    final manifest = ManifestPolicy.build(snapshot, now: now);
+
+    expect(manifest.primary?.id, 'blue-hour');
+    expect(manifest.primary?.source, ContextEventSource.solar);
+    expect(manifest.primary?.confidence, .9);
+    expect(
+      manifest.secondary.map((item) => item.id),
+      isNot(contains('reflection')),
     );
   });
 }
