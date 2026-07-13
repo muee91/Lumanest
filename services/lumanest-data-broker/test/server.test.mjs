@@ -3,13 +3,25 @@ import test from 'node:test';
 
 import { createTokenBrokerServer } from '../src/server.mjs';
 
-async function withServer(run, { fetcher } = {}) {
+async function withServer(run, {
+  fetcher,
+  aiApiKey = '',
+  aiBaseUrl,
+  aiModel,
+  settings,
+  runtimeConfig,
+} = {}) {
   const server = createTokenBrokerServer({
     privateKey: {},
     keyId: 'test-key',
     projectId: 'test-project',
     serviceToken: 'test-service-token',
     amapWebKey: 'test-amap-key',
+    aiApiKey,
+    aiBaseUrl,
+    aiModel,
+    settings,
+    runtimeConfig,
     fetcher,
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -81,6 +93,36 @@ test('Amap proxy requires the app service token', async () => {
   });
 });
 
+test('Amap text search forwards only a bounded search phrase', async () => {
+  let upstreamUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/amap/search?keywords=%E8%A5%BF%E6%B9%96&offset=9`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, '1');
+  }, {
+    fetcher: async (url) => {
+      upstreamUrl = url;
+      return new Response(JSON.stringify({ status: '1', pois: [] }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamUrl.pathname, '/v3/place/text');
+  assert.equal(upstreamUrl.searchParams.get('keywords'), '西湖');
+  assert.equal(upstreamUrl.searchParams.get('offset'), '9');
+  assert.equal(upstreamUrl.searchParams.get('extensions'), 'base');
+});
+
+test('Amap text search rejects an empty search phrase', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/amap/search?keywords=`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'invalid_keywords' });
+  });
+});
+
 test('Amap proxy rejects malformed coordinates before forwarding', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/amap/nearby?location=not-a-coordinate`, {
@@ -88,5 +130,233 @@ test('Amap proxy rejects malformed coordinates before forwarding', async () => {
     });
     assert.equal(response.status, 400);
     assert.deepEqual(await response.json(), { error: 'invalid_location' });
+  });
+});
+
+test('Amap scene evidence proxies bounded reverse geocoding context', async () => {
+  let upstreamUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/amap/scene-evidence?location=120.15,30.25`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(response.status, 200);
+  }, {
+    fetcher: async (url) => {
+      upstreamUrl = url;
+      return new Response(JSON.stringify({ status: '1', regeocode: { pois: [], aois: [] } }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamUrl.pathname, '/v3/geocode/regeo');
+  assert.equal(upstreamUrl.searchParams.get('location'), '120.15,30.25');
+  assert.equal(upstreamUrl.searchParams.get('radius'), '3000');
+  assert.equal(upstreamUrl.searchParams.get('extensions'), 'all');
+});
+
+test('Amap walking route uses the walking upstream without driving strategy', async () => {
+  let upstreamUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/amap/walking?origin=121.47,31.23&destination=121.48,31.24`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+  }, {
+    fetcher: async (url) => {
+      upstreamUrl = url;
+      return new Response(JSON.stringify({ status: '1', route: { paths: [] } }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamUrl.pathname, '/v3/direction/walking');
+  assert.equal(upstreamUrl.searchParams.has('strategy'), false);
+});
+
+test('elevation profile returns only a same-length sanitized array', async () => {
+  let upstreamUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/elevation/profile?locations=121.47,31.23;121.48,31.24`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      source: 'Open-Meteo Elevation API',
+      elevations: [5, 21],
+    });
+  }, {
+    fetcher: async (url) => {
+      upstreamUrl = url;
+      return new Response(JSON.stringify({ elevation: [5, 21] }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamUrl.pathname, '/v1/elevation');
+  assert.equal(upstreamUrl.searchParams.get('latitude'), '31.23,31.24');
+  assert.equal(upstreamUrl.searchParams.get('longitude'), '121.47,121.48');
+});
+
+test('elevation profile rejects malformed or excessive coordinates', async () => {
+  await withServer(async (baseUrl) => {
+    const malformed = await fetch(
+      `${baseUrl}/v1/elevation/profile?locations=bad;121.48,31.24`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(malformed.status, 400);
+
+    const excessive = Array.from({ length: 65 }, (_, index) => `121.${index},31.2`).join(';');
+    const response = await fetch(
+      `${baseUrl}/v1/elevation/profile?locations=${excessive}`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 400);
+  });
+});
+
+test('narrative endpoint is disabled without a server-side model key', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/narrative`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scene: 'lake',
+        dayPhase: 'sunset',
+        weather: 'clear',
+        activeRoute: false,
+        creativeEventIds: ['reflection'],
+        templateSummary: '今晚可以留意湖面倒影。',
+      }),
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: 'ai_unconfigured' });
+  });
+});
+
+test('narrative endpoint is disabled by runtime settings without upstream traffic', async () => {
+  let upstreamCalls = 0;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/narrative`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scene: 'city',
+        dayPhase: 'blueHour',
+        weather: 'clear',
+        activeRoute: false,
+        creativeEventIds: ['city_blue_hour'],
+        templateSummary: '蓝调时间适合拍城市灯光。',
+      }),
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: 'ai_unconfigured' });
+  }, {
+    aiApiKey: 'configured-key',
+    settings: { aiEnabled: false },
+    fetcher: async () => {
+      upstreamCalls += 1;
+      throw new Error('must not be called');
+    },
+  });
+  assert.equal(upstreamCalls, 0);
+});
+
+test('narrative endpoint sends only bounded creative context and sanitizes output', async () => {
+  let upstreamRequest;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/narrative`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scene: 'lake',
+        dayPhase: 'sunset',
+        weather: 'clear',
+        activeRoute: false,
+        creativeEventIds: ['reflection'],
+        templateSummary: '今晚可以留意湖面倒影。',
+      }),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      summary: '湖面正在安静下来，可以等等倒影。',
+      noteLabels: { reflection: '等倒影' },
+    });
+  }, {
+    aiApiKey: 'test-ai-key',
+    aiBaseUrl: 'https://model.example/v1',
+    aiModel: 'test-model',
+    fetcher: async (url, options) => {
+      upstreamRequest = { url, options };
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              summary: '湖面正在安静下来，可以等等倒影。',
+              noteLabels: { reflection: '等倒影' },
+            }),
+          },
+        }],
+      }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamRequest.url.href, 'https://model.example/v1/chat/completions');
+  assert.equal(upstreamRequest.options.headers.Authorization, 'Bearer test-ai-key');
+  const modelBody = JSON.parse(upstreamRequest.options.body);
+  assert.equal(modelBody.model, 'test-model');
+  assert.equal(upstreamRequest.options.body.includes('latitude'), false);
+  assert.equal(upstreamRequest.options.body.includes('longitude'), false);
+});
+
+test('narrative endpoint rejects extra fields and unknown model labels', async () => {
+  await withServer(async (baseUrl) => {
+    const invalid = await fetch(`${baseUrl}/v1/narrative`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scene: 'lake',
+        dayPhase: 'sunset',
+        weather: 'clear',
+        activeRoute: false,
+        creativeEventIds: ['reflection'],
+        templateSummary: '今晚可以留意湖面倒影。',
+        latitude: 30.25,
+      }),
+    });
+    assert.equal(invalid.status, 400);
+  }, { aiApiKey: 'test-ai-key' });
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/narrative`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scene: 'lake',
+        dayPhase: 'sunset',
+        weather: 'clear',
+        activeRoute: false,
+        creativeEventIds: ['reflection'],
+        templateSummary: '今晚可以留意湖面倒影。',
+      }),
+    });
+    assert.equal(response.status, 502);
+  }, {
+    aiApiKey: 'test-ai-key',
+    fetcher: async () => new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        summary: '可以拍。',
+        noteLabels: { unknown: '新事实' },
+      }) } }],
+    }), { status: 200 }),
   });
 });
