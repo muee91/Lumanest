@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>栖光 · 管理台</title>
+  <link rel="stylesheet" href="/admin-assets/styles.css">
+  <script src="/admin-assets/app.js" defer></script>
+</head>
+<body>
+  <div class="terrain" aria-hidden="true"></div>
+  <main class="shell">
+    <header class="brand">
+      <div class="mark" aria-hidden="true"><span></span></div>
+      <div><p class="eyebrow">LUMANEST / LOCAL CONTROL</p><h1>栖光管理台</h1></div>
+      <p class="lan-badge"><i></i>仅限局域网</p>
+    </header>
+
+    <section id="login-view" class="login-panel">
+      <div class="login-copy">
+        <p class="index">01 / ACCESS</p>
+        <h2>回到你的<br>数据营地</h2>
+        <p>配置只保存在 NAS。登录状态持续 30 天，修改密钥无需重复验证。</p>
+      </div>
+      <form id="login-form" class="card auth-card">
+        <label for="password">管理密码</label>
+        <input id="password" name="password" type="password" minlength="8" maxlength="256" autocomplete="current-password" required>
+        <button type="submit">进入管理台 <span>→</span></button>
+        <p id="login-status" class="status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="app-view" class="app-view" hidden>
+      <nav class="rail" aria-label="管理页面">
+        <button class="nav-item active" data-page="overview">概览</button>
+        <button class="nav-item" data-page="services">密钥与服务</button>
+        <button class="nav-item" data-page="runtime">运行设置</button>
+        <button class="nav-item" data-page="security">安全与维护</button>
+        <button id="logout" class="nav-item logout">退出</button>
+      </nav>
+      <div class="content">
+        <div class="content-head"><div><p class="eyebrow">SYSTEM FIELD NOTES</p><h2 id="page-title">概览</h2></div><p id="global-status" class="status" role="status" aria-live="polite"></p></div>
+
+        <section class="page active" data-panel="overview">
+          <div class="hero-card"><p>运行状态</p><strong><i></i>服务在线</strong><span id="revision">配置版本 —</span></div>
+          <div id="service-grid" class="service-grid" aria-label="服务配置状态"></div>
+        </section>
+
+        <section class="page" data-panel="services" hidden>
+          <form id="services-form" class="form-grid">
+            <div class="section-note"><h3>密钥与服务</h3><p>当前值只显示末四位。输入框留空表示不修改。</p></div>
+            <label>和风凭据 ID<input name="keyId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="keyId"></small></label>
+            <label>和风项目 ID<input name="projectId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="projectId"></small></label>
+            <label class="wide">和风 Ed25519 私钥 PEM<textarea name="qweatherPrivateKeyPem" rows="5" autocomplete="off" placeholder="留空表示不修改"></textarea><small data-mask="qweatherPrivateKey"></small></label>
+            <label>高德 Web Key<input name="amapWebKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="amapWebKey"></small></label>
+            <label>App 服务令牌<input name="serviceToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="serviceToken"></small></label>
+            <p class="warning wide">更换 App 服务令牌后，现有 APK 将无法访问服务，必须同步更新本地配置并重新构建。</p>
+            <label>AI API Key<input name="aiApiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="aiApiKey"></small></label>
+            <label>AI 模型<input name="aiModel" autocomplete="off"></label>
+            <label class="wide">AI Base URL<input name="aiBaseUrl" type="url" autocomplete="off"></label>
+            <div class="actions wide"><button type="button" id="test-services" class="secondary">测试连接</button><button type="submit">保存修改</button></div>
+          </form>
+        </section>
+
+        <section class="page" data-panel="runtime" hidden>
+          <form id="runtime-form" class="form-grid">
+            <div class="section-note"><h3>运行设置</h3><p>所有数值仍会经过服务端范围校验，不会静默截断。</p></div>
+            <label class="toggle wide"><input name="aiEnabled" type="checkbox"><span>启用 AI 文案</span></label>
+            <label>AI 超时（毫秒）<input name="aiTimeoutMs" type="number" min="2000" max="30000"></label>
+            <label>野生动物范围（公里）<input name="wildlifeRadiusKm" type="number" min="5" max="50"></label>
+            <label>野生动物缓存（分钟）<input name="wildlifeCacheTtlMinutes" type="number" min="5" max="1440"></label>
+            <label>高程缓存（分钟）<input name="elevationCacheTtlMinutes" type="number" min="60" max="10080"></label>
+            <label>最大高程采样数<input name="elevationMaximumSamples" type="number" min="2" max="64"></label>
+            <label>上游超时（毫秒）<input name="upstreamTimeoutMs" type="number" min="2000" max="30000"></label>
+            <label>最低机会置信度<input name="minimumOpportunityConfidence" type="number" min="0" max="1" step="0.05"></label>
+            <label class="toggle"><input name="debugLogging" type="checkbox"><span>调试日志</span></label>
+            <div class="actions wide"><button type="submit">应用设置</button></div>
+          </form>
+        </section>
+
+        <section class="page" data-panel="security" hidden>
+          <div class="maintenance-grid">
+            <form id="password-form" class="card"><p class="index">PASSWORD</p><h3>更换管理密码</h3><label for="new-password">新密码</label><input id="new-password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" required><button type="submit">更换并退出</button></form>
+            <div class="card"><p class="index">CACHE</p><h3>清理运行缓存</h3><p>不会删除加密配置、登录密码和审计记录。</p><button id="clear-cache" class="secondary">清理缓存</button></div>
+            <div class="card danger"><p class="index">PROCESS</p><h3>重启服务</h3><p>Docker 将自动拉起进程，期间 App API 会短暂中断。</p><button id="restart" class="danger-button">重启 Broker</button></div>
+          </div>
+          <div class="audit"><h3>最近操作</h3><ol id="audit-list"></ol></div>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

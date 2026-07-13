@@ -1,8 +1,34 @@
 import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
 
 import { isLanAddress } from './lan-address.mjs';
 
 const maximumBodyBytes = 16 * 1024;
+const publicRoot = new URL('./public/', import.meta.url);
+const staticAssets = new Map([
+  ['/admin', ['index.html', 'text/html; charset=utf-8']],
+  ['/admin/', ['index.html', 'text/html; charset=utf-8']],
+  ['/admin-assets/styles.css', ['styles.css', 'text/css; charset=utf-8']],
+  ['/admin-assets/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+]);
+const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+
+async function serveStatic(pathname, response) {
+  const asset = staticAssets.get(pathname);
+  if (asset == null) return false;
+  const [fileName, contentType] = asset;
+  const contents = await readFile(new URL(fileName, publicRoot));
+  response.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Security-Policy': contentSecurityPolicy,
+    'Cache-Control': fileName === 'index.html' ? 'no-store' : 'private, max-age=3600',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+  });
+  response.end(contents);
+  return true;
+}
 
 function json(response, status, body, headers = {}) {
   response.writeHead(status, {
@@ -76,6 +102,7 @@ export function createAdminServer({
       return;
     }
     const url = new URL(request.url ?? '/', 'http://localhost');
+    if (request.method === 'GET' && await serveStatic(url.pathname, response)) return;
 
     if (request.method === 'POST' && url.pathname === '/admin-api/login') {
       const parsed = await body(request);

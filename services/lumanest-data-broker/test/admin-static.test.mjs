@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+import { createAdminServer } from '../src/admin/admin-server.mjs';
+
+const publicRoot = new URL('../src/admin/public/', import.meta.url);
+
+function dependencies() {
+  return {
+    authService: {
+      authenticate: async () => ({ ok: false, reason: 'unauthenticated' }),
+      login: async () => ({ ok: false, reason: 'invalid_credentials' }),
+    },
+    runtimeConfig: {},
+    auditLog: { record() {}, list: () => [] },
+  };
+}
+
+test('admin listener serves the shell and local assets with a restrictive CSP', async () => {
+  const server = createAdminServer(dependencies());
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const response = await fetch(`${baseUrl}/admin`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-security-policy'), /default-src 'self'/);
+    assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+    assert.match(response.headers.get('content-security-policy'), /form-action 'self'/);
+    const html = await response.text();
+    assert.match(html, /<script src="\/admin-assets\/app\.js" defer><\/script>/);
+    assert.match(html, /<link rel="stylesheet" href="\/admin-assets\/styles\.css">/);
+    assert.doesNotMatch(html, /<script(?![^>]+src=)/);
+    assert.doesNotMatch(html, /style="/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('static UI has accessible auth/status regions and no secret placeholder values', async () => {
+  const html = await readFile(new URL('index.html', publicRoot), 'utf8');
+  assert.match(html, /<label[^>]+for="password"/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /留空表示不修改/);
+  assert.doesNotMatch(html, /sk-[A-Za-z0-9]/);
+  assert.doesNotMatch(html, /AK[A-Za-z0-9]{8}/);
+});
+
+test('client rendering avoids HTML injection and browser-persisted secrets', async () => {
+  const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.doesNotMatch(script, /innerHTML|outerHTML|document\.write/);
+  assert.doesNotMatch(script, /localStorage/);
+  assert.doesNotMatch(script, /sessionStorage\.setItem\([^,]+(?:password|key|token)/i);
+  assert.match(script, /textContent/);
+});
