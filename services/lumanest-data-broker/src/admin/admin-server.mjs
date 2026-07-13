@@ -21,7 +21,7 @@ async function serveStatic(pathname, response) {
   response.writeHead(200, {
     'Content-Type': contentType,
     'Content-Security-Policy': contentSecurityPolicy,
-    'Cache-Control': fileName === 'index.html' ? 'no-store' : 'private, max-age=3600',
+    'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',

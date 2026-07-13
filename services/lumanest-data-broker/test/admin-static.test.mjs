@@ -32,6 +32,8 @@ test('admin listener serves the shell and local assets with a restrictive CSP', 
     assert.match(html, /<link rel="stylesheet" href="\/admin-assets\/styles\.css">/);
     assert.doesNotMatch(html, /<script(?![^>]+src=)/);
     assert.doesNotMatch(html, /style="/);
+    const scriptResponse = await fetch(`${baseUrl}/admin-assets/app.js`);
+    assert.equal(scriptResponse.headers.get('cache-control'), 'no-store');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
