@@ -48,6 +48,21 @@ class MapConsentController extends Notifier<MapConsentState> {
     state = const MapConsentReady();
   }
 
+  void revokeConsent() {
+    if (state is MapConsentConfigurationMissing) return;
+    ref
+        .read(amapInitializerGatewayProvider)
+        .updatePrivacyAgree(
+          const AMapPrivacyStatement(
+            hasContains: true,
+            hasShow: true,
+            hasAgree: false,
+          ),
+        );
+    _initialized = false;
+    state = const MapConsentAwaiting();
+  }
+
   void ensureInitialized(BuildContext context) {
     if (state is! MapConsentReady) {
       throw StateError('Cannot initialize map before consent is granted');

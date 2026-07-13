@@ -1,6 +1,7 @@
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
 /// A short, actionable creative prompt shown in the inspiration bottle.
 ///
@@ -33,11 +34,14 @@ class InspirationNote {
 enum InspirationCategory { light, weather, place, wildlife, composition }
 
 abstract final class InspirationNotes {
-  static List<InspirationNote> build(ContextSnapshot snapshot) {
+  static List<InspirationNote> build(
+    ContextSnapshot snapshot, {
+    ManifestNarrative? narrative,
+  }) {
     final manifest = ManifestPolicy.build(snapshot);
     final notes = <InspirationNote>[
-      for (final item in manifest.creativeItems) _fromManifest(item),
-      ..._sceneCompanions(snapshot),
+      for (final item in manifest.creativeItems)
+        _fromManifest(item, labelOverride: narrative?.noteLabels[item.id]),
     ];
 
     final unique = <String, InspirationNote>{};
@@ -48,8 +52,11 @@ abstract final class InspirationNotes {
       ..sort((a, b) => b.priority.compareTo(a.priority));
   }
 
-  static InspirationNote _fromManifest(ManifestItem item) {
-    return switch (item.id) {
+  static InspirationNote _fromManifest(
+    ManifestItem item, {
+    String? labelOverride,
+  }) {
+    final note = switch (item.id) {
       'reflection' => const InspirationNote(
         id: 'reflection',
         label: '找倒影',
@@ -100,6 +107,26 @@ abstract final class InspirationNotes {
         priority: 95,
         ttl: Duration(hours: 2),
       ),
+      'dust-light' => const InspirationNote(
+        id: 'dust-light',
+        label: '风沙光',
+        emoji: '🏜️',
+        category: InspirationCategory.light,
+        action: ManifestAction.openShootingWindow,
+        detail: '风沙与低角度光线正在形成粗粝层次，注意保护器材。',
+        priority: 90,
+        ttl: Duration(minutes: 20),
+      ),
+      'humanity-light' => const InspirationNote(
+        id: 'humanity-light',
+        label: '进巷子',
+        emoji: '🏮',
+        category: InspirationCategory.place,
+        action: ManifestAction.openExplore,
+        detail: '晨昏光线正在进入街巷，先观察人与环境再拍摄。',
+        priority: 85,
+        ttl: Duration(minutes: 25),
+      ),
       _ => InspirationNote(
         id: item.id,
         label: item.title,
@@ -111,51 +138,16 @@ abstract final class InspirationNotes {
         ttl: const Duration(minutes: 30),
       ),
     };
-  }
-
-  static List<InspirationNote> _sceneCompanions(ContextSnapshot snapshot) {
-    final sceneNote = switch (snapshot.primaryScene) {
-      SceneType.lake => const InspirationNote(
-        id: 'lake-companion',
-        label: '去湖边',
-        emoji: '🌊',
-        category: InspirationCategory.place,
-        action: ManifestAction.openExplore,
-        detail: '沿岸走一小段，找出水面、岸线和远景的关系。',
-        priority: 30,
-        ttl: Duration(hours: 1),
-      ),
-      SceneType.mountain => const InspirationNote(
-        id: 'mountain-companion',
-        label: '长焦吧',
-        emoji: '📷',
-        category: InspirationCategory.composition,
-        action: ManifestAction.openExplore,
-        detail: '试试压缩山脊和云层，先找稳定的落脚点。',
-        priority: 30,
-        ttl: Duration(hours: 1),
-      ),
-      SceneType.village => const InspirationNote(
-        id: 'village-companion',
-        label: '慢一点',
-        emoji: '🚶',
-        category: InspirationCategory.composition,
-        action: ManifestAction.openExplore,
-        detail: '先观察街巷里的光和人的关系，再决定举起相机。',
-        priority: 30,
-        ttl: Duration(hours: 1),
-      ),
-      _ => const InspirationNote(
-        id: 'look-back',
-        label: '回头看',
-        emoji: '👀',
-        category: InspirationCategory.composition,
-        action: ManifestAction.openExplore,
-        detail: '先别急着赶路，回头看看光线正在落在哪里。',
-        priority: 20,
-        ttl: Duration(hours: 1),
-      ),
-    };
-    return [sceneNote];
+    if (labelOverride == null || labelOverride.isEmpty) return note;
+    return InspirationNote(
+      id: note.id,
+      label: labelOverride,
+      emoji: note.emoji,
+      category: note.category,
+      action: note.action,
+      detail: note.detail,
+      priority: note.priority,
+      ttl: note.ttl,
+    );
   }
 }

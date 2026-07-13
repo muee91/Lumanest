@@ -3,8 +3,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/features/profile/presentation/environment_diagnostics.dart';
 import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
+import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/features/profile/application/environment_privacy_service.dart';
 
 void main() {
+  testWidgets('confirms before clearing environment data', (tester) async {
+    final privacyService = _FakeEnvironmentPrivacyService();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          environmentConsentStoreProvider.overrideWithValue(
+            _GrantedConsentStore(),
+          ),
+          environmentPrivacyServiceProvider.overrideWithValue(privacyService),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('停止并清除'));
+    await tester.pumpAndSettle();
+    expect(find.text('停止使用环境数据？'), findsOneWidget);
+    expect(find.textContaining('不会删除收藏与路线'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '停止并清除'));
+    await tester.pumpAndSettle();
+
+    expect(privacyService.calls, 1);
+    expect(find.text('环境数据已停止使用并清除'), findsOneWidget);
+  });
+
   testWidgets(
     'exposes switches for dynamic background, reduce motion and reduce flashing',
     (tester) async {
@@ -65,6 +97,33 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('explains every external data source and its limitation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+
+    final entry = find.text('数据来源与使用说明');
+    await tester.ensureVisible(entry.first);
+    await tester.tap(entry.first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('天气 · 和风天气'), findsOneWidget);
+    expect(find.text('地图与路线 · 高德地图'), findsOneWidget);
+    expect(find.text('路线高程 · Open-Meteo'), findsOneWidget);
+    expect(find.text('野生动物 · GBIF'), findsOneWidget);
+    expect(find.textContaining('不代表实时位置'), findsOneWidget);
+    expect(find.textContaining('不替代专业测绘'), findsOneWidget);
   });
 
   testWidgets(
@@ -147,7 +206,7 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('天气'), findsOneWidget);
+    expect(find.text('天气配置未完成，无法获取实时天气'), findsOneWidget);
   });
 
   testWidgets('shows AMap config missing diagnostic', (tester) async {
@@ -162,7 +221,7 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('地图'), findsOneWidget);
+    expect(find.text('地图配置未完成，无法显示探索地图'), findsOneWidget);
   });
 
   testWidgets('shows location permission denied diagnostic', (tester) async {
@@ -196,7 +255,7 @@ void main() {
   });
 
   testWidgets(
-    'does not render action buttons by default when no actions are injected',
+    'renders a live recovery action by default when diagnostics need one',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -214,13 +273,7 @@ void main() {
         findsOneWidget,
         reason: 'the diagnostic message must still render',
       );
-      expect(
-        find.text('重试'),
-        findsNothing,
-        reason:
-            'no fake action buttons should render when no real callbacks are '
-            'wired — a clickable button with no effect is worse than no button',
-      );
+      expect(find.text('重试'), findsOneWidget);
     },
   );
 
@@ -320,4 +373,21 @@ void main() {
       }
     },
   );
+}
+
+class _FakeEnvironmentPrivacyService implements EnvironmentPrivacyService {
+  var calls = 0;
+
+  @override
+  Future<void> revokeAndClear() async {
+    calls += 1;
+  }
+}
+
+class _GrantedConsentStore implements EnvironmentConsentStore {
+  @override
+  Future<bool?> readGranted() async => true;
+
+  @override
+  Future<void> writeGranted(bool granted) async {}
 }

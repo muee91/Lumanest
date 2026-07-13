@@ -4,15 +4,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
+import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
 void main() {
+  testWidgets('uses validated narrative summary when available', (
+    tester,
+  ) async {
+    final snapshot = ContextFixtures.lakeSunset();
+    final narrative = ManifestNarrative(
+      summary: '湖面正在安静下来，可以等等倒影。',
+      source: ManifestNarrativeSource.model,
+      generatedAt: DateTime.utc(2026, 7, 11, 10),
+      expiresAt: DateTime.utc(2026, 7, 11, 10, 10),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TodayPage(
+          snapshotAsync: AsyncData(snapshot),
+          narrativeAsync: AsyncData(narrative),
+        ),
+      ),
+    );
+
+    expect(find.text(narrative.summary), findsOneWidget);
+  });
+
   group('TodayPage async states', () {
     testWidgets('loading state shows a loading indicator', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: TodayPage(snapshotAsync: AsyncLoading()),
-        ),
+        const MaterialApp(home: TodayPage(snapshotAsync: AsyncLoading())),
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -27,7 +50,9 @@ void main() {
         MaterialApp(
           home: TodayPage(
             snapshotAsync: AsyncError(
-              const EnvironmentLoadFailure(EnvironmentFailureKind.configMissing),
+              const EnvironmentLoadFailure(
+                EnvironmentFailureKind.configMissing,
+              ),
               StackTrace.empty,
             ),
             onRetry: () => retried = true,
@@ -66,13 +91,31 @@ void main() {
       expect(retried, isTrue);
     });
 
+    testWidgets('location error offers a manual location recovery action', (
+      tester,
+    ) async {
+      var selectedManualLocation = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncError(
+              const EnvironmentLoadFailure(EnvironmentFailureKind.location),
+              StackTrace.empty,
+            ),
+            onSelectManualLocation: () => selectedManualLocation = true,
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('手动选择地点'));
+      expect(selectedManualLocation, isTrue);
+    });
+
     testWidgets('stale cached snapshot shows stale label', (tester) async {
       final staleSnapshot = ContextFixtures.quietCity().asStale();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: TodayPage(snapshotAsync: AsyncData(staleSnapshot)),
-        ),
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(staleSnapshot))),
       );
 
       expect(find.text('数据已过期'), findsOneWidget);
@@ -84,13 +127,12 @@ void main() {
       final snapshot = ContextFixtures.quietCity();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: TodayPage(snapshotAsync: AsyncData(snapshot)),
-        ),
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
       );
 
       expect(find.text('数据已过期'), findsNothing);
       expect(find.textContaining('光线平静'), findsOneWidget);
+      expect(find.text('天气数据：和风天气'), findsOneWidget);
     });
 
     testWidgets('quiet context renders no opportunity placeholder', (
@@ -99,9 +141,7 @@ void main() {
       final snapshot = ContextFixtures.quietCity();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: TodayPage(snapshotAsync: AsyncData(snapshot)),
-        ),
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
       );
 
       expect(find.byKey(const Key('primary-opportunity')), findsNothing);
@@ -113,13 +153,29 @@ void main() {
       final snapshot = ContextFixtures.lakeSunset();
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: TodayPage(snapshotAsync: AsyncData(snapshot)),
-        ),
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
       );
 
       expect(find.byKey(const Key('primary-opportunity')), findsOneWidget);
       expect(find.text('倒影条件改善'), findsOneWidget);
+    });
+
+    testWidgets('tapping an opportunity invokes the whitelisted action', (
+      tester,
+    ) async {
+      ManifestItem? tapped;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncData(ContextFixtures.lakeSunset()),
+            onManifestAction: (item) => tapped = item,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('primary-opportunity')));
+
+      expect(tapped?.id, 'reflection');
     });
 
     testWidgets('safety content is separate from inspiration', (tester) async {
@@ -135,18 +191,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: TodayPage(snapshotAsync: AsyncData(snapshot)),
-        ),
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
       );
 
       expect(find.byKey(const Key('safety-region')), findsOneWidget);
       expect(find.text('雷暴正在接近'), findsOneWidget);
 
-      final inspiration = tester.widget<Text>(
-        find.byKey(const Key('inspiration-preview')),
-      );
-      expect(inspiration.data, isNot(contains('雷暴')));
+      expect(find.byKey(const Key('inspiration-preview')), findsNothing);
     });
 
     testWidgets('error without retry callback shows no retry button', (

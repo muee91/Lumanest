@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
 
 import 'map_consent_test_harness.dart';
@@ -12,6 +13,7 @@ Widget wrapExplorePage({
   required String amapKey,
   FakeAmapInitializerGateway? gateway,
   MapSurfaceBuilder? mapBuilder,
+  ExploreFocus focus = ExploreFocus.photography,
 }) {
   return ProviderScope(
     overrides: [
@@ -22,7 +24,9 @@ Widget wrapExplorePage({
         gateway ?? FakeAmapInitializerGateway(),
       ),
     ],
-    child: MaterialApp(home: ExplorePage(mapBuilder: mapBuilder)),
+    child: MaterialApp(
+      home: ExplorePage(mapBuilder: mapBuilder, focus: focus),
+    ),
   );
 }
 
@@ -131,5 +135,21 @@ void main() {
 
     // With StatefulWidget+initState, init is not re-called during rebuild
     expect(gateway.initialized, isTrue);
+  });
+
+  testWidgets('focused exploration exposes the selected intent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        mapBuilder: fakeMapSurface,
+        focus: ExploreFocus.water,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+
+    expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
   });
 }

@@ -1,28 +1,51 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/profile_preferences.dart';
+import '../infrastructure/profile_preferences_store.dart';
 
-/// In-memory controller for [ProfilePreferences].
-///
-/// Phase 1 holds state only for the lifetime of the provider; persistence is
-/// deferred to a later Drift-backed phase. Every toggle produces a new
-/// immutable state.
+/// Restores persisted accessibility preferences without delaying first paint.
 class ProfilePreferencesController extends Notifier<ProfilePreferences> {
+  var _changedThisSession = false;
+
   @override
-  ProfilePreferences build() => const ProfilePreferences();
+  ProfilePreferences build() {
+    unawaited(_restore());
+    return const ProfilePreferences();
+  }
+
+  Future<void> _restore() async {
+    final restored = await ref.read(profilePreferencesStoreProvider).read();
+    if (!_changedThisSession && restored != null) state = restored;
+  }
 
   void toggleAmbientBackground() {
-    state = state.copyWith(
-      ambientBackgroundEnabled: !state.ambientBackgroundEnabled,
+    _update(
+      state.copyWith(ambientBackgroundEnabled: !state.ambientBackgroundEnabled),
     );
   }
 
   void toggleReduceMotion() {
-    state = state.copyWith(reduceMotion: !state.reduceMotion);
+    _update(state.copyWith(reduceMotion: !state.reduceMotion));
   }
 
   void toggleReduceFlashing() {
-    state = state.copyWith(reduceFlashing: !state.reduceFlashing);
+    _update(state.copyWith(reduceFlashing: !state.reduceFlashing));
+  }
+
+  void toggleHighContrast() {
+    _update(state.copyWith(highContrast: !state.highContrast));
+  }
+
+  void setAmbientMotionMode(AmbientMotionMode mode) {
+    _update(state.copyWith(ambientMotionMode: mode));
+  }
+
+  void _update(ProfilePreferences value) {
+    _changedThisSession = true;
+    state = value;
+    unawaited(ref.read(profilePreferencesStoreProvider).write(value));
   }
 }
 

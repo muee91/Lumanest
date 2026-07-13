@@ -69,6 +69,25 @@ void main() {
     );
   });
 
+  test('revoking consent gates the map and updates the SDK statement', () {
+    final gateway = FakeAmapInitializerGateway();
+    final container = createMapTestContainer(
+      amapKey: 'test-key',
+      gateway: gateway,
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(mapConsentControllerProvider.notifier);
+    controller.grantConsent();
+
+    controller.revokeConsent();
+
+    expect(gateway.lastStatement?.hasAgree, isFalse);
+    expect(
+      container.read(mapConsentControllerProvider),
+      isA<MapConsentAwaiting>(),
+    );
+  });
+
   test('amap api key from environment config is used for init', () {
     final gateway = FakeAmapInitializerGateway();
     final container = createMapTestContainer(

@@ -28,10 +28,39 @@ void main() {
     expect(repository.calls, 8);
     expect(results.map((item) => item.id), {'shared-fuel', 'shared-supply'});
   });
+
+  test('walking corridors request supplies but never fuel', () async {
+    final repository = _FakeNearbyPlaceRepository();
+    final route = DrivingRoute(
+      destinationName: '徒步机位',
+      distanceMeters: 3000,
+      durationSeconds: 1800,
+      tollsYuan: 0,
+      polyline: const [
+        GeoPoint(
+          latitude: 31,
+          longitude: 121,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+        GeoPoint(
+          latitude: 31.02,
+          longitude: 121.02,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+      ],
+      travelMode: RouteTravelMode.walking,
+    );
+
+    final results = await RouteCorridorScanner(repository).scan(route);
+
+    expect(repository.categories, everyElement(NearbyPlaceCategory.supply));
+    expect(results.map((item) => item.category), [NearbyPlaceCategory.supply]);
+  });
 }
 
 class _FakeNearbyPlaceRepository implements NearbyPlaceRepository {
   int calls = 0;
+  final categories = <NearbyPlaceCategory>[];
 
   @override
   Future<List<NearbyPlace>> fetchNearby({
@@ -40,6 +69,7 @@ class _FakeNearbyPlaceRepository implements NearbyPlaceRepository {
     int radiusMeters = 5000,
   }) async {
     calls += 1;
+    categories.add(category);
     return [
       NearbyPlace(
         id: category == NearbyPlaceCategory.fuel

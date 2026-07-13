@@ -12,10 +12,10 @@ class RouteCorridorScanner {
     final samples = _sample(route.polyline, maximum: 4);
     final unique = <String, NearbyPlace>{};
     for (final point in samples) {
-      for (final category in const [
-        NearbyPlaceCategory.fuel,
-        NearbyPlaceCategory.supply,
-      ]) {
+      final categories = route.travelMode == RouteTravelMode.walking
+          ? const [NearbyPlaceCategory.supply]
+          : const [NearbyPlaceCategory.fuel, NearbyPlaceCategory.supply];
+      for (final category in categories) {
         final results = await _places.fetchNearby(
           center: point,
           category: category,

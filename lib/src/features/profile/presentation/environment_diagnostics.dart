@@ -174,8 +174,7 @@ final environmentDiagnosticStatusProvider =
             return switch (error.kind) {
               EnvironmentFailureKind.configMissing =>
                 EnvironmentDiagnosticStatus.qweatherConfigMissing,
-              EnvironmentFailureKind.location =>
-                _locationStatus(error.cause),
+              EnvironmentFailureKind.location => _locationStatus(error.cause),
               EnvironmentFailureKind.weather =>
                 EnvironmentDiagnosticStatus.staleCache,
             };

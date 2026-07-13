@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
+import 'package:luma_nest/src/features/profile/infrastructure/profile_preferences_store.dart';
 
 void main() {
   late ProviderContainer container;
@@ -20,6 +21,8 @@ void main() {
         expect(preferences.ambientBackgroundEnabled, isTrue);
         expect(preferences.reduceMotion, isFalse);
         expect(preferences.reduceFlashing, isFalse);
+        expect(preferences.highContrast, isFalse);
+        expect(preferences.ambientMotionMode, AmbientMotionMode.full);
       },
     );
   });
@@ -105,6 +108,26 @@ void main() {
     });
   });
 
+  test('toggles and persists high contrast independently', () async {
+    final store = _FakeProfilePreferencesStore(null);
+    final contrastContainer = ProviderContainer(
+      overrides: [profilePreferencesStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(contrastContainer.dispose);
+    contrastContainer.read(profilePreferencesProvider);
+
+    contrastContainer
+        .read(profilePreferencesProvider.notifier)
+        .toggleHighContrast();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      contrastContainer.read(profilePreferencesProvider).highContrast,
+      isTrue,
+    );
+    expect(store.value?.highContrast, isTrue);
+  });
+
   test('ProfilePreferences equality treats matching fields as equal', () {
     const a = ProfilePreferences();
     const b = ProfilePreferences(
@@ -116,4 +139,68 @@ void main() {
     expect(a, equals(b));
     expect(a.hashCode, equals(b.hashCode));
   });
+
+  test('sets and persists the ambient performance mode', () async {
+    final store = _FakeProfilePreferencesStore(null);
+    final modeContainer = ProviderContainer(
+      overrides: [profilePreferencesStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(modeContainer.dispose);
+    modeContainer.read(profilePreferencesProvider);
+
+    modeContainer
+        .read(profilePreferencesProvider.notifier)
+        .setAmbientMotionMode(AmbientMotionMode.energySaver);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      modeContainer.read(profilePreferencesProvider).ambientMotionMode,
+      AmbientMotionMode.energySaver,
+    );
+    expect(store.value?.ambientMotionMode, AmbientMotionMode.energySaver);
+  });
+
+  test('restores persisted accessibility preferences', () async {
+    final restoredContainer = ProviderContainer(
+      overrides: [
+        profilePreferencesStoreProvider.overrideWithValue(
+          _FakeProfilePreferencesStore(
+            const ProfilePreferences(
+              ambientBackgroundEnabled: false,
+              reduceMotion: true,
+              reduceFlashing: true,
+              highContrast: true,
+              ambientMotionMode: AmbientMotionMode.energySaver,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(restoredContainer.dispose);
+
+    restoredContainer.read(profilePreferencesProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      restoredContainer.read(profilePreferencesProvider),
+      const ProfilePreferences(
+        ambientBackgroundEnabled: false,
+        reduceMotion: true,
+        reduceFlashing: true,
+        highContrast: true,
+        ambientMotionMode: AmbientMotionMode.energySaver,
+      ),
+    );
+  });
+}
+
+class _FakeProfilePreferencesStore implements ProfilePreferencesStore {
+  _FakeProfilePreferencesStore(this.value);
+  ProfilePreferences? value;
+
+  @override
+  Future<ProfilePreferences?> read() async => value;
+
+  @override
+  Future<void> write(ProfilePreferences value) async => this.value = value;
 }

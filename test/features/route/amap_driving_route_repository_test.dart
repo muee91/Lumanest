@@ -52,6 +52,44 @@ void main() {
     expect(route.polyline, hasLength(2));
     expect(route.polyline.first.coordinateSystem, CoordinateSystem.gcj02);
   });
+
+  test('walking mode uses the walking broker endpoint', () async {
+    final transport = _FakeRouteTransport({
+      'status': '1',
+      'route': {
+        'paths': [
+          {
+            'distance': '1800',
+            'duration': '1500',
+            'steps': [
+              {
+                'instruction': '沿步道向北步行',
+                'polyline': '121.47,31.23;121.48,31.24',
+              },
+            ],
+          },
+        ],
+      },
+    });
+    final repository = AmapDrivingRouteRepository(
+      brokerBaseUrl: 'https://broker.example.com',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    final route = await repository.plan(
+      DrivingRouteRequest(
+        origin: const GeoPoint(latitude: 31.23, longitude: 121.47),
+        destination: const GeoPoint(latitude: 31.24, longitude: 121.48),
+        destinationName: '徒步机位',
+        travelMode: RouteTravelMode.walking,
+      ),
+    );
+
+    expect(transport.url, 'https://broker.example.com/v1/amap/walking');
+    expect(route.travelMode, RouteTravelMode.walking);
+    expect(route.tollsYuan, 0);
+  });
 }
 
 class _FakeRouteTransport implements AmapRouteTransport {

@@ -7,12 +7,26 @@ import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
+import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
+import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
+import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
 class TodayPage extends StatelessWidget {
-  const TodayPage({super.key, required this.snapshotAsync, this.onRetry});
+  const TodayPage({
+    super.key,
+    required this.snapshotAsync,
+    this.onRetry,
+    this.onSelectManualLocation,
+    this.onManifestAction,
+    this.narrativeAsync,
+  });
 
   final AsyncValue<ContextSnapshot> snapshotAsync;
   final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
+  final ValueChanged<ManifestItem>? onManifestAction;
+  final AsyncValue<ManifestNarrative>? narrativeAsync;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +61,15 @@ class TodayPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
               ],
+              if (error is EnvironmentLoadFailure &&
+                  error.kind == EnvironmentFailureKind.location &&
+                  onSelectManualLocation != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: onSelectManualLocation,
+                  child: const Text('手动选择地点'),
+                ),
+              ],
             ],
           ),
         ),
@@ -56,6 +79,16 @@ class TodayPage extends StatelessWidget {
 
   Widget _buildContent(BuildContext context, ContextSnapshot snapshot) {
     final manifest = ManifestPolicy.build(snapshot);
+    final summary = narrativeAsync?.asData?.value.summary ?? manifest.summary;
+    void performAction(ManifestItem item) {
+      final injected = onManifestAction;
+      if (injected != null) {
+        injected(item);
+      } else {
+        handleManifestAction(context, item);
+      }
+    }
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
@@ -63,18 +96,19 @@ class TodayPage extends StatelessWidget {
           if (snapshot.isStale) _StaleLabel(),
           _TodayMasthead(snapshot: snapshot),
           const SizedBox(height: 28),
-          _DecisionHero(summary: manifest.summary, dayPhase: snapshot.dayPhase),
+          _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
           const SizedBox(height: 16),
           _EnvironmentStrip(snapshot: snapshot),
           const SizedBox(height: 20),
           if (manifest.safety.isNotEmpty) ...[
-            _SafetyRegion(items: manifest.safety),
+            _SafetyRegion(items: manifest.safety, onAction: performAction),
             const SizedBox(height: 20),
           ],
           if (manifest.primary case final primary?) ...[
             _OpportunityCard(
               key: const Key('primary-opportunity'),
               item: primary,
+              onTap: () => performAction(primary),
             ),
             const SizedBox(height: 12),
           ],
@@ -86,16 +120,22 @@ class TodayPage extends StatelessWidget {
                 for (final item in manifest.secondary)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _OpportunityCard(item: item, compact: true),
+                    child: _OpportunityCard(
+                      item: item,
+                      compact: true,
+                      onTap: () => performAction(item),
+                    ),
                   ),
               ],
             ),
           ],
-          const SizedBox(height: 18),
-          _InspirationTeaser(
-            note: manifest.inspirationPreview,
-            onTap: () => context.go('/inspiration'),
-          ),
+          if (manifest.inspirationPreview.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _InspirationTeaser(
+              note: manifest.inspirationPreview,
+              onTap: () => context.go('/inspiration'),
+            ),
+          ],
           const SizedBox(height: 18),
           FilledButton.icon(
             onPressed: () => context.go('/explore'),
@@ -227,15 +267,29 @@ class _EnvironmentStrip extends StatelessWidget {
             : '${snapshot.visibilityKilometers!.round()} km',
       ),
     ];
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        for (final entry in entries)
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(right: entry == entries.last ? 0 : 8),
-              child: _MetricPill(icon: entry.$1, label: entry.$2),
-            ),
+        Row(
+          children: [
+            for (final entry in entries)
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: entry == entries.last ? 0 : 8,
+                  ),
+                  child: _MetricPill(icon: entry.$1, label: entry.$2),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '天气数据：和风天气',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
+        ),
       ],
     );
   }
@@ -317,7 +371,10 @@ class LiveTodayPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (initialSnapshot case final snapshot?) {
-      return TodayPage(snapshotAsync: AsyncData(snapshot));
+      return TodayPage(
+        snapshotAsync: AsyncData(snapshot),
+        narrativeAsync: ref.watch(manifestNarrativeProvider(snapshot)),
+      );
     }
 
     final granted = ref.watch(environmentConsentProvider);
@@ -328,9 +385,19 @@ class LiveTodayPage extends ConsumerWidget {
     }
 
     final snapshot = ref.watch(environmentSnapshotProvider);
+    final narrative = snapshot.asData == null
+        ? null
+        : ref.watch(manifestNarrativeProvider(snapshot.requireValue));
     return TodayPage(
       snapshotAsync: snapshot,
+      narrativeAsync: narrative,
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
+      onSelectManualLocation: () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => const ManualLocationSheet(),
+      ),
     );
   }
 }
@@ -395,9 +462,10 @@ class _StaleLabel extends StatelessWidget {
 }
 
 class _SafetyRegion extends StatelessWidget {
-  const _SafetyRegion({required this.items});
+  const _SafetyRegion({required this.items, required this.onAction});
 
   final List<ManifestItem> items;
+  final ValueChanged<ManifestItem> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +483,14 @@ class _SafetyRegion extends StatelessWidget {
             children: [
               Text('安全提醒', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
-              for (final item in items) Text(item.title),
+              for (final item in items)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(item.title),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => onAction(item),
+                ),
             ],
           ),
         ),
@@ -425,9 +500,15 @@ class _SafetyRegion extends StatelessWidget {
 }
 
 class _OpportunityCard extends StatelessWidget {
-  const _OpportunityCard({super.key, required this.item, this.compact = false});
+  const _OpportunityCard({
+    super.key,
+    required this.item,
+    required this.onTap,
+    this.compact = false,
+  });
 
   final ManifestItem item;
+  final VoidCallback onTap;
   final bool compact;
 
   @override
@@ -435,15 +516,23 @@ class _OpportunityCard extends StatelessWidget {
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainer,
       borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 12 : 20),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            item.title,
-            style: compact
-                ? Theme.of(context).textTheme.bodyLarge
-                : Theme.of(context).textTheme.titleLarge,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 12 : 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: compact
+                      ? Theme.of(context).textTheme.bodyLarge
+                      : Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              const Icon(Icons.arrow_outward, size: 18),
+            ],
           ),
         ),
       ),

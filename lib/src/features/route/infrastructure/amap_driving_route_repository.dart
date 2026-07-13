@@ -62,7 +62,7 @@ class AmapDrivingRouteRepository implements DrivingRouteRepository {
         ? ChinaCoordinateConverter.wgs84ToGcj02(request.destination)
         : request.destination;
     final body = await transport.get(
-      '$brokerBaseUrl/v1/amap/driving',
+      '$brokerBaseUrl/v1/amap/${request.travelMode.name}',
       query: {
         'origin': '${origin.longitude},${origin.latitude}',
         'destination': '${destination.longitude},${destination.latitude}',
@@ -100,6 +100,7 @@ class AmapDrivingRouteRepository implements DrivingRouteRepository {
       tollsYuan: double.tryParse('${path['tolls'] ?? ''}') ?? 0,
       polyline: List.unmodifiable(points),
       instructions: instructions,
+      travelMode: request.travelMode,
     );
   }
 

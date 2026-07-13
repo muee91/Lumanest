@@ -2,10 +2,13 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/app_shell.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/inspiration/presentation/inspiration_page.dart';
 import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
 import 'package:luma_nest/src/features/route/presentation/route_page.dart';
+import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
+import 'package:luma_nest/src/features/shooting_window/presentation/shooting_window_page.dart';
 
 GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
   return GoRouter(
@@ -24,6 +27,10 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                   child: LiveTodayPage(initialSnapshot: initialContext),
                 ),
               ),
+              GoRoute(
+                path: '/shooting-window',
+                builder: (context, state) => const ShootingWindowPage(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -32,8 +39,9 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                 path: '/explore',
                 pageBuilder: (context, state) => NoTransitionPage(
                   child: ExplorePage(
-                    focusWildlife:
-                        state.uri.queryParameters['focus'] == 'wildlife',
+                    focus: ExploreFocus.fromQuery(
+                      state.uri.queryParameters['focus'],
+                    ),
                   ),
                 ),
               ),
@@ -50,6 +58,9 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                       destinationName: query['name'],
                       destinationLatitude: double.tryParse(query['lat'] ?? ''),
                       destinationLongitude: double.tryParse(query['lon'] ?? ''),
+                      travelMode: query['mode'] == RouteTravelMode.walking.name
+                          ? RouteTravelMode.walking
+                          : RouteTravelMode.driving,
                     ),
                   );
                 },

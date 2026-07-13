@@ -1,73 +1,50 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
-class InspirationPage extends ConsumerStatefulWidget {
+class InspirationPage extends ConsumerWidget {
   const InspirationPage({super.key, this.snapshotAsync});
 
   /// Allows deterministic widget tests without starting the live environment.
   final AsyncValue<ContextSnapshot>? snapshotAsync;
 
   @override
-  ConsumerState<InspirationPage> createState() => _InspirationPageState();
-}
-
-class _InspirationPageState extends ConsumerState<InspirationPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  var _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 520),
-    );
-  }
-
-  void _draw(int count) {
-    if (count < 2) return;
-    setState(() => _index = (_index + 1) % count);
-    _controller.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<ContextSnapshot> snapshotAsync =
-        widget.snapshotAsync ?? ref.watch(environmentSnapshotProvider);
+        this.snapshotAsync ?? ref.watch(environmentSnapshotProvider);
+    final preferences = ref.watch(profilePreferencesProvider);
+    final reduceMotion =
+        preferences.reduceMotion || MediaQuery.disableAnimationsOf(context);
     return snapshotAsync.when(
       loading: () => _BottleScaffold(
         notes: InspirationNotes.build(_fallbackSnapshot()),
-        selectedIndex: _index,
-        onDraw: _draw,
-        controller: _controller,
-        onAction: _performAction,
+        reduceMotion: reduceMotion,
+        onAction: (note) => _performAction(context, note),
       ),
       error: (_, _) => _BottleScaffold(
         notes: InspirationNotes.build(_fallbackSnapshot()),
-        selectedIndex: _index,
-        onDraw: _draw,
-        controller: _controller,
-        onAction: _performAction,
+        reduceMotion: reduceMotion,
+        onAction: (note) => _performAction(context, note),
       ),
-      data: (snapshot) => _BottleScaffold(
-        notes: InspirationNotes.build(snapshot),
-        selectedIndex: _index,
-        onDraw: _draw,
-        controller: _controller,
-        onAction: _performAction,
-      ),
+      data: (snapshot) {
+        final narrative = ref.watch(manifestNarrativeProvider(snapshot));
+        return _BottleScaffold(
+          notes: InspirationNotes.build(
+            snapshot,
+            narrative: narrative.asData?.value,
+          ),
+          reduceMotion: reduceMotion,
+          onAction: (note) => _performAction(context, note),
+        );
+      },
     );
   }
 
@@ -81,58 +58,96 @@ class _InspirationPageState extends ConsumerState<InspirationPage>
     activeRoute: false,
   );
 
-  void _performAction(InspirationNote note) {
-    switch (note.action) {
-      case ManifestAction.openExplore:
-        context.go(
-          note.id == 'regional-wildlife'
-              ? '/explore?focus=wildlife'
-              : '/explore',
-        );
-      case ManifestAction.openShootingWindow:
-      case ManifestAction.openWeather:
-        showModalBottomSheet<void>(
-          context: context,
-          showDragHandle: true,
-          builder: (context) => Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 34),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  note.displayLabel,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 12),
-                Text(note.detail),
-              ],
-            ),
-          ),
-        );
-      case ManifestAction.openSafety:
-        break;
-    }
+  void _performAction(BuildContext context, InspirationNote note) {
+    handleManifestAction(
+      context,
+      ManifestItem(id: note.id, title: note.displayLabel, action: note.action),
+      detailOverride: note.detail,
+    );
   }
 }
 
-class _BottleScaffold extends StatelessWidget {
+class _BottleScaffold extends StatefulWidget {
   const _BottleScaffold({
     required this.notes,
-    required this.selectedIndex,
-    required this.onDraw,
-    required this.controller,
+    required this.reduceMotion,
     required this.onAction,
   });
   final List<InspirationNote> notes;
-  final int selectedIndex;
-  final void Function(int count) onDraw;
-  final AnimationController controller;
+  final bool reduceMotion;
   final void Function(InspirationNote note) onAction;
 
   @override
+  State<_BottleScaffold> createState() => _BottleScaffoldState();
+}
+
+class _BottleScaffoldState extends State<_BottleScaffold>
+    with TickerProviderStateMixin {
+  late final AnimationController _idleController;
+  late final AnimationController _drawController;
+  var _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _idleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    );
+    _drawController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 620),
+    );
+    if (!widget.reduceMotion) _idleController.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_BottleScaffold oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.notes.isEmpty) {
+      _selectedIndex = 0;
+    } else if (_selectedIndex >= widget.notes.length) {
+      _selectedIndex = 0;
+    }
+    if (oldWidget.reduceMotion == widget.reduceMotion) return;
+    if (widget.reduceMotion) {
+      _idleController.stop();
+      _drawController.stop();
+      _idleController.value = 0;
+      _drawController.value = 0;
+    } else {
+      _idleController.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _idleController.dispose();
+    _drawController.dispose();
+    super.dispose();
+  }
+
+  void _draw() {
+    if (widget.notes.length < 2) return;
+    setState(() => _selectedIndex = (_selectedIndex + 1) % widget.notes.length);
+    if (!widget.reduceMotion) _drawController.forward(from: 0);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final index = notes.isEmpty ? 0 : selectedIndex % notes.length;
+    final notes = widget.notes;
+    if (notes.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('灵感瓶')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: Text('此刻还没有可靠的创作线索', textAlign: TextAlign.center),
+          ),
+        ),
+      );
+    }
+    final index = _selectedIndex % notes.length;
     final note = notes[index];
     return Scaffold(
       appBar: AppBar(title: const Text('灵感瓶')),
@@ -147,54 +162,68 @@ class _BottleScaffold extends StatelessWidget {
               ),
               const SizedBox(height: 22),
               Center(
-                child: GestureDetector(
-                  onTap: () => onDraw(notes.length),
-                  child: AnimatedBuilder(
-                    animation: controller,
-                    builder: (_, child) => Transform.rotate(
-                      angle: controller.value < .5
-                          ? controller.value * .1
-                          : (1 - controller.value) * .1,
-                      child: child,
-                    ),
-                    child: Container(
-                      width: 250,
-                      height: 340,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(55),
-                          bottom: Radius.circular(78),
-                        ),
-                        gradient: LinearGradient(
-                          colors: [
-                            Theme.of(context).colorScheme.primaryContainer
-                                .withValues(alpha: .82),
-                            Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: .72),
-                          ],
-                        ),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                          width: 2,
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          for (var i = 0; i < notes.length; i++)
-                            Positioned(
-                              left: 28 + (i % 2) * 62.0,
-                              top: 72 + (i ~/ 2) * 56.0,
-                              child: Transform.rotate(
-                                angle: (i - 2) * .08,
-                                child: _Paper(
-                                  text: notes[i].displayLabel,
-                                  faded: notes[i] != note,
-                                ),
-                              ),
+                child: Semantics(
+                  button: true,
+                  label: '抽一张灵感纸条',
+                  child: GestureDetector(
+                    key: const Key('inspiration-bottle'),
+                    onTap: _draw,
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _idleController,
+                        _drawController,
+                      ]),
+                      builder: (_, _) => Transform.rotate(
+                        angle: widget.reduceMotion
+                            ? 0
+                            : _bottleRotation(_drawController.value),
+                        child: Container(
+                          width: 250,
+                          height: 340,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(55),
+                              bottom: Radius.circular(78),
                             ),
-                        ],
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).colorScheme.primaryContainer
+                                    .withValues(alpha: .82),
+                                Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest
+                                    .withValues(alpha: .72),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outlineVariant,
+                              width: 2,
+                            ),
+                          ),
+                          child: Stack(
+                            children: [
+                              for (var i = 0; i < notes.length; i++)
+                                Positioned(
+                                  left: 28 + (i % 2) * 62.0,
+                                  top: 72 + (i ~/ 2) * 56.0 + _paperLift(i),
+                                  child: Transform.translate(
+                                    offset: Offset(_paperDrift(i), 0),
+                                    child: Transform.rotate(
+                                      angle: _paperRotation(i),
+                                      child: _Paper(
+                                        key: Key('bottle-paper-${notes[i].id}'),
+                                        text: notes[i].displayLabel,
+                                        faded: notes[i] != note,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -202,9 +231,11 @@ class _BottleScaffold extends StatelessWidget {
               ),
               const SizedBox(height: 22),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
+                duration: widget.reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
                 child: _Paper(
-                  key: ValueKey(note.id),
+                  key: Key('selected-inspiration-${note.id}'),
                   text: note.displayLabel,
                   large: true,
                 ),
@@ -220,13 +251,13 @@ class _BottleScaffold extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () => onAction(note),
+                onPressed: () => widget.onAction(note),
                 icon: const Icon(Icons.arrow_outward),
                 label: const Text('去看看'),
               ),
               const SizedBox(height: 8),
               TextButton.icon(
-                onPressed: () => onDraw(notes.length),
+                onPressed: _draw,
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('抽一张纸条'),
               ),
@@ -235,6 +266,36 @@ class _BottleScaffold extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  double _bottleRotation(double progress) {
+    if (progress == 0 || progress == 1) return 0;
+    return math.sin(progress * math.pi * 4) * .035 * (1 - progress);
+  }
+
+  double _paperDrift(int index) {
+    if (widget.reduceMotion) return 0;
+    final idle = math.sin((_idleController.value + index * .19) * math.pi * 2);
+    final draw =
+        math.sin(_drawController.value * math.pi * 3 + index) *
+        math.sin(_drawController.value * math.pi) *
+        9;
+    return idle * 2.5 + draw;
+  }
+
+  double _paperLift(int index) {
+    if (widget.reduceMotion) return 0;
+    final idle = math.cos((_idleController.value + index * .13) * math.pi * 2);
+    final draw =
+        math.sin(_drawController.value * math.pi) *
+        (index == _selectedIndex ? -24 : -8);
+    return idle * 2 + draw;
+  }
+
+  double _paperRotation(int index) {
+    final base = (index - 2) * .08;
+    if (widget.reduceMotion) return base;
+    return base + _paperDrift(index) * .004;
   }
 }
 

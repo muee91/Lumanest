@@ -11,13 +11,19 @@ import 'package:luma_nest/src/features/explore/application/map_consent_controlle
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
+import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class ExplorePage extends ConsumerWidget {
-  const ExplorePage({super.key, this.mapBuilder, this.focusWildlife = false});
+  const ExplorePage({
+    super.key,
+    this.mapBuilder,
+    this.focus = ExploreFocus.photography,
+  });
 
   final MapSurfaceBuilder? mapBuilder;
-  final bool focusWildlife;
+  final ExploreFocus focus;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,7 +38,7 @@ class ExplorePage extends ConsumerWidget {
       ),
       MapConsentReady() => _MapView(
         mapBuilder: mapBuilder,
-        focusWildlife: focusWildlife,
+        focus: focus,
         onInit: (context) {
           ref
               .read(mapConsentControllerProvider.notifier)
@@ -95,12 +101,12 @@ class _ConsentPrompt extends StatelessWidget {
 class _MapView extends ConsumerStatefulWidget {
   const _MapView({
     required this.mapBuilder,
-    required this.focusWildlife,
+    required this.focus,
     required this.onInit,
   });
 
   final MapSurfaceBuilder? mapBuilder;
-  final bool focusWildlife;
+  final ExploreFocus focus;
   final void Function(BuildContext context) onInit;
 
   @override
@@ -112,11 +118,42 @@ class _MapViewState extends ConsumerState<_MapView> {
   void initState() {
     super.initState();
     widget.onInit(context);
+    _applyFocus();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focus != widget.focus) _applyFocus();
+  }
+
+  void _applyFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(nearbyCategoryProvider.notifier).select(widget.focus.category);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.mapBuilder case final builder?) return builder();
+    if (widget.mapBuilder case final builder?) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          builder(),
+          if (widget.focus != ExploreFocus.photography)
+            Positioned(
+              left: 12,
+              right: 12,
+              top: 12,
+              child: SafeArea(
+                bottom: false,
+                child: _FocusBanner(focus: widget.focus),
+              ),
+            ),
+        ],
+      );
+    }
 
     final locationConsent = ref.watch(environmentConsentProvider);
     if (!locationConsent) {
@@ -169,11 +206,22 @@ class _MapViewState extends ConsumerState<_MapView> {
                       .toSet() ??
                   const <Marker>{},
             ),
-            const Positioned(
+            Positioned(
               left: 12,
               right: 12,
               top: 12,
-              child: SafeArea(bottom: false, child: _CategoryBar()),
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    if (widget.focus != ExploreFocus.photography) ...[
+                      _FocusBanner(focus: widget.focus),
+                      const SizedBox(height: 8),
+                    ],
+                    const _CategoryBar(),
+                  ],
+                ),
+              ),
             ),
             Positioned(
               left: 12,
@@ -184,7 +232,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                 child: _NearbyResultPanel(
                   places,
                   wildlifeActivity: value.wildlifeActivity,
-                  focusWildlife: widget.focusWildlife,
+                  focusWildlife: widget.focus == ExploreFocus.wildlife,
                 ),
               ),
             ),
@@ -196,6 +244,21 @@ class _MapViewState extends ConsumerState<_MapView> {
 
   static String _distanceLabel(int meters) =>
       meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)} km' : '$meters m';
+}
+
+class _FocusBanner extends StatelessWidget {
+  const _FocusBanner({required this.focus});
+  final ExploreFocus focus;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.secondaryContainer,
+    borderRadius: BorderRadius.circular(16),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Text(focus.label, textAlign: TextAlign.center),
+    ),
+  );
 }
 
 class _CategoryBar extends ConsumerWidget {
@@ -231,7 +294,7 @@ class _CategoryBar extends ConsumerWidget {
   }
 }
 
-class _NearbyResultPanel extends StatelessWidget {
+class _NearbyResultPanel extends ConsumerWidget {
   const _NearbyResultPanel(
     this.places, {
     this.wildlifeActivity,
@@ -243,7 +306,8 @@ class _NearbyResultPanel extends StatelessWidget {
   final bool focusWildlife;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(userLibraryProvider).asData?.value;
     return Material(
       color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
       borderRadius: BorderRadius.circular(20),
@@ -303,8 +367,44 @@ class _NearbyResultPanel extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: const Icon(Icons.arrow_outward, size: 18),
-                        onTap: () {
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: library?.containsPlace(place.id) == true
+                                  ? '取消收藏'
+                                  : '收藏',
+                              onPressed: () => ref
+                                  .read(userLibraryProvider.notifier)
+                                  .togglePlace(
+                                    SavedPlace(
+                                      id: place.id,
+                                      name: place.name,
+                                      category: place.category.name,
+                                      latitude: place.point.latitude,
+                                      longitude: place.point.longitude,
+                                    ),
+                                  ),
+                              icon: Icon(
+                                library?.containsPlace(place.id) == true
+                                    ? Icons.bookmark
+                                    : Icons.bookmark_border,
+                              ),
+                            ),
+                            const Icon(Icons.arrow_outward, size: 18),
+                          ],
+                        ),
+                        onTap: () async {
+                          await ref
+                              .read(userLibraryProvider.notifier)
+                              .saveRecentRoute(
+                                SavedRouteDestination(
+                                  name: place.name,
+                                  latitude: place.point.latitude,
+                                  longitude: place.point.longitude,
+                                ),
+                              );
+                          if (!context.mounted) return;
                           final target = Uri(
                             path: '/route',
                             queryParameters: {
