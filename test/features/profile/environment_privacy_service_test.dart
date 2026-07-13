@@ -14,6 +14,7 @@ import '../explore/map_consent_test_harness.dart';
 void main() {
   test('revokes environment use and clears only environment state', () async {
     final consentStore = _FakeConsentStore(true);
+    final mapConsentStore = FakeMapConsentStore(granted: true);
     final cache = InMemoryContextCache();
     final gateway = FakeAmapInitializerGateway();
     final now = DateTime.utc(2026, 7, 13, 10);
@@ -36,6 +37,7 @@ void main() {
           EnvironmentConfig(amapAndroidKey: 'test-key'),
         ),
         amapInitializerGatewayProvider.overrideWithValue(gateway),
+        mapConsentStoreProvider.overrideWithValue(mapConsentStore),
       ],
     );
     addTearDown(container.dispose);
@@ -53,6 +55,7 @@ void main() {
       isA<MapConsentAwaiting>(),
     );
     expect(gateway.lastStatement?.hasAgree, isFalse);
+    expect(mapConsentStore.granted, isFalse);
   });
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
@@ -40,6 +41,7 @@ class FakeAmapInitializerGateway implements AmapInitializerGateway {
 ProviderContainer createMapTestContainer({
   required String amapKey,
   AmapInitializerGateway? gateway,
+  MapConsentStore? consentStore,
 }) {
   final container = ProviderContainer(
     overrides: [
@@ -49,8 +51,30 @@ ProviderContainer createMapTestContainer({
       amapInitializerGatewayProvider.overrideWithValue(
         gateway ?? FakeAmapInitializerGateway(),
       ),
+      mapConsentStoreProvider.overrideWithValue(
+        consentStore ?? FakeMapConsentStore(),
+      ),
     ],
   );
   addTearDown(container.dispose);
   return container;
+}
+
+class FakeMapConsentStore implements MapConsentStore {
+  FakeMapConsentStore({this.granted = false, this.readBarrier});
+
+  bool granted;
+  final Future<void>? readBarrier;
+
+  @override
+  Future<bool?> readGranted() async {
+    final result = granted;
+    await readBarrier;
+    return result;
+  }
+
+  @override
+  Future<void> writeGranted(bool granted) async {
+    this.granted = granted;
+  }
 }

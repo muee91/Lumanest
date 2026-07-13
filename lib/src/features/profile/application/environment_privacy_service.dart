@@ -18,7 +18,7 @@ class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
   Future<void> revokeAndClear() async {
     // Stop new environment work before removing any stored state.
     await _ref.read(environmentConsentProvider.notifier).revoke();
-    _ref.read(mapConsentControllerProvider.notifier).revokeConsent();
+    await _ref.read(mapConsentControllerProvider.notifier).revokeConsent();
     _ref.read(manualLocationProvider.notifier).clear();
     await _ref.read(contextCacheProvider).clear();
 

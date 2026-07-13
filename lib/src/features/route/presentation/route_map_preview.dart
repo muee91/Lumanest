@@ -77,57 +77,57 @@ class _ReadyRouteMapState extends State<_ReadyRouteMap> {
     final start = points.first;
     final end = points.last;
     final bounds = _bounds(points);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          AMapWidget(
-            initialCameraPosition: CameraPosition(
-              target: points[points.length ~/ 2],
-              zoom: 10,
-            ),
-            compassEnabled: true,
-            scaleEnabled: true,
-            markers: {
-              Marker(
-                position: start,
-                infoWindow: const InfoWindow(title: '起点'),
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueGreen,
+    return SizedBox(
+      height: 220,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AMapWidget(
+              initialCameraPosition: CameraPosition(
+                target: points[points.length ~/ 2],
+                zoom: 10,
+              ),
+              compassEnabled: true,
+              scaleEnabled: true,
+              markers: {
+                Marker(
+                  position: start,
+                  infoWindow: const InfoWindow(title: '起点'),
                 ),
-              ),
-              Marker(
-                position: end,
-                infoWindow: InfoWindow(title: widget.route.destinationName),
-              ),
-            },
-            polylines: {
-              Polyline(
-                points: points,
-                width: 6,
-                color: Theme.of(context).colorScheme.primary,
-                capType: CapType.round,
-                joinType: JoinType.round,
-              ),
-            },
-            onMapCreated: (controller) {
-              unawaited(
-                controller.moveCamera(
-                  CameraUpdate.newLatLngBounds(bounds, 48),
-                  animated: false,
+                Marker(
+                  position: end,
+                  infoWindow: InfoWindow(title: widget.route.destinationName),
                 ),
-              );
-            },
-          ),
-          if (widget.route.isStale)
-            const Positioned(
-              left: 10,
-              right: 10,
-              top: 10,
-              child: _OfflineMapLabel(),
+              },
+              polylines: {
+                Polyline(
+                  points: points,
+                  width: 6,
+                  color: Theme.of(context).colorScheme.primary,
+                  capType: CapType.round,
+                  joinType: JoinType.round,
+                ),
+              },
+              onMapCreated: (controller) {
+                unawaited(
+                  controller.moveCamera(
+                    CameraUpdate.newLatLngBounds(bounds, 48),
+                    animated: false,
+                  ),
+                );
+              },
             ),
-        ],
+            if (widget.route.isStale)
+              const Positioned(
+                left: 10,
+                right: 10,
+                top: 10,
+                child: _OfflineMapLabel(),
+              ),
+          ],
+        ),
       ),
     );
   }
