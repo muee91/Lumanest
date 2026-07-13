@@ -28,7 +28,7 @@ https://weather.example.com/v1/qweather/token
 
 路线高程接口通过 Open-Meteo Elevation API 获取最多 64 个路线采样点的高程，仅返回高程数组，不返回坐标。使用和展示时需保留 Open-Meteo 数据来源说明；高程用于行程估算，不替代专业测绘或户外安全设备。
 
-AI 文案接口默认使用通义千问的 OpenAI 兼容接口。模型只接收场景、时间阶段、天气类型、路线状态、已成立创作事件 ID 和确定性模板摘要；不接收坐标、安全事件或跳转动作。未配置、超时、返回越权字段或格式错误时，App 自动继续使用本地模板。
+AI 文案没有默认供应商，也不会自动启用任何模型。模型只接收场景、时间阶段、天气类型、路线状态、已成立创作事件 ID 和确定性模板摘要；不接收坐标、安全事件或跳转动作。未配置、超时、返回越权字段或格式错误时，App 自动继续使用本地模板。
 
 ## NAS 部署
 
@@ -61,9 +61,7 @@ AI 文案接口默认使用通义千问的 OpenAI 兼容接口。模型只接收
    - `QWEATHER_PRIVATE_KEY_FILE`：NAS 私钥的绝对路径。
    - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
-   - `AI_API_KEY`：通义千问 API Key，仅保存在 NAS；留空时 AI 文案接口关闭。
-   - `AI_BASE_URL`：可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`。
-   - `AI_MODEL`：可选，默认 `qwen-plus`。
+   - `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`：只为旧版部署保留的迁移输入；它们绝不会自动建立、选择或启用模型档案。新部署无需填写。
    - `LUMANEST_CONFIG_MASTER_KEY`：32 字节随机密钥的 Base64，用于加密持久化配置。
    - `LUMANEST_ADMIN_PASSWORD`：首次启动时写入 Argon2id 哈希；之后修改 Key 不会要求重复输入密码。
 
@@ -92,6 +90,15 @@ AI 文案接口默认使用通义千问的 OpenAI 兼容接口。模型只接收
    ```
 
 6. 在局域网浏览器打开 `http://NAS_IP:8788/admin`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
+
+## 模型服务
+
+在局域网管理台的“模型服务”中新建档案，再明确选择主模型；没有档案时，App 保持本地确定性模板，不会暗中请求任何供应商。内置模板包括 OpenAI、Anthropic、Gemini、通义千问、DeepSeek、智谱、Moonshot、火山引擎、OpenRouter、Ollama 和自定义 OpenAI 兼容服务。
+
+- 每个档案的 Key 只以加密形式保存在 NAS，界面只显示末四位。
+- 备用链默认关闭。开启前请确认各家模型的计费、额度与数据处理规则；一次创作请求最多尝试三个已明确排序的档案。
+- Ollama 可以不填 Key，但其服务端点必须能从 NAS 容器访问。不要把未鉴权的 Ollama 端口暴露到公网；建议使用 NAS 局域网地址、访问控制或反向代理鉴权。
+- 单个档案的“测试连接”只返回稳定的连接类别，不返回上游错误正文、请求内容或密钥。
 
 ## 域名反向代理
 

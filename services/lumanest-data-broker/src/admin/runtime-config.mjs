@@ -9,9 +9,6 @@ const configurableFields = new Set([
   'projectId',
   'serviceToken',
   'amapWebKey',
-  'aiApiKey',
-  'aiBaseUrl',
-  'aiModel',
   'llmProfiles',
   'llmRouting',
   'settings',
@@ -22,9 +19,12 @@ const requiredStringFields = new Set([
   'projectId',
   'serviceToken',
   'amapWebKey',
-  'aiBaseUrl',
-  'aiModel',
 ]);
+
+// These existed before model profiles. Accepting them from the persisted
+// encrypted document avoids breaking an upgrade, but they are deliberately
+// discarded and can never silently recreate an active model configuration.
+const deprecatedAIFields = new Set(['aiApiKey', 'aiBaseUrl', 'aiModel']);
 
 function cloneConfiguration(value) {
   return structuredClone(value ?? {});
@@ -61,12 +61,6 @@ function validatePatch(patch) {
     if (requiredStringFields.has(name) && value.trim().length === 0) {
       throw new TypeError(`${name} must not be empty`);
     }
-    if (name === 'aiBaseUrl') {
-      const url = new URL(value);
-      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-        throw new TypeError('aiBaseUrl must use HTTP or HTTPS');
-      }
-    }
   }
   return patch;
 }
@@ -91,6 +85,12 @@ function mergedOverrides(current, patch) {
       result[name] = value;
     }
   }
+  return result;
+}
+
+function withoutDeprecatedAIFields(value) {
+  const result = cloneConfiguration(value);
+  for (const name of deprecatedAIFields) delete result[name];
   return result;
 }
 
@@ -183,9 +183,6 @@ function buildSnapshot(defaults, overrides, revision) {
     projectId: overrides.projectId ?? defaults.projectId,
     serviceToken: overrides.serviceToken ?? defaults.serviceToken,
     amapWebKey: overrides.amapWebKey ?? defaults.amapWebKey,
-    aiApiKey: overrides.aiApiKey ?? defaults.aiApiKey ?? '',
-    aiBaseUrl: overrides.aiBaseUrl ?? defaults.aiBaseUrl,
-    aiModel: overrides.aiModel ?? defaults.aiModel,
     llmProfiles,
     llmRouting,
     legacyLLMImportCandidate,
@@ -226,8 +223,11 @@ export class RuntimeConfigService {
 
   async initialize() {
     const persisted = await this.#store.read() ?? {};
-    validatePatch(persisted);
-    const normalized = mergedOverrides({}, persisted);
+    // Older encrypted documents can contain the removed single-provider
+    // fields. Strip only those known deprecated fields before normal validation.
+    const compatiblePersisted = withoutDeprecatedAIFields(persisted);
+    validatePatch(compatiblePersisted);
+    const normalized = mergedOverrides({}, compatiblePersisted);
     this.#snapshot = buildSnapshot(this.#defaults, normalized, ++this.#revision);
     this.#overrides = normalized;
     return this.#snapshot;

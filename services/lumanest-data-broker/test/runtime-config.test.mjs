@@ -20,9 +20,9 @@ function environmentDefaults() {
     projectId: 'environment-project-id',
     serviceToken: 'environment-service-token',
     amapWebKey: 'environment-amap-key',
-    aiApiKey: 'environment-ai-key',
-    aiBaseUrl: 'https://environment.example/v1',
-    aiModel: 'environment-model',
+    aiApiKey: '',
+    aiBaseUrl: '',
+    aiModel: '',
     port: 8787,
   };
 }
@@ -45,14 +45,12 @@ class MemoryStore {
 
 test('persisted values override environment while omitted fields fall back', async () => {
   const store = new MemoryStore({
-    aiApiKey: 'persisted-ai-key',
     settings: { wildlifeRadiusKm: 35 },
   });
   const service = new RuntimeConfigService({ defaults: environmentDefaults(), store });
   await service.initialize();
 
   const snapshot = service.snapshot();
-  assert.equal(snapshot.aiApiKey, 'persisted-ai-key');
   assert.equal(snapshot.amapWebKey, 'environment-amap-key');
   assert.equal(snapshot.settings.wildlifeRadiusKm, 35);
   assert.equal(snapshot.settings.aiTimeoutMs, 8_000);
@@ -64,13 +62,13 @@ test('snapshots are frozen and existing callers retain their original revision',
   await service.initialize();
   const inFlight = service.snapshot();
 
-  await service.replace({ aiModel: 'next-model' });
+  await service.replace({ settings: { wildlifeRadiusKm: 24 } });
   const nextRequest = service.snapshot();
 
   assert.equal(Object.isFrozen(inFlight), true);
   assert.equal(Object.isFrozen(inFlight.settings), true);
-  assert.equal(inFlight.aiModel, 'environment-model');
-  assert.equal(nextRequest.aiModel, 'next-model');
+  assert.equal(inFlight.settings.wildlifeRadiusKm, 20);
+  assert.equal(nextRequest.settings.wildlifeRadiusKm, 24);
   assert.notEqual(inFlight.revision, nextRequest.revision);
 });
 
@@ -87,8 +85,22 @@ test('failed validation or storage retains the previously published snapshot', a
   assert.equal(service.snapshot(), original);
 
   store.failWrite = true;
-  await assert.rejects(() => service.replace({ aiModel: 'not-published' }), /store failure/);
+  await assert.rejects(() => service.replace({ settings: { wildlifeRadiusKm: 24 } }), /store failure/);
   assert.equal(service.snapshot(), original);
+});
+
+test('ignores deprecated persisted AI fields instead of restoring a hidden provider', async () => {
+  const service = new RuntimeConfigService({
+    defaults: environmentDefaults(),
+    store: new MemoryStore({
+      aiApiKey: 'legacy-secret', aiBaseUrl: 'https://legacy.example/v1', aiModel: 'legacy-model',
+    }),
+  });
+  await service.initialize();
+  const snapshot = service.snapshot();
+  assert.equal(snapshot.llmProfiles.length, 0);
+  assert.equal(snapshot.llmRouting.primaryProfileId, null);
+  assert.equal(Object.hasOwn(snapshot, 'aiApiKey'), false);
 });
 
 test('QWeather private key accepts an encrypted PEM override', async () => {

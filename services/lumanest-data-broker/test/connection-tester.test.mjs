@@ -6,17 +6,17 @@ import {
   createLLMProfileTester,
 } from '../src/admin/connection-tester.mjs';
 
-function runtime(aiApiKey = '') {
+function runtime() {
   return { snapshot: () => ({
     privateKey: {}, keyId: 'id', projectId: 'project', amapWebKey: 'amap',
-    aiApiKey, aiBaseUrl: 'https://ai.example/v1', settings: { aiEnabled: true, upstreamTimeoutMs: 2000 },
+    llmProfiles: [], settings: { aiEnabled: true, upstreamTimeoutMs: 2000 },
   }) };
 }
 
-test('reports real AMap success and skips unconfigured AI', async () => {
+test('reports real AMap success and separate LLM configuration state', async () => {
   const tester = createConnectionTester({ runtimeConfig: runtime(), fetcher: async () =>
     new Response(JSON.stringify({ status: '1' }), { status: 200 }) });
-  assert.deepEqual(await tester(), { status: 'ok', services: { qweather: 'local_signing_ready', amap: 'ok', ai: 'unconfigured' } });
+  assert.deepEqual(await tester(), { status: 'ok', services: { qweather: 'local_signing_ready', amap: 'ok', llm: 'unconfigured' } });
 });
 
 test('classifies authentication and malformed upstream responses', async () => {
@@ -27,19 +27,6 @@ test('classifies authentication and malformed upstream responses', async () => {
   const malformed = createConnectionTester({ runtimeConfig: runtime(), fetcher: async () =>
     new Response('not-json', { status: 200 }) });
   assert.equal((await malformed()).status, 'invalid_response');
-});
-
-test('checks configured AI without exposing credentials', async () => {
-  const urls = [];
-  const tester = createConnectionTester({ runtimeConfig: runtime('secret-key'), fetcher: async (url) => {
-    urls.push(url.toString());
-    return urls.length === 1
-      ? new Response(JSON.stringify({ status: '1' }), { status: 200 })
-      : new Response(JSON.stringify({ data: [] }), { status: 200 });
-  } });
-  const result = await tester();
-  assert.equal(result.services.ai, 'ok');
-  assert.equal(JSON.stringify(result).includes('secret-key'), false);
 });
 
 test('tests one saved LLM profile and returns only a stable category', async () => {

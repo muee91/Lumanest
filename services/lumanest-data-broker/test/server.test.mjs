@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { createBrokerServices, createTokenBrokerServer } from '../src/server.mjs';
+import {
+  configurationFromEnvironment,
+  createBrokerServices,
+  createTokenBrokerServer,
+} from '../src/server.mjs';
 
 async function withServer(run, {
   fetcher,
@@ -83,6 +87,26 @@ test('starts isolated App and admin listeners without exposing admin on App API'
       new Promise((resolve) => services.appServer.close(resolve)),
       new Promise((resolve) => services.adminServer.close(resolve)),
     ]);
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('empty legacy AI environment has no provider-specific defaults', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lumanest-environment-'));
+  const privateKeyPath = join(directory, 'qweather.pem');
+  const { privateKey } = generateKeyPairSync('ed25519');
+  await writeFile(privateKeyPath, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  try {
+    const configuration = configurationFromEnvironment({
+      QWEATHER_PRIVATE_KEY_PATH: privateKeyPath,
+      QWEATHER_KEY_ID: 'key-id', QWEATHER_PROJECT_ID: 'project-id',
+      LUMANEST_SERVICE_TOKEN: 'service-token', AMAP_WEB_KEY: 'amap-key',
+      AI_API_KEY: '', AI_BASE_URL: '', AI_MODEL: '',
+    });
+    assert.equal(configuration.aiApiKey, '');
+    assert.equal(configuration.aiBaseUrl, '');
+    assert.equal(configuration.aiModel, '');
+  } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });

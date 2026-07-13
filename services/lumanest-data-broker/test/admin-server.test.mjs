@@ -22,7 +22,7 @@ async function withAdmin(run) {
     privateKey: generateKeyPairSync('ed25519').privateKey,
     keyId: 'key-id-1234', projectId: 'project-5678',
     serviceToken: 'service-secret-9012', amapWebKey: 'amap-secret-3456',
-    aiApiKey: 'ai-secret-7890', aiBaseUrl: 'https://example.test/v1', aiModel: 'qwen-plus',
+    aiApiKey: '', aiBaseUrl: '', aiModel: '',
     settings: validateRuntimeSettings({}),
     llmProfiles: [],
     llmRouting: { primaryProfileId: null, fallbackEnabled: false, fallbackProfileIds: [], maximumAttempts: 3 },
@@ -73,7 +73,7 @@ test('LAN login and authenticated config never reveal raw secrets', async () => 
     assert.equal(response.status, 200);
     const text = await response.text();
     assert.equal(text.includes('service-secret-9012'), false);
-    assert.equal(text.includes('ai-secret-7890'), false);
+    assert.equal(text.includes('aiApiKey'), false);
     assert.equal(JSON.parse(text).services.serviceToken.lastFour, '9012');
   });
 });
@@ -88,7 +88,7 @@ test('mutations require CSRF and supported operations remain authenticated', asy
 
     const headers = { Cookie: credentials.cookie, 'X-CSRF-Token': credentials.csrf, 'Content-Type': 'application/json' };
     assert.equal((await fetch(`${baseUrl}/admin-api/test-connection`, { method: 'POST', headers, body: '{}' })).status, 200);
-    assert.equal((await fetch(`${baseUrl}/admin-api/config`, { method: 'PUT', headers, body: JSON.stringify({ aiModel: 'next-model' }) })).status, 200);
+    assert.equal((await fetch(`${baseUrl}/admin-api/config`, { method: 'PUT', headers, body: JSON.stringify({ settings: { wildlifeRadiusKm: 24 } }) })).status, 200);
     assert.equal((await fetch(`${baseUrl}/admin-api/clear-cache`, { method: 'POST', headers, body: '{}' })).status, 200);
     assert.equal((await fetch(`${baseUrl}/admin-api/audit`, { headers: { Cookie: credentials.cookie } })).status, 200);
     assert.deepEqual(operations, ['clear']);

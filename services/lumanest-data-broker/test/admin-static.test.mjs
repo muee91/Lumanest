@@ -67,3 +67,19 @@ test('successful authentication is not relabeled as a password error when config
     /try\{await loadConfig\(\);\}catch\{status\('登录成功，但配置加载失败，请刷新页面'\);\}/,
   );
 });
+
+test('LLM console starts empty and requires explicit provider selection', async () => {
+  const html = await readFile(new URL('index.html', publicRoot), 'utf8');
+  const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.match(html, /模型服务/);
+  assert.match(html, /id="llm-empty-state"/);
+  assert.match(html, /id="provider-dialog"/);
+  assert.match(html, /id="llm-profile-form"/);
+  assert.match(html, /id="llm-routing-form"/);
+  assert.match(html, /选择供应商后再创建档案/);
+  assert.doesNotMatch(html, /qwen-plus|通义千问 · 默认/);
+  assert.match(script, /api\('llm\/providers'\)/);
+  assert.match(script, /api\('llm\/profiles'\)/);
+  assert.match(script, /api\('llm\/routing'/);
+  assert.match(script, /window\.confirm/);
+});

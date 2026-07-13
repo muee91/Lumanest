@@ -10,6 +10,7 @@ const staticAssets = new Map([
   ['/admin', ['index.html', 'text/html; charset=utf-8']],
   ['/admin/', ['index.html', 'text/html; charset=utf-8']],
   ['/admin-assets/styles.css', ['styles.css', 'text/css; charset=utf-8']],
+  ['/admin-assets/llm.css', ['llm.css', 'text/css; charset=utf-8']],
   ['/admin-assets/app.js', ['app.js', 'text/javascript; charset=utf-8']],
 ]);
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
@@ -95,10 +96,7 @@ function safeConfiguration(snapshot) {
       projectId: maskedSecret(snapshot.projectId),
       serviceToken: maskedSecret(snapshot.serviceToken),
       amapWebKey: maskedSecret(snapshot.amapWebKey),
-      aiApiKey: maskedSecret(snapshot.aiApiKey),
     },
-    aiBaseUrl: snapshot.aiBaseUrl,
-    aiModel: snapshot.aiModel,
     llm: {
       profileCount: snapshot.llmProfiles?.length ?? 0,
       primaryProfileId: snapshot.llmRouting?.primaryProfileId ?? null,

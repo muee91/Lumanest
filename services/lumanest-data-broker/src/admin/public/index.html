@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>栖光 · 管理台</title>
   <link rel="stylesheet" href="/admin-assets/styles.css">
+  <link rel="stylesheet" href="/admin-assets/llm.css">
   <script src="/admin-assets/app.js" defer></script>
 </head>
 <body>
@@ -35,6 +36,7 @@
       <nav class="rail" aria-label="管理页面">
         <button class="nav-item active" data-page="overview">概览</button>
         <button class="nav-item" data-page="services">密钥与服务</button>
+        <button class="nav-item" data-page="llm">模型服务</button>
         <button class="nav-item" data-page="runtime">运行设置</button>
         <button class="nav-item" data-page="security">安全与维护</button>
         <button id="logout" class="nav-item logout">退出</button>
@@ -56,10 +58,44 @@
             <label>高德 Web Key<input name="amapWebKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="amapWebKey"></small></label>
             <label>App 服务令牌<input name="serviceToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="serviceToken"></small></label>
             <p class="warning wide">更换 App 服务令牌后，现有 APK 将无法访问服务，必须同步更新本地配置并重新构建。</p>
-            <label>AI API Key<input name="aiApiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="aiApiKey"></small></label>
-            <label>AI 模型<input name="aiModel" autocomplete="off"></label>
-            <label class="wide">AI Base URL<input name="aiBaseUrl" type="url" autocomplete="off"></label>
             <div class="actions wide"><button type="button" id="test-services" class="secondary">测试连接</button><button type="submit">保存修改</button></div>
+          </form>
+        </section>
+
+        <section class="page" data-panel="llm" hidden>
+          <div class="llm-head">
+            <div><p class="eyebrow">MODEL SERVICE CONTROL</p><h3>模型服务</h3><p>选择供应商后再创建档案。未保存档案时，栖光仅使用本地确定性文案。</p></div>
+            <button id="add-llm-profile">新增供应商档案</button>
+          </div>
+          <div class="llm-layout">
+            <aside class="profile-rail"><div id="llm-profile-list" aria-label="LLM 档案列表"></div></aside>
+            <div class="llm-detail">
+              <div id="llm-empty-state" class="empty-state"><p class="index">NO ACTIVE PROVIDER</p><h3>尚未配置模型服务</h3><p>不会自动启用任何供应商。新增后，你可以指定主模型和可选备用链。</p></div>
+              <form id="llm-profile-form" class="profile-form" hidden>
+                <div class="detail-head"><div><p id="llm-provider-protocol" class="index"></p><h3 id="llm-profile-title">新建档案</h3></div><span id="llm-profile-status" class="status-chip"></span></div>
+                <input name="id" type="hidden">
+                <input name="providerId" type="hidden">
+                <input name="protocol" type="hidden">
+                <div class="form-grid compact">
+                  <label>档案名称<input name="name" maxlength="80" required></label>
+                  <label>模型 ID<input name="model" maxlength="160" required></label>
+                  <label class="wide">服务端点<input name="baseUrl" type="url" maxlength="500" required><small>预设端点可在高级场景中覆盖；Ollama 请填写 NAS 可访问地址。</small></label>
+                  <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small id="llm-key-mask"></small></label>
+                  <label>请求超时（毫秒）<input name="timeoutMs" type="number" min="2000" max="30000" value="8000" required></label>
+                  <label class="toggle"><input name="enabled" type="checkbox" checked><span>启用此档案</span></label>
+                  <label class="toggle"><input name="allowFallback" type="checkbox"><span>允许作为备用</span></label>
+                  <div class="actions wide"><button type="button" id="test-llm-profile" class="secondary">测试此档案</button><button type="button" id="delete-llm-profile" class="danger-button">删除</button><button type="submit">保存档案</button></div>
+                </div>
+              </form>
+            </div>
+          </div>
+          <form id="llm-routing-form" class="routing-card">
+            <div><p class="index">ROUTING POLICY</p><h3>主模型与备用链</h3><p>备用默认关闭；只在超时、限流或临时上游故障时按顺序尝试，单次最多三家。</p></div>
+            <label>主模型<select name="primaryProfileId" id="llm-primary-select"><option value="">未选择</option></select></label>
+            <label class="toggle"><input name="fallbackEnabled" type="checkbox"><span>启用自动备用</span></label>
+            <label>最多尝试次数<select name="maximumAttempts"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+            <div id="llm-fallback-list" class="fallback-list"></div>
+            <div class="actions"><button type="submit">保存路由策略</button></div>
           </form>
         </section>
 
@@ -90,5 +126,8 @@
       </div>
     </section>
   </main>
+  <dialog id="provider-dialog" class="provider-dialog">
+    <form method="dialog"><div class="dialog-head"><div><p class="eyebrow">ADD MODEL PROFILE</p><h3>选择供应商</h3></div><button class="icon-button" value="cancel" aria-label="关闭">×</button></div><p>供应商模板仅填写协议和建议端点；不会创建档案，直到你保存。</p><div id="provider-options" class="provider-options"></div></form>
+  </dialog>
 </body>
 </html>

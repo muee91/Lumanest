@@ -37,21 +37,12 @@ export function createConnectionTester({ runtimeConfig, fetcher = fetch }) {
       (value) => value?.status === '1',
     );
 
-    let ai = 'unconfigured';
-    if (snapshot.settings.aiEnabled && snapshot.aiApiKey) {
-      const aiUrl = new URL('models', `${snapshot.aiBaseUrl.replace(/\/+$/, '')}/`);
-      ai = await requestJson(
-        fetcher,
-        aiUrl,
-        { headers: { Authorization: `Bearer ${snapshot.aiApiKey}` }, signal: AbortSignal.timeout(timeout) },
-        (value) => value != null && typeof value === 'object',
-      );
-    }
     const services = {
       qweather: snapshot.privateKey && snapshot.keyId && snapshot.projectId
         ? 'local_signing_ready' : 'unconfigured',
       amap,
-      ai,
+      llm: snapshot.llmProfiles?.some((profile) => profile.enabled)
+        ? 'configured' : 'unconfigured',
     };
     const status = Object.values(services).reduce((worst, value) =>
       (severity.get(value) ?? 0) > (severity.get(worst) ?? 0) ? value : worst, 'ok');

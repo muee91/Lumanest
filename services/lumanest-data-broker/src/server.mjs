@@ -17,8 +17,6 @@ const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
 const gbifBaseUrl = 'https://api.gbif.org';
 const elevationBaseUrl = 'https://api.open-meteo.com';
-const defaultAiBaseUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const defaultAiModel = 'qwen-plus';
 
 function writeJson(response, status, body) {
   response.writeHead(status, {
@@ -296,9 +294,6 @@ export function createTokenBrokerServer({
   projectId,
   serviceToken,
   amapWebKey,
-  aiApiKey = '',
-  aiBaseUrl = defaultAiBaseUrl,
-  aiModel = defaultAiModel,
   llmProfiles = [],
   llmRouting = {
     primaryProfileId: null,
@@ -317,9 +312,6 @@ export function createTokenBrokerServer({
     projectId,
     serviceToken,
     amapWebKey,
-    aiApiKey,
-    aiBaseUrl,
-    aiModel,
     llmProfiles: Object.freeze([...llmProfiles]),
     llmRouting: Object.freeze({ ...llmRouting }),
     settings: validateRuntimeSettings(settings ?? {}),
@@ -532,8 +524,10 @@ export function configurationFromEnvironment(environment = process.env) {
     serviceToken: required('LUMANEST_SERVICE_TOKEN'),
     amapWebKey: required('AMAP_WEB_KEY'),
     aiApiKey: environment.AI_API_KEY?.trim() ?? '',
-    aiBaseUrl: environment.AI_BASE_URL?.trim() || defaultAiBaseUrl,
-    aiModel: environment.AI_MODEL?.trim() || defaultAiModel,
+    // Legacy values are never an active model configuration. RuntimeConfigService
+    // exposes a non-empty legacy tuple only as a manual import candidate.
+    aiBaseUrl: environment.AI_BASE_URL?.trim() ?? '',
+    aiModel: environment.AI_MODEL?.trim() ?? '',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
