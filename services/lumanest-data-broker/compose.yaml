@@ -70,6 +70,7 @@ services:
 
   postgres:
     image: postgis/postgis:17-3.5
+    platform: ${POSTGIS_PLATFORM:-linux/amd64}
     container_name: lumanest-postgres
     restart: unless-stopped
     environment:
