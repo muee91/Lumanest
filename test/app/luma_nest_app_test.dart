@@ -3,7 +3,9 @@ import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 
 void main() {
-  testWidgets('shows privacy-first entry and five destinations', (tester) async {
+  testWidgets('shows privacy-first entry and five destinations', (
+    tester,
+  ) async {
     await tester.pumpWidget(const LumaNestApp());
 
     expect(find.text('从当前位置开始'), findsOneWidget);

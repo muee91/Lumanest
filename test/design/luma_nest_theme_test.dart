@@ -68,6 +68,30 @@ void main() {
       );
     });
 
+    test('high contrast themes increase primary contrast', () {
+      final normalLight = _contrastRatio(
+        LumaNestTheme.light.colorScheme.primary,
+        LumaNestTheme.light.colorScheme.onPrimary,
+      );
+      final contrastLight = _contrastRatio(
+        LumaNestTheme.highContrastLight.colorScheme.primary,
+        LumaNestTheme.highContrastLight.colorScheme.onPrimary,
+      );
+      final normalDark = _contrastRatio(
+        LumaNestTheme.dark.colorScheme.primary,
+        LumaNestTheme.dark.colorScheme.onPrimary,
+      );
+      final contrastDark = _contrastRatio(
+        LumaNestTheme.highContrastDark.colorScheme.primary,
+        LumaNestTheme.highContrastDark.colorScheme.onPrimary,
+      );
+
+      expect(contrastLight, greaterThan(normalLight));
+      expect(contrastDark, greaterThan(normalDark));
+      expect(contrastLight, greaterThanOrEqualTo(7));
+      expect(contrastDark, greaterThanOrEqualTo(7));
+    });
+
     group('WCAG contrast', () {
       test('light primary/onPrimary contrast ≥ 4.5:1', () {
         final theme = LumaNestTheme.light;

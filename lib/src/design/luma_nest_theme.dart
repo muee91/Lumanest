@@ -31,4 +31,24 @@ abstract final class LumaNestTheme {
     ),
     scaffoldBackgroundColor: LumaNestColors.backgroundDark,
   );
+
+  static ThemeData get highContrastLight => ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: LumaNestColors.primaryLight,
+      brightness: Brightness.light,
+      contrastLevel: 1,
+    ),
+  );
+
+  static ThemeData get highContrastDark => ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: LumaNestColors.primaryDark,
+      brightness: Brightness.dark,
+      contrastLevel: 1,
+    ),
+  );
 }

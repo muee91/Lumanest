@@ -21,12 +21,14 @@ class AmbientCanvas extends StatefulWidget {
     this.visualState,
     this.reduceMotion = false,
     this.reduceFlashing = false,
+    this.showWeatherTexture = true,
   });
 
   final AmbientPalette? palette;
   final AmbientVisualState? visualState;
   final bool reduceMotion;
   final bool reduceFlashing;
+  final bool showWeatherTexture;
 
   @override
   State<AmbientCanvas> createState() => _AmbientCanvasState();
@@ -129,7 +131,8 @@ class _AmbientCanvasState extends State<AmbientCanvas>
           fit: StackFit.expand,
           children: [
             gradientLayer,
-            if ((visualState?.precipitationIntensity ?? 0) > 0)
+            if (widget.showWeatherTexture &&
+                (visualState?.precipitationIntensity ?? 0) > 0)
               CustomPaint(
                 painter: _PrecipitationTexturePainter(
                   intensity: visualState!.precipitationIntensity,
@@ -137,7 +140,9 @@ class _AmbientCanvasState extends State<AmbientCanvas>
                   isSnow: false,
                 ),
               ),
-            if (visualState?.thunderstorm == true && !widget.reduceFlashing)
+            if (widget.showWeatherTexture &&
+                visualState?.thunderstorm == true &&
+                !widget.reduceFlashing)
               _ThunderPulse(animation: _curvedAnimation),
           ],
         ),

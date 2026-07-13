@@ -92,4 +92,24 @@ void main() {
 
     expect(tester.binding.transientCallbackCount, greaterThan(stoppedCount));
   });
+
+  testWidgets('static mode can suppress weather texture independently', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AmbientCanvas(reduceMotion: true, showWeatherTexture: false),
+        ),
+      ),
+    );
+
+    expect(
+      tester
+          .widget<AmbientCanvas>(find.byType(AmbientCanvas))
+          .showWeatherTexture,
+      isFalse,
+    );
+    expect(tester.binding.transientCallbackCount, 0);
+  });
 }
