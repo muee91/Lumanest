@@ -53,3 +53,15 @@ test('client rendering avoids HTML injection and browser-persisted secrets', asy
   assert.doesNotMatch(script, /sessionStorage\.setItem\([^,]+(?:password|key|token)/i);
   assert.match(script, /textContent/);
 });
+
+test('successful authentication is not relabeled as a password error when config loading fails', async () => {
+  const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.match(
+    script,
+    /catch\(error\)\{[^}]*密码不正确[^}]*\}\s*state\.csrf=result\.csrfToken/s,
+  );
+  assert.match(
+    script,
+    /try\{await loadConfig\(\);\}catch\{status\('登录成功，但配置加载失败，请刷新页面'\);\}/,
+  );
+});

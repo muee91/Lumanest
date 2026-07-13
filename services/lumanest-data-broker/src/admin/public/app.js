@@ -48,7 +48,26 @@ async function loadAudit(){
   }catch{status('审计记录读取失败');}
 }
 
-$('#login-form').addEventListener('submit',async(event)=>{event.preventDefault();const button=event.submitter;button.disabled=true;$('#login-status').textContent='正在验证…';try{const result=await api('login',{method:'POST',body:{password:event.currentTarget.elements.password.value}});state.csrf=result.csrfToken;event.currentTarget.reset();showApp();await loadConfig();$('#login-status').textContent='';}catch(error){$('#login-status').textContent=error.message==='rate_limited'?'尝试次数过多，请 15 分钟后再试':'密码不正确';}finally{button.disabled=false;}});
+$('#login-form').addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  const button=event.submitter;
+  button.disabled=true;
+  $('#login-status').textContent='正在验证…';
+  let result;
+  try{
+    result=await api('login',{method:'POST',body:{password:event.currentTarget.elements.password.value}});
+  }catch(error){
+    $('#login-status').textContent=error.message==='rate_limited'?'尝试次数过多，请 15 分钟后再试':'密码不正确';
+    button.disabled=false;
+    return;
+  }
+  state.csrf=result.csrfToken;
+  event.currentTarget.reset();
+  $('#login-status').textContent='';
+  showApp();
+  try{await loadConfig();}catch{status('登录成功，但配置加载失败，请刷新页面');}
+  button.disabled=false;
+});
 
 $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=>switchPage(button.dataset.page)));
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{method:'POST'});}finally{showLogin();}});
