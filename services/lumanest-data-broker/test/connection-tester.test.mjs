@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createConnectionTester } from '../src/admin/connection-tester.mjs';
+import {
+  createConnectionTester,
+  createLLMProfileTester,
+} from '../src/admin/connection-tester.mjs';
 
 function runtime(aiApiKey = '') {
   return { snapshot: () => ({
@@ -37,4 +40,18 @@ test('checks configured AI without exposing credentials', async () => {
   const result = await tester();
   assert.equal(result.services.ai, 'ok');
   assert.equal(JSON.stringify(result).includes('secret-key'), false);
+});
+
+test('tests one saved LLM profile and returns only a stable category', async () => {
+  const profile = {
+    id: 'deepseek-main', protocol: 'openai_compatible', providerId: 'deepseek',
+    apiKey: 'profile-secret', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
+    enabled: true, timeoutMs: 8_000, allowFallback: false,
+  };
+  const tester = createLLMProfileTester({
+    runtimeConfig: { snapshot: () => ({ llmProfiles: [profile] }) },
+    requester: async () => ({ ok: true, text: '{"status":"ok"}' }),
+  });
+  assert.deepEqual(await tester('deepseek-main'), { status: 'ok', profileId: 'deepseek-main' });
+  assert.deepEqual(await tester('missing'), { status: 'profile_not_found', profileId: 'missing' });
 });

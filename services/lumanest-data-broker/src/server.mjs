@@ -10,7 +10,7 @@ import { RuntimeConfigService } from './admin/runtime-config.mjs';
 import { AdminAuthService } from './admin/auth.mjs';
 import { AuditLog } from './admin/audit-log.mjs';
 import { createAdminServer } from './admin/admin-server.mjs';
-import { createConnectionTester } from './admin/connection-tester.mjs';
+import { createConnectionTester, createLLMProfileTester } from './admin/connection-tester.mjs';
 import { routeNarrative } from './llm/router.mjs';
 
 const tokenLifetimeSeconds = 900;
@@ -565,6 +565,7 @@ export async function createBrokerServices(environment = process.env, {
     runtimeConfig,
     auditLog,
     testConnection: createConnectionTester({ runtimeConfig }),
+    testLLMProfile: createLLMProfileTester({ runtimeConfig }),
     restart: async () => exit(0),
   });
   return {

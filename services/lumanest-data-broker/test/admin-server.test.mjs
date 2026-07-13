@@ -24,6 +24,8 @@ async function withAdmin(run) {
     serviceToken: 'service-secret-9012', amapWebKey: 'amap-secret-3456',
     aiApiKey: 'ai-secret-7890', aiBaseUrl: 'https://example.test/v1', aiModel: 'qwen-plus',
     settings: validateRuntimeSettings({}),
+    llmProfiles: [],
+    llmRouting: { primaryProfileId: null, fallbackEnabled: false, fallbackProfileIds: [], maximumAttempts: 3 },
   });
   const operations = [];
   const runtimeConfig = {
@@ -38,6 +40,7 @@ async function withAdmin(run) {
     testConnection: async () => ({ status: 'ok' }),
     clearCache: async () => operations.push('clear'),
     restart: async () => operations.push('restart'),
+    testLLMProfile: async (profileId) => ({ status: 'ok', profileId }),
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -99,5 +102,48 @@ test('rejects request bodies larger than 16 KiB before processing', async () => 
       body: JSON.stringify({ password: 'x'.repeat(17 * 1024) }),
     });
     assert.equal(response.status, 413);
+  });
+});
+
+test('manages masked LLM profiles and explicit routing without a default provider', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const readHeaders = { Cookie: credentials.cookie };
+    const writeHeaders = {
+      ...readHeaders, 'X-CSRF-Token': credentials.csrf, 'Content-Type': 'application/json',
+    };
+    const providersResponse = await fetch(`${baseUrl}/admin-api/llm/providers`, { headers: readHeaders });
+    assert.equal(providersResponse.status, 200);
+    const providers = (await providersResponse.json()).providers;
+    assert.equal(providers.length, 11);
+    assert.equal(JSON.stringify(providers).includes('default'), false);
+
+    const empty = await fetch(`${baseUrl}/admin-api/llm/profiles`, { headers: readHeaders });
+    assert.deepEqual((await empty.json()).profiles, []);
+
+    const candidate = {
+      id: 'deepseek-main', name: 'DeepSeek 主模型', providerId: 'deepseek',
+      protocol: 'openai_compatible', apiKey: 'profile-secret-1234',
+      baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
+      enabled: true, timeoutMs: 8_000, allowFallback: false,
+    };
+    const created = await fetch(`${baseUrl}/admin-api/llm/profiles`, {
+      method: 'POST', headers: writeHeaders, body: JSON.stringify(candidate),
+    });
+    assert.equal(created.status, 201);
+    const createdText = await created.text();
+    assert.equal(createdText.includes('profile-secret-1234'), false);
+    assert.equal(JSON.parse(createdText).profile.apiKey.lastFour, '1234');
+
+    const routing = await fetch(`${baseUrl}/admin-api/llm/routing`, {
+      method: 'PUT', headers: writeHeaders,
+      body: JSON.stringify({ primaryProfileId: 'deepseek-main', fallbackEnabled: false, fallbackProfileIds: [], maximumAttempts: 3 }),
+    });
+    assert.equal(routing.status, 200);
+
+    const tested = await fetch(`${baseUrl}/admin-api/llm/profiles/deepseek-main/test`, {
+      method: 'POST', headers: writeHeaders, body: '{}',
+    });
+    assert.deepEqual(await tested.json(), { status: 'ok', profileId: 'deepseek-main' });
   });
 });

@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
 import { isLanAddress } from './lan-address.mjs';
+import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 
 const maximumBodyBytes = 16 * 1024;
 const publicRoot = new URL('./public/', import.meta.url);
@@ -70,6 +71,21 @@ function maskedSecret(value) {
   return { configured, lastFour: configured ? [...value].slice(-4).join('') : null };
 }
 
+function safeLLMProfile(profile) {
+  return {
+    id: profile.id,
+    name: profile.name,
+    providerId: profile.providerId,
+    protocol: profile.protocol,
+    apiKey: maskedSecret(profile.apiKey),
+    baseUrl: profile.baseUrl,
+    model: profile.model,
+    enabled: profile.enabled,
+    timeoutMs: profile.timeoutMs,
+    allowFallback: profile.allowFallback,
+  };
+}
+
 function safeConfiguration(snapshot) {
   return {
     revision: snapshot.revision,
@@ -83,6 +99,11 @@ function safeConfiguration(snapshot) {
     },
     aiBaseUrl: snapshot.aiBaseUrl,
     aiModel: snapshot.aiModel,
+    llm: {
+      profileCount: snapshot.llmProfiles?.length ?? 0,
+      primaryProfileId: snapshot.llmRouting?.primaryProfileId ?? null,
+      fallbackEnabled: snapshot.llmRouting?.fallbackEnabled ?? false,
+    },
     settings: snapshot.settings,
   };
 }
@@ -92,6 +113,7 @@ export function createAdminServer({
   runtimeConfig,
   auditLog,
   testConnection = async () => ({ status: 'ok' }),
+  testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   clearCache = async () => {},
   restart = async () => {},
 }) {
@@ -138,6 +160,94 @@ export function createAdminServer({
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/config') {
       return json(response, 200, safeConfiguration(runtimeConfig.snapshot()));
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/llm/providers') {
+      return json(response, 200, { providers: publicProviderCatalog() });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/llm/profiles') {
+      const snapshot = runtimeConfig.snapshot();
+      return json(response, 200, {
+        profiles: (snapshot.llmProfiles ?? []).map(safeLLMProfile),
+        routing: snapshot.llmRouting,
+      });
+    }
+    if (request.method === 'POST' && url.pathname === '/admin-api/llm/profiles') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      try {
+        const current = runtimeConfig.snapshot();
+        if ((current.llmProfiles ?? []).some((profile) => profile.id === parsed.value.id)) {
+          return json(response, 409, { error: 'profile_exists' });
+        }
+        const snapshot = await runtimeConfig.replace({
+          llmProfiles: [...(current.llmProfiles ?? []), parsed.value],
+        });
+        const profile = snapshot.llmProfiles.find((candidate) => candidate.id === parsed.value.id);
+        auditLog.record({ remoteAddress, operation: 'create_llm_profile', fields: ['id', 'providerId'], result: 'ok' });
+        return json(response, 201, { profile: safeLLMProfile(profile) });
+      } catch {
+        auditLog.record({ remoteAddress, operation: 'create_llm_profile', result: 'rejected' });
+        return json(response, 400, { error: 'invalid_profile' });
+      }
+    }
+    const profileMatch = /^\/admin-api\/llm\/profiles\/([a-z0-9][a-z0-9_-]*)$/.exec(url.pathname);
+    const profileTestMatch = /^\/admin-api\/llm\/profiles\/([a-z0-9][a-z0-9_-]*)\/test$/.exec(url.pathname);
+    if (request.method === 'POST' && profileTestMatch != null) {
+      const profileId = profileTestMatch[1];
+      const result = await testLLMProfile(profileId);
+      auditLog.record({ remoteAddress, operation: 'test_llm_profile', fields: ['profileId'], result: result.status });
+      return json(response, 200, result);
+    }
+    if (profileMatch != null && request.method === 'PUT') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      const profileId = profileMatch[1];
+      try {
+        const current = runtimeConfig.snapshot();
+        const existing = (current.llmProfiles ?? []).find((profile) => profile.id === profileId);
+        if (existing == null) return json(response, 404, { error: 'profile_not_found' });
+        const next = { ...existing, ...parsed.value, id: profileId };
+        const snapshot = await runtimeConfig.replace({
+          llmProfiles: current.llmProfiles.map((profile) => profile.id === profileId ? next : profile),
+        });
+        const profile = snapshot.llmProfiles.find((candidate) => candidate.id === profileId);
+        auditLog.record({ remoteAddress, operation: 'update_llm_profile', fields: Object.keys(parsed.value), result: 'ok' });
+        return json(response, 200, { profile: safeLLMProfile(profile) });
+      } catch {
+        return json(response, 400, { error: 'invalid_profile' });
+      }
+    }
+    if (profileMatch != null && request.method === 'DELETE') {
+      const parsed = await body(request);
+      const profileId = profileMatch[1];
+      if (parsed.value?.confirmId !== profileId) return json(response, 400, { error: 'confirmation_required' });
+      try {
+        const current = runtimeConfig.snapshot();
+        if (!(current.llmProfiles ?? []).some((profile) => profile.id === profileId)) {
+          return json(response, 404, { error: 'profile_not_found' });
+        }
+        await runtimeConfig.replace({
+          llmProfiles: current.llmProfiles.filter((profile) => profile.id !== profileId),
+        });
+        auditLog.record({ remoteAddress, operation: 'delete_llm_profile', fields: ['profileId'], result: 'ok' });
+        return json(response, 200, { ok: true });
+      } catch {
+        return json(response, 400, { error: 'profile_referenced' });
+      }
+    }
+    if (request.method === 'PUT' && url.pathname === '/admin-api/llm/routing') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      try {
+        const snapshot = await runtimeConfig.replace({ llmRouting: parsed.value });
+        auditLog.record({ remoteAddress, operation: 'update_llm_routing', fields: Object.keys(parsed.value), result: 'ok' });
+        return json(response, 200, { routing: snapshot.llmRouting });
+      } catch {
+        return json(response, 400, { error: 'invalid_routing' });
+      }
     }
     if (request.method === 'PUT' && url.pathname === '/admin-api/config') {
       const parsed = await body(request);
