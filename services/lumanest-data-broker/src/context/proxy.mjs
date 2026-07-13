@@ -95,3 +95,39 @@ export async function listContextSources({ serviceUrl, internalToken, fetcher = 
     return { ok: false, error: 'upstream_unavailable' };
   }
 }
+
+function validImportResult(body) {
+  return object(body) && typeof body.sourceId === 'string' &&
+    ['spatialFeatures', 'astronomyEvents'].includes(body.datasetType) &&
+    Number.isInteger(body.importedCount) && body.importedCount >= 0 &&
+    typeof body.enabled === 'boolean' && typeof body.cacheInvalidated === 'boolean';
+}
+
+export async function importContextDataset({
+  body,
+  serviceUrl,
+  internalToken,
+  fetcher = fetch,
+  timeoutMs = 20_000,
+}) {
+  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  try {
+    const upstream = await fetcher(new URL('/internal/v1/imports', serviceUrl), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Service-Token': internalToken,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const responseBody = await upstream.json();
+    if (upstream.status === 422) return { ok: false, error: 'invalid_import' };
+    if (!upstream.ok || !validImportResult(responseBody)) {
+      return { ok: false, error: 'upstream_unavailable' };
+    }
+    return { ok: true, result: responseBody };
+  } catch {
+    return { ok: false, error: 'upstream_unavailable' };
+  }
+}

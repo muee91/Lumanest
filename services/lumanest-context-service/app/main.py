@@ -5,8 +5,16 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from sqlalchemy.exc import SQLAlchemyError
 
-from .models import SceneEvidence, SnapshotRequest, SnapshotResponse, SourceStatus
+from .models import (
+    ContextImportRequest,
+    ContextImportResult,
+    SceneEvidence,
+    SnapshotRequest,
+    SnapshotResponse,
+    SourceStatus,
+)
 from .rules import classify_scene, context_fingerprint, evaluate
 from .store import ContextStore
 
@@ -72,3 +80,21 @@ async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotR
 )
 async def sources(request: Request) -> list[SourceStatus]:
     return await request.app.state.store.source_statuses()
+
+
+@app.post(
+    "/internal/v1/imports",
+    response_model=ContextImportResult,
+    response_model_by_alias=True,
+    status_code=201,
+    dependencies=[Depends(require_internal_token)],
+)
+async def import_context_dataset(
+    body: ContextImportRequest, request: Request
+) -> ContextImportResult:
+    try:
+        return await request.app.state.store.import_dataset(body)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="invalid_import") from error
+    except (RuntimeError, SQLAlchemyError) as error:
+        raise HTTPException(status_code=503, detail="storage_unavailable") from error

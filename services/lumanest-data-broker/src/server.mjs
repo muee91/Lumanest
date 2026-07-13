@@ -16,7 +16,12 @@ import {
   createLLMProfileTester,
 } from './admin/connection-tester.mjs';
 import { routeNarrative } from './llm/router.mjs';
-import { forwardContextSnapshot, listContextSources, validContextRequest } from './context/proxy.mjs';
+import {
+  forwardContextSnapshot,
+  importContextDataset,
+  listContextSources,
+  validContextRequest,
+} from './context/proxy.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
@@ -598,6 +603,14 @@ export async function createBrokerServices(environment = process.env, {
     listContextSources: async () => {
       const snapshot = runtimeConfig.snapshot();
       return listContextSources({
+        serviceUrl: snapshot.contextServiceUrl,
+        internalToken: snapshot.contextInternalToken,
+      });
+    },
+    importContextDataset: async (body) => {
+      const snapshot = runtimeConfig.snapshot();
+      return importContextDataset({
+        body,
         serviceUrl: snapshot.contextServiceUrl,
         internalToken: snapshot.contextInternalToken,
       });

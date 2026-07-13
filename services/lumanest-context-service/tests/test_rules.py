@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.models import SnapshotRequest
+from app.models import AstronomyEventsImport, SnapshotRequest
 from app.rules import evaluate
 
 
@@ -56,3 +56,34 @@ def test_fingerprint_uses_a_grid_instead_of_exposing_coordinates():
     result = evaluate(request_for(evidence={"urban": True}, day_phase="blueHour"))
     assert "120.15" not in result.fingerprint
     assert result.context_id.startswith("ctx_")
+
+
+def test_astronomy_catalog_requires_traceable_https_source_and_ordered_times():
+    valid = {
+        "datasetType": "astronomyEvents",
+        "source": {
+            "id": "reviewed-astronomy",
+            "enabled": False,
+            "licenseStatus": "approved",
+            "attribution": "NASA/JPL reviewed catalog",
+            "version": "2026.07",
+        },
+        "events": [{
+            "id": "meteor-2026",
+            "eventType": "meteorShower",
+            "startsAt": "2026-08-12T00:00:00Z",
+            "endsAt": "2026-08-13T00:00:00Z",
+            "title": "Reviewed meteor shower",
+            "sourceUrl": "https://example.test/catalog/meteor-2026",
+        }],
+    }
+    assert AstronomyEventsImport.model_validate(valid).events[0].id == "meteor-2026"
+
+    invalid = valid | {
+        "events": [valid["events"][0] | {
+            "endsAt": "2026-08-11T00:00:00Z",
+            "sourceUrl": "http://example.test/private",
+        }]
+    }
+    with pytest.raises(ValueError):
+        AstronomyEventsImport.model_validate(invalid)

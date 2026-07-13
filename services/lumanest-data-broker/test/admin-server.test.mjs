@@ -42,6 +42,19 @@ async function withAdmin(run) {
     restart: async () => operations.push('restart'),
     testLLMProfile: async (profileId) => ({ status: 'ok', profileId }),
     listLLMModels: async (profile) => ({ ok: true, models: [`${profile.providerId}-model`] }),
+    importContextDataset: async (body) => {
+      operations.push(`import:${body.datasetType}`);
+      return {
+        ok: true,
+        result: {
+          sourceId: body.source.id,
+          datasetType: body.datasetType,
+          importedCount: body.featureCollection?.features?.length ?? body.events?.length ?? 0,
+          enabled: body.source.enabled,
+          cacheInvalidated: true,
+        },
+      };
+    },
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -103,6 +116,48 @@ test('rejects request bodies larger than 16 KiB before processing', async () => 
       body: JSON.stringify({ password: 'x'.repeat(17 * 1024) }),
     });
     assert.equal(response.status, 413);
+  });
+});
+
+test('context imports require an authenticated CSRF-protected LAN session', async () => {
+  await withAdmin(async ({ baseUrl, operations }) => {
+    const importBody = {
+      datasetType: 'spatialFeatures',
+      source: {
+        id: 'reviewed-lakes', enabled: false, licenseStatus: 'approved',
+        attribution: 'Reviewed local fixture', version: '2026-07-14',
+      },
+      featureCollection: { type: 'FeatureCollection', features: [] },
+    };
+    const unauthenticated = await fetch(`${baseUrl}/admin-api/context/imports`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(importBody),
+    });
+    assert.equal(unauthenticated.status, 401);
+
+    const credentials = await login(baseUrl);
+    const withoutCsrf = await fetch(`${baseUrl}/admin-api/context/imports`, {
+      method: 'POST',
+      headers: { Cookie: credentials.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify(importBody),
+    });
+    assert.equal(withoutCsrf.status, 403);
+
+    const response = await fetch(`${baseUrl}/admin-api/context/imports`, {
+      method: 'POST',
+      headers: {
+        Cookie: credentials.cookie,
+        'X-CSRF-Token': credentials.csrf,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(importBody),
+    });
+    assert.equal(response.status, 201);
+    assert.deepEqual(await response.json(), {
+      sourceId: 'reviewed-lakes', datasetType: 'spatialFeatures',
+      importedCount: 0, enabled: false, cacheInvalidated: true,
+    });
+    assert.deepEqual(operations, ['import:spatialFeatures']);
   });
 });
 

@@ -15,6 +15,8 @@
 - 野生动物区域线索：`GET /v1/wildlife/nearby`
 - AI 创作文案：`POST /v1/narrative`
 - 在线情境快照：`POST /v1/context/snapshot`
+- 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
+- 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
 - JWT 签发接口需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
 
 将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 端点是：
@@ -121,6 +123,11 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
 - `LUMANEST_DATABASE_PASSWORD`：PostgreSQL 专用随机密码，不能与管理密码或 App 服务令牌复用。
 
 Compose 不向宿主机映射 FastAPI、PostgreSQL 或 Redis 端口。App 仍只能访问 `8787`，管理台仍只能通过局域网 `8788` 访问。
+
+情境导入接口只接受严格校验的 `spatialFeatures` GeoJSON 或
+`astronomyEvents` 目录，每次最多 500 条、请求体最多 2 MiB。同一来源的新版本以事务方式替换旧数据。
+来源必须包含许可状态、署名和版本；只有 `approved` 来源允许启用。敏感空间记录不能导入精确点位，
+必须先降精度为至少约 0.01 度跨度的区域。导入审计只记录操作类型和结果，不记录几何、目录内容或内部令牌。
 
 ## 模型服务
 

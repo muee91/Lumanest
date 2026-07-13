@@ -6,6 +6,7 @@ import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 
 const maximumBodyBytes = 16 * 1024;
+const maximumImportBodyBytes = 2 * 1024 * 1024;
 const publicRoot = new URL('./public/', import.meta.url);
 const staticAssets = new Map([
   ['/admin', ['index.html', 'text/html; charset=utf-8']],
@@ -43,12 +44,12 @@ function json(response, status, body, headers = {}) {
   response.end(JSON.stringify(body));
 }
 
-async function body(request) {
+async function body(request, maximumBytes = maximumBodyBytes) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > maximumBodyBytes) return { tooLarge: true };
+    if (size > maximumBytes) return { tooLarge: true };
     chunks.push(chunk);
   }
   try {
@@ -115,6 +116,7 @@ export function createAdminServer({
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
+  importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
   clearCache = async () => {},
   restart = async () => {},
 }) {
@@ -175,6 +177,22 @@ export function createAdminServer({
       return json(response, result.ok ? 200 : 503, result.ok
         ? { sources: result.sources }
         : { sources: [], error: result.error });
+    }
+    if (request.method === 'POST' && url.pathname === '/admin-api/context/imports') {
+      const parsed = await body(request, maximumImportBodyBytes);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      const result = await importContextDataset(parsed.value);
+      auditLog.record({
+        remoteAddress,
+        operation: 'import_context_dataset',
+        fields: ['sourceId', 'datasetType'],
+        result: result.ok ? 'ok' : result.error,
+      });
+      if (result.ok) return json(response, 201, result.result);
+      return json(response, result.error === 'invalid_import' ? 422 : 503, {
+        error: result.error,
+      });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/llm/profiles') {
       const snapshot = runtimeConfig.snapshot();

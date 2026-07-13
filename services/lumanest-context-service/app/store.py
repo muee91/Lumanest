@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from datetime import datetime, timezone
 
 from redis.asyncio import Redis
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from .models import SceneEvidence, SourceStatus
+from .models import (
+    AstronomyEventsImport,
+    ContextImportRequest,
+    ContextImportResult,
+    SceneEvidence,
+    SourceStatus,
+    SpatialFeaturesImport,
+)
 
 
 class ContextStore:
@@ -82,13 +92,148 @@ class ContextStore:
         except Exception:
             return
 
+    async def import_dataset(self, body: ContextImportRequest) -> ContextImportResult:
+        if self.engine is None:
+            raise RuntimeError("storage_not_configured")
+
+        imported_count = 0
+        try:
+            async with self.engine.begin() as connection:
+                await connection.execute(
+                    text("""
+                        INSERT INTO source_registry (
+                            id, dataset_type, enabled, license_status, attribution, version, updated_at
+                        ) VALUES (
+                            :id, :dataset_type, :enabled, :license_status, :attribution, :version, :updated_at
+                        )
+                        ON CONFLICT (id) DO UPDATE SET
+                            dataset_type = EXCLUDED.dataset_type,
+                            enabled = EXCLUDED.enabled,
+                            license_status = EXCLUDED.license_status,
+                            attribution = EXCLUDED.attribution,
+                            version = EXCLUDED.version,
+                            updated_at = EXCLUDED.updated_at
+                    """),
+                    {
+                        "id": body.source.id,
+                        "dataset_type": body.dataset_type,
+                        "enabled": body.source.enabled,
+                        "license_status": body.source.license_status,
+                        "attribution": body.source.attribution,
+                        "version": body.source.version,
+                        "updated_at": datetime.now(timezone.utc),
+                    },
+                )
+                await connection.execute(
+                    text("DELETE FROM spatial_features WHERE source_id = :source_id"),
+                    {"source_id": body.source.id},
+                )
+                await connection.execute(
+                    text("DELETE FROM astronomy_events WHERE source_id = :source_id"),
+                    {"source_id": body.source.id},
+                )
+                if isinstance(body, SpatialFeaturesImport):
+                    for feature in body.feature_collection.features:
+                        record_id = hashlib.sha256(
+                            f"spatial\0{body.source.id}\0{feature.id}".encode("utf-8")
+                        ).hexdigest()
+                        geometry = json.dumps(
+                            feature.geometry.model_dump(mode="json"), separators=(",", ":")
+                        )
+                        valid = (
+                            await connection.execute(
+                                text("""
+                                    SELECT ST_IsValid(
+                                        ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326)
+                                    )
+                                """),
+                                {"geometry": geometry},
+                            )
+                        ).scalar_one()
+                        if not valid:
+                            raise ValueError("invalid_geometry")
+                        await connection.execute(
+                            text("""
+                                INSERT INTO spatial_features (
+                                    id, external_id, source_id, kind, name, sensitivity, enabled,
+                                    geometry
+                                ) VALUES (
+                                    :id, :external_id, :source_id, :kind, :name, :sensitivity, :enabled,
+                                    ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326)
+                                )
+                            """),
+                            {
+                                "id": record_id,
+                                "external_id": feature.id,
+                                "source_id": body.source.id,
+                                "kind": feature.properties.kind,
+                                "name": feature.properties.name,
+                                "sensitivity": feature.properties.sensitivity,
+                                "enabled": body.source.enabled,
+                                "geometry": geometry,
+                            },
+                        )
+                    imported_count = len(body.feature_collection.features)
+                elif isinstance(body, AstronomyEventsImport):
+                    for event in body.events:
+                        record_id = hashlib.sha256(
+                            f"astronomy\0{body.source.id}\0{event.id}".encode("utf-8")
+                        ).hexdigest()
+                        await connection.execute(
+                            text("""
+                                INSERT INTO astronomy_events (
+                                    id, external_id, source_id, event_type, starts_at, ends_at,
+                                    title, source_url, enabled
+                                ) VALUES (
+                                    :id, :external_id, :source_id, :event_type, :starts_at, :ends_at,
+                                    :title, :source_url, :enabled
+                                )
+                            """),
+                            {
+                                "id": record_id,
+                                "external_id": event.id,
+                                "source_id": body.source.id,
+                                "event_type": event.event_type,
+                                "starts_at": event.starts_at,
+                                "ends_at": event.ends_at,
+                                "title": event.title,
+                                "source_url": str(event.source_url),
+                                "enabled": body.source.enabled,
+                            },
+                        )
+                    imported_count = len(body.events)
+        except (ValueError, SQLAlchemyError):
+            raise
+
+        cache_invalidated = await self.invalidate_snapshot_cache()
+        return ContextImportResult.model_validate(
+            {
+                "sourceId": body.source.id,
+                "datasetType": body.dataset_type,
+                "importedCount": imported_count,
+                "enabled": body.source.enabled,
+                "cacheInvalidated": cache_invalidated,
+            }
+        )
+
+    async def invalidate_snapshot_cache(self) -> bool:
+        if self.redis is None:
+            return False
+        try:
+            keys = [key async for key in self.redis.scan_iter(match="context:v2:*")]
+            if keys:
+                await self.redis.delete(*keys)
+            return True
+        except Exception:
+            return False
+
     async def source_statuses(self) -> list[SourceStatus]:
         if self.engine is None:
             return []
         try:
             async with self.engine.connect() as connection:
                 rows = (await connection.execute(text("""
-                    SELECT id, enabled, license_status, attribution, updated_at
+                    SELECT id, dataset_type, enabled, license_status, attribution, version, updated_at
                     FROM source_registry ORDER BY id
                 """))).mappings().all()
             return [SourceStatus.model_validate(dict(row)) for row in rows]
