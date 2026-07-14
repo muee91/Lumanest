@@ -37,10 +37,11 @@ abstract final class InspirationNotes {
   static List<InspirationNote> build(
     ContextSnapshot snapshot, {
     ManifestNarrative? narrative,
+    UiManifest? manifest,
   }) {
-    final manifest = ManifestPolicy.build(snapshot);
+    final effectiveManifest = manifest ?? ManifestPolicy.build(snapshot);
     final notes = <InspirationNote>[
-      for (final item in manifest.creativeItems)
+      for (final item in effectiveManifest.creativeItems)
         _fromManifest(item, labelOverride: narrative?.noteLabels[item.id]),
     ];
 
@@ -48,8 +49,7 @@ abstract final class InspirationNotes {
     for (final note in notes) {
       unique.putIfAbsent(note.id, () => note);
     }
-    return unique.values.toList(growable: false)
-      ..sort((a, b) => b.priority.compareTo(a.priority));
+    return unique.values.toList(growable: false);
   }
 
   static InspirationNote _fromManifest(

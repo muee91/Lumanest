@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
+import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
@@ -20,6 +21,7 @@ class TodayPage extends StatelessWidget {
     this.onSelectManualLocation,
     this.onManifestAction,
     this.narrativeAsync,
+    this.manifest,
   });
 
   final AsyncValue<ContextSnapshot> snapshotAsync;
@@ -27,6 +29,7 @@ class TodayPage extends StatelessWidget {
   final VoidCallback? onSelectManualLocation;
   final ValueChanged<ManifestItem>? onManifestAction;
   final AsyncValue<ManifestNarrative>? narrativeAsync;
+  final UiManifest? manifest;
 
   @override
   Widget build(BuildContext context) {
@@ -78,8 +81,9 @@ class TodayPage extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context, ContextSnapshot snapshot) {
-    final manifest = ManifestPolicy.build(snapshot);
-    final summary = narrativeAsync?.asData?.value.summary ?? manifest.summary;
+    final effectiveManifest = manifest ?? ManifestPolicy.build(snapshot);
+    final summary =
+        narrativeAsync?.asData?.value.summary ?? effectiveManifest.summary;
     void performAction(ManifestItem item) {
       final injected = onManifestAction;
       if (injected != null) {
@@ -100,11 +104,14 @@ class TodayPage extends StatelessWidget {
           const SizedBox(height: 16),
           _EnvironmentStrip(snapshot: snapshot),
           const SizedBox(height: 20),
-          if (manifest.safety.isNotEmpty) ...[
-            _SafetyRegion(items: manifest.safety, onAction: performAction),
+          if (effectiveManifest.safety.isNotEmpty) ...[
+            _SafetyRegion(
+              items: effectiveManifest.safety,
+              onAction: performAction,
+            ),
             const SizedBox(height: 20),
           ],
-          if (manifest.primary case final primary?) ...[
+          if (effectiveManifest.primary case final primary?) ...[
             _OpportunityCard(
               key: const Key('primary-opportunity'),
               item: primary,
@@ -112,12 +119,12 @@ class TodayPage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (manifest.secondary.isNotEmpty) ...[
+          if (effectiveManifest.secondary.isNotEmpty) ...[
             const SizedBox(height: 12),
             Column(
               key: const Key('secondary-opportunities'),
               children: [
-                for (final item in manifest.secondary)
+                for (final item in effectiveManifest.secondary)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _OpportunityCard(
@@ -129,10 +136,10 @@ class TodayPage extends StatelessWidget {
               ],
             ),
           ],
-          if (manifest.inspirationPreview.isNotEmpty) ...[
+          if (effectiveManifest.inspirationPreview.isNotEmpty) ...[
             const SizedBox(height: 18),
             _InspirationTeaser(
-              note: manifest.inspirationPreview,
+              note: effectiveManifest.inspirationPreview,
               onTap: () => context.go('/inspiration'),
             ),
           ],
@@ -373,6 +380,7 @@ class LiveTodayPage extends ConsumerWidget {
     if (initialSnapshot case final snapshot?) {
       return TodayPage(
         snapshotAsync: AsyncData(snapshot),
+        manifest: ref.watch(personalizedManifestProvider(snapshot)),
         narrativeAsync: ref.watch(manifestNarrativeProvider(snapshot)),
       );
     }
@@ -390,6 +398,9 @@ class LiveTodayPage extends ConsumerWidget {
         : ref.watch(manifestNarrativeProvider(snapshot.requireValue));
     return TodayPage(
       snapshotAsync: snapshot,
+      manifest: snapshot.asData == null
+          ? null
+          : ref.watch(personalizedManifestProvider(snapshot.requireValue)),
       narrativeAsync: narrative,
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
       onSelectManualLocation: () => showModalBottomSheet<void>(

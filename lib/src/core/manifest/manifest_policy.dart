@@ -1,11 +1,18 @@
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
+import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 abstract final class ManifestPolicy {
-  static UiManifest build(ContextSnapshot snapshot, {DateTime? now}) {
+  static UiManifest build(
+    ContextSnapshot snapshot, {
+    DateTime? now,
+    CreativePersonalization? personalization,
+  }) {
     final evaluatedAt = (now ?? DateTime.now()).toUtc();
+    final effectivePersonalization =
+        personalization ?? CreativePersonalization.neutral;
     final currentEvents = {
       for (final event in snapshot.events)
         if (!event.isExpiredAt(evaluatedAt)) event.id: event,
@@ -13,9 +20,14 @@ abstract final class ManifestPolicy {
 
     final serverManifest = snapshot.serverManifest;
     if (serverManifest != null) {
-      return _buildFromServer(snapshot, serverManifest, currentEvents);
+      return _buildFromServer(
+        snapshot,
+        serverManifest,
+        currentEvents,
+        effectivePersonalization,
+      );
     }
-    return _buildLocal(snapshot, currentEvents);
+    return _buildLocal(snapshot, currentEvents, effectivePersonalization);
   }
 
   // ---------------------------------------------------------------------------
@@ -26,6 +38,7 @@ abstract final class ManifestPolicy {
     ContextSnapshot snapshot,
     ServerManifest serverManifest,
     Map<String, ContextEvent> currentEvents,
+    CreativePersonalization personalization,
   ) {
     final layoutMode = LayoutMode.fromServerLayout(serverManifest.layout);
 
@@ -46,8 +59,9 @@ abstract final class ManifestPolicy {
             : _unknownCreativeItem(id, event).withEvent(event),
       );
     }
-    final primary = creative.firstOrNull;
-    final secondary = creative.skip(1).take(2).toList(growable: false);
+    final orderedCreative = _personalizeCreative(creative, personalization);
+    final primary = orderedCreative.firstOrNull;
+    final secondary = orderedCreative.skip(1).take(2).toList(growable: false);
 
     // Safety: union of serverManifest.safetyEventIds and all current unexpired
     // structured safety/wildlifeSafety events. Server omissions must not hide
@@ -110,6 +124,7 @@ abstract final class ManifestPolicy {
   static UiManifest _buildLocal(
     ContextSnapshot snapshot,
     Map<String, ContextEvent> currentEvents,
+    CreativePersonalization personalization,
   ) {
     final structuredEventIds = snapshot.events.map((event) => event.id).toSet();
 
@@ -140,7 +155,8 @@ abstract final class ManifestPolicy {
             .map((item) => item.withEvent(currentEvents[item.id]))
             .toList(growable: false);
 
-    final primary = creative.firstOrNull;
+    final orderedCreative = _personalizeCreative(creative, personalization);
+    final primary = orderedCreative.firstOrNull;
 
     return UiManifest(
       layoutMode: primary == null
@@ -150,10 +166,47 @@ abstract final class ManifestPolicy {
           : LayoutMode.opportunity,
       summary: _summaryFor(snapshot, primary),
       primary: primary,
-      secondary: creative.skip(1).take(2).toList(growable: false),
+      secondary: orderedCreative.skip(1).take(2).toList(growable: false),
       safety: safety,
       inspirationPreview: _inspirationFor(primary),
     );
+  }
+
+  static List<ManifestItem> _personalizeCreative(
+    List<ManifestItem> creative,
+    CreativePersonalization personalization,
+  ) {
+    if (creative.length < 2 ||
+        !personalization.hasRecommendationPreferences ||
+        personalization.recommendationIntensity <= 0.3) {
+      return List.of(creative, growable: false);
+    }
+
+    final ranked = [
+      for (var index = 0; index < creative.length; index += 1)
+        _RankedCreative(
+          item: creative[index],
+          originalIndex: index,
+          matched: personalization.matchesCreativeEvent(creative[index].id),
+        ),
+    ];
+
+    if (personalization.recommendationIntensity >= 0.8) {
+      ranked.sort((first, second) {
+        if (first.matched != second.matched) return first.matched ? -1 : 1;
+        return first.originalIndex.compareTo(second.originalIndex);
+      });
+    } else {
+      ranked.sort((first, second) {
+        final firstRank = first.originalIndex - (first.matched ? 1 : 0);
+        final secondRank = second.originalIndex - (second.matched ? 1 : 0);
+        final rankComparison = firstRank.compareTo(secondRank);
+        if (rankComparison != 0) return rankComparison;
+        if (first.matched != second.matched) return first.matched ? -1 : 1;
+        return first.originalIndex.compareTo(second.originalIndex);
+      });
+    }
+    return ranked.map((entry) => entry.item).toList(growable: false);
   }
 
   // ---------------------------------------------------------------------------
@@ -323,4 +376,16 @@ abstract final class ManifestPolicy {
       _ => '',
     };
   }
+}
+
+class _RankedCreative {
+  const _RankedCreative({
+    required this.item,
+    required this.originalIndex,
+    required this.matched,
+  });
+
+  final ManifestItem item;
+  final int originalIndex;
+  final bool matched;
 }
