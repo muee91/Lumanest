@@ -8,7 +8,13 @@ void main() {
   late ProviderContainer container;
 
   setUp(() {
-    container = ProviderContainer();
+    container = ProviderContainer(
+      overrides: [
+        profilePreferencesStoreProvider.overrideWithValue(
+          _FakeProfilePreferencesStore(null),
+        ),
+      ],
+    );
     addTearDown(container.dispose);
   });
 

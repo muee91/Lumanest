@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 void main() {
   late AppDatabase database;
@@ -117,6 +120,70 @@ void main() {
             ),
           ),
       throwsA(anything),
+    );
+  });
+
+  test('schema 1 migrates to 2 without losing library data', () async {
+    await database.close();
+    final directory = await Directory.systemTemp.createTemp(
+      'lumanest-drift-migration-',
+    );
+    final file = File('${directory.path}/lumanest.sqlite');
+    addTearDown(() async {
+      if (await file.exists()) await file.delete();
+      if (await directory.exists()) await directory.delete();
+    });
+
+    final legacy = sqlite.sqlite3.open(file.path);
+    legacy.execute('''
+      CREATE TABLE saved_places (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        CHECK (latitude BETWEEN -90 AND 90),
+        CHECK (longitude BETWEEN -180 AND 180)
+      )
+    ''');
+    legacy.execute('''
+      CREATE TABLE recent_route_destinations (
+        id INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
+        name TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        travel_mode TEXT NOT NULL,
+        CHECK (id = 1),
+        CHECK (latitude BETWEEN -90 AND 90),
+        CHECK (longitude BETWEEN -180 AND 180),
+        CHECK (travel_mode IN ('driving', 'walking'))
+      )
+    ''');
+    legacy.execute(
+      "INSERT INTO saved_places VALUES ('legacy', '旧机位', 'viewpoint', 30, 120)",
+    );
+    legacy.execute(
+      "INSERT INTO recent_route_destinations VALUES (1, '旧路线', 31, 121, 'walking')",
+    );
+    legacy.execute('PRAGMA user_version = 1');
+    legacy.close();
+
+    final migrated = AppDatabase(NativeDatabase(file));
+    addTearDown(migrated.close);
+
+    expect(
+      (await migrated.select(migrated.savedPlaces).get()).single.id,
+      'legacy',
+    );
+    expect(
+      (await migrated.select(migrated.recentRouteDestinations).get())
+          .single
+          .travelMode,
+      'walking',
+    );
+    expect(
+      await migrated.select(migrated.profilePreferenceRecords).get(),
+      isEmpty,
     );
   });
 }

@@ -719,12 +719,759 @@ class RecentRouteDestinationsCompanion
   }
 }
 
+class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
+    with TableInfo<$ProfilePreferenceRecordsTable, ProfilePreferenceRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProfilePreferenceRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _ambientBackgroundEnabledMeta =
+      const VerificationMeta('ambientBackgroundEnabled');
+  @override
+  late final GeneratedColumn<bool> ambientBackgroundEnabled =
+      GeneratedColumn<bool>(
+        'ambient_background_enabled',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: true,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("ambient_background_enabled" IN (0, 1))',
+        ),
+      );
+  static const VerificationMeta _reduceMotionMeta = const VerificationMeta(
+    'reduceMotion',
+  );
+  @override
+  late final GeneratedColumn<bool> reduceMotion = GeneratedColumn<bool>(
+    'reduce_motion',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reduce_motion" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _reduceFlashingMeta = const VerificationMeta(
+    'reduceFlashing',
+  );
+  @override
+  late final GeneratedColumn<bool> reduceFlashing = GeneratedColumn<bool>(
+    'reduce_flashing',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reduce_flashing" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _highContrastMeta = const VerificationMeta(
+    'highContrast',
+  );
+  @override
+  late final GeneratedColumn<bool> highContrast = GeneratedColumn<bool>(
+    'high_contrast',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("high_contrast" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _ambientMotionModeMeta = const VerificationMeta(
+    'ambientMotionMode',
+  );
+  @override
+  late final GeneratedColumn<String> ambientMotionMode =
+      GeneratedColumn<String>(
+        'ambient_motion_mode',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _photographyPreferencesJsonMeta =
+      const VerificationMeta('photographyPreferencesJson');
+  @override
+  late final GeneratedColumn<String> photographyPreferencesJson =
+      GeneratedColumn<String>(
+        'photography_preferences_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _activityPreferencesJsonMeta =
+      const VerificationMeta('activityPreferencesJson');
+  @override
+  late final GeneratedColumn<String> activityPreferencesJson =
+      GeneratedColumn<String>(
+        'activity_preferences_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _equipmentListMeta = const VerificationMeta(
+    'equipmentList',
+  );
+  @override
+  late final GeneratedColumn<String> equipmentList = GeneratedColumn<String>(
+    'equipment_list',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _aiToneMeta = const VerificationMeta('aiTone');
+  @override
+  late final GeneratedColumn<String> aiTone = GeneratedColumn<String>(
+    'ai_tone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recommendationIntensityMeta =
+      const VerificationMeta('recommendationIntensity');
+  @override
+  late final GeneratedColumn<double> recommendationIntensity =
+      GeneratedColumn<double>(
+        'recommendation_intensity',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: true,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    ambientBackgroundEnabled,
+    reduceMotion,
+    reduceFlashing,
+    highContrast,
+    ambientMotionMode,
+    photographyPreferencesJson,
+    activityPreferencesJson,
+    equipmentList,
+    aiTone,
+    recommendationIntensity,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'profile_preferences';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProfilePreferenceRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('ambient_background_enabled')) {
+      context.handle(
+        _ambientBackgroundEnabledMeta,
+        ambientBackgroundEnabled.isAcceptableOrUnknown(
+          data['ambient_background_enabled']!,
+          _ambientBackgroundEnabledMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_ambientBackgroundEnabledMeta);
+    }
+    if (data.containsKey('reduce_motion')) {
+      context.handle(
+        _reduceMotionMeta,
+        reduceMotion.isAcceptableOrUnknown(
+          data['reduce_motion']!,
+          _reduceMotionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_reduceMotionMeta);
+    }
+    if (data.containsKey('reduce_flashing')) {
+      context.handle(
+        _reduceFlashingMeta,
+        reduceFlashing.isAcceptableOrUnknown(
+          data['reduce_flashing']!,
+          _reduceFlashingMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_reduceFlashingMeta);
+    }
+    if (data.containsKey('high_contrast')) {
+      context.handle(
+        _highContrastMeta,
+        highContrast.isAcceptableOrUnknown(
+          data['high_contrast']!,
+          _highContrastMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_highContrastMeta);
+    }
+    if (data.containsKey('ambient_motion_mode')) {
+      context.handle(
+        _ambientMotionModeMeta,
+        ambientMotionMode.isAcceptableOrUnknown(
+          data['ambient_motion_mode']!,
+          _ambientMotionModeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_ambientMotionModeMeta);
+    }
+    if (data.containsKey('photography_preferences_json')) {
+      context.handle(
+        _photographyPreferencesJsonMeta,
+        photographyPreferencesJson.isAcceptableOrUnknown(
+          data['photography_preferences_json']!,
+          _photographyPreferencesJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_photographyPreferencesJsonMeta);
+    }
+    if (data.containsKey('activity_preferences_json')) {
+      context.handle(
+        _activityPreferencesJsonMeta,
+        activityPreferencesJson.isAcceptableOrUnknown(
+          data['activity_preferences_json']!,
+          _activityPreferencesJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_activityPreferencesJsonMeta);
+    }
+    if (data.containsKey('equipment_list')) {
+      context.handle(
+        _equipmentListMeta,
+        equipmentList.isAcceptableOrUnknown(
+          data['equipment_list']!,
+          _equipmentListMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_equipmentListMeta);
+    }
+    if (data.containsKey('ai_tone')) {
+      context.handle(
+        _aiToneMeta,
+        aiTone.isAcceptableOrUnknown(data['ai_tone']!, _aiToneMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_aiToneMeta);
+    }
+    if (data.containsKey('recommendation_intensity')) {
+      context.handle(
+        _recommendationIntensityMeta,
+        recommendationIntensity.isAcceptableOrUnknown(
+          data['recommendation_intensity']!,
+          _recommendationIntensityMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recommendationIntensityMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProfilePreferenceRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProfilePreferenceRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      ambientBackgroundEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}ambient_background_enabled'],
+      )!,
+      reduceMotion: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reduce_motion'],
+      )!,
+      reduceFlashing: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reduce_flashing'],
+      )!,
+      highContrast: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}high_contrast'],
+      )!,
+      ambientMotionMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ambient_motion_mode'],
+      )!,
+      photographyPreferencesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photography_preferences_json'],
+      )!,
+      activityPreferencesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_preferences_json'],
+      )!,
+      equipmentList: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}equipment_list'],
+      )!,
+      aiTone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_tone'],
+      )!,
+      recommendationIntensity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}recommendation_intensity'],
+      )!,
+    );
+  }
+
+  @override
+  $ProfilePreferenceRecordsTable createAlias(String alias) {
+    return $ProfilePreferenceRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class ProfilePreferenceRow extends DataClass
+    implements Insertable<ProfilePreferenceRow> {
+  final int id;
+  final bool ambientBackgroundEnabled;
+  final bool reduceMotion;
+  final bool reduceFlashing;
+  final bool highContrast;
+  final String ambientMotionMode;
+  final String photographyPreferencesJson;
+  final String activityPreferencesJson;
+  final String equipmentList;
+  final String aiTone;
+  final double recommendationIntensity;
+  const ProfilePreferenceRow({
+    required this.id,
+    required this.ambientBackgroundEnabled,
+    required this.reduceMotion,
+    required this.reduceFlashing,
+    required this.highContrast,
+    required this.ambientMotionMode,
+    required this.photographyPreferencesJson,
+    required this.activityPreferencesJson,
+    required this.equipmentList,
+    required this.aiTone,
+    required this.recommendationIntensity,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['ambient_background_enabled'] = Variable<bool>(
+      ambientBackgroundEnabled,
+    );
+    map['reduce_motion'] = Variable<bool>(reduceMotion);
+    map['reduce_flashing'] = Variable<bool>(reduceFlashing);
+    map['high_contrast'] = Variable<bool>(highContrast);
+    map['ambient_motion_mode'] = Variable<String>(ambientMotionMode);
+    map['photography_preferences_json'] = Variable<String>(
+      photographyPreferencesJson,
+    );
+    map['activity_preferences_json'] = Variable<String>(
+      activityPreferencesJson,
+    );
+    map['equipment_list'] = Variable<String>(equipmentList);
+    map['ai_tone'] = Variable<String>(aiTone);
+    map['recommendation_intensity'] = Variable<double>(recommendationIntensity);
+    return map;
+  }
+
+  ProfilePreferenceRecordsCompanion toCompanion(bool nullToAbsent) {
+    return ProfilePreferenceRecordsCompanion(
+      id: Value(id),
+      ambientBackgroundEnabled: Value(ambientBackgroundEnabled),
+      reduceMotion: Value(reduceMotion),
+      reduceFlashing: Value(reduceFlashing),
+      highContrast: Value(highContrast),
+      ambientMotionMode: Value(ambientMotionMode),
+      photographyPreferencesJson: Value(photographyPreferencesJson),
+      activityPreferencesJson: Value(activityPreferencesJson),
+      equipmentList: Value(equipmentList),
+      aiTone: Value(aiTone),
+      recommendationIntensity: Value(recommendationIntensity),
+    );
+  }
+
+  factory ProfilePreferenceRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProfilePreferenceRow(
+      id: serializer.fromJson<int>(json['id']),
+      ambientBackgroundEnabled: serializer.fromJson<bool>(
+        json['ambientBackgroundEnabled'],
+      ),
+      reduceMotion: serializer.fromJson<bool>(json['reduceMotion']),
+      reduceFlashing: serializer.fromJson<bool>(json['reduceFlashing']),
+      highContrast: serializer.fromJson<bool>(json['highContrast']),
+      ambientMotionMode: serializer.fromJson<String>(json['ambientMotionMode']),
+      photographyPreferencesJson: serializer.fromJson<String>(
+        json['photographyPreferencesJson'],
+      ),
+      activityPreferencesJson: serializer.fromJson<String>(
+        json['activityPreferencesJson'],
+      ),
+      equipmentList: serializer.fromJson<String>(json['equipmentList']),
+      aiTone: serializer.fromJson<String>(json['aiTone']),
+      recommendationIntensity: serializer.fromJson<double>(
+        json['recommendationIntensity'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'ambientBackgroundEnabled': serializer.toJson<bool>(
+        ambientBackgroundEnabled,
+      ),
+      'reduceMotion': serializer.toJson<bool>(reduceMotion),
+      'reduceFlashing': serializer.toJson<bool>(reduceFlashing),
+      'highContrast': serializer.toJson<bool>(highContrast),
+      'ambientMotionMode': serializer.toJson<String>(ambientMotionMode),
+      'photographyPreferencesJson': serializer.toJson<String>(
+        photographyPreferencesJson,
+      ),
+      'activityPreferencesJson': serializer.toJson<String>(
+        activityPreferencesJson,
+      ),
+      'equipmentList': serializer.toJson<String>(equipmentList),
+      'aiTone': serializer.toJson<String>(aiTone),
+      'recommendationIntensity': serializer.toJson<double>(
+        recommendationIntensity,
+      ),
+    };
+  }
+
+  ProfilePreferenceRow copyWith({
+    int? id,
+    bool? ambientBackgroundEnabled,
+    bool? reduceMotion,
+    bool? reduceFlashing,
+    bool? highContrast,
+    String? ambientMotionMode,
+    String? photographyPreferencesJson,
+    String? activityPreferencesJson,
+    String? equipmentList,
+    String? aiTone,
+    double? recommendationIntensity,
+  }) => ProfilePreferenceRow(
+    id: id ?? this.id,
+    ambientBackgroundEnabled:
+        ambientBackgroundEnabled ?? this.ambientBackgroundEnabled,
+    reduceMotion: reduceMotion ?? this.reduceMotion,
+    reduceFlashing: reduceFlashing ?? this.reduceFlashing,
+    highContrast: highContrast ?? this.highContrast,
+    ambientMotionMode: ambientMotionMode ?? this.ambientMotionMode,
+    photographyPreferencesJson:
+        photographyPreferencesJson ?? this.photographyPreferencesJson,
+    activityPreferencesJson:
+        activityPreferencesJson ?? this.activityPreferencesJson,
+    equipmentList: equipmentList ?? this.equipmentList,
+    aiTone: aiTone ?? this.aiTone,
+    recommendationIntensity:
+        recommendationIntensity ?? this.recommendationIntensity,
+  );
+  ProfilePreferenceRow copyWithCompanion(
+    ProfilePreferenceRecordsCompanion data,
+  ) {
+    return ProfilePreferenceRow(
+      id: data.id.present ? data.id.value : this.id,
+      ambientBackgroundEnabled: data.ambientBackgroundEnabled.present
+          ? data.ambientBackgroundEnabled.value
+          : this.ambientBackgroundEnabled,
+      reduceMotion: data.reduceMotion.present
+          ? data.reduceMotion.value
+          : this.reduceMotion,
+      reduceFlashing: data.reduceFlashing.present
+          ? data.reduceFlashing.value
+          : this.reduceFlashing,
+      highContrast: data.highContrast.present
+          ? data.highContrast.value
+          : this.highContrast,
+      ambientMotionMode: data.ambientMotionMode.present
+          ? data.ambientMotionMode.value
+          : this.ambientMotionMode,
+      photographyPreferencesJson: data.photographyPreferencesJson.present
+          ? data.photographyPreferencesJson.value
+          : this.photographyPreferencesJson,
+      activityPreferencesJson: data.activityPreferencesJson.present
+          ? data.activityPreferencesJson.value
+          : this.activityPreferencesJson,
+      equipmentList: data.equipmentList.present
+          ? data.equipmentList.value
+          : this.equipmentList,
+      aiTone: data.aiTone.present ? data.aiTone.value : this.aiTone,
+      recommendationIntensity: data.recommendationIntensity.present
+          ? data.recommendationIntensity.value
+          : this.recommendationIntensity,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProfilePreferenceRow(')
+          ..write('id: $id, ')
+          ..write('ambientBackgroundEnabled: $ambientBackgroundEnabled, ')
+          ..write('reduceMotion: $reduceMotion, ')
+          ..write('reduceFlashing: $reduceFlashing, ')
+          ..write('highContrast: $highContrast, ')
+          ..write('ambientMotionMode: $ambientMotionMode, ')
+          ..write('photographyPreferencesJson: $photographyPreferencesJson, ')
+          ..write('activityPreferencesJson: $activityPreferencesJson, ')
+          ..write('equipmentList: $equipmentList, ')
+          ..write('aiTone: $aiTone, ')
+          ..write('recommendationIntensity: $recommendationIntensity')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    ambientBackgroundEnabled,
+    reduceMotion,
+    reduceFlashing,
+    highContrast,
+    ambientMotionMode,
+    photographyPreferencesJson,
+    activityPreferencesJson,
+    equipmentList,
+    aiTone,
+    recommendationIntensity,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProfilePreferenceRow &&
+          other.id == this.id &&
+          other.ambientBackgroundEnabled == this.ambientBackgroundEnabled &&
+          other.reduceMotion == this.reduceMotion &&
+          other.reduceFlashing == this.reduceFlashing &&
+          other.highContrast == this.highContrast &&
+          other.ambientMotionMode == this.ambientMotionMode &&
+          other.photographyPreferencesJson == this.photographyPreferencesJson &&
+          other.activityPreferencesJson == this.activityPreferencesJson &&
+          other.equipmentList == this.equipmentList &&
+          other.aiTone == this.aiTone &&
+          other.recommendationIntensity == this.recommendationIntensity);
+}
+
+class ProfilePreferenceRecordsCompanion
+    extends UpdateCompanion<ProfilePreferenceRow> {
+  final Value<int> id;
+  final Value<bool> ambientBackgroundEnabled;
+  final Value<bool> reduceMotion;
+  final Value<bool> reduceFlashing;
+  final Value<bool> highContrast;
+  final Value<String> ambientMotionMode;
+  final Value<String> photographyPreferencesJson;
+  final Value<String> activityPreferencesJson;
+  final Value<String> equipmentList;
+  final Value<String> aiTone;
+  final Value<double> recommendationIntensity;
+  const ProfilePreferenceRecordsCompanion({
+    this.id = const Value.absent(),
+    this.ambientBackgroundEnabled = const Value.absent(),
+    this.reduceMotion = const Value.absent(),
+    this.reduceFlashing = const Value.absent(),
+    this.highContrast = const Value.absent(),
+    this.ambientMotionMode = const Value.absent(),
+    this.photographyPreferencesJson = const Value.absent(),
+    this.activityPreferencesJson = const Value.absent(),
+    this.equipmentList = const Value.absent(),
+    this.aiTone = const Value.absent(),
+    this.recommendationIntensity = const Value.absent(),
+  });
+  ProfilePreferenceRecordsCompanion.insert({
+    this.id = const Value.absent(),
+    required bool ambientBackgroundEnabled,
+    required bool reduceMotion,
+    required bool reduceFlashing,
+    required bool highContrast,
+    required String ambientMotionMode,
+    required String photographyPreferencesJson,
+    required String activityPreferencesJson,
+    required String equipmentList,
+    required String aiTone,
+    required double recommendationIntensity,
+  }) : ambientBackgroundEnabled = Value(ambientBackgroundEnabled),
+       reduceMotion = Value(reduceMotion),
+       reduceFlashing = Value(reduceFlashing),
+       highContrast = Value(highContrast),
+       ambientMotionMode = Value(ambientMotionMode),
+       photographyPreferencesJson = Value(photographyPreferencesJson),
+       activityPreferencesJson = Value(activityPreferencesJson),
+       equipmentList = Value(equipmentList),
+       aiTone = Value(aiTone),
+       recommendationIntensity = Value(recommendationIntensity);
+  static Insertable<ProfilePreferenceRow> custom({
+    Expression<int>? id,
+    Expression<bool>? ambientBackgroundEnabled,
+    Expression<bool>? reduceMotion,
+    Expression<bool>? reduceFlashing,
+    Expression<bool>? highContrast,
+    Expression<String>? ambientMotionMode,
+    Expression<String>? photographyPreferencesJson,
+    Expression<String>? activityPreferencesJson,
+    Expression<String>? equipmentList,
+    Expression<String>? aiTone,
+    Expression<double>? recommendationIntensity,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (ambientBackgroundEnabled != null)
+        'ambient_background_enabled': ambientBackgroundEnabled,
+      if (reduceMotion != null) 'reduce_motion': reduceMotion,
+      if (reduceFlashing != null) 'reduce_flashing': reduceFlashing,
+      if (highContrast != null) 'high_contrast': highContrast,
+      if (ambientMotionMode != null) 'ambient_motion_mode': ambientMotionMode,
+      if (photographyPreferencesJson != null)
+        'photography_preferences_json': photographyPreferencesJson,
+      if (activityPreferencesJson != null)
+        'activity_preferences_json': activityPreferencesJson,
+      if (equipmentList != null) 'equipment_list': equipmentList,
+      if (aiTone != null) 'ai_tone': aiTone,
+      if (recommendationIntensity != null)
+        'recommendation_intensity': recommendationIntensity,
+    });
+  }
+
+  ProfilePreferenceRecordsCompanion copyWith({
+    Value<int>? id,
+    Value<bool>? ambientBackgroundEnabled,
+    Value<bool>? reduceMotion,
+    Value<bool>? reduceFlashing,
+    Value<bool>? highContrast,
+    Value<String>? ambientMotionMode,
+    Value<String>? photographyPreferencesJson,
+    Value<String>? activityPreferencesJson,
+    Value<String>? equipmentList,
+    Value<String>? aiTone,
+    Value<double>? recommendationIntensity,
+  }) {
+    return ProfilePreferenceRecordsCompanion(
+      id: id ?? this.id,
+      ambientBackgroundEnabled:
+          ambientBackgroundEnabled ?? this.ambientBackgroundEnabled,
+      reduceMotion: reduceMotion ?? this.reduceMotion,
+      reduceFlashing: reduceFlashing ?? this.reduceFlashing,
+      highContrast: highContrast ?? this.highContrast,
+      ambientMotionMode: ambientMotionMode ?? this.ambientMotionMode,
+      photographyPreferencesJson:
+          photographyPreferencesJson ?? this.photographyPreferencesJson,
+      activityPreferencesJson:
+          activityPreferencesJson ?? this.activityPreferencesJson,
+      equipmentList: equipmentList ?? this.equipmentList,
+      aiTone: aiTone ?? this.aiTone,
+      recommendationIntensity:
+          recommendationIntensity ?? this.recommendationIntensity,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (ambientBackgroundEnabled.present) {
+      map['ambient_background_enabled'] = Variable<bool>(
+        ambientBackgroundEnabled.value,
+      );
+    }
+    if (reduceMotion.present) {
+      map['reduce_motion'] = Variable<bool>(reduceMotion.value);
+    }
+    if (reduceFlashing.present) {
+      map['reduce_flashing'] = Variable<bool>(reduceFlashing.value);
+    }
+    if (highContrast.present) {
+      map['high_contrast'] = Variable<bool>(highContrast.value);
+    }
+    if (ambientMotionMode.present) {
+      map['ambient_motion_mode'] = Variable<String>(ambientMotionMode.value);
+    }
+    if (photographyPreferencesJson.present) {
+      map['photography_preferences_json'] = Variable<String>(
+        photographyPreferencesJson.value,
+      );
+    }
+    if (activityPreferencesJson.present) {
+      map['activity_preferences_json'] = Variable<String>(
+        activityPreferencesJson.value,
+      );
+    }
+    if (equipmentList.present) {
+      map['equipment_list'] = Variable<String>(equipmentList.value);
+    }
+    if (aiTone.present) {
+      map['ai_tone'] = Variable<String>(aiTone.value);
+    }
+    if (recommendationIntensity.present) {
+      map['recommendation_intensity'] = Variable<double>(
+        recommendationIntensity.value,
+      );
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProfilePreferenceRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('ambientBackgroundEnabled: $ambientBackgroundEnabled, ')
+          ..write('reduceMotion: $reduceMotion, ')
+          ..write('reduceFlashing: $reduceFlashing, ')
+          ..write('highContrast: $highContrast, ')
+          ..write('ambientMotionMode: $ambientMotionMode, ')
+          ..write('photographyPreferencesJson: $photographyPreferencesJson, ')
+          ..write('activityPreferencesJson: $activityPreferencesJson, ')
+          ..write('equipmentList: $equipmentList, ')
+          ..write('aiTone: $aiTone, ')
+          ..write('recommendationIntensity: $recommendationIntensity')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $SavedPlacesTable savedPlaces = $SavedPlacesTable(this);
   late final $RecentRouteDestinationsTable recentRouteDestinations =
       $RecentRouteDestinationsTable(this);
+  late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
+      $ProfilePreferenceRecordsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -732,6 +1479,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     savedPlaces,
     recentRouteDestinations,
+    profilePreferenceRecords,
   ];
 }
 
@@ -1150,6 +1898,351 @@ typedef $$RecentRouteDestinationsTableProcessedTableManager =
       RecentRouteDestinationRow,
       PrefetchHooks Function()
     >;
+typedef $$ProfilePreferenceRecordsTableCreateCompanionBuilder =
+    ProfilePreferenceRecordsCompanion Function({
+      Value<int> id,
+      required bool ambientBackgroundEnabled,
+      required bool reduceMotion,
+      required bool reduceFlashing,
+      required bool highContrast,
+      required String ambientMotionMode,
+      required String photographyPreferencesJson,
+      required String activityPreferencesJson,
+      required String equipmentList,
+      required String aiTone,
+      required double recommendationIntensity,
+    });
+typedef $$ProfilePreferenceRecordsTableUpdateCompanionBuilder =
+    ProfilePreferenceRecordsCompanion Function({
+      Value<int> id,
+      Value<bool> ambientBackgroundEnabled,
+      Value<bool> reduceMotion,
+      Value<bool> reduceFlashing,
+      Value<bool> highContrast,
+      Value<String> ambientMotionMode,
+      Value<String> photographyPreferencesJson,
+      Value<String> activityPreferencesJson,
+      Value<String> equipmentList,
+      Value<String> aiTone,
+      Value<double> recommendationIntensity,
+    });
+
+class $$ProfilePreferenceRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $ProfilePreferenceRecordsTable> {
+  $$ProfilePreferenceRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ambientBackgroundEnabled => $composableBuilder(
+    column: $table.ambientBackgroundEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get reduceMotion => $composableBuilder(
+    column: $table.reduceMotion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get reduceFlashing => $composableBuilder(
+    column: $table.reduceFlashing,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get highContrast => $composableBuilder(
+    column: $table.highContrast,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ambientMotionMode => $composableBuilder(
+    column: $table.ambientMotionMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get photographyPreferencesJson => $composableBuilder(
+    column: $table.photographyPreferencesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityPreferencesJson => $composableBuilder(
+    column: $table.activityPreferencesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get equipmentList => $composableBuilder(
+    column: $table.equipmentList,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiTone => $composableBuilder(
+    column: $table.aiTone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get recommendationIntensity => $composableBuilder(
+    column: $table.recommendationIntensity,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProfilePreferenceRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProfilePreferenceRecordsTable> {
+  $$ProfilePreferenceRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get ambientBackgroundEnabled => $composableBuilder(
+    column: $table.ambientBackgroundEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get reduceMotion => $composableBuilder(
+    column: $table.reduceMotion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get reduceFlashing => $composableBuilder(
+    column: $table.reduceFlashing,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get highContrast => $composableBuilder(
+    column: $table.highContrast,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ambientMotionMode => $composableBuilder(
+    column: $table.ambientMotionMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photographyPreferencesJson => $composableBuilder(
+    column: $table.photographyPreferencesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityPreferencesJson => $composableBuilder(
+    column: $table.activityPreferencesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get equipmentList => $composableBuilder(
+    column: $table.equipmentList,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiTone => $composableBuilder(
+    column: $table.aiTone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get recommendationIntensity => $composableBuilder(
+    column: $table.recommendationIntensity,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProfilePreferenceRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProfilePreferenceRecordsTable> {
+  $$ProfilePreferenceRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get ambientBackgroundEnabled => $composableBuilder(
+    column: $table.ambientBackgroundEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get reduceMotion => $composableBuilder(
+    column: $table.reduceMotion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get reduceFlashing => $composableBuilder(
+    column: $table.reduceFlashing,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get highContrast => $composableBuilder(
+    column: $table.highContrast,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ambientMotionMode => $composableBuilder(
+    column: $table.ambientMotionMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get photographyPreferencesJson => $composableBuilder(
+    column: $table.photographyPreferencesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get activityPreferencesJson => $composableBuilder(
+    column: $table.activityPreferencesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get equipmentList => $composableBuilder(
+    column: $table.equipmentList,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get aiTone =>
+      $composableBuilder(column: $table.aiTone, builder: (column) => column);
+
+  GeneratedColumn<double> get recommendationIntensity => $composableBuilder(
+    column: $table.recommendationIntensity,
+    builder: (column) => column,
+  );
+}
+
+class $$ProfilePreferenceRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProfilePreferenceRecordsTable,
+          ProfilePreferenceRow,
+          $$ProfilePreferenceRecordsTableFilterComposer,
+          $$ProfilePreferenceRecordsTableOrderingComposer,
+          $$ProfilePreferenceRecordsTableAnnotationComposer,
+          $$ProfilePreferenceRecordsTableCreateCompanionBuilder,
+          $$ProfilePreferenceRecordsTableUpdateCompanionBuilder,
+          (
+            ProfilePreferenceRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ProfilePreferenceRecordsTable,
+              ProfilePreferenceRow
+            >,
+          ),
+          ProfilePreferenceRow,
+          PrefetchHooks Function()
+        > {
+  $$ProfilePreferenceRecordsTableTableManager(
+    _$AppDatabase db,
+    $ProfilePreferenceRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProfilePreferenceRecordsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ProfilePreferenceRecordsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ProfilePreferenceRecordsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<bool> ambientBackgroundEnabled = const Value.absent(),
+                Value<bool> reduceMotion = const Value.absent(),
+                Value<bool> reduceFlashing = const Value.absent(),
+                Value<bool> highContrast = const Value.absent(),
+                Value<String> ambientMotionMode = const Value.absent(),
+                Value<String> photographyPreferencesJson = const Value.absent(),
+                Value<String> activityPreferencesJson = const Value.absent(),
+                Value<String> equipmentList = const Value.absent(),
+                Value<String> aiTone = const Value.absent(),
+                Value<double> recommendationIntensity = const Value.absent(),
+              }) => ProfilePreferenceRecordsCompanion(
+                id: id,
+                ambientBackgroundEnabled: ambientBackgroundEnabled,
+                reduceMotion: reduceMotion,
+                reduceFlashing: reduceFlashing,
+                highContrast: highContrast,
+                ambientMotionMode: ambientMotionMode,
+                photographyPreferencesJson: photographyPreferencesJson,
+                activityPreferencesJson: activityPreferencesJson,
+                equipmentList: equipmentList,
+                aiTone: aiTone,
+                recommendationIntensity: recommendationIntensity,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required bool ambientBackgroundEnabled,
+                required bool reduceMotion,
+                required bool reduceFlashing,
+                required bool highContrast,
+                required String ambientMotionMode,
+                required String photographyPreferencesJson,
+                required String activityPreferencesJson,
+                required String equipmentList,
+                required String aiTone,
+                required double recommendationIntensity,
+              }) => ProfilePreferenceRecordsCompanion.insert(
+                id: id,
+                ambientBackgroundEnabled: ambientBackgroundEnabled,
+                reduceMotion: reduceMotion,
+                reduceFlashing: reduceFlashing,
+                highContrast: highContrast,
+                ambientMotionMode: ambientMotionMode,
+                photographyPreferencesJson: photographyPreferencesJson,
+                activityPreferencesJson: activityPreferencesJson,
+                equipmentList: equipmentList,
+                aiTone: aiTone,
+                recommendationIntensity: recommendationIntensity,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProfilePreferenceRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProfilePreferenceRecordsTable,
+      ProfilePreferenceRow,
+      $$ProfilePreferenceRecordsTableFilterComposer,
+      $$ProfilePreferenceRecordsTableOrderingComposer,
+      $$ProfilePreferenceRecordsTableAnnotationComposer,
+      $$ProfilePreferenceRecordsTableCreateCompanionBuilder,
+      $$ProfilePreferenceRecordsTableUpdateCompanionBuilder,
+      (
+        ProfilePreferenceRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ProfilePreferenceRecordsTable,
+          ProfilePreferenceRow
+        >,
+      ),
+      ProfilePreferenceRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1160,5 +2253,10 @@ class $AppDatabaseManager {
       $$RecentRouteDestinationsTableTableManager(
         _db,
         _db.recentRouteDestinations,
+      );
+  $$ProfilePreferenceRecordsTableTableManager get profilePreferenceRecords =>
+      $$ProfilePreferenceRecordsTableTableManager(
+        _db,
+        _db.profilePreferenceRecords,
       );
 }

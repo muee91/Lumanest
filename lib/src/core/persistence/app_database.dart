@@ -47,7 +47,38 @@ class RecentRouteDestinations extends Table {
   ];
 }
 
-@DriftDatabase(tables: [SavedPlaces, RecentRouteDestinations])
+@DataClassName('ProfilePreferenceRow')
+class ProfilePreferenceRecords extends Table {
+  @override
+  String get tableName => 'profile_preferences';
+
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  BoolColumn get ambientBackgroundEnabled => boolean()();
+  BoolColumn get reduceMotion => boolean()();
+  BoolColumn get reduceFlashing => boolean()();
+  BoolColumn get highContrast => boolean()();
+  TextColumn get ambientMotionMode => text()();
+  TextColumn get photographyPreferencesJson => text()();
+  TextColumn get activityPreferencesJson => text()();
+  TextColumn get equipmentList => text()();
+  TextColumn get aiTone => text()();
+  RealColumn get recommendationIntensity => real()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (id = 1)',
+    "CHECK (ambient_motion_mode IN ('full', 'energySaver', 'staticColor'))",
+    "CHECK (ai_tone IN ('concise', 'balanced', 'detailed'))",
+    'CHECK (recommendation_intensity BETWEEN 0 AND 1)',
+  ];
+}
+
+@DriftDatabase(
+  tables: [SavedPlaces, RecentRouteDestinations, ProfilePreferenceRecords],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
@@ -55,7 +86,16 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        await migrator.createTable(profilePreferenceRecords);
+      }
+    },
+  );
 }
 
 /// Overridden by the Flutter test bootstrap so widget tests never open or
