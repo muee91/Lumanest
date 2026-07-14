@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_colors.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
@@ -22,6 +24,8 @@ class AmbientCanvas extends StatefulWidget {
     this.reduceMotion = false,
     this.reduceFlashing = false,
     this.showWeatherTexture = true,
+    this.intensity = 1.0,
+    this.interactionSuppressed,
   });
 
   final AmbientPalette? palette;
@@ -29,6 +33,15 @@ class AmbientCanvas extends StatefulWidget {
   final bool reduceMotion;
   final bool reduceFlashing;
   final bool showWeatherTexture;
+
+  /// Page-level ambient strength (0.0 = static, 1.0 = full). May exceed 1.0
+  /// for pages that want an enhanced reflective look (design §9.2).
+  final double intensity;
+
+  /// Optional externally-driven flag that becomes true while the user is
+  /// scrolling or otherwise interacting, so the canvas can dampen motion per
+  /// design §9.3. The canvas listens to this and rebuilds on change.
+  final ValueListenable<bool>? interactionSuppressed;
 
   @override
   State<AmbientCanvas> createState() => _AmbientCanvasState();
@@ -38,6 +51,13 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     with TickerProviderStateMixin {
   AnimationController? _controller;
   CurvedAnimation? _curvedAnimation;
+
+  // Gust-driven occasional disturbance (design §9.1: 阵风决定偶发扰动).
+  AnimationController? _gustController;
+  Timer? _gustTimer;
+  late final math.Random _gustRandom;
+
+  bool get _shouldAnimate => !widget.reduceMotion && widget.intensity > 0;
 
   void _startAnimation() {
     _stopAnimation();
@@ -59,29 +79,97 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     _curvedAnimation = null;
   }
 
+  void _syncAnimation() {
+    if (_shouldAnimate) {
+      if (_controller == null) _startAnimation();
+    } else {
+      _stopAnimation();
+    }
+  }
+
+  /// Schedules the next gust pulse. Higher gust factors shorten the interval
+  /// toward the 3–8 second band; the pulse itself is a brief forward/reverse
+  /// spike layered on top of the steady wind motion.
+  void _ensureGust() {
+    final gustFactor = widget.visualState?.gustFactor ?? 0;
+    final shouldGust = _shouldAnimate && gustFactor > 0;
+    if (!shouldGust) {
+      _stopGust();
+      return;
+    }
+    _gustController ??=
+        AnimationController(
+          duration: const Duration(milliseconds: 700),
+          vsync: this,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            _gustController?.reverse();
+          }
+        });
+    _scheduleNextGust(gustFactor);
+  }
+
+  void _scheduleNextGust(double gustFactor) {
+    _gustTimer?.cancel();
+    const minMs = 3000;
+    const maxMs = 8000;
+    final span = (maxMs - minMs) * (1 - gustFactor.clamp(0.0, 1.0));
+    final delay = minMs + span + _gustRandom.nextDouble() * 800;
+    _gustTimer = Timer(Duration(milliseconds: delay.round()), () {
+      if (!mounted) return;
+      if (_shouldAnimate) {
+        _gustController?.forward();
+      }
+      _scheduleNextGust(gustFactor);
+    });
+  }
+
+  void _stopGust() {
+    _gustTimer?.cancel();
+    _gustTimer = null;
+    _gustController?.stop();
+    _gustController?.dispose();
+    _gustController = null;
+  }
+
+  void _handleSuppression() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
-    if (!widget.reduceMotion) {
-      _startAnimation();
-    }
+    _gustRandom = math.Random();
+    widget.interactionSuppressed?.addListener(_handleSuppression);
+    _syncAnimation();
+    _ensureGust();
   }
 
   @override
   void didUpdateWidget(AmbientCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.reduceMotion == oldWidget.reduceMotion) return;
-
-    if (widget.reduceMotion) {
-      _stopAnimation();
-    } else {
-      _startAnimation();
+    if (widget.interactionSuppressed != oldWidget.interactionSuppressed) {
+      oldWidget.interactionSuppressed?.removeListener(_handleSuppression);
+      widget.interactionSuppressed?.addListener(_handleSuppression);
+    }
+    final motionChanged =
+        widget.reduceMotion != oldWidget.reduceMotion ||
+        widget.intensity != oldWidget.intensity;
+    if (motionChanged) _syncAnimation();
+    // Re-evaluate gust scheduling when any of its inputs change so that a
+    // new weather snapshot (gustFactor) or route intensity update takes effect.
+    if (motionChanged ||
+        widget.visualState != oldWidget.visualState ||
+        widget.intensity != oldWidget.intensity) {
+      _ensureGust();
     }
   }
 
   @override
   void dispose() {
+    widget.interactionSuppressed?.removeListener(_handleSuppression);
     _stopAnimation();
+    _stopGust();
     super.dispose();
   }
 
@@ -102,7 +190,28 @@ class _AmbientCanvasState extends State<AmbientCanvas>
             : LumaNestColors.ambientBottomLight);
 
     final direction = _flowAlignment(visualState?.flowDirection ?? 180);
-    final motionIntensity = visualState?.motionIntensity ?? 0.16;
+    final baseMotion = visualState?.motionIntensity ?? 0.16;
+
+    // Page-level intensity scales every visual channel (design §9.2).
+    final intensity = widget.intensity.clamp(0.0, 1.5);
+
+    // Auto-decelerate while the user scrolls or the keyboard is open so the
+    // background stops competing for attention (design §9.3).
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final suppressed =
+        (widget.interactionSuppressed?.value ?? false) || keyboardOpen;
+    final effectiveMotion = baseMotion * intensity * (suppressed ? 0.15 : 1.0);
+
+    final cloudOpacity = ((visualState?.cloudOpacity ?? 0) * intensity).clamp(
+      0.0,
+      0.4,
+    );
+    final warmGlow = ((visualState?.warmGlow ?? 0) * 0.28 * intensity).clamp(
+      0.0,
+      0.4,
+    );
+    final gustFactor = visualState?.gustFactor ?? 0.0;
+
     Widget gradientLayer = _gradient(
       topColor,
       bottomColor,
@@ -111,19 +220,33 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     );
 
     if (_curvedAnimation != null) {
+      final sources = <Listenable>[_curvedAnimation!];
+      if (_gustController != null) sources.add(_gustController!);
+      final merged = Listenable.merge(sources);
       gradientLayer = AnimatedBuilder(
-        animation: _curvedAnimation!,
+        animation: merged,
         builder: (_, child) {
           final t = _curvedAnimation!.value;
+          final gustPulse = _gustController?.value ?? 0;
+          final baseOffset = (t - .5) * effectiveMotion;
+          final gustOffset = suppressed
+              ? 0.0
+              : gustPulse * gustFactor * intensity * 0.3;
           return _gradient(
             topColor,
             bottomColor,
             direction,
-            motionOffset: (t - .5) * motionIntensity,
+            motionOffset: baseOffset + gustOffset,
           );
         },
       );
     }
+
+    final precipIntensity =
+        ((visualState?.precipitationIntensity ?? 0) * intensity).clamp(
+          0.0,
+          1.0,
+        );
 
     return SizedBox.expand(
       child: IgnorePointer(
@@ -131,19 +254,25 @@ class _AmbientCanvasState extends State<AmbientCanvas>
           fit: StackFit.expand,
           children: [
             gradientLayer,
-            if (widget.showWeatherTexture &&
-                (visualState?.precipitationIntensity ?? 0) > 0)
+            if (cloudOpacity > 0.001)
+              ColoredBox(color: Colors.grey.withValues(alpha: cloudOpacity)),
+            if (warmGlow > 0.001)
+              ColoredBox(
+                color: const Color(0xFFFF7043).withValues(alpha: warmGlow),
+              ),
+            if (widget.showWeatherTexture && precipIntensity > 0.01)
               CustomPaint(
                 painter: _PrecipitationTexturePainter(
-                  intensity: visualState!.precipitationIntensity,
-                  directionDegrees: visualState.flowDirection,
+                  intensity: precipIntensity,
+                  directionDegrees: visualState!.flowDirection,
                   isSnow: false,
                 ),
               ),
             if (widget.showWeatherTexture &&
                 visualState?.thunderstorm == true &&
-                !widget.reduceFlashing)
-              _ThunderPulse(animation: _curvedAnimation),
+                !widget.reduceFlashing &&
+                intensity > 0)
+              _ThunderPulse(animation: _curvedAnimation, intensity: intensity),
           ],
         ),
       ),
@@ -217,9 +346,10 @@ class _PrecipitationTexturePainter extends CustomPainter {
 }
 
 class _ThunderPulse extends StatelessWidget {
-  const _ThunderPulse({required this.animation});
+  const _ThunderPulse({required this.animation, required this.intensity});
 
   final Animation<double>? animation;
+  final double intensity;
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +359,9 @@ class _ThunderPulse extends StatelessWidget {
       builder: (_, _) {
         final nearPeak = (animation!.value - .92).abs() < .018;
         return ColoredBox(
-          color: Colors.white.withValues(alpha: nearPeak ? .06 : 0),
+          color: Colors.white.withValues(
+            alpha: nearPeak ? (0.06 * intensity).clamp(0.0, 0.08) : 0,
+          ),
         );
       },
     );

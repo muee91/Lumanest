@@ -192,5 +192,50 @@ void main() {
       expect(state.precipitationIntensity, closeTo(.75, .001));
       expect(state.thunderstorm, isTrue);
     });
+
+    test(
+      'snapshot maps measured cloud cover and dawn warmth deterministically',
+      () {
+        final state = mapper.resolveSnapshot(
+          ContextSnapshot(
+            id: 'clear-dawn',
+            observedAt: DateTime.utc(2026, 7, 12),
+            expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+            primaryScene: SceneType.mountain,
+            dayPhase: DayPhase.dawn,
+            weather: WeatherType.clear,
+            activeRoute: false,
+            cloudCoverPercent: 20,
+          ),
+          Brightness.light,
+        );
+
+        expect(state.cloudOpacity, closeTo(.08, .001));
+        expect(state.warmGlow, greaterThan(0));
+        expect(state.gustFactor, inInclusiveRange(0, 1));
+      },
+    );
+
+    test('dense cloud suppresses warm glow and clamps visual channels', () {
+      final state = mapper.resolveSnapshot(
+        ContextSnapshot(
+          id: 'cloudy-dawn',
+          observedAt: DateTime.utc(2026, 7, 12),
+          expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+          primaryScene: SceneType.city,
+          dayPhase: DayPhase.dawn,
+          weather: WeatherType.cloudy,
+          activeRoute: false,
+          cloudCoverPercent: 140,
+          windSpeedMetersPerSecond: 80,
+        ),
+        Brightness.light,
+      );
+
+      expect(state.cloudOpacity, .4);
+      expect(state.warmGlow, 0);
+      expect(state.gustFactor, 1);
+      expect(state.motionIntensity, .4);
+    });
   });
 }

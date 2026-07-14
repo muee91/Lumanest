@@ -37,4 +37,17 @@ void main() {
     expect(rendering.reduceFlashing, isTrue);
     expect(rendering.showWeatherTexture, isTrue);
   });
+
+  test('route intensity follows the page hierarchy', () {
+    expect(AmbientRenderingPolicy.intensityForRoute('/today'), 1.0);
+    expect(AmbientRenderingPolicy.intensityForRoute('/inspiration'), 1.2);
+    expect(AmbientRenderingPolicy.intensityForRoute('/explore'), 0.3);
+    expect(AmbientRenderingPolicy.intensityForRoute('/route'), 0.15);
+    expect(AmbientRenderingPolicy.intensityForRoute('/profile'), 0.0);
+  });
+
+  test('nested routes inherit their top-level intensity', () {
+    expect(AmbientRenderingPolicy.intensityForRoute('/explore/search'), 0.3);
+    expect(AmbientRenderingPolicy.intensityForRoute('/route/active'), 0.15);
+  });
 }

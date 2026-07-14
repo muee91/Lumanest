@@ -35,17 +35,26 @@ class _LumaNestRoot extends ConsumerStatefulWidget {
 class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     with WidgetsBindingObserver {
   late final GoRouter _router;
+  String _routeLocation = '/today';
+  bool _routeRefreshScheduled = false;
+
+  /// Becomes true while the user scrolls content so the ambient canvas can
+  /// auto-decelerate per design §9.3.
+  final ValueNotifier<bool> _interactionSuppressed = ValueNotifier(false);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _router = createLumaNestRouter(initialContext: widget.initialContext);
+    _router.routerDelegate.addListener(_handleRouterChange);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _router.routerDelegate.removeListener(_handleRouterChange);
+    _interactionSuppressed.dispose();
     _router.dispose();
     super.dispose();
   }
@@ -62,10 +71,6 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         .asData
         ?.value
         .shouldConserveEnergy;
-    final ambientRendering = AmbientRenderingPolicy.resolve(
-      preferences,
-      conserveDeviceEnergy: conserveDeviceEnergy ?? false,
-    );
 
     return MaterialApp.router(
       title: '栖光',
@@ -83,6 +88,11 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         final systemDisablesAnimations = MediaQuery.disableAnimationsOf(
           context,
         );
+        final ambientRendering = AmbientRenderingPolicy.resolve(
+          preferences,
+          conserveDeviceEnergy: conserveDeviceEnergy ?? false,
+          routeLocation: _routeLocation,
+        );
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -96,8 +106,20 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
                     ambientRendering.reduceMotion || systemDisablesAnimations,
                 reduceFlashing: ambientRendering.reduceFlashing,
                 showWeatherTexture: ambientRendering.showWeatherTexture,
+                intensity: ambientRendering.intensity,
+                interactionSuppressed: _interactionSuppressed,
               ),
-            ?child,
+            NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollStartNotification) {
+                  _interactionSuppressed.value = true;
+                } else if (notification is ScrollEndNotification) {
+                  _interactionSuppressed.value = false;
+                }
+                return false;
+              },
+              child: child ?? const SizedBox.shrink(),
+            ),
           ],
         );
       },
@@ -121,6 +143,18 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
       loading: () => null,
       error: (_, _) => null,
     );
+  }
+
+  void _handleRouterChange() {
+    if (_routeRefreshScheduled) return;
+    _routeRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _routeRefreshScheduled = false;
+      if (!mounted) return;
+      final nextLocation = _router.routerDelegate.currentConfiguration.uri.path;
+      if (nextLocation == _routeLocation) return;
+      setState(() => _routeLocation = nextLocation);
+    });
   }
 
   @override

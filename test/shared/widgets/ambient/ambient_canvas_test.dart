@@ -112,4 +112,38 @@ void main() {
     );
     expect(tester.binding.transientCallbackCount, 0);
   });
+
+  testWidgets(
+    'zero intensity stops ticker and restarting intensity restores it',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AmbientCanvas(reduceMotion: false, intensity: 0),
+          ),
+        ),
+      );
+      expect(tester.binding.transientCallbackCount, 0);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AmbientCanvas(reduceMotion: false, intensity: 0.3),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AmbientCanvas(reduceMotion: false, intensity: 0),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.binding.transientCallbackCount, 0);
+    },
+  );
 }
