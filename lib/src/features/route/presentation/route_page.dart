@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
@@ -47,32 +48,15 @@ class RoutePage extends ConsumerWidget {
     if (destinationName == null ||
         destinationLatitude == null ||
         destinationLongitude == null) {
-      return ref
-          .watch(userLibraryProvider)
-          .when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) =>
-                _EmptyRouteView(onExplore: () => context.go('/explore')),
-            data: (library) {
-              final recent = library.recentRoute;
-              if (recent == null) {
-                return _EmptyRouteView(onExplore: () => context.go('/explore'));
-              }
-              return _buildRoute(
-                context,
-                ref,
-                SavedRouteDestination(
-                  name: recent.name,
-                  latitude: recent.latitude,
-                  longitude: recent.longitude,
-                  travelMode: recent.travelMode,
-                ),
-                mode: recent.travelMode == RouteTravelMode.walking.name
-                    ? RouteTravelMode.walking
-                    : RouteTravelMode.driving,
-              );
-            },
-          );
+      return _RouteNoneSync(
+        child: ref
+            .watch(userLibraryProvider)
+            .when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) => const _EmptyRouteView(),
+              data: (_) => const _EmptyRouteView(),
+            ),
+      );
     }
     return _buildRoute(
       context,
@@ -117,6 +101,9 @@ class RoutePage extends ConsumerWidget {
             child: _RouteModeSelector(
               selected: mode,
               onChanged: (selectedMode) {
+                // Do not write route state here: the new route has not loaded
+                // yet. Navigating rebuilds RoutePage with the new mode; once the
+                // new DrivingRoute succeeds, _RouteContent marks it planned.
                 unawaited(
                   ref
                       .read(userLibraryProvider.notifier)
@@ -155,6 +142,9 @@ class RoutePage extends ConsumerWidget {
                 snapshot: snapshot,
                 departureAt: timelineNow ?? DateTime.now(),
                 routeMapBuilder: routeMapBuilder,
+                travelMode: mode,
+                destinationLatitude: saved.latitude,
+                destinationLongitude: saved.longitude,
               ),
             ),
           ),
@@ -190,32 +180,67 @@ class _RouteModeSelector extends StatelessWidget {
   );
 }
 
-class _EmptyRouteView extends StatelessWidget {
-  const _EmptyRouteView({required this.onExplore});
-
-  final VoidCallback onExplore;
+class _EmptyRouteView extends ConsumerWidget {
+  const _EmptyRouteView();
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: const EdgeInsets.all(LumaNestSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.route_outlined, size: LumaNestSpacing.xl),
-          const SizedBox(height: LumaNestSpacing.lg),
-          Text('路线', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: LumaNestSpacing.sm),
-          const Text('从探索页选择机位、加油站或补给点，栖光会从当前位置生成路线。'),
-          const Spacer(),
-          FilledButton.icon(
-            onPressed: onExplore,
-            icon: const Icon(Icons.explore_outlined),
-            label: const Text('去探索目的地'),
-          ),
-        ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(userLibraryProvider).asData?.value;
+    final recentRoute = library?.recentRoute;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(LumaNestSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.route_outlined, size: LumaNestSpacing.xl),
+            const SizedBox(height: LumaNestSpacing.lg),
+            Text('路线', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: LumaNestSpacing.sm),
+            const Text('从探索页选择机位、加油站或补给点，栖光会从当前位置生成路线。'),
+            const SizedBox(height: LumaNestSpacing.lg),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => context.go('/explore'),
+                  icon: const Icon(Icons.explore_outlined),
+                  label: const Text('去探索目的地'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: () => context.go('/explore'),
+                  icon: const Icon(Icons.add_road_outlined),
+                  label: const Text('创建路线'),
+                ),
+              ],
+            ),
+            const SizedBox(height: LumaNestSpacing.lg),
+            Text('历史路线', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (recentRoute != null)
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: Text(recentRoute.name),
+                trailing: const Icon(Icons.arrow_outward),
+                onTap: () => context.go(_routeUri(recentRoute).toString()),
+              )
+            else
+              const Text('暂无历史路线'),
+          ],
+        ),
       ),
-    ),
+    );
+  }
+
+  static Uri _routeUri(SavedRouteDestination destination) => Uri(
+    path: '/route',
+    queryParameters: {
+      'name': destination.name,
+      'lat': '${destination.latitude}',
+      'lon': '${destination.longitude}',
+      'mode': destination.travelMode,
+    },
   );
 }
 
@@ -225,12 +250,18 @@ class _RouteContent extends ConsumerStatefulWidget {
     required this.snapshot,
     required this.departureAt,
     required this.routeMapBuilder,
+    required this.travelMode,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
   });
 
   final DrivingRoute route;
   final ContextSnapshot? snapshot;
   final DateTime departureAt;
   final RouteMapBuilder? routeMapBuilder;
+  final RouteTravelMode travelMode;
+  final double destinationLatitude;
+  final double destinationLongitude;
 
   @override
   ConsumerState<_RouteContent> createState() => _RouteContentState();
@@ -238,6 +269,44 @@ class _RouteContent extends ConsumerStatefulWidget {
 
 class _RouteContentState extends ConsumerState<_RouteContent> {
   AsyncValue<List<NearbyPlace>>? _support;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncPlanned();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RouteContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.travelMode != widget.travelMode ||
+        oldWidget.destinationLatitude != widget.destinationLatitude ||
+        oldWidget.destinationLongitude != widget.destinationLongitude) {
+      _syncPlanned();
+    }
+  }
+
+  /// Marks the route as planned (with the current travel mode) once a route is
+  /// successfully displayed. Runs after the current build so it never writes
+  /// provider state during build. It only downgrades to planned when the user
+  /// is not already active/paused on the same route (identified by destination
+  /// coordinates + travel mode), so a rebuild does not reset an in-progress
+  /// follow, while switching to a different destination resets to planned.
+  void _syncPlanned() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(routeContextStateProvider.notifier)
+          .plan(
+            _contextMode(widget.travelMode),
+            identity: RouteIdentity(
+              latitude: widget.destinationLatitude,
+              longitude: widget.destinationLongitude,
+              mode: _contextMode(widget.travelMode),
+            ),
+          );
+    });
+  }
 
   Future<void> _scanSupport() async {
     setState(() => _support = const AsyncLoading());
@@ -276,6 +345,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final durationLabel = hours > 0 ? '$hours 小时 $minutes 分' : '$minutes 分钟';
+    final routeState = ref.watch(routeContextStateProvider);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
       children: [
@@ -285,6 +355,8 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           '前往 ${route.destinationName}',
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        const SizedBox(height: 10),
+        _RouteLifecycleBar(state: routeState),
         if (route.isStale) ...[
           const SizedBox(height: 12),
           Material(
@@ -552,4 +624,120 @@ class _RouteErrorView extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Maps the route feature travel mode to the core context route mode.
+ContextRouteMode _contextMode(RouteTravelMode mode) =>
+    mode == RouteTravelMode.walking
+    ? ContextRouteMode.hiking
+    : ContextRouteMode.driving;
+
+/// Synchronizes the route context state to [none] when the route page has no
+/// destination. All writes happen in a post-frame callback so they never run
+/// during build.
+class _RouteNoneSync extends ConsumerStatefulWidget {
+  const _RouteNoneSync({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_RouteNoneSync> createState() => _RouteNoneSyncState();
+}
+
+class _RouteNoneSyncState extends ConsumerState<_RouteNoneSync> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(routeContextStateProvider.notifier).end();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Honest lifecycle controls for route context following. These buttons drive
+/// [routeContextStateProvider] so the environment snapshot pipeline can follow
+/// the user's route. They do NOT provide turn-by-turn navigation.
+class _RouteLifecycleBar extends ConsumerWidget {
+  const _RouteLifecycleBar({required this.state});
+
+  final RouteContextState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(routeContextStateProvider.notifier);
+    final hasRoute = state.hasRoute;
+    final isActive = state.isActive;
+    final isPaused = state.stage == ContextRouteStage.paused;
+    final isPlanned = state.isPlanned;
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('情境跟随', style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 2),
+            Text(
+              '控制环境情境跟随路线，不提供逐向导航。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                // Start is only meaningful when a route is planned. A none
+                // state (e.g. after ending the trip) must not offer a button
+                // that start() cannot act on.
+                if (isPlanned)
+                  FilledButton.icon(
+                    onPressed: () => notifier.start(),
+                    icon: const Icon(Icons.play_arrow_outlined),
+                    label: const Text('开始行程'),
+                  ),
+                if (isActive)
+                  FilledButton.tonalIcon(
+                    onPressed: () => notifier.pause(),
+                    icon: const Icon(Icons.pause_outlined),
+                    label: const Text('暂停'),
+                  ),
+                if (isPaused)
+                  FilledButton.tonalIcon(
+                    onPressed: () => notifier.resume(),
+                    icon: const Icon(Icons.play_arrow_outlined),
+                    label: const Text('继续'),
+                  ),
+                if (isPlanned)
+                  OutlinedButton(
+                    onPressed: () {
+                      notifier.end();
+                      // Cancel the planned route: leave the destination so the
+                      // page and state stay consistent (no destination, none).
+                      context.go('/route');
+                    },
+                    child: const Text('取消规划'),
+                  ),
+                if (hasRoute && !isPlanned)
+                  OutlinedButton(
+                    onPressed: () {
+                      notifier.end();
+                      // Leave the destination route so the page and state stay
+                      // consistent: no destination, none state.
+                      context.go('/route');
+                    },
+                    child: const Text('结束行程'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

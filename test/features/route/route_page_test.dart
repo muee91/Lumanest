@@ -1,9 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/core/context/context_event.dart' as context;
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/presentation/route_page.dart';
-import 'package:luma_nest/src/core/context/context_snapshot.dart';
+
+DrivingRoute _drivingRoute() => DrivingRoute(
+  destinationName: '湖岸机位',
+  distanceMeters: 5000,
+  durationSeconds: const Duration(hours: 2).inSeconds,
+  tollsYuan: 0,
+  polyline: const [],
+);
+
+Widget _routeApp(
+  ProviderContainer container, {
+  AsyncValue<DrivingRoute>? routeAsync,
+  RouteTravelMode travelMode = RouteTravelMode.driving,
+  String destinationName = '湖岸机位',
+  double destinationLatitude = 31,
+  double destinationLongitude = 121,
+}) {
+  return UncontrolledProviderScope(
+    container: container,
+    child: MaterialApp.router(
+      routerConfig: GoRouter(
+        initialLocation:
+            '/route?name=$destinationName&lat=$destinationLatitude&lon=$destinationLongitude&mode=${travelMode.name}',
+        routes: [
+          GoRoute(
+            path: '/route',
+            builder: (context, state) => Scaffold(
+              body: RoutePage(
+                destinationName: state.uri.queryParameters['name'],
+                destinationLatitude: double.tryParse(
+                  state.uri.queryParameters['lat'] ?? '',
+                ),
+                destinationLongitude: double.tryParse(
+                  state.uri.queryParameters['lon'] ?? '',
+                ),
+                routeAsync: routeAsync,
+                travelMode: travelMode,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 void main() {
   testWidgets('labels cached routes and explains their limitation', (
@@ -61,6 +109,19 @@ void main() {
       weather: WeatherType.clear,
       activeRoute: true,
       safetyEventIds: const ['strong-wind'],
+      events: [
+        context.ContextEvent(
+          id: 'strong-wind',
+          channel: context.ContextEventChannel.safety,
+          source: context.ContextEventSource.weather,
+          observedAt: now,
+          expiresAt: now.add(const Duration(minutes: 15)),
+          confidence: 0.9,
+          geoScope: context.ContextGeoScope.route,
+          safetyLevel: context.ContextSafetyLevel.warning,
+          allowedAction: context.ContextAction.openSafety,
+        ),
+      ],
       sunrise: now.subtract(const Duration(hours: 8)),
       sunset: now.add(const Duration(minutes: 50)),
     );
@@ -180,5 +241,166 @@ void main() {
     expect(find.text('128 m'), findsOneWidget);
     expect(find.textContaining('高程来源：Open-Meteo'), findsOneWidget);
     expect(find.textContaining('不替代专业测绘'), findsOneWidget);
+  });
+
+  testWidgets(
+    'empty route page exposes explore and create actions but not track import',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(home: Scaffold(body: RoutePage())),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('去探索目的地'), findsOneWidget);
+      expect(find.text('创建路线'), findsOneWidget);
+      // The GPX/KML track import entry was a V1 dead button (only showed a
+      // "coming soon" SnackBar with no parsing pipeline). It must not ship,
+      // so the empty route page must not expose it.
+      expect(find.text('导入轨迹'), findsNothing);
+      expect(find.byIcon(Icons.file_upload_outlined), findsNothing);
+    },
+  );
+
+  // Lifecycle coverage: the following tests verify the route context state
+  // transitions that RoutePage drives through routeContextStateProvider. They
+  // do not exercise turn-by-turn navigation (which is explicitly out of scope
+  // for RoutePage). The "end" transition is verified by calling the notifier
+  // directly because the end button also navigates via go_router, which would
+  // require a full router shell; the notifier call is the exact same code path
+  // the button uses.
+
+  group('route context lifecycle', () {
+    late ProviderContainer container;
+
+    setUp(() {
+      container = ProviderContainer();
+      addTearDown(container.dispose);
+    });
+
+    RouteContextState state() => container.read(routeContextStateProvider);
+
+    Future<void> pumpRoute(
+      WidgetTester tester, {
+      RouteTravelMode travelMode = RouteTravelMode.driving,
+    }) async {
+      await tester.pumpWidget(
+        _routeApp(
+          container,
+          routeAsync: AsyncData(_drivingRoute()),
+          travelMode: travelMode,
+        ),
+      );
+      // Run the post-frame callback that _RouteContent schedules in initState.
+      await tester.pump();
+    }
+
+    testWidgets('marks the route as planned after a successful route loads', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+      expect(state().mode, ContextRouteMode.driving);
+      expect(state().stage, ContextRouteStage.planned);
+      expect(find.text('开始行程'), findsOneWidget);
+    });
+
+    testWidgets('start, pause, resume transitions drive the state', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+
+      await tester.tap(find.text('开始行程'));
+      await tester.pump();
+      expect(state(), RouteContextState.active(ContextRouteMode.driving));
+
+      await tester.tap(find.text('暂停'));
+      await tester.pump();
+      expect(state(), RouteContextState.paused(ContextRouteMode.driving));
+
+      await tester.tap(find.text('继续'));
+      await tester.pump();
+      expect(state(), RouteContextState.active(ContextRouteMode.driving));
+    });
+
+    testWidgets('rebuild does not downgrade an active route to planned', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+      await tester.tap(find.text('开始行程'));
+      await tester.pump();
+      expect(state().stage, ContextRouteStage.active);
+
+      // Rebuild with the same route data. _syncPlanned must not downgrade.
+      await tester.pumpWidget(
+        _routeApp(container, routeAsync: AsyncData(_drivingRoute())),
+      );
+      await tester.pump();
+
+      expect(state().stage, ContextRouteStage.active);
+    });
+
+    testWidgets('a different destination on the same mode resets to planned', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+      await tester.tap(find.text('开始行程'));
+      await tester.pump();
+      expect(state(), RouteContextState.active(ContextRouteMode.driving));
+
+      await tester.pumpWidget(
+        _routeApp(
+          container,
+          routeAsync: AsyncData(_drivingRoute()),
+          destinationName: '山谷机位',
+          destinationLatitude: 30,
+          destinationLongitude: 120,
+        ),
+      );
+      await tester.pump();
+
+      expect(state(), RouteContextState.planned(ContextRouteMode.driving));
+      expect(find.text('开始行程'), findsOneWidget);
+    });
+
+    testWidgets('a planned route can be cancelled from the lifecycle bar', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+      expect(state(), RouteContextState.planned(ContextRouteMode.driving));
+
+      await tester.tap(find.text('取消规划'));
+      await tester.pumpAndSettle();
+
+      expect(state(), RouteContextState.none);
+      expect(find.text('取消规划'), findsNothing);
+      expect(find.text('去探索目的地'), findsOneWidget);
+    });
+
+    testWidgets(
+      'ending the route clears the state to none and shows an empty route',
+      (tester) async {
+        await pumpRoute(tester);
+        await tester.tap(find.text('开始行程'));
+        await tester.pump();
+        expect(state().stage, ContextRouteStage.active);
+
+        // The end button also calls context.go('/route'); we invoke the same
+        // notifier method directly to verify the state transition without
+        // requiring a full navigation assertion.
+        container.read(routeContextStateProvider.notifier).end();
+        await tester.pump();
+
+        expect(state(), RouteContextState.none);
+        // After end, the lifecycle bar must not offer start (no planned state).
+        expect(find.text('开始行程'), findsNothing);
+      },
+    );
+
+    testWidgets('walking route plans as hiking mode', (tester) async {
+      await pumpRoute(tester, travelMode: RouteTravelMode.walking);
+      expect(state().mode, ContextRouteMode.hiking);
+      expect(state().stage, ContextRouteStage.planned);
+    });
   });
 }
