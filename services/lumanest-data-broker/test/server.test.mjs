@@ -331,7 +331,7 @@ test('Amap proxy rejects malformed coordinates before forwarding', async () => {
   });
 });
 
-test('Amap scene evidence proxies bounded reverse geocoding context', async () => {
+test('Amap scene evidence forwards the client-provided GCJ-02 coordinate verbatim', async () => {
   let upstreamUrl;
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/amap/scene-evidence?location=120.15,30.25`, {
@@ -345,12 +345,14 @@ test('Amap scene evidence proxies bounded reverse geocoding context', async () =
     },
   });
   assert.equal(upstreamUrl.pathname, '/v3/geocode/regeo');
+  // The broker must forward the client-provided GCJ-02 coordinate unchanged.
+  // The Flutter client owns the single WGS84 → GCJ-02 conversion boundary.
   assert.equal(upstreamUrl.searchParams.get('location'), '120.15,30.25');
   assert.equal(upstreamUrl.searchParams.get('radius'), '3000');
   assert.equal(upstreamUrl.searchParams.get('extensions'), 'all');
 });
 
-test('Amap walking route uses the walking upstream without driving strategy', async () => {
+test('Amap walking route forwards client-provided GCJ-02 origin and destination verbatim', async () => {
   let upstreamUrl;
   await withServer(async (baseUrl) => {
     const response = await fetch(
@@ -365,7 +367,50 @@ test('Amap walking route uses the walking upstream without driving strategy', as
     },
   });
   assert.equal(upstreamUrl.pathname, '/v3/direction/walking');
+  assert.equal(upstreamUrl.searchParams.get('origin'), '121.47,31.23');
+  assert.equal(upstreamUrl.searchParams.get('destination'), '121.48,31.24');
   assert.equal(upstreamUrl.searchParams.has('strategy'), false);
+});
+
+test('Amap driving route forwards client-provided GCJ-02 origin and destination verbatim', async () => {
+  let upstreamUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/amap/driving?origin=121.47,31.23&destination=121.4998,31.2397`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+  }, {
+    fetcher: async (url) => {
+      upstreamUrl = url;
+      return new Response(JSON.stringify({ status: '1', route: { paths: [] } }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamUrl.pathname, '/v3/direction/driving');
+  assert.equal(upstreamUrl.searchParams.get('origin'), '121.47,31.23');
+  assert.equal(upstreamUrl.searchParams.get('destination'), '121.4998,31.2397');
+  assert.equal(upstreamUrl.searchParams.get('strategy'), '0');
+});
+
+test('Amap nearby forwards the client-provided GCJ-02 location verbatim', async () => {
+  let upstreamUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/amap/nearby?location=121.4782,31.2285&keywords=观景台&radius=5000`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, '1');
+  }, {
+    fetcher: async (url) => {
+      upstreamUrl = url;
+      return new Response(JSON.stringify({ status: '1', pois: [] }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamUrl.pathname, '/v3/place/around');
+  assert.equal(upstreamUrl.searchParams.get('location'), '121.4782,31.2285');
+  assert.equal(upstreamUrl.searchParams.get('keywords'), '观景台');
+  assert.equal(upstreamUrl.searchParams.get('radius'), '5000');
 });
 
 test('elevation profile returns only a same-length sanitized array', async () => {

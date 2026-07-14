@@ -180,6 +180,10 @@ async function elevationProfile({ locations, fetcher, cache, now, cacheTtlMillis
   }
 }
 
+// Amap-specific endpoints forward client-provided GCJ-02 coordinates to the
+// AMap upstream verbatim. The Flutter client owns the single WGS84 → GCJ-02
+// conversion boundary (see ChinaCoordinateConverter); the broker must never
+// re-convert, because that would double-offset mainland coordinates.
 async function forwardAmap(response, path, parameters, amapWebKey, fetcher, timeoutMs) {
   const url = new URL(path, amapBaseUrl);
   for (const [key, value] of Object.entries({ ...parameters, key: amapWebKey })) {
