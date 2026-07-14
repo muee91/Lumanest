@@ -1,11 +1,6 @@
 #!/bin/sh
 set -eu
 
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Run this script with sudo." >&2
-  exit 1
-fi
-
 if [ "${CONFIRM_ROLLBACK:-}" != "yes" ]; then
   echo "Set CONFIRM_ROLLBACK=yes to restore archived Docker volumes." >&2
   exit 1
@@ -19,6 +14,25 @@ fi
 BACKUP_DIR=${1%/}
 LUMANEST_ROOT=${LUMANEST_ROOT:-/vol2/docker/lumanest}
 MANIFEST=$BACKUP_DIR/manifest.env
+BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine}
+
+valid_volume_name() {
+  case "$1" in
+    ''|*[!a-zA-Z0-9_.-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+restore_volume() {
+  volume=$1
+  archive=$volume.tar.gz
+  docker run --rm --network none --read-only --cap-drop ALL \
+    --security-opt no-new-privileges \
+    -e ARCHIVE="$archive" \
+    -v "$volume:/target" -v "$BACKUP_DIR/volumes:/backup:ro" \
+    "$BACKUP_HELPER_IMAGE" sh -ec \
+    'find /target -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && tar -C /target -xzf "/backup/$ARCHIVE"'
+}
 
 case "$BACKUP_DIR" in
   "$LUMANEST_ROOT"/backups/*) ;;
@@ -29,6 +43,11 @@ if [ ! -f "$MANIFEST" ] || [ ! -f "$BACKUP_DIR/live-source.tar.gz" ] || [ ! -f "
   echo "Backup is incomplete: $BACKUP_DIR" >&2
   exit 1
 fi
+if ! docker info >/dev/null 2>&1; then
+  echo "The current user cannot access Docker. Add it to the docker group and start a new session." >&2
+  exit 1
+fi
+docker image inspect "$BACKUP_HELPER_IMAGE" >/dev/null 2>&1 || docker pull "$BACKUP_HELPER_IMAGE"
 
 PROJECT_NAME=$(awk -F= '$1 == "PROJECT_NAME" {print substr($0, index($0, "=") + 1)}' "$MANIFEST")
 LIVE_DIR=$(awk -F= '$1 == "LIVE_DIR" {print substr($0, index($0, "=") + 1)}' "$MANIFEST")
@@ -44,15 +63,17 @@ fi
 
 while IFS= read -r volume; do
   [ -n "$volume" ] || continue
+  if ! valid_volume_name "$volume"; then
+    echo "Unsafe Docker volume name: $volume" >&2
+    exit 1
+  fi
   archive=$BACKUP_DIR/volumes/$volume.tar.gz
   if [ ! -f "$archive" ]; then
     echo "Volume archive is missing: $archive" >&2
     exit 1
   fi
   docker volume inspect "$volume" >/dev/null 2>&1 || docker volume create "$volume" >/dev/null
-  mountpoint=$(docker volume inspect --format '{{.Mountpoint}}' "$volume")
-  find "$mountpoint" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-  tar -C "$mountpoint" -xzf "$archive"
+  restore_volume "$volume"
 done < "$BACKUP_DIR/volumes.txt"
 
 if [ ! -f "$LIVE_DIR/compose.yaml" ]; then

@@ -94,17 +94,17 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
 
    ```bash
    cd /vol2/docker/lumanest/releases/<commit>/qweather-token-broker
-   sudo ./scripts/nas-deploy.sh
+   ./scripts/nas-deploy.sh
    ```
 
    成功后，备份位置写入 `/vol2/docker/lumanest/last-backup`。需要恢复旧配置和卷时必须显式确认破坏性卷恢复：
 
    ```bash
    backup=$(cat /vol2/docker/lumanest/last-backup)
-   sudo env CONFIRM_ROLLBACK=yes ./scripts/nas-rollback.sh "$backup"
+   env CONFIRM_ROLLBACK=yes ./scripts/nas-rollback.sh "$backup"
    ```
 
-   回滚会停止当前 release、清空目标命名卷并从归档恢复，再启动备份记录中的旧 Broker；执行前应确认备份路径和时间。
+   部署账号必须属于 NAS 的 `docker` 组。脚本通过受限、无网络的临时容器读取和恢复命名卷，不再读取宿主机 Docker 卷目录，也不要求以 root 运行。回滚会停止当前 release、清空目标命名卷并从归档恢复，再启动备份记录中的旧 Broker；执行前应确认备份路径和时间。
 
 5. 在 NAS 本机或局域网验证：
 

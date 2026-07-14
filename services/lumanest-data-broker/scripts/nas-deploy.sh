@@ -1,11 +1,6 @@
 #!/bin/sh
 set -eu
 
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Run this script with sudo." >&2
-  exit 1
-fi
-
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RELEASE_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 LUMANEST_ROOT=${LUMANEST_ROOT:-/vol2/docker/lumanest}
@@ -15,6 +10,11 @@ ENV_FILE=$RELEASE_DIR/qweather-token-broker.env
 COMPOSE_FILE=$RELEASE_DIR/compose.yaml
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP_DIR=$LUMANEST_ROOT/backups/$TIMESTAMP
+BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine}
+PREVIOUS_RELEASE=$(cat "$LUMANEST_ROOT/current-release" 2>/dev/null || true)
+if [ -z "$PREVIOUS_RELEASE" ]; then
+  PREVIOUS_RELEASE=$LIVE_DIR
+fi
 
 require_file() {
   if [ ! -f "$1" ]; then
@@ -27,12 +27,31 @@ compose_release() {
   docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+valid_volume_name() {
+  case "$1" in
+    ''|*[!a-zA-Z0-9_.-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+backup_volume() {
+  volume=$1
+  archive=$volume.tar.gz
+  owner=$(id -u):$(id -g)
+  docker run --rm --network none --read-only --cap-drop ALL \
+    --security-opt no-new-privileges \
+    -e ARCHIVE="$archive" -e OWNER="$owner" \
+    -v "$volume:/source:ro" -v "$BACKUP_DIR/volumes:/backup" \
+    "$BACKUP_HELPER_IMAGE" sh -ec \
+    'tar -C /source -czf "/backup/$ARCHIVE" . && chown "$OWNER" "/backup/$ARCHIVE" && chmod 600 "/backup/$ARCHIVE"'
+}
+
 restore_old_stack() {
-  if [ -f "$LIVE_DIR/compose.yaml" ] && [ -f "$LIVE_DIR/qweather-token-broker.env" ]; then
+  if [ -f "$PREVIOUS_RELEASE/compose.yaml" ] && [ -f "$PREVIOUS_RELEASE/qweather-token-broker.env" ]; then
     docker compose \
       -p "$PROJECT_NAME" \
-      --env-file "$LIVE_DIR/qweather-token-broker.env" \
-      -f "$LIVE_DIR/compose.yaml" \
+      --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
+      -f "$PREVIOUS_RELEASE/compose.yaml" \
       up -d --build || true
   fi
 }
@@ -50,29 +69,40 @@ deployment_failed() {
 require_file "$COMPOSE_FILE"
 require_file "$ENV_FILE"
 require_file "$RELEASE_DIR/../lumanest-context-service/Dockerfile"
-require_file "$LIVE_DIR/compose.yaml"
-require_file "$LIVE_DIR/qweather-token-broker.env"
+require_file "$PREVIOUS_RELEASE/compose.yaml"
+require_file "$PREVIOUS_RELEASE/qweather-token-broker.env"
 command -v docker >/dev/null
 command -v curl >/dev/null
 command -v tar >/dev/null
+if ! docker info >/dev/null 2>&1; then
+  echo "The current user cannot access Docker. Add it to the docker group and start a new session." >&2
+  exit 1
+fi
+case "$PREVIOUS_RELEASE" in
+  "$LUMANEST_ROOT"/*) ;;
+  *) echo "Previous release must be under $LUMANEST_ROOT." >&2; exit 1 ;;
+esac
 
 # Validate interpolation and build contexts before stopping the running stack.
 compose_release config --quiet
+docker image inspect "$BACKUP_HELPER_IMAGE" >/dev/null 2>&1 || docker pull "$BACKUP_HELPER_IMAGE"
 
 umask 077
 mkdir -p "$BACKUP_DIR/volumes"
 cat > "$BACKUP_DIR/manifest.env" <<EOF
 PROJECT_NAME=$PROJECT_NAME
-LIVE_DIR=$LIVE_DIR
+LIVE_DIR=$PREVIOUS_RELEASE
 RELEASE_DIR=$RELEASE_DIR
 CREATED_AT=$TIMESTAMP
 EOF
-tar -C "$LUMANEST_ROOT" -czf "$BACKUP_DIR/live-source.tar.gz" "$(basename "$LIVE_DIR")"
+previous_relative=${PREVIOUS_RELEASE#"$LUMANEST_ROOT"/}
+tar -C "$LUMANEST_ROOT" -czf "$BACKUP_DIR/live-source.tar.gz" "$previous_relative"
 
+trap deployment_failed EXIT INT TERM
 docker compose \
   -p "$PROJECT_NAME" \
-  --env-file "$LIVE_DIR/qweather-token-broker.env" \
-  -f "$LIVE_DIR/compose.yaml" \
+  --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
+  -f "$PREVIOUS_RELEASE/compose.yaml" \
   stop
 
 docker volume ls \
@@ -81,11 +111,13 @@ docker volume ls \
 
 while IFS= read -r volume; do
   [ -n "$volume" ] || continue
-  mountpoint=$(docker volume inspect --format '{{.Mountpoint}}' "$volume")
-  tar -C "$mountpoint" -czf "$BACKUP_DIR/volumes/$volume.tar.gz" .
+  if ! valid_volume_name "$volume"; then
+    echo "Unsafe Docker volume name: $volume" >&2
+    exit 1
+  fi
+  backup_volume "$volume"
 done < "$BACKUP_DIR/volumes.txt"
 
-trap deployment_failed EXIT INT TERM
 compose_release up -d --build --remove-orphans
 
 attempt=0
