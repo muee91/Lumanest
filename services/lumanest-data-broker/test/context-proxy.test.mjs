@@ -36,6 +36,59 @@ test('public context validator accepts canonical input and complete legacy input
   assert.equal(validContextRequest({ ...minimalRequest, deviceId: 'forbidden' }), false);
 });
 
+test('route invariant rejects none/active and driving/none but accepts planned/active/paused', () => {
+  assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'none', stage: 'active' } }), false);
+  assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'driving', stage: 'none' } }), false);
+  for (const stage of ['planned', 'active', 'paused']) {
+    assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'driving', stage } }), true);
+  }
+});
+
+test('context snapshot rejects a response where active disagrees with stage', async () => {
+  const base = {
+    contractVersion: 2,
+    contextId: 'ctx_1234567890abcdef12345678',
+    generatedAt: '2026-07-14T02:00:00Z',
+    expiresAt: '2026-07-14T02:15:00Z',
+    scene: 'lake',
+    fingerprint: '1234567890abcdef12345678',
+    stale: false,
+    dataFreshness: { context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z' },
+    weather: {
+      condition: 'clear', temperatureCelsius: 20, windSpeedMps: 2, windDirectionDegrees: 90,
+      precipitationMm: 0, visibilityKm: 20, cloudCoverPercent: 10, thunder: false,
+    },
+    sunMoon: {
+      dayPhase: 'day', sunElevationDegrees: 60, sunAzimuthDegrees: 180,
+      moonPhase: 'fullMoon', moonIllumination: 0.5,
+    },
+    route: { mode: 'driving', stage: 'planned', active: false },
+    events: [],
+    allowedActions: [],
+    manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
+  };
+
+  const ok = await forwardContextSnapshot({
+    body: {},
+    serviceUrl: 'http://context-service:8000',
+    internalToken: 'internal-secret',
+    fetcher: async () => new Response(JSON.stringify(base), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }),
+  });
+  assert.equal(ok.ok, true);
+
+  const bad = await forwardContextSnapshot({
+    body: {},
+    serviceUrl: 'http://context-service:8000',
+    internalToken: 'internal-secret',
+    fetcher: async () => new Response(JSON.stringify({
+      ...base, route: { mode: 'driving', stage: 'planned', active: true },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+  });
+  assert.deepEqual(bad, { ok: false, error: 'upstream_unavailable' });
+});
+
 test('context import uses only the internal service token and bounded endpoint', async () => {
   let request;
   const result = await importContextDataset({

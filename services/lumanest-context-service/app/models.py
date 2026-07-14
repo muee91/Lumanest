@@ -62,6 +62,13 @@ class RouteInput(ApiModel):
     mode: Literal["none", "driving", "hiking"] = "none"
     stage: Literal["none", "planned", "active", "paused"] = "none"
 
+    @model_validator(mode="after")
+    def enforce_mode_stage_invariant(self) -> "RouteInput":
+        # ContextSnapshotV2 invariant: mode == "none" iff stage == "none".
+        if (self.mode == "none") != (self.stage == "none"):
+            raise ValueError("route mode must be none iff stage is none")
+        return self
+
 
 class WeatherForecastInput(ApiModel):
     observed_at: datetime = Field(alias="observedAt")
@@ -183,6 +190,16 @@ class RouteState(ApiModel):
     mode: Literal["none", "driving", "hiking"]
     stage: Literal["none", "planned", "active", "paused"]
     active: bool
+
+    @model_validator(mode="after")
+    def enforce_mode_stage_active_invariant(self) -> "RouteState":
+        # ContextSnapshotV2 invariant: mode == "none" iff stage == "none",
+        # and active must be true iff stage == "active".
+        if (self.mode == "none") != (self.stage == "none"):
+            raise ValueError("route mode must be none iff stage is none")
+        if self.active != (self.stage == "active"):
+            raise ValueError("route active must be true iff stage is active")
+        return self
 
 
 class SnapshotResponse(ApiModel):

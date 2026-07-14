@@ -1,9 +1,11 @@
 import os
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.main import app
-from app.models import ContextImportResult
+from app.models import ContextImportResult, RouteState
 from app.store import ContextStore
 
 
@@ -205,3 +207,50 @@ def test_import_rejects_unlicensed_enabled_source_and_sensitive_point(monkeypatc
         assert client.post("/internal/v1/imports", json=unlicensed, headers=headers).status_code == 422
         assert client.post("/internal/v1/imports", json=sensitive, headers=headers).status_code == 422
         assert client.post("/internal/v1/imports", json=too_precise, headers=headers).status_code == 422
+
+
+@pytest.fixture
+def internal_headers(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    return {"X-Internal-Service-Token": "internal-test-token"}
+
+
+@pytest.mark.parametrize("mode,stage", [("none", "active"), ("driving", "none")])
+def test_route_input_rejects_mode_stage_mismatch(mode, stage, internal_headers):
+    request = payload()
+    request["route"] = {"mode": mode, "stage": stage}
+    with TestClient(app) as client:
+        response = client.post("/internal/v1/evaluate", json=request, headers=internal_headers)
+    assert response.status_code == 422
+
+
+def test_route_input_accepts_none_none(internal_headers):
+    request = payload()
+    request["route"] = {"mode": "none", "stage": "none"}
+    with TestClient(app) as client:
+        response = client.post("/internal/v1/evaluate", json=request, headers=internal_headers)
+    assert response.status_code == 200
+    assert response.json()["route"] == {"mode": "none", "stage": "none", "active": False}
+
+
+@pytest.mark.parametrize("stage,active", [
+    ("planned", False),
+    ("active", True),
+    ("paused", False),
+])
+def test_route_input_accepts_driving_stages(stage, active, internal_headers):
+    request = payload()
+    request["route"] = {"mode": "driving", "stage": stage}
+    with TestClient(app) as client:
+        response = client.post("/internal/v1/evaluate", json=request, headers=internal_headers)
+    assert response.status_code == 200
+    assert response.json()["route"] == {"mode": "driving", "stage": stage, "active": active}
+
+
+def test_route_state_model_rejects_active_mismatch():
+    # stage == "planned" requires active == False; True must be rejected.
+    with pytest.raises(ValidationError):
+        RouteState.model_validate({"mode": "driving", "stage": "planned", "active": True})
+    # stage == "active" requires active == True; False must be rejected.
+    with pytest.raises(ValidationError):
+        RouteState.model_validate({"mode": "driving", "stage": "active", "active": False})

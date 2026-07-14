@@ -16,6 +16,15 @@ function finiteIn(value, minimum, maximum) {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
 }
 
+// ContextSnapshotV2 route invariant:
+//   mode == 'none'  iff  stage == 'none'
+//   when mode != 'none', stage must be one of planned/active/paused
+//   (covered structurally by the iff rule given the allowed enum values)
+// For responses, active must equal (stage == 'active').
+function validRouteModeStage(mode, stage) {
+  return (mode === 'none') === (stage === 'none');
+}
+
 export function validContextRequest(body) {
   const keys = Object.keys(body ?? {});
   const legacy = keys.some((key) => ['evidence', 'weather', 'solar'].includes(key));
@@ -30,7 +39,8 @@ export function validContextRequest(body) {
   if (!['photography', 'food', 'supplies', 'fuel', 'wildlife'].includes(body.intent)) return false;
   if (!exactKeys(body.route, new Set(['mode', 'stage'])) ||
       !['none', 'driving', 'hiking'].includes(body.route.mode) ||
-      !['none', 'planned', 'active', 'paused'].includes(body.route.stage)) return false;
+      !['none', 'planned', 'active', 'paused'].includes(body.route.stage) ||
+      !validRouteModeStage(body.route.mode, body.route.stage)) return false;
   if (!legacy) return true;
   if (!exactKeys(body.evidence, new Set([
     'urban', 'waterBody', 'mountainous', 'aridLand', 'settlement',
@@ -121,7 +131,10 @@ function validContextResponse(body) {
   if (!exactKeys(body.route, new Set(['mode', 'stage', 'active'])) ||
       !['none', 'driving', 'hiking'].includes(body.route.mode) ||
       !['none', 'planned', 'active', 'paused'].includes(body.route.stage) ||
-      typeof body.route.active !== 'boolean' || !Array.isArray(body.allowedActions) ||
+      !validRouteModeStage(body.route.mode, body.route.stage) ||
+      typeof body.route.active !== 'boolean' ||
+      body.route.active !== (body.route.stage === 'active') ||
+      !Array.isArray(body.allowedActions) ||
       body.allowedActions.some((action) => !actions.has(action)) ||
       new Set(body.allowedActions).size !== body.allowedActions.length) return false;
   return exactKeys(body.manifest, new Set([
