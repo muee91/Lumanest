@@ -17,6 +17,23 @@ enum DayPhase { dawn, day, sunset, blueHour, night }
 
 enum WeatherType { clear, cloudy, rain, snow, dust }
 
+enum ContextDataFreshness { fresh, stale }
+
+enum MoonPhase {
+  newMoon,
+  waxingCrescent,
+  firstQuarter,
+  waxingGibbous,
+  fullMoon,
+  waningGibbous,
+  lastQuarter,
+  waningCrescent,
+}
+
+enum ContextRouteMode { none, driving, hiking }
+
+enum ContextRouteStage { none, planned, active, paused }
+
 class ContextSnapshot {
   ContextSnapshot({
     required this.id,
@@ -43,10 +60,18 @@ class ContextSnapshot {
     this.sunrise,
     this.sunset,
     this.isStale = false,
+    this.remoteGeneratedAt,
+    this.dataFreshness = ContextDataFreshness.fresh,
+    this.moonPhase,
+    this.moonIllumination,
+    this.routeMode = ContextRouteMode.none,
+    this.routeStage = ContextRouteStage.none,
+    List<ContextAction> allowedActions = const [],
   }) : opportunityIds = List.unmodifiable(opportunityIds),
        safetyEventIds = List.unmodifiable(safetyEventIds),
        wildlifeEventIds = List.unmodifiable(wildlifeEventIds),
-       events = List.unmodifiable(events);
+       events = List.unmodifiable(events),
+       allowedActions = List.unmodifiable(allowedActions);
 
   final String id;
   final DateTime observedAt;
@@ -72,8 +97,18 @@ class ContextSnapshot {
   final DateTime? sunrise;
   final DateTime? sunset;
   final bool isStale;
+  final DateTime? remoteGeneratedAt;
+  final ContextDataFreshness dataFreshness;
+  final MoonPhase? moonPhase;
+  final double? moonIllumination;
+  final ContextRouteMode routeMode;
+  final ContextRouteStage routeStage;
+  final List<ContextAction> allowedActions;
 
   ContextSnapshot asStale() {
+    final retainedEvents = events
+        .where((event) => event.channel != ContextEventChannel.opportunity)
+        .toList(growable: false);
     return ContextSnapshot(
       id: id,
       observedAt: observedAt,
@@ -85,9 +120,7 @@ class ContextSnapshot {
       opportunityIds: const [],
       safetyEventIds: safetyEventIds,
       wildlifeEventIds: wildlifeEventIds,
-      events: events
-          .where((event) => event.channel != ContextEventChannel.opportunity)
-          .toList(growable: false),
+      events: retainedEvents,
       wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -101,6 +134,17 @@ class ContextSnapshot {
       sunrise: sunrise,
       sunset: sunset,
       isStale: true,
+      remoteGeneratedAt: remoteGeneratedAt,
+      dataFreshness: ContextDataFreshness.stale,
+      moonPhase: moonPhase,
+      moonIllumination: moonIllumination,
+      routeMode: routeMode,
+      routeStage: routeStage,
+      allowedActions: retainedEvents
+          .map((event) => event.allowedAction)
+          .whereType<ContextAction>()
+          .toSet()
+          .toList(growable: false),
     );
   }
 
@@ -148,7 +192,14 @@ class ContextSnapshot {
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,
       sunset: sunset,
-      isStale: isStale,
+      isStale: isStale || dataFreshness == ContextDataFreshness.stale,
+      remoteGeneratedAt: remoteGeneratedAt,
+      dataFreshness: dataFreshness,
+      moonPhase: moonPhase,
+      moonIllumination: moonIllumination,
+      routeMode: routeMode,
+      routeStage: routeStage,
+      allowedActions: allowedActions,
     );
   }
 
@@ -157,6 +208,13 @@ class ContextSnapshot {
     required DateTime expiresAt,
     required SceneType primaryScene,
     required List<ContextEvent> events,
+    required DateTime remoteGeneratedAt,
+    required ContextDataFreshness dataFreshness,
+    required MoonPhase moonPhase,
+    required double moonIllumination,
+    required ContextRouteMode routeMode,
+    required ContextRouteStage routeStage,
+    required List<ContextAction> allowedActions,
   }) {
     return ContextSnapshot(
       id: id,
@@ -187,7 +245,14 @@ class ContextSnapshot {
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,
       sunset: sunset,
-      isStale: isStale,
+      isStale: isStale || dataFreshness == ContextDataFreshness.stale,
+      remoteGeneratedAt: remoteGeneratedAt,
+      dataFreshness: dataFreshness,
+      moonPhase: moonPhase,
+      moonIllumination: moonIllumination,
+      routeMode: routeMode,
+      routeStage: routeStage,
+      allowedActions: allowedActions,
     );
   }
 }

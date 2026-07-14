@@ -77,8 +77,9 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
       observedAt: '2026-07-14T10:00:00+08:00', condition: 'clear',
       windSpeedMps: 2, precipitationMm: 0, visibilityKm: 20,
       thunder: false, stale: false,
+      temperatureCelsius: 26, windDirectionDegrees: 90, cloudCoverPercent: null,
     },
-    solar: { dayPhase: 'sunset' },
+    solar: { dayPhase: 'sunset', elevationDegrees: 4, azimuthDegrees: 280 },
   };
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/context/snapshot`, {
@@ -102,7 +103,21 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
         generatedAt: '2026-07-14T02:00:00Z',
         expiresAt: '2026-07-14T02:15:00Z',
         scene: 'lake', fingerprint: '1234567890abcdef12345678', stale: false,
-        events: [], manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
+        dataFreshness: {
+          context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z',
+        },
+        weather: {
+          condition: 'clear', temperatureCelsius: 26, windSpeedMps: 2,
+          windDirectionDegrees: 90, precipitationMm: 0, visibilityKm: 20,
+          cloudCoverPercent: null, thunder: false,
+        },
+        sunMoon: {
+          dayPhase: 'sunset', sunElevationDegrees: 4, sunAzimuthDegrees: 280,
+          moonPhase: 'waxingCrescent', moonIllumination: 0.2,
+        },
+        route: { mode: 'none', stage: 'none', active: false },
+        events: [], allowedActions: [],
+        manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
       }), { status: 200 });
     },
   });

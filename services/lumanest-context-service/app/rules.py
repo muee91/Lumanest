@@ -1,9 +1,31 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import timedelta, timezone
+import math
+from datetime import datetime, timedelta, timezone
 
 from .models import ContextEvent, Manifest, SceneEvidence, SceneType, SnapshotRequest, SnapshotResponse
+
+
+_moon_reference = datetime(2000, 1, 6, 18, 14, tzinfo=timezone.utc)
+_synodic_month_days = 29.53058867
+
+
+def moon_state(moment: datetime) -> tuple[str, float]:
+    age = ((moment.astimezone(timezone.utc) - _moon_reference).total_seconds() / 86_400) % _synodic_month_days
+    illumination = (1 - math.cos(2 * math.pi * age / _synodic_month_days)) / 2
+    phase_index = int(((age / _synodic_month_days) * 8) + 0.5) % 8
+    phases = (
+        "newMoon",
+        "waxingCrescent",
+        "firstQuarter",
+        "waxingGibbous",
+        "fullMoon",
+        "waningGibbous",
+        "lastQuarter",
+        "waningCrescent",
+    )
+    return phases[phase_index], round(illumination, 4)
 
 
 def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = None) -> SceneType:
@@ -44,6 +66,7 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
     expires_at = generated_at + timedelta(minutes=15)
     scene = classify_scene(request, evidence)
     fingerprint = context_fingerprint(request, scene)
+    moon_phase, moon_illumination = moon_state(generated_at)
     events: list[ContextEvent] = []
 
     def add(
@@ -94,6 +117,7 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
 
     creative = [event.id for event in events if event.channel == "opportunity"]
     safety = [event.id for event in events if event.channel in ("safety", "wildlifeSafety")]
+    allowed_actions = list(dict.fromkeys(event.allowed_action for event in events))
     layout = "safety" if safety else "opportunity" if creative else "quiet"
     manifest = Manifest.model_validate({
         "layoutMode": layout,
@@ -108,6 +132,34 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
         "scene": scene,
         "fingerprint": fingerprint,
         "stale": request.weather.stale,
+        "dataFreshness": {
+            "context": "stale" if request.weather.stale else "fresh",
+            "weather": "stale" if request.weather.stale else "fresh",
+            "weatherObservedAt": request.weather.observed_at,
+        },
+        "weather": {
+            "condition": request.weather.condition,
+            "temperatureCelsius": request.weather.temperature_celsius,
+            "windSpeedMps": request.weather.wind_speed_mps,
+            "windDirectionDegrees": request.weather.wind_direction_degrees,
+            "precipitationMm": request.weather.precipitation_mm,
+            "visibilityKm": request.weather.visibility_km,
+            "cloudCoverPercent": request.weather.cloud_cover_percent,
+            "thunder": request.weather.thunder,
+        },
+        "sunMoon": {
+            "dayPhase": request.solar.day_phase,
+            "sunElevationDegrees": request.solar.elevation_degrees,
+            "sunAzimuthDegrees": request.solar.azimuth_degrees,
+            "moonPhase": moon_phase,
+            "moonIllumination": moon_illumination,
+        },
+        "route": {
+            "mode": request.route.mode,
+            "stage": request.route.stage,
+            "active": request.route.stage == "active",
+        },
         "events": events,
+        "allowedActions": allowed_actions,
         "manifest": manifest,
     })

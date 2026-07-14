@@ -7,6 +7,18 @@ enum ContextEventChannel {
 
 enum ContextEventSource { weather, solar, rule, wildlifeHistorical, official }
 
+enum ContextGeoScope { point, regional, route }
+
+enum ContextSafetyLevel { info, caution, warning, critical }
+
+enum ContextAction {
+  openExplore,
+  openShootingWindow,
+  openWeather,
+  openSafety,
+  openRoute,
+}
+
 class ContextEvent {
   const ContextEvent({
     required this.id,
@@ -15,6 +27,9 @@ class ContextEvent {
     required this.observedAt,
     required this.expiresAt,
     required this.confidence,
+    this.geoScope,
+    this.safetyLevel,
+    this.allowedAction,
   }) : assert(confidence >= 0 && confidence <= 1);
 
   final String id;
@@ -23,6 +38,9 @@ class ContextEvent {
   final DateTime observedAt;
   final DateTime expiresAt;
   final double confidence;
+  final ContextGeoScope? geoScope;
+  final ContextSafetyLevel? safetyLevel;
+  final ContextAction? allowedAction;
 
   bool isExpiredAt(DateTime moment) => !expiresAt.isAfter(moment);
 }

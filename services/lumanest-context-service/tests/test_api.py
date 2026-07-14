@@ -48,6 +48,18 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
         assert body["contractVersion"] == 2
         assert body["scene"] == "lake"
         assert body["manifest"]["primaryEventId"] == "reflection"
+        assert body["dataFreshness"] == {
+            "context": "fresh",
+            "weather": "fresh",
+            "weatherObservedAt": "2026-07-14T10:00:00+08:00",
+        }
+        assert body["weather"]["windSpeedMps"] == 2
+        assert body["sunMoon"]["moonPhase"] in {
+            "newMoon", "waxingCrescent", "firstQuarter", "waxingGibbous",
+            "fullMoon", "waningGibbous", "lastQuarter", "waningCrescent",
+        }
+        assert body["route"] == {"mode": "none", "stage": "none", "active": False}
+        assert body["allowedActions"] == ["openExplore"]
         assert "latitude" not in body and "longitude" not in body
 
 

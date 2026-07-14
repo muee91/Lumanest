@@ -115,8 +115,15 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         'visibilityKm': weather.visibilityKilometers,
         'thunder': weather.hasThunder,
         'stale': base.isStale,
+        'temperatureCelsius': weather.temperatureCelsius,
+        'windDirectionDegrees': weather.windDirectionDegrees,
+        'cloudCoverPercent': weather.cloudCoverPercent,
       },
-      'solar': {'dayPhase': solar.dayPhase.name},
+      'solar': {
+        'dayPhase': solar.dayPhase.name,
+        'elevationDegrees': solar.elevationDegrees,
+        'azimuthDegrees': solar.azimuthDegrees,
+      },
     };
   }
 
@@ -124,7 +131,12 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     if (body['contractVersion'] != 2 ||
         body['contextId'] is! String ||
         body['scene'] is! String ||
-        body['events'] is! List) {
+        body['events'] is! List ||
+        body['dataFreshness'] is! Map ||
+        body['weather'] is! Map ||
+        body['sunMoon'] is! Map ||
+        body['route'] is! Map ||
+        body['allowedActions'] is! List) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
     final scene = SceneType.values
@@ -133,7 +145,73 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     final events = (body['events'] as List).map(_event).toList(growable: false);
     final generatedAt = DateTime.tryParse('${body['generatedAt'] ?? ''}');
     final expiresAt = DateTime.tryParse('${body['expiresAt'] ?? ''}');
-    if (scene == null || generatedAt == null || expiresAt == null) {
+    final freshness = Map<String, Object?>.from(body['dataFreshness']! as Map);
+    final weatherState = Map<String, Object?>.from(body['weather']! as Map);
+    final sunMoon = Map<String, Object?>.from(body['sunMoon']! as Map);
+    final route = Map<String, Object?>.from(body['route']! as Map);
+    final dataFreshness = ContextDataFreshness.values
+        .where((value) => value.name == freshness['context'])
+        .firstOrNull;
+    final weatherFreshness = ContextDataFreshness.values
+        .where((value) => value.name == freshness['weather'])
+        .firstOrNull;
+    final weatherObservedAt = DateTime.tryParse(
+      '${freshness['weatherObservedAt'] ?? ''}',
+    );
+    final weatherType = WeatherType.values
+        .where((value) => value.name == weatherState['condition'])
+        .firstOrNull;
+    final windSpeed = weatherState['windSpeedMps'];
+    final precipitation = weatherState['precipitationMm'];
+    final visibility = weatherState['visibilityKm'];
+    final thunder = weatherState['thunder'];
+    final sunDayPhase = DayPhase.values
+        .where((value) => value.name == sunMoon['dayPhase'])
+        .firstOrNull;
+    final moonPhase = MoonPhase.values
+        .where((value) => value.name == sunMoon['moonPhase'])
+        .firstOrNull;
+    final routeMode = ContextRouteMode.values
+        .where((value) => value.name == route['mode'])
+        .firstOrNull;
+    final routeStage = ContextRouteStage.values
+        .where((value) => value.name == route['stage'])
+        .firstOrNull;
+    final moonIllumination = sunMoon['moonIllumination'];
+    final actions = (body['allowedActions']! as List)
+        .map((raw) {
+          if (raw is! String) {
+            throw const FormatException('Invalid context action');
+          }
+          return ContextAction.values
+              .where((value) => value.name == raw)
+              .firstOrNull;
+        })
+        .toList(growable: false);
+    if (scene == null ||
+        generatedAt == null ||
+        expiresAt == null ||
+        dataFreshness == null ||
+        weatherFreshness == null ||
+        weatherObservedAt == null ||
+        weatherType == null ||
+        windSpeed is! num ||
+        windSpeed < 0 ||
+        precipitation is! num ||
+        precipitation < 0 ||
+        visibility is! num ||
+        visibility < 0 ||
+        thunder is! bool ||
+        sunDayPhase == null ||
+        moonPhase == null ||
+        routeMode == null ||
+        routeStage == null ||
+        moonIllumination is! num ||
+        moonIllumination < 0 ||
+        moonIllumination > 1 ||
+        route['active'] is! bool ||
+        (route['active'] == true) != (routeStage == ContextRouteStage.active) ||
+        actions.any((action) => action == null)) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
     return base.withRemoteContext(
@@ -141,6 +219,13 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       expiresAt: expiresAt.toUtc(),
       primaryScene: scene,
       events: events,
+      remoteGeneratedAt: generatedAt.toUtc(),
+      dataFreshness: dataFreshness,
+      moonPhase: moonPhase,
+      moonIllumination: moonIllumination.toDouble(),
+      routeMode: routeMode,
+      routeStage: routeStage,
+      allowedActions: actions.cast<ContextAction>(),
     );
   }
 
@@ -156,6 +241,15 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     final observedAt = DateTime.tryParse('${value['observedAt'] ?? ''}');
     final expiresAt = DateTime.tryParse('${value['expiresAt'] ?? ''}');
     final confidence = value['confidence'];
+    final geoScope = ContextGeoScope.values
+        .where((item) => item.name == value['geoScope'])
+        .firstOrNull;
+    final safetyLevel = ContextSafetyLevel.values
+        .where((item) => item.name == value['severity'])
+        .firstOrNull;
+    final action = ContextAction.values
+        .where((item) => item.name == value['allowedAction'])
+        .firstOrNull;
     if (value['id'] is! String ||
         channel == null ||
         source == null ||
@@ -163,7 +257,10 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         expiresAt == null ||
         confidence is! num ||
         confidence < 0 ||
-        confidence > 1) {
+        confidence > 1 ||
+        geoScope == null ||
+        safetyLevel == null ||
+        action == null) {
       throw const FormatException('Invalid context event');
     }
     return ContextEvent(
@@ -173,6 +270,9 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       observedAt: observedAt.toUtc(),
       expiresAt: expiresAt.toUtc(),
       confidence: confidence.toDouble(),
+      geoScope: geoScope,
+      safetyLevel: safetyLevel,
+      allowedAction: action,
     );
   }
 }

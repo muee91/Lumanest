@@ -33,6 +33,9 @@ void main() {
             observedAt: now,
             expiresAt: now.add(const Duration(minutes: 15)),
             confidence: .82,
+            geoScope: ContextGeoScope.point,
+            safetyLevel: ContextSafetyLevel.info,
+            allowedAction: ContextAction.openExplore,
           ),
         ],
         wildlifeActivity: RegionalWildlifeActivity(
@@ -58,6 +61,13 @@ void main() {
         solarAzimuthDegrees: 270,
         sunrise: now.subtract(const Duration(hours: 10)),
         sunset: now.add(const Duration(minutes: 20)),
+        remoteGeneratedAt: now,
+        dataFreshness: ContextDataFreshness.fresh,
+        moonPhase: MoonPhase.waxingCrescent,
+        moonIllumination: .2,
+        routeMode: ContextRouteMode.none,
+        routeStage: ContextRouteStage.none,
+        allowedActions: const [ContextAction.openExplore],
       );
 
       await first.write(snapshot);
@@ -72,6 +82,8 @@ void main() {
       expect(restored?.wildlifeActivity?.taxa.single.commonName, '水獭');
       expect(restored?.location?.coordinateSystem, CoordinateSystem.wgs84);
       expect(restored?.sunset, snapshot.sunset);
+      expect(restored?.moonPhase, MoonPhase.waxingCrescent);
+      expect(restored?.events.single.allowedAction, ContextAction.openExplore);
     },
   );
 

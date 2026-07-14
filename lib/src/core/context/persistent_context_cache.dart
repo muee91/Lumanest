@@ -13,7 +13,7 @@ class PersistentContextCache implements ContextCache {
     this.storageKey = 'environment_context_snapshot_v1',
   });
 
-  static const _version = 1;
+  static const _version = 2;
   final SharedPreferencesAsync _preferences;
   final String storageKey;
 
@@ -70,6 +70,13 @@ class PersistentContextCache implements ContextCache {
     'sunrise': value.sunrise?.toUtc().toIso8601String(),
     'sunset': value.sunset?.toUtc().toIso8601String(),
     'isStale': value.isStale,
+    'remoteGeneratedAt': value.remoteGeneratedAt?.toUtc().toIso8601String(),
+    'dataFreshness': value.dataFreshness.name,
+    'moonPhase': value.moonPhase?.name,
+    'moonIllumination': value.moonIllumination,
+    'routeMode': value.routeMode.name,
+    'routeStage': value.routeStage.name,
+    'allowedActions': value.allowedActions.map((value) => value.name).toList(),
   };
 
   ContextSnapshot? _decodeSnapshot(Object? raw) {
@@ -81,13 +88,22 @@ class PersistentContextCache implements ContextCache {
     final phase = _enumByName(DayPhase.values, raw['dayPhase']);
     final weather = _enumByName(WeatherType.values, raw['weather']);
     final activeRoute = raw['activeRoute'];
+    final dataFreshness = _enumByName(
+      ContextDataFreshness.values,
+      raw['dataFreshness'],
+    );
+    final routeMode = _enumByName(ContextRouteMode.values, raw['routeMode']);
+    final routeStage = _enumByName(ContextRouteStage.values, raw['routeStage']);
     if (id is! String ||
         observedAt == null ||
         expiresAt == null ||
         scene == null ||
         phase == null ||
         weather == null ||
-        activeRoute is! bool) {
+        activeRoute is! bool ||
+        dataFreshness == null ||
+        routeMode == null ||
+        routeStage == null) {
       return null;
     }
     final events = _list(
@@ -118,6 +134,13 @@ class PersistentContextCache implements ContextCache {
       sunrise: _date(raw['sunrise']),
       sunset: _date(raw['sunset']),
       isStale: raw['isStale'] == true,
+      remoteGeneratedAt: _date(raw['remoteGeneratedAt']),
+      dataFreshness: dataFreshness,
+      moonPhase: _enumByName(MoonPhase.values, raw['moonPhase']),
+      moonIllumination: _double(raw['moonIllumination']),
+      routeMode: routeMode,
+      routeStage: routeStage,
+      allowedActions: _enumList(ContextAction.values, raw['allowedActions']),
     );
   }
 
@@ -128,6 +151,9 @@ class PersistentContextCache implements ContextCache {
     'observedAt': event.observedAt.toUtc().toIso8601String(),
     'expiresAt': event.expiresAt.toUtc().toIso8601String(),
     'confidence': event.confidence,
+    'geoScope': event.geoScope?.name,
+    'safetyLevel': event.safetyLevel?.name,
+    'allowedAction': event.allowedAction?.name,
   };
 
   ContextEvent? _decodeEvent(Object? raw) {
@@ -155,6 +181,9 @@ class PersistentContextCache implements ContextCache {
       observedAt: observedAt,
       expiresAt: expiresAt,
       confidence: confidence,
+      geoScope: _enumByName(ContextGeoScope.values, raw['geoScope']),
+      safetyLevel: _enumByName(ContextSafetyLevel.values, raw['safetyLevel']),
+      allowedAction: _enumByName(ContextAction.values, raw['allowedAction']),
     );
   }
 
@@ -227,6 +256,12 @@ class PersistentContextCache implements ContextCache {
 
   static List<String> _stringList(Object? value) =>
       _list(value).whereType<String>().toList(growable: false);
+
+  static List<T> _enumList<T extends Enum>(List<T> values, Object? raw) =>
+      _list(raw)
+          .map((value) => _enumByName(values, value))
+          .whereType<T>()
+          .toList(growable: false);
 
   static double? _double(Object? value) =>
       value is num ? value.toDouble() : null;

@@ -50,6 +50,8 @@ def test_stale_weather_keeps_safety_but_drops_creative_events():
     result = evaluate(body)
     assert [event.id for event in result.events] == ["thunderstorm"]
     assert result.manifest.layout_mode == "safety"
+    assert result.data_freshness.context == "stale"
+    assert result.allowed_actions == ["openSafety"]
 
 
 def test_fingerprint_uses_a_grid_instead_of_exposing_coordinates():

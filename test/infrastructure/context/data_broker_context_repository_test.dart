@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
@@ -29,6 +30,9 @@ void main() {
       expect(result.id, 'ctx_1234567890abcdef12345678');
       expect(result.primaryScene, SceneType.lake);
       expect(result.opportunityIds, ['reflection']);
+      expect(result.dataFreshness, ContextDataFreshness.fresh);
+      expect(result.moonPhase, MoonPhase.waxingCrescent);
+      expect(result.allowedActions, [ContextAction.openExplore]);
     },
   );
 }
@@ -85,6 +89,29 @@ class _FakeTransport implements ContextDataTransport {
       'scene': 'lake',
       'fingerprint': '1234567890abcdef12345678',
       'stale': false,
+      'dataFreshness': {
+        'context': 'fresh',
+        'weather': 'fresh',
+        'weatherObservedAt': '2026-07-14T02:00:00Z',
+      },
+      'weather': {
+        'condition': 'clear',
+        'temperatureCelsius': 26,
+        'windSpeedMps': 2,
+        'windDirectionDegrees': 90,
+        'precipitationMm': 0,
+        'visibilityKm': 20,
+        'cloudCoverPercent': null,
+        'thunder': false,
+      },
+      'sunMoon': {
+        'dayPhase': 'sunset',
+        'sunElevationDegrees': 4,
+        'sunAzimuthDegrees': 280,
+        'moonPhase': 'waxingCrescent',
+        'moonIllumination': .2,
+      },
+      'route': {'mode': 'none', 'stage': 'none', 'active': false},
       'events': [
         {
           'id': 'reflection',
@@ -98,6 +125,7 @@ class _FakeTransport implements ContextDataTransport {
           'allowedAction': 'openExplore',
         },
       ],
+      'allowedActions': ['openExplore'],
       'manifest': {
         'layoutMode': 'opportunity',
         'primaryEventId': 'reflection',

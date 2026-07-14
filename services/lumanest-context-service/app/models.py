@@ -45,10 +45,17 @@ class WeatherInput(ApiModel):
     visibility_km: float = Field(ge=0, le=500, alias="visibilityKm")
     thunder: bool = False
     stale: bool = False
+    temperature_celsius: float | None = Field(None, ge=-100, le=100, alias="temperatureCelsius")
+    wind_direction_degrees: float | None = Field(
+        None, ge=0, lt=360, alias="windDirectionDegrees"
+    )
+    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
 
 
 class SolarInput(ApiModel):
     day_phase: Literal["dawn", "day", "sunset", "blueHour", "night"] = Field(alias="dayPhase")
+    elevation_degrees: float | None = Field(None, ge=-90, le=90, alias="elevationDegrees")
+    azimuth_degrees: float | None = Field(None, ge=0, lt=360, alias="azimuthDegrees")
 
 
 class RouteInput(ApiModel):
@@ -96,6 +103,46 @@ class Manifest(ApiModel):
     safety_event_ids: list[str] = Field(default_factory=list, alias="safetyEventIds")
 
 
+class DataFreshness(ApiModel):
+    context: Literal["fresh", "stale"]
+    weather: Literal["fresh", "stale"]
+    weather_observed_at: datetime = Field(alias="weatherObservedAt")
+
+
+class WeatherState(ApiModel):
+    condition: Literal["clear", "cloudy", "rain", "snow", "dust", "unknown"]
+    temperature_celsius: float | None = Field(None, alias="temperatureCelsius")
+    wind_speed_mps: float = Field(alias="windSpeedMps")
+    wind_direction_degrees: float | None = Field(None, alias="windDirectionDegrees")
+    precipitation_mm: float = Field(alias="precipitationMm")
+    visibility_km: float = Field(alias="visibilityKm")
+    cloud_cover_percent: float | None = Field(None, alias="cloudCoverPercent")
+    thunder: bool
+
+
+class SunMoonState(ApiModel):
+    day_phase: Literal["dawn", "day", "sunset", "blueHour", "night"] = Field(alias="dayPhase")
+    sun_elevation_degrees: float | None = Field(None, alias="sunElevationDegrees")
+    sun_azimuth_degrees: float | None = Field(None, alias="sunAzimuthDegrees")
+    moon_phase: Literal[
+        "newMoon",
+        "waxingCrescent",
+        "firstQuarter",
+        "waxingGibbous",
+        "fullMoon",
+        "waningGibbous",
+        "lastQuarter",
+        "waningCrescent",
+    ] = Field(alias="moonPhase")
+    moon_illumination: float = Field(ge=0, le=1, alias="moonIllumination")
+
+
+class RouteState(ApiModel):
+    mode: Literal["none", "driving", "hiking"]
+    stage: Literal["none", "planned", "active", "paused"]
+    active: bool
+
+
 class SnapshotResponse(ApiModel):
     contract_version: Literal[2] = Field(2, alias="contractVersion")
     context_id: str = Field(alias="contextId")
@@ -104,7 +151,14 @@ class SnapshotResponse(ApiModel):
     scene: SceneType
     fingerprint: str
     stale: bool
+    data_freshness: DataFreshness = Field(alias="dataFreshness")
+    weather: WeatherState
+    sun_moon: SunMoonState = Field(alias="sunMoon")
+    route: RouteState
     events: list[ContextEvent]
+    allowed_actions: list[
+        Literal["openExplore", "openShootingWindow", "openWeather", "openSafety", "openRoute"]
+    ] = Field(alias="allowedActions")
     manifest: Manifest
 
 
