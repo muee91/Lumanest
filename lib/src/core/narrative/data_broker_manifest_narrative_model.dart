@@ -60,6 +60,7 @@ class DataBrokerManifestNarrativeModel implements ManifestNarrativeModel {
         'activeRoute': request.activeRoute,
         'creativeEventIds': request.creativeEventIds,
         'templateSummary': request.templateSummary,
+        'tone': request.tone.name,
       },
     );
     final summary = body['summary'];

@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 
 enum ManifestNarrativeSource { template, model }
 
@@ -40,6 +41,7 @@ class ManifestNarrativeRequest {
     required this.activeRoute,
     required List<String> creativeEventIds,
     required this.templateSummary,
+    this.tone = NarrativeTone.balanced,
   }) : creativeEventIds = List.unmodifiable(creativeEventIds);
 
   final SceneType scene;
@@ -48,6 +50,7 @@ class ManifestNarrativeRequest {
   final bool activeRoute;
   final List<String> creativeEventIds;
   final String templateSummary;
+  final NarrativeTone tone;
 
   @override
   String toString() =>

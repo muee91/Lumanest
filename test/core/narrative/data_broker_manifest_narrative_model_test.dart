@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/narrative/data_broker_manifest_narrative_model.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
@@ -35,10 +36,43 @@ void main() {
       'activeRoute': false,
       'creativeEventIds': ['reflection'],
       'templateSummary': '今晚可以留意湖面倒影。',
+      'tone': 'balanced',
     });
     expect(transport.body, isNot(contains('location')));
+    expect(transport.body, isNot(contains('photographyPreferences')));
+    expect(transport.body, isNot(contains('activityPreferences')));
+    expect(transport.body, isNot(contains('recommendationIntensity')));
+    expect(transport.body, isNot(contains('equipmentList')));
+    expect(transport.body, isNot(contains('preferenceFingerprint')));
     expect(candidate.summary, '湖面正在安静下来，可以等等倒影。');
     expect(candidate.noteLabels, {'reflection': '等倒影'});
+  });
+
+  test('sends only the selected narrative tone from personalization', () async {
+    final transport = _FakeTransport({
+      'summary': '街巷光线正在变暖，先观察人与环境的关系再决定拍摄位置。',
+      'noteLabels': {'humanity-light': '看街巷'},
+    });
+    final model = DataBrokerManifestNarrativeModel(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    await model.generate(
+      ManifestNarrativeRequest(
+        scene: SceneType.village,
+        dayPhase: DayPhase.sunset,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        creativeEventIds: ['humanity-light'],
+        templateSummary: '晨昏光线正在进入街巷。',
+        tone: NarrativeTone.detailed,
+      ),
+    );
+
+    expect(transport.body?['tone'], 'detailed');
+    expect(transport.body, hasLength(7));
   });
 
   test('rejects malformed broker output for coordinator fallback', () async {

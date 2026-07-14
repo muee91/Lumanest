@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_coordinator.dart';
@@ -137,6 +138,44 @@ void main() {
       expect(await first, await second);
       await coordinator.resolve(snapshot: snapshot, manifest: manifest);
       expect(model.calls, 1);
+    },
+  );
+
+  test(
+    'preference fingerprint isolates cache and tone reaches the model',
+    () async {
+      final model = _FakeModel(
+        const ManifestNarrativeCandidate(summary: '湖面正在安静下来，可以等等倒影。'),
+      );
+      final coordinator = ManifestNarrativeCoordinator(
+        model: model,
+        now: () => now,
+      );
+
+      await coordinator.resolve(
+        snapshot: snapshot,
+        manifest: manifest,
+        tone: NarrativeTone.concise,
+        preferenceFingerprint: 'preference-a',
+      );
+      await coordinator.resolve(
+        snapshot: snapshot,
+        manifest: manifest,
+        tone: NarrativeTone.concise,
+        preferenceFingerprint: 'preference-a',
+      );
+      await coordinator.resolve(
+        snapshot: snapshot,
+        manifest: manifest,
+        tone: NarrativeTone.detailed,
+        preferenceFingerprint: 'preference-b',
+      );
+
+      expect(model.requests, hasLength(2));
+      expect(model.requests.first.tone, NarrativeTone.concise);
+      expect(model.requests.last.tone, NarrativeTone.detailed);
+      expect(model.requests.first.toString(), isNot(contains('preference-a')));
+      expect(model.requests.last.toString(), isNot(contains('detailed')));
     },
   );
 }

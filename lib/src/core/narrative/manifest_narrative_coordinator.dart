@@ -1,4 +1,5 @@
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
@@ -25,6 +26,8 @@ class ManifestNarrativeCoordinator {
   Future<ManifestNarrative> resolve({
     required ContextSnapshot snapshot,
     required UiManifest manifest,
+    NarrativeTone tone = NarrativeTone.balanced,
+    String preferenceFingerprint = 'neutral',
   }) {
     final evaluatedAt = now().toUtc();
     final fallback = _template(snapshot, manifest, evaluatedAt);
@@ -32,7 +35,7 @@ class ManifestNarrativeCoordinator {
       return Future.value(fallback);
     }
 
-    final key = _cacheKey(snapshot, manifest);
+    final key = _cacheKey(snapshot, manifest, preferenceFingerprint);
     final cached = _cache[key];
     if (cached != null && !cached.isExpiredAt(evaluatedAt)) {
       return Future.value(cached);
@@ -44,6 +47,7 @@ class ManifestNarrativeCoordinator {
           manifest: manifest,
           fallback: fallback,
           evaluatedAt: evaluatedAt,
+          tone: tone,
         ).whenComplete(() {
           _inFlight.remove(key);
         });
@@ -55,6 +59,7 @@ class ManifestNarrativeCoordinator {
     required UiManifest manifest,
     required ManifestNarrative fallback,
     required DateTime evaluatedAt,
+    required NarrativeTone tone,
   }) async {
     final creativeIds = manifest.creativeItems.map((item) => item.id).toList();
     try {
@@ -66,6 +71,7 @@ class ManifestNarrativeCoordinator {
           activeRoute: snapshot.activeRoute,
           creativeEventIds: creativeIds,
           templateSummary: manifest.summary,
+          tone: tone,
         ),
       );
       if (!_isValid(candidate, creativeIds.toSet())) {
@@ -136,9 +142,13 @@ class ManifestNarrativeCoordinator {
         !value.contains(RegExp(r'https?://', caseSensitive: false));
   }
 
-  String _cacheKey(ContextSnapshot snapshot, UiManifest manifest) {
+  String _cacheKey(
+    ContextSnapshot snapshot,
+    UiManifest manifest,
+    String preferenceFingerprint,
+  ) {
     final ids = manifest.creativeItems.map((item) => item.id).join(',');
-    return '${snapshot.id}|$ids';
+    return '${snapshot.id}|$ids|$preferenceFingerprint';
   }
 
   DateTime _earliest(DateTime first, DateTime second) {

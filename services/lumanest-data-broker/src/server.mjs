@@ -96,7 +96,10 @@ const narrativeRequestKeys = new Set([
   'activeRoute',
   'creativeEventIds',
   'templateSummary',
+  'tone',
 ]);
+
+const narrativeTones = new Set(['concise', 'balanced', 'detailed']);
 
 function validNarrativeRequest(body) {
   if (Object.keys(body).some((key) => !narrativeRequestKeys.has(key))) return false;
@@ -106,6 +109,7 @@ function validNarrativeRequest(body) {
   if (typeof body.activeRoute !== 'boolean') return false;
   if (typeof body.templateSummary !== 'string' ||
       body.templateSummary.length === 0 || body.templateSummary.length > 160) return false;
+  if (body.tone !== undefined && !narrativeTones.has(body.tone)) return false;
   if (!Array.isArray(body.creativeEventIds) || body.creativeEventIds.length === 0 ||
       body.creativeEventIds.length > 3) return false;
   return body.creativeEventIds.every((id) =>
@@ -120,8 +124,14 @@ function validNarrativeText(value, minimumLength, maximumLength) {
 }
 
 function narrativePrompt(body) {
+  const tone = body.tone ?? 'balanced';
+  const toneGuidance = {
+    concise: '语气简洁直接，摘要尽量控制在20到35字。',
+    balanced: '语气自然均衡，摘要尽量控制在35到55字。',
+    detailed: '语气较详细，可增加一个解释分句，摘要仍不得超过80字。',
+  }[tone];
   return {
-    system: '你是摄影助手的文案编辑。只能改写给定模板和已成立创作事件的短标签，不得增加事实、地点、安全结论、坐标、链接或动作。只输出 JSON：{"summary":"不超过80字","noteLabels":{"事件ID":"2到8字"}}。noteLabels 的键只能来自 allowedCreativeEventIds。',
+    system: `你是摄影助手的文案编辑。只能改写给定模板和已成立创作事件的短标签，不得增加事实、地点、安全结论、坐标、链接或动作。${toneGuidance}只输出 JSON：{"summary":"不超过80字","noteLabels":{"事件ID":"2到8字"}}。noteLabels 的键只能来自 allowedCreativeEventIds。`,
     user: JSON.stringify({
       scene: body.scene,
       dayPhase: body.dayPhase,
@@ -129,6 +139,7 @@ function narrativePrompt(body) {
       activeRoute: body.activeRoute,
       allowedCreativeEventIds: body.creativeEventIds,
       templateSummary: body.templateSummary,
+      tone,
     }),
   };
 }

@@ -522,6 +522,7 @@ test('narrative endpoint sends only bounded creative context and sanitizes outpu
         activeRoute: false,
         creativeEventIds: ['reflection'],
         templateSummary: '今晚可以留意湖面倒影。',
+        tone: 'detailed',
       }),
     });
     assert.equal(response.status, 200);
@@ -553,6 +554,55 @@ test('narrative endpoint sends only bounded creative context and sanitizes outpu
   assert.equal(modelBody.model, 'test-model');
   assert.equal(upstreamRequest.options.body.includes('latitude'), false);
   assert.equal(upstreamRequest.options.body.includes('longitude'), false);
+  assert.equal(upstreamRequest.options.body.includes('详细'), true);
+  for (const forbidden of [
+    'photographyPreferences', 'activityPreferences', 'recommendationIntensity',
+    'equipmentList', 'preferenceFingerprint',
+  ]) {
+    assert.equal(upstreamRequest.options.body.includes(forbidden), false);
+  }
+});
+
+test('narrative tone is optional, bounded and changes only prompt guidance', async () => {
+  const prompts = [];
+  for (const tone of [undefined, 'concise', 'balanced', 'detailed']) {
+    await withServer(async (baseUrl) => {
+      const body = {
+        scene: 'city',
+        dayPhase: 'blueHour',
+        weather: 'clear',
+        activeRoute: false,
+        creativeEventIds: ['humanity-light'],
+        templateSummary: '晨昏光线正在进入街巷。',
+      };
+      if (tone !== undefined) body.tone = tone;
+      const response = await fetch(`${baseUrl}/v1/narrative`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer test-service-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      assert.equal(response.status, 200);
+    }, {
+      aiApiKey: 'test-ai-key',
+      fetcher: async (_url, options) => {
+        prompts.push(JSON.parse(options.body).messages);
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            summary: '街巷光线正在变暖。',
+            noteLabels: { 'humanity-light': '看街巷' },
+          }) } }],
+        }), { status: 200 });
+      },
+    });
+  }
+
+  assert.match(prompts[0][0].content, /自然均衡/);
+  assert.match(prompts[1][0].content, /简洁直接/);
+  assert.match(prompts[2][0].content, /自然均衡/);
+  assert.match(prompts[3][0].content, /较详细/);
 });
 
 test('narrative endpoint rejects extra fields and unknown model labels', async () => {
@@ -575,6 +625,36 @@ test('narrative endpoint rejects extra fields and unknown model labels', async (
     });
     assert.equal(invalid.status, 400);
   }, { aiApiKey: 'test-ai-key' });
+
+  for (const forbiddenBody of [
+    { tone: 'verbose' },
+    { photographyPreferences: ['landscape'] },
+    { activityPreferences: ['driving'] },
+    { recommendationIntensity: 1 },
+    { equipmentList: 'camera' },
+    { preferenceFingerprint: 'abc' },
+    { userId: 'person' },
+  ]) {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/v1/narrative`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer test-service-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          scene: 'lake',
+          dayPhase: 'sunset',
+          weather: 'clear',
+          activeRoute: false,
+          creativeEventIds: ['reflection'],
+          templateSummary: '今晚可以留意湖面倒影。',
+          ...forbiddenBody,
+        }),
+      });
+      assert.equal(response.status, 400);
+    }, { aiApiKey: 'test-ai-key' });
+  }
 
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/narrative`, {
