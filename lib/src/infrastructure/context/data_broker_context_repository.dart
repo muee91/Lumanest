@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
@@ -77,9 +79,10 @@ class DataBrokerContextRepository implements RemoteContextRepository {
   Future<ContextSnapshot> fetchSnapshot({
     required LocationReading location,
     required DateTime observedAt,
+    RouteContextState route = RouteContextState.none,
   }) {
     return _post(
-      request: _canonicalRequest(location, observedAt),
+      request: _canonicalRequest(location, observedAt, route),
       location: location.point,
     );
   }
@@ -134,6 +137,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
   Map<String, Object?> _canonicalRequest(
     LocationReading location,
     DateTime observedAt,
+    RouteContextState route,
   ) {
     return {
       'contractVersion': 2,
@@ -145,7 +149,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       'observedAt': observedAt.toUtc().toIso8601String(),
       'locale': 'zh-CN',
       'intent': 'photography',
-      'route': {'mode': 'none', 'stage': 'none'},
+      'route': route.toRequest(),
     };
   }
 
@@ -165,14 +169,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       'observedAt': base.observedAt.toUtc().toIso8601String(),
       'locale': 'zh-CN',
       'intent': 'photography',
-      'route': {
-        'mode': scene == SceneType.hiking
-            ? 'hiking'
-            : scene == SceneType.driving
-            ? 'driving'
-            : 'none',
-        'stage': base.activeRoute ? 'active' : 'none',
-      },
+      'route': {'mode': base.routeMode.name, 'stage': base.routeStage.name},
       'evidence': {
         'urban': scene == SceneType.city,
         'waterBody': scene == SceneType.lake,
@@ -334,6 +331,8 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         !_finiteIn(moonIllumination, 0, 1) ||
         route['active'] is! bool ||
         (route['active'] == true) != (routeStage == ContextRouteStage.active) ||
+        (routeMode == ContextRouteMode.none) !=
+            (routeStage == ContextRouteStage.none) ||
         body['stale'] is! bool ||
         !const {
           'quiet',
@@ -354,6 +353,33 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         actions.any((action) => action == null)) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
+    final layout = ServerManifestLayout.fromServerString(
+      manifest['layoutMode']! as String,
+    );
+    if (layout == null) {
+      throw const RemoteContextFailure(RemoteContextFailureKind.response);
+    }
+    final primaryEventId = manifest['primaryEventId']! as String?;
+    final secondaryEventIds = (manifest['secondaryEventIds']! as List)
+        .cast<String>();
+    final safetyEventIds = (manifest['safetyEventIds']! as List).cast<String>();
+    final eventById = <String, ContextEvent>{
+      for (final event in events) event.id: event,
+    };
+    if (!_manifestReferencesAreValid(
+      primaryEventId: primaryEventId,
+      secondaryEventIds: secondaryEventIds,
+      safetyEventIds: safetyEventIds,
+      eventById: eventById,
+    )) {
+      throw const RemoteContextFailure(RemoteContextFailureKind.response);
+    }
+    final serverManifest = ServerManifest(
+      layout: layout,
+      primaryEventId: primaryEventId,
+      secondaryEventIds: secondaryEventIds,
+      safetyEventIds: safetyEventIds,
+    );
     return ContextSnapshot(
       id: body['contextId']! as String,
       observedAt: weatherObservedAt.toUtc(),
@@ -376,7 +402,9 @@ class DataBrokerContextRepository implements RemoteContextRepository {
           .toList(growable: false),
       wildlifeEventIds: events
           .where(
-            (event) => event.channel == ContextEventChannel.wildlifeOpportunity,
+            (event) =>
+                event.channel == ContextEventChannel.wildlifeOpportunity ||
+                event.channel == ContextEventChannel.wildlifeSafety,
           )
           .map((event) => event.id)
           .toList(growable: false),
@@ -404,7 +432,38 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: actions.cast<ContextAction>(),
+      serverManifest: serverManifest,
     );
+  }
+
+  bool _manifestReferencesAreValid({
+    required String? primaryEventId,
+    required List<String> secondaryEventIds,
+    required List<String> safetyEventIds,
+    required Map<String, ContextEvent> eventById,
+  }) {
+    bool isOpportunity(String id) {
+      final event = eventById[id];
+      return event != null && event.channel == ContextEventChannel.opportunity;
+    }
+
+    bool isSafety(String id) {
+      final event = eventById[id];
+      return event != null &&
+          (event.channel == ContextEventChannel.safety ||
+              event.channel == ContextEventChannel.wildlifeSafety);
+    }
+
+    if (primaryEventId != null && !isOpportunity(primaryEventId)) {
+      return false;
+    }
+    for (final id in secondaryEventIds) {
+      if (!isOpportunity(id)) return false;
+    }
+    for (final id in safetyEventIds) {
+      if (!isSafety(id)) return false;
+    }
+    return true;
   }
 
   ContextEvent _event(Object? raw) {

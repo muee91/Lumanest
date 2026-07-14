@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,11 @@ class PersistentContextCache implements ContextCache {
   static const _version = 2;
   final SharedPreferencesAsync _preferences;
   final String storageKey;
+
+  /// Serializes read-modify-write operations within this instance so that
+  /// concurrent writes cannot reorder during async SharedPreferences calls.
+  /// A failed write is caught so the chain continues for subsequent callers.
+  Future<void> _writeChain = Future<void>.value();
 
   @override
   Future<ContextSnapshot?> readLatest() async {
@@ -34,14 +40,33 @@ class PersistentContextCache implements ContextCache {
 
   @override
   Future<void> write(ContextSnapshot snapshot) {
-    return _preferences.setString(
+    return _enqueue(() => _writeGuarded(snapshot));
+  }
+
+  Future<void> _enqueue(Future<void> Function() operation) {
+    final result = _writeChain.then((_) => operation());
+    // Chain the next write after this one settles, regardless of success.
+    // A single failure must not poison the queue for later callers.
+    _writeChain = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
+  }
+
+  Future<void> _writeGuarded(ContextSnapshot snapshot) async {
+    final latest = await readLatest();
+    if (latest != null && !canReplaceCachedSnapshot(snapshot, latest)) return;
+    await _preferences.setString(
       storageKey,
       jsonEncode({'version': _version, 'snapshot': _encodeSnapshot(snapshot)}),
     );
   }
 
   @override
-  Future<void> clear() => _preferences.remove(storageKey);
+  Future<void> clear() => _enqueue(() async {
+    await _preferences.remove(storageKey);
+  });
 
   Map<String, Object?> _encodeSnapshot(ContextSnapshot value) => {
     'id': value.id,
@@ -77,6 +102,8 @@ class PersistentContextCache implements ContextCache {
     'routeMode': value.routeMode.name,
     'routeStage': value.routeStage.name,
     'allowedActions': value.allowedActions.map((value) => value.name).toList(),
+    if (value.serverManifest != null)
+      'serverManifest': _encodeManifest(value.serverManifest!),
   };
 
   ContextSnapshot? _decodeSnapshot(Object? raw) {
@@ -109,6 +136,8 @@ class PersistentContextCache implements ContextCache {
     final events = _list(
       raw['events'],
     ).map(_decodeEvent).whereType<ContextEvent>();
+    final manifest = _decodeManifest(raw['serverManifest']);
+    if (identical(manifest, _manifestDecodeFailure)) return null;
     return ContextSnapshot(
       id: id,
       observedAt: observedAt,
@@ -141,6 +170,7 @@ class PersistentContextCache implements ContextCache {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: _enumList(ContextAction.values, raw['allowedActions']),
+      serverManifest: manifest as ServerManifest?,
     );
   }
 
@@ -250,6 +280,54 @@ class PersistentContextCache implements ContextCache {
       occurrenceSampleSize: sampleSize,
       taxa: taxa.toList(growable: false),
     );
+  }
+
+  /// Canonical sentinel returned by [_decodeManifest] when the persisted
+  /// manifest data fails validation. Signals the caller to discard the
+  /// entire snapshot rather than silently treating a corrupt manifest as
+  /// "no manifest".
+  ///
+  /// Using [Object] identity rather than `null` preserves the semantic
+  /// distinction: `null` means "no manifest stored", the sentinel means
+  /// "manifest was stored but is unrecoverable".
+  static const _manifestDecodeFailure = Object();
+
+  Map<String, Object?> _encodeManifest(ServerManifest manifest) => {
+    'layout': manifest.layout.name,
+    'primaryEventId': manifest.primaryEventId,
+    'secondaryEventIds': manifest.secondaryEventIds,
+    'safetyEventIds': manifest.safetyEventIds,
+  };
+
+  /// Decodes a [ServerManifest] from raw cache data.
+  ///
+  /// Returns `null` when the key is absent (`raw` is null or not a [Map]),
+  /// meaning "no manifest" — compatible with old cache entries. Returns
+  /// [_manifestDecodeFailure] when the data is structurally present but
+  /// cannot form a valid manifest (unknown layout, wrong types, or
+  /// construction-rule violations). The caller must propagate this sentinel
+  /// to abort the snapshot decode.
+  Object? _decodeManifest(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map) return _manifestDecodeFailure;
+    final layout = ServerManifestLayout.fromServerString(raw['layout']);
+    if (layout == null) return _manifestDecodeFailure;
+    final primaryEventId = raw['primaryEventId'];
+    if (primaryEventId is! String? && primaryEventId != null) {
+      return _manifestDecodeFailure;
+    }
+    final secondary = _stringList(raw['secondaryEventIds']);
+    final safety = _stringList(raw['safetyEventIds']);
+    try {
+      return ServerManifest(
+        layout: layout,
+        primaryEventId: primaryEventId as String?,
+        secondaryEventIds: secondary,
+        safetyEventIds: safety,
+      );
+    } on ArgumentError {
+      return _manifestDecodeFailure;
+    }
   }
 
   static List<Object?> _list(Object? value) => value is List ? value : const [];

@@ -1,5 +1,6 @@
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
+import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
 enum SceneType {
@@ -67,6 +68,7 @@ class ContextSnapshot {
     this.routeMode = ContextRouteMode.none,
     this.routeStage = ContextRouteStage.none,
     List<ContextAction> allowedActions = const [],
+    this.serverManifest,
   }) : opportunityIds = List.unmodifiable(opportunityIds),
        safetyEventIds = List.unmodifiable(safetyEventIds),
        wildlifeEventIds = List.unmodifiable(wildlifeEventIds),
@@ -104,6 +106,7 @@ class ContextSnapshot {
   final ContextRouteMode routeMode;
   final ContextRouteStage routeStage;
   final List<ContextAction> allowedActions;
+  final ServerManifest? serverManifest;
 
   ContextSnapshot asStale() {
     final retainedEvents = events
@@ -145,6 +148,7 @@ class ContextSnapshot {
           .whereType<ContextAction>()
           .toSet()
           .toList(growable: false),
+      serverManifest: serverManifest,
     );
   }
 
@@ -200,6 +204,7 @@ class ContextSnapshot {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
+      serverManifest: serverManifest,
     );
   }
 
@@ -253,6 +258,7 @@ class ContextSnapshot {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
+      serverManifest: serverManifest,
     );
   }
 }

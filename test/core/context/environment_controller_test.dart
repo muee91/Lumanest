@@ -9,6 +9,7 @@ import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -58,6 +59,7 @@ void main() {
     RemoteContextRepository? remoteContextRepository,
     Duration locationTimeout = const Duration(seconds: 15),
     Duration weatherTimeout = const Duration(seconds: 10),
+    RouteContextState route = RouteContextState.none,
   }) {
     return EnvironmentLoader(
       qweatherConfigured: configured,
@@ -69,6 +71,7 @@ void main() {
       wildlifeRepository: wildlifeRepository,
       sceneEvidenceRepository: sceneEvidenceRepository,
       remoteContextRepository: remoteContextRepository,
+      route: route,
       locationTimeout: locationTimeout,
       weatherTimeout: weatherTimeout,
       now: () => now,
@@ -140,6 +143,22 @@ void main() {
     expect(remote.fetchCalls, 1);
     expect(remote.enrichCalls, 0);
     expect(weather.calls, 1);
+  });
+
+  test('loader forwards the route context to the Broker as-is', () async {
+    final remote = _FakeRemoteContextRepository(
+      snapshot: _remoteSnapshot(now, _location(now).point),
+    );
+    final route = RouteContextState.active(ContextRouteMode.driving);
+
+    await createLoader(
+      configured: false,
+      remoteContextRepository: remote,
+      route: route,
+    ).load();
+
+    expect(remote.fetchCalls, 1);
+    expect(remote.recordedRoutes, [route]);
   });
 
   test('deduplicates simultaneous refresh requests', () async {
@@ -501,13 +520,16 @@ class _FakeRemoteContextRepository implements RemoteContextRepository {
   final Object? fetchError;
   int fetchCalls = 0;
   int enrichCalls = 0;
+  List<RouteContextState> recordedRoutes = [];
 
   @override
   Future<ContextSnapshot> fetchSnapshot({
     required LocationReading location,
     required DateTime observedAt,
+    RouteContextState route = RouteContextState.none,
   }) async {
     fetchCalls += 1;
+    recordedRoutes.add(route);
     if (fetchError case final error?) throw error;
     return snapshot;
   }

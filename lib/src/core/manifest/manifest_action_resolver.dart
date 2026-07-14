@@ -25,6 +25,9 @@ abstract final class ManifestActionResolver {
       ManifestAction.openSafety => const ManifestActionResolution.panel(
         ManifestPanel.safety,
       ),
+      ManifestAction.openRoute => const ManifestActionResolution.route(
+        '/route',
+      ),
     };
   }
 

@@ -1,6 +1,7 @@
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
@@ -39,6 +40,7 @@ class EnvironmentLoader {
     this.wildlifeRepository,
     this.sceneEvidenceRepository,
     this.remoteContextRepository,
+    this.route = RouteContextState.none,
     // GeolocatorRepository tries native AMap first, then a recent system fix,
     // GNSS and Android's balanced network provider. Keep this outer guard
     // above the whole recovery chain so every fallback remains available.
@@ -57,6 +59,7 @@ class EnvironmentLoader {
   final WildlifeRepository? wildlifeRepository;
   final SceneEvidenceRepository? sceneEvidenceRepository;
   final RemoteContextRepository? remoteContextRepository;
+  final RouteContextState route;
   final Duration locationTimeout;
   final Duration weatherTimeout;
   final DateTime Function() now;
@@ -87,7 +90,11 @@ class EnvironmentLoader {
     if (remoteRepository != null) {
       try {
         var snapshot = await remoteRepository
-            .fetchSnapshot(location: location, observedAt: generatedAt)
+            .fetchSnapshot(
+              location: location,
+              observedAt: generatedAt,
+              route: route,
+            )
             .timeout(const Duration(seconds: 3));
         final wildlifeActivity = await wildlifeFuture;
         if (wildlifeActivity?.hasActivity == true) {
@@ -136,6 +143,7 @@ class EnvironmentLoader {
       solar: solar,
       generatedAt: generatedAt,
       sceneEvidence: sceneEvidence,
+      route: route,
     );
     if (remoteRepository != null &&
         remoteFailure?.kind == RemoteContextFailureKind.unsupportedContract) {

@@ -7,6 +7,7 @@ import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/fixed_location_repository.dart';
@@ -165,6 +166,7 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
     wildlifeRepository: ref.watch(wildlifeRepositoryProvider),
     sceneEvidenceRepository: ref.watch(sceneEvidenceRepositoryProvider),
     remoteContextRepository: ref.watch(remoteContextRepositoryProvider),
+    route: ref.watch(routeContextStateProvider),
     now: DateTime.now,
     utcOffset: () => DateTime.now().timeZoneOffset,
   );

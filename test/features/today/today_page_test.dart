@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/core/context/context_event.dart' as context;
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
@@ -179,15 +180,29 @@ void main() {
     });
 
     testWidgets('safety content is separate from inspiration', (tester) async {
+      final now = DateTime.now().toUtc();
       final snapshot = ContextSnapshot(
         id: 'today-safety',
-        observedAt: DateTime.utc(2026, 7, 11),
-        expiresAt: DateTime.utc(2026, 7, 11, 0, 10),
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 10)),
         primaryScene: SceneType.hiking,
         dayPhase: DayPhase.day,
         weather: WeatherType.rain,
         activeRoute: true,
         safetyEventIds: const ['thunderstorm'],
+        events: [
+          context.ContextEvent(
+            id: 'thunderstorm',
+            channel: context.ContextEventChannel.safety,
+            source: context.ContextEventSource.weather,
+            observedAt: now,
+            expiresAt: now.add(const Duration(minutes: 10)),
+            confidence: 0.9,
+            geoScope: context.ContextGeoScope.point,
+            safetyLevel: context.ContextSafetyLevel.warning,
+            allowedAction: context.ContextAction.openSafety,
+          ),
+        ],
       );
 
       await tester.pumpWidget(
