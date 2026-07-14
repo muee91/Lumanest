@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
-import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
+import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/narrative/data_broker_manifest_narrative_model.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_coordinator.dart';
@@ -36,7 +36,7 @@ final manifestNarrativeCoordinatorProvider =
 
 final manifestNarrativeProvider =
     FutureProvider.family<ManifestNarrative, ContextSnapshot>((ref, snapshot) {
-      final manifest = ManifestPolicy.build(snapshot);
+      final manifest = ref.watch(personalizedManifestProvider(snapshot));
       return ref
           .watch(manifestNarrativeCoordinatorProvider)
           .resolve(snapshot: snapshot, manifest: manifest);

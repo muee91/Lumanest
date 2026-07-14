@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
@@ -36,10 +37,12 @@ class InspirationPage extends ConsumerWidget {
       ),
       data: (snapshot) {
         final narrative = ref.watch(manifestNarrativeProvider(snapshot));
+        final manifest = ref.watch(personalizedManifestProvider(snapshot));
         return _BottleScaffold(
           notes: InspirationNotes.build(
             snapshot,
             narrative: narrative.asData?.value,
+            manifest: manifest,
           ),
           reduceMotion: reduceMotion,
           onAction: (note) => _performAction(context, note),
