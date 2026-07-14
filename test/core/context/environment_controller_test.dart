@@ -8,6 +8,7 @@ import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
+import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -54,6 +55,7 @@ void main() {
     bool configured = true,
     WildlifeRepository? wildlifeRepository,
     SceneEvidenceRepository? sceneEvidenceRepository,
+    RemoteContextRepository? remoteContextRepository,
     Duration locationTimeout = const Duration(seconds: 15),
     Duration weatherTimeout = const Duration(seconds: 10),
   }) {
@@ -66,6 +68,7 @@ void main() {
       cache: cache,
       wildlifeRepository: wildlifeRepository,
       sceneEvidenceRepository: sceneEvidenceRepository,
+      remoteContextRepository: remoteContextRepository,
       locationTimeout: locationTimeout,
       weatherTimeout: weatherTimeout,
       now: () => now,
@@ -81,6 +84,62 @@ void main() {
     expect(solar.calls, 1);
     expect(snapshot.isStale, isFalse);
     expect(await cache.readLatest(), same(snapshot));
+  });
+
+  test(
+    'uses the minimal Broker snapshot before client weather or solar',
+    () async {
+      final remote = _FakeRemoteContextRepository(
+        snapshot: _remoteSnapshot(now, _location(now).point),
+      );
+
+      final snapshot = await createLoader(
+        configured: false,
+        remoteContextRepository: remote,
+      ).load();
+
+      expect(snapshot.id, 'remote');
+      expect(remote.fetchCalls, 1);
+      expect(remote.enrichCalls, 0);
+      expect(weather.calls, 0);
+      expect(solar.calls, 0);
+    },
+  );
+
+  test(
+    'retries the legacy contract only when the old Broker rejects minimal input',
+    () async {
+      final remote = _FakeRemoteContextRepository(
+        snapshot: _remoteSnapshot(now, _location(now).point),
+        fetchError: const RemoteContextFailure(
+          RemoteContextFailureKind.unsupportedContract,
+        ),
+      );
+
+      final snapshot = await createLoader(
+        remoteContextRepository: remote,
+      ).load();
+
+      expect(snapshot.id, 'remote');
+      expect(remote.fetchCalls, 1);
+      expect(remote.enrichCalls, 1);
+      expect(weather.calls, 1);
+      expect(solar.calls, 1);
+    },
+  );
+
+  test('does not retry the Broker after a network failure', () async {
+    final remote = _FakeRemoteContextRepository(
+      snapshot: _remoteSnapshot(now, _location(now).point),
+      fetchError: const RemoteContextFailure(RemoteContextFailureKind.network),
+    );
+
+    final snapshot = await createLoader(remoteContextRepository: remote).load();
+
+    expect(snapshot.id, startsWith('live-'));
+    expect(remote.fetchCalls, 1);
+    expect(remote.enrichCalls, 0);
+    expect(weather.calls, 1);
   });
 
   test('deduplicates simultaneous refresh requests', () async {
@@ -333,6 +392,19 @@ SolarState _solar(DateTime now) => SolarState(
   dayPhase: DayPhase.day,
 );
 
+ContextSnapshot _remoteSnapshot(DateTime now, GeoPoint location) =>
+    ContextSnapshot(
+      id: 'remote',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.city,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      location: location,
+      remoteGeneratedAt: now,
+    );
+
 class _FakeLocationRepository implements LocationRepository {
   _FakeLocationRepository(this.value);
 
@@ -419,5 +491,34 @@ class _FakeSceneEvidenceRepository implements SceneEvidenceRepository {
   Future<SceneEvidence> fetch(GeoPoint location) async {
     if (error case final failure?) throw failure;
     return evidence;
+  }
+}
+
+class _FakeRemoteContextRepository implements RemoteContextRepository {
+  _FakeRemoteContextRepository({required this.snapshot, this.fetchError});
+
+  final ContextSnapshot snapshot;
+  final Object? fetchError;
+  int fetchCalls = 0;
+  int enrichCalls = 0;
+
+  @override
+  Future<ContextSnapshot> fetchSnapshot({
+    required LocationReading location,
+    required DateTime observedAt,
+  }) async {
+    fetchCalls += 1;
+    if (fetchError case final error?) throw error;
+    return snapshot;
+  }
+
+  @override
+  Future<ContextSnapshot> enrich({
+    required ContextSnapshot base,
+    required WeatherObservation weather,
+    required SolarState solar,
+  }) async {
+    enrichCalls += 1;
+    return snapshot;
   }
 }

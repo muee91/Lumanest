@@ -1,14 +1,17 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
 
 void main() {
   test(
-    'posts only the v2 context contract and applies validated events',
+    'posts the minimal v2 context contract and builds a complete snapshot',
     () async {
       final transport = _FakeTransport();
       final repository = DataBrokerContextRepository(
@@ -16,16 +19,18 @@ void main() {
         serviceToken: 'service-token',
         transport: transport,
       );
-      final result = await repository.enrich(
-        base: _snapshot(),
-        weather: _weather(),
-        solar: _solar(),
+      final result = await repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
       );
 
       expect(transport.uri.path, '/v1/context/snapshot');
       expect(transport.headers, {'Authorization': 'Bearer service-token'});
       expect(transport.body['contractVersion'], 2);
       expect(transport.body.containsKey('deviceId'), isFalse);
+      expect(transport.body.containsKey('weather'), isFalse);
+      expect(transport.body.containsKey('evidence'), isFalse);
+      expect(transport.body.containsKey('solar'), isFalse);
       expect((transport.body['coordinate'] as Map)['system'], 'wgs84');
       expect(result.id, 'ctx_1234567890abcdef12345678');
       expect(result.primaryScene, SceneType.lake);
@@ -33,9 +38,100 @@ void main() {
       expect(result.dataFreshness, ContextDataFreshness.fresh);
       expect(result.moonPhase, MoonPhase.waxingCrescent);
       expect(result.allowedActions, [ContextAction.openExplore]);
+      expect(result.temperatureCelsius, 26);
+      expect(result.windSpeedMetersPerSecond, 2);
+      expect(result.solarAzimuthDegrees, 280);
     },
   );
+
+  test('legacy enrichment remains available for an old Broker retry', () async {
+    final transport = _FakeTransport();
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    await repository.enrich(
+      base: _snapshot(),
+      weather: _weather(),
+      solar: _solar(),
+    );
+
+    expect(transport.body.containsKey('weather'), isTrue);
+    expect(transport.body.containsKey('evidence'), isTrue);
+    expect(transport.body.containsKey('solar'), isTrue);
+  });
+
+  test(
+    'classifies an old Broker 400 as unsupported minimal contract',
+    () async {
+      final requestOptions = RequestOptions(
+        path: 'https://broker.example/v1/context/snapshot',
+      );
+      final transport = _FakeTransport()
+        ..error = DioException(
+          requestOptions: requestOptions,
+          response: Response<Object?>(
+            requestOptions: requestOptions,
+            statusCode: 400,
+          ),
+        );
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      await expectLater(
+        repository.fetchSnapshot(
+          location: _location(),
+          observedAt: DateTime.utc(2026, 7, 14, 2),
+        ),
+        throwsA(
+          isA<RemoteContextFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            RemoteContextFailureKind.unsupportedContract,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('rejects non-finite values and unknown response fields', () async {
+    final transport = _FakeTransport()
+      ..mutateResponse = (body) {
+        body['unexpected'] = true;
+        (body['weather']! as Map)['windSpeedMps'] = double.nan;
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    await expectLater(
+      repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      ),
+      throwsA(
+        isA<RemoteContextFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          RemoteContextFailureKind.response,
+        ),
+      ),
+    );
+  });
 }
+
+LocationReading _location() => LocationReading(
+  point: const GeoPoint(latitude: 30.25, longitude: 120.15),
+  recordedAt: DateTime.utc(2026, 7, 14, 2),
+  accuracyMeters: 8,
+);
 
 ContextSnapshot _snapshot() => ContextSnapshot(
   id: 'local',
@@ -71,6 +167,8 @@ class _FakeTransport implements ContextDataTransport {
   late Uri uri;
   late Map<String, String> headers;
   late Map<String, Object?> body;
+  Object? error;
+  void Function(Map<String, Object?> body)? mutateResponse;
 
   @override
   Future<Map<String, Object?>> post(
@@ -78,10 +176,11 @@ class _FakeTransport implements ContextDataTransport {
     required Map<String, String> headers,
     required Map<String, Object?> body,
   }) async {
+    if (error case final failure?) throw failure;
     this.uri = uri;
     this.headers = headers;
     this.body = body;
-    return {
+    final response = <String, Object?>{
       'contractVersion': 2,
       'contextId': 'ctx_1234567890abcdef12345678',
       'generatedAt': '2026-07-14T02:00:00Z',
@@ -133,5 +232,7 @@ class _FakeTransport implements ContextDataTransport {
         'safetyEventIds': [],
       },
     };
+    mutateResponse?.call(response);
+    return response;
   }
 }

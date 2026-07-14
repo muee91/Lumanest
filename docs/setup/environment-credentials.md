@@ -47,12 +47,13 @@ JWT 以 `Authorization: Bearer <JWT>` 请求头发送。Header 和 Payload 是�
 
 ```text
 LumaNest App
-  → 你的服务端 JWT 端点
-  → 服务端使用 Ed25519 私钥签发短期 JWT
-  → 和风天气 API
+  → Broker /v1/context/snapshot
+  → Broker 使用 Ed25519 私钥访问和风天气
+  → FastAPI 情境规则
+  → ContextSnapshotV2
 ```
 
-App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私钥、Key ID 和 Project ID。建议 JWT 的有效期设为 15 分钟，并在到期前由服务端刷新。
+新客户端只把 WGS84 坐标、观测时间、路线阶段、意图、语言和契约版本发给 Broker。API Host、私钥、Key ID 和 Project ID 均由服务端使用。`QWEATHER_API_HOST` 与 `QWEATHER_TOKEN_ENDPOINT` 暂时仍注入调试 App，只用于旧 NAS 不支持最小情境契约时的迁移回退；新服务成功返回快照后，App 不会直连和风。
 
 > 当前代码中的 `QWEATHER_API_KEY` / `X-QW-Api-Key` 是先前的临时直连适配，**不满足 JWT 正式接入方案**。在进行带真实天气的真机联调前，需要先把客户端切换为调用你的 JWT 服务端端点；不要据此配置或发送私钥。
 
@@ -64,7 +65,7 @@ App 只需要知道 API Host 和你自己的 JWT 端点；服务端才保存私�
 {
   "AMAP_ANDROID_KEY": "你的本地高德 Android Key",
   "AMAP_WEB_KEY": "仅部署到 NAS 的高德 Web 服务 Key",
-  "QWEATHER_API_HOST": "https://你的项目.qweatherapi.com",
+  "QWEATHER_API_HOST": "https://你的项目.qweatherapi.com（迁移期客户端回退，同时写入 NAS 环境）",
   "QWEATHER_KEY_ID": "你的和风天气凭据 ID",
   "QWEATHER_PROJECT_ID": "你的和风天气项目 ID",
   "QWEATHER_TOKEN_ENDPOINT": "https://你的服务域名/v1/qweather/token",

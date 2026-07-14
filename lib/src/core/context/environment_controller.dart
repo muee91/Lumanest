@@ -69,7 +69,8 @@ class EnvironmentLoader {
   }
 
   Future<ContextSnapshot> _load() async {
-    if (!qweatherConfigured) {
+    final remoteRepository = remoteContextRepository;
+    if (!qweatherConfigured && remoteRepository == null) {
       throw const EnvironmentLoadFailure(EnvironmentFailureKind.configMissing);
     }
 
@@ -80,10 +81,38 @@ class EnvironmentLoader {
       return _cachedOrThrow(EnvironmentFailureKind.location, error);
     }
 
-    // Optional context lookups start as soon as a location is available and
-    // run beside weather. Their failures never block the base environment.
-    final sceneEvidenceFuture = _fetchSceneEvidence(location.point);
+    final generatedAt = now().toUtc();
     final wildlifeFuture = _fetchWildlifeActivity(location.point);
+    RemoteContextFailure? remoteFailure;
+    if (remoteRepository != null) {
+      try {
+        var snapshot = await remoteRepository
+            .fetchSnapshot(location: location, observedAt: generatedAt)
+            .timeout(const Duration(seconds: 3));
+        final wildlifeActivity = await wildlifeFuture;
+        if (wildlifeActivity?.hasActivity == true) {
+          snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);
+        }
+        await cache.write(snapshot);
+        return snapshot;
+      } catch (error) {
+        remoteFailure = error is RemoteContextFailure
+            ? error
+            : const RemoteContextFailure(RemoteContextFailureKind.response);
+      }
+    }
+
+    if (!qweatherConfigured) {
+      return _cachedOrThrow(
+        EnvironmentFailureKind.weather,
+        remoteFailure ??
+            const RemoteContextFailure(RemoteContextFailureKind.configuration),
+      );
+    }
+
+    // These client-side lookups remain only as the migration and offline-safe
+    // path. Once the Broker accepts the minimal contract they are not called.
+    final sceneEvidenceFuture = _fetchSceneEvidence(location.point);
 
     final WeatherObservation weather;
     try {
@@ -94,7 +123,6 @@ class EnvironmentLoader {
       return _cachedOrThrow(EnvironmentFailureKind.weather, error);
     }
 
-    final generatedAt = now().toUtc();
     final solar = solarService.calculate(
       point: location.point,
       moment: generatedAt,
@@ -109,8 +137,8 @@ class EnvironmentLoader {
       generatedAt: generatedAt,
       sceneEvidence: sceneEvidence,
     );
-    final remoteRepository = remoteContextRepository;
-    if (remoteRepository != null) {
+    if (remoteRepository != null &&
+        remoteFailure?.kind == RemoteContextFailureKind.unsupportedContract) {
       try {
         snapshot = await remoteRepository
             .enrich(base: snapshot, weather: weather, solar: solar)

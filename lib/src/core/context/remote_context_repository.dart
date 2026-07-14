@@ -1,8 +1,14 @@
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 
 abstract interface class RemoteContextRepository {
+  Future<ContextSnapshot> fetchSnapshot({
+    required LocationReading location,
+    required DateTime observedAt,
+  });
+
   Future<ContextSnapshot> enrich({
     required ContextSnapshot base,
     required WeatherObservation weather,
@@ -10,7 +16,12 @@ abstract interface class RemoteContextRepository {
   });
 }
 
-enum RemoteContextFailureKind { configuration, network, response }
+enum RemoteContextFailureKind {
+  configuration,
+  network,
+  response,
+  unsupportedContract,
+}
 
 class RemoteContextFailure implements Exception {
   const RemoteContextFailure(this.kind);

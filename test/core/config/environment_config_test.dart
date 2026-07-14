@@ -35,6 +35,19 @@ void main() {
     expect(config.sentryDsn, 'https://public@example.ingest.sentry.io/123');
   });
 
+  test(
+    'Broker configuration does not require the legacy QWeather API host',
+    () {
+      final config = EnvironmentConfig(
+        qweatherTokenEndpoint: 'https://weather.example.com/v1/qweather/token',
+        lumaNestServiceToken: 'broker-secret',
+      );
+
+      expect(config.isDataBrokerConfigured, isTrue);
+      expect(config.isQWeatherConfigured, isFalse);
+    },
+  );
+
   test('string representation never exposes key values', () {
     final config = EnvironmentConfig(
       amapAndroidKey: 'amap-secret',
