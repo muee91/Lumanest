@@ -37,7 +37,13 @@ final manifestNarrativeCoordinatorProvider =
 final manifestNarrativeProvider =
     FutureProvider.family<ManifestNarrative, ContextSnapshot>((ref, snapshot) {
       final manifest = ref.watch(personalizedManifestProvider(snapshot));
+      final personalization = ref.watch(creativePersonalizationProvider);
       return ref
           .watch(manifestNarrativeCoordinatorProvider)
-          .resolve(snapshot: snapshot, manifest: manifest);
+          .resolve(
+            snapshot: snapshot,
+            manifest: manifest,
+            tone: personalization.tone,
+            preferenceFingerprint: personalization.fingerprint,
+          );
     });
