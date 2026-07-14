@@ -1,13 +1,13 @@
 # LumaNest 数据代理
 
-这是部署在 NAS Docker 上的轻量服务。它用 NAS 中的 Ed25519 私钥签发 15 分钟有效的和风天气 JWT，并代理高德 Web 服务；和风私钥、高德 Web Key 与项目凭据都不会进入 Flutter App。
+这是部署在 NAS Docker 上的轻量服务。它统一获取和风天气并代理高德 Web 服务；和风私钥、高德 Web Key 与项目凭据都不会进入 Flutter App。旧版 JWT 签发接口仅作为客户端迁移兼容入口保留。
 
 ## 网络与接口
 
 - App API 端口：`8787`
 - 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`
 - 健康检查：`GET /healthz`
-- JWT 签发：`POST /v1/qweather/token`
+- 旧客户端 JWT 签发：`POST /v1/qweather/token`
 - 周边 POI：`GET /v1/amap/nearby`
 - 驾车路线：`GET /v1/amap/driving`
 - 步行路线：`GET /v1/amap/walking`
@@ -18,6 +18,8 @@
 - 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
 - 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
 - JWT 签发接口需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
+
+在线情境快照的标准输入只包含 WGS84 坐标、观测时间、语言、白名单意图、路线阶段和契约版本。Broker 从和风获取实时天气、24 小时预报、分钟降水和官方预警，使用 Redis 缓存标准化结果，再将权威天气交给内部 FastAPI。旧客户端携带的 `weather`、`evidence` 和 `solar` 字段暂时仍可通过输入校验，但不会进入服务端安全规则；服务端始终覆盖这些字段。
 
 将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 端点是：
 
@@ -61,6 +63,7 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
 
    - `QWEATHER_KEY_ID`：和风天气凭据 ID。
    - `QWEATHER_PROJECT_ID`：和风天气项目 ID。
+   - `QWEATHER_API_HOST`：和风控制台分配的项目 API Host，必须为 HTTPS `*.qweatherapi.com`。
    - `QWEATHER_PRIVATE_KEY_FILE`：NAS 私钥的绝对路径。
    - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
@@ -122,6 +125,8 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
 - `CONTEXT_INTERNAL_TOKEN`：Broker 与 FastAPI 情境服务之间的独立随机令牌，不能传入 Flutter。
 - `LUMANEST_DATABASE_PASSWORD`：PostgreSQL 专用随机密码，不能与管理密码或 App 服务令牌复用。
 
+Broker 还通过 Compose 内部的 `REDIS_URL` 缓存和风标准化结果。缓存键使用位置网格哈希，不保存可读精确坐标；缓存不可用时直接请求和风，来源失败时最多使用两小时内、明确标记为陈旧的缓存，陈旧天气不会生成创作机会或预报事件。
+
 Compose 不向宿主机映射 FastAPI、PostgreSQL 或 Redis 端口。App 仍只能访问 `8787`，管理台仍只能通过局域网 `8788` 访问。
 
 情境导入接口只接受严格校验的 `spatialFeatures` GeoJSON 或
@@ -159,7 +164,7 @@ Compose 不向宿主机映射 FastAPI、PostgreSQL 或 Redis 端口。App 仍只
 https://你的域名/healthz
 ```
 
-确认健康检查成功后，告诉我域名即可。我会继续把 Flutter 从旧的 `X-QW-Api-Key` 改为调用此 JWT 服务，并把服务访问令牌作为本地 Dart define 注入，绝不写入仓库。
+确认健康检查成功后，Flutter 只需访问 Broker；`/v1/qweather/token` 在旧客户端兼容期结束前保留。
 
 ## 运维
 

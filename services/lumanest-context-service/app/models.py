@@ -63,6 +63,44 @@ class RouteInput(ApiModel):
     stage: Literal["none", "planned", "active", "paused"] = "none"
 
 
+class WeatherForecastInput(ApiModel):
+    observed_at: datetime = Field(alias="observedAt")
+    next_hour_precipitation_mm: float = Field(
+        ge=0, le=2000, alias="nextHourPrecipitationMm"
+    )
+    next_three_hours_max_wind_speed_mps: float | None = Field(
+        None, ge=0, le=150, alias="nextThreeHoursMaxWindSpeedMps"
+    )
+    thunder_next_three_hours: bool = Field(False, alias="thunderNextThreeHours")
+
+    @field_validator("observed_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("forecast observedAt must include a timezone")
+        return value
+
+
+class OfficialWarningInput(ApiModel):
+    id: str = Field(pattern=r"^[a-f0-9]{12}$")
+    observed_at: datetime = Field(alias="observedAt")
+    expires_at: datetime = Field(alias="expiresAt")
+    severity: Literal["info", "caution", "warning", "critical"]
+
+    @field_validator("observed_at", "expires_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("warning timestamps must include a timezone")
+        return value
+
+    @model_validator(mode="after")
+    def require_ordered_times(self) -> "OfficialWarningInput":
+        if self.expires_at <= self.observed_at:
+            raise ValueError("warning expiresAt must be later than observedAt")
+        return self
+
+
 class SnapshotRequest(ApiModel):
     contract_version: Literal[2] = Field(alias="contractVersion")
     coordinate: Coordinate
@@ -72,7 +110,11 @@ class SnapshotRequest(ApiModel):
     route: RouteInput = RouteInput()
     evidence: SceneEvidence = SceneEvidence()
     weather: WeatherInput
-    solar: SolarInput
+    forecast: WeatherForecastInput
+    official_warnings: list[OfficialWarningInput] = Field(
+        default_factory=list, alias="officialWarnings", max_length=8
+    )
+    solar: SolarInput | None = None
 
     @field_validator("observed_at")
     @classmethod

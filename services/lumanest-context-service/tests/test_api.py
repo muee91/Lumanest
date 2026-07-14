@@ -25,6 +25,13 @@ def payload():
             "thunder": False,
             "stale": False,
         },
+        "forecast": {
+            "observedAt": "2026-07-14T10:00:00+08:00",
+            "nextHourPrecipitationMm": 0,
+            "nextThreeHoursMaxWindSpeedMps": 3,
+            "thunderNextThreeHours": False,
+        },
+        "officialWarnings": [],
         "solar": {"dayPhase": "sunset"},
     }
 
@@ -73,6 +80,47 @@ def test_unknown_fields_are_rejected(monkeypatch):
             headers={"X-Internal-Service-Token": "internal-test-token"},
         )
         assert response.status_code == 422
+
+
+def test_source_status_exposes_enabled_weather_sources_and_disabled_air_quality(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    with TestClient(app) as client:
+        response = client.get(
+            "/internal/v1/sources",
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+    assert response.status_code == 200
+    sources = {source["id"]: source for source in response.json()}
+    assert sources["qweather-hourly"]["enabled"] is True
+    assert sources["qweather-warning"]["licenseStatus"] == "approved"
+    assert sources["qweather-air-quality"]["enabled"] is False
+    assert sources["qweather-air-quality"]["licenseStatus"] == "pending"
+
+
+def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    request = payload()
+    request.pop("solar")
+    request["evidence"] = {}
+    request["officialWarnings"] = [{
+        "id": "abcdef123456",
+        "observedAt": "2026-07-14T09:55:00+08:00",
+        "expiresAt": "2026-07-14T12:00:00+08:00",
+        "severity": "critical",
+    }]
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=request,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    warning = next(event for event in body["events"] if event["source"] == "official")
+    assert warning["id"] == "weather-warning-abcdef123456"
+    assert warning["severity"] == "critical"
+    assert warning["allowedAction"] == "openSafety"
+    assert body["sunMoon"]["sunElevationDegrees"] is not None
 
 
 def spatial_import_payload():

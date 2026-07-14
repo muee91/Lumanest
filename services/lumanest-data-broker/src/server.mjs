@@ -22,6 +22,8 @@ import {
   listContextSources,
   validContextRequest,
 } from './context/proxy.mjs';
+import { authoritativeWeather } from './context/qweather.mjs';
+import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
@@ -315,6 +317,8 @@ export function createTokenBrokerServer({
   runtimeConfig,
   contextServiceUrl = '',
   contextInternalToken = '',
+  qweatherApiHost = '',
+  weatherCache = new MemoryWeatherCache(),
   now = () => new Date(),
   fetcher = fetch,
 }) {
@@ -328,6 +332,7 @@ export function createTokenBrokerServer({
     llmRouting: Object.freeze({ ...llmRouting }),
     contextServiceUrl,
     contextInternalToken,
+    qweatherApiHost,
     settings: validateRuntimeSettings(settings ?? {}),
   });
   const configurationSource = runtimeConfig ?? { snapshot: () => fixedSnapshot };
@@ -508,8 +513,36 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_context_request' });
         return;
       }
+      const weather = await authoritativeWeather({
+        coordinate: body.coordinate,
+        apiHost: configuration.qweatherApiHost,
+        privateKey: configuration.privateKey,
+        keyId: configuration.keyId,
+        projectId: configuration.projectId,
+        cache: weatherCache,
+        fetcher,
+        now,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!weather.ok) {
+        writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
+          error: weather.error === 'not_configured' ? 'weather_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      const internalBody = {
+        contractVersion: body.contractVersion,
+        coordinate: body.coordinate,
+        observedAt: body.observedAt,
+        locale: body.locale,
+        intent: body.intent,
+        route: body.route,
+        weather: weather.body.weather,
+        forecast: weather.body.forecast,
+        officialWarnings: weather.body.officialWarnings,
+      };
       const result = await forwardContextSnapshot({
-        body,
+        body: internalBody,
         serviceUrl: configuration.contextServiceUrl,
         internalToken: configuration.contextInternalToken,
         fetcher,
@@ -567,6 +600,7 @@ export function configurationFromEnvironment(environment = process.env) {
     aiModel: environment.AI_MODEL?.trim() ?? '',
     contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
+    qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
@@ -592,7 +626,9 @@ export async function createBrokerServices(environment = process.env, {
   });
   await authService.initialize();
   const auditLog = new AuditLog();
-  const appServer = createTokenBrokerServer({ runtimeConfig });
+  const weatherCache = await RedisWeatherCache.connect(environment.REDIS_URL?.trim() ?? '') ??
+    new MemoryWeatherCache();
+  const appServer = createTokenBrokerServer({ runtimeConfig, weatherCache });
   const adminServer = createAdminServer({
     authService,
     runtimeConfig,

@@ -2,8 +2,11 @@
 
 FastAPI internal service for deterministic scene classification, context events,
 PostGIS spatial evidence, and Redis snapshot TTLs. It is not a public App API.
-The Node broker validates App authorization and forwards only the bounded v2
-context contract over the private Compose network.
+The Node broker validates App authorization, replaces all client weather with
+server-fetched QWeather data, and forwards only the bounded v2 internal context
+contract over the private Compose network. The service computes sun position
+and moon phase deterministically; official weather warnings remain rule-owned
+safety events and are never delegated to a model.
 
 ## Reviewed dataset imports
 

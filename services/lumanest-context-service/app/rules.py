@@ -5,6 +5,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from .models import ContextEvent, Manifest, SceneEvidence, SceneType, SnapshotRequest, SnapshotResponse
+from .solar import solar_state
 
 
 _moon_reference = datetime(2000, 1, 6, 18, 14, tzinfo=timezone.utc)
@@ -48,12 +49,22 @@ def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = No
 
 
 def context_fingerprint(request: SnapshotRequest, scene: SceneType) -> str:
+    solar = request.solar or solar_state(request.coordinate, request.observed_at)
+    warning_ids = ",".join(sorted(warning.id for warning in request.official_warnings))
+    forecast_state = ":".join((
+        str(round(request.forecast.next_hour_precipitation_mm, 1)),
+        str(round(request.forecast.next_three_hours_max_wind_speed_mps or 0, 1)),
+        str(request.forecast.thunder_next_three_hours),
+    ))
     grid = f"{request.coordinate.latitude:.2f},{request.coordinate.longitude:.2f}"
     raw = "|".join((
         grid,
         scene.value,
-        request.solar.day_phase,
+        solar.day_phase,
         request.weather.condition,
+        request.weather.observed_at.astimezone(timezone.utc).isoformat(timespec="minutes"),
+        forecast_state,
+        warning_ids,
         request.route.mode,
         request.route.stage,
         request.intent,
@@ -67,6 +78,7 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
     scene = classify_scene(request, evidence)
     fingerprint = context_fingerprint(request, scene)
     moon_phase, moon_illumination = moon_state(generated_at)
+    solar = request.solar or solar_state(request.coordinate, generated_at)
     events: list[ContextEvent] = []
 
     def add(
@@ -77,13 +89,15 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
         action: str,
         severity: str = "info",
         geo_scope: str = "regional",
+        observed_at: datetime | None = None,
+        event_expires_at: datetime | None = None,
     ) -> None:
         events.append(ContextEvent.model_validate({
             "id": event_id,
             "channel": channel,
             "source": source,
-            "observedAt": request.weather.observed_at,
-            "expiresAt": expires_at,
+            "observedAt": observed_at or request.weather.observed_at,
+            "expiresAt": event_expires_at or expires_at,
             "confidence": confidence,
             "geoScope": geo_scope,
             "severity": severity,
@@ -97,10 +111,32 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
     if request.weather.precipitation_mm >= 10:
         add("heavy-rain", "safety", "weather", 0.9, "openSafety", "warning", "regional")
 
+    for warning in request.official_warnings:
+        if warning.expires_at <= generated_at:
+            continue
+        add(
+            f"weather-warning-{warning.id}",
+            "safety",
+            "official",
+            1,
+            "openSafety",
+            warning.severity,
+            "regional",
+            warning.observed_at,
+            warning.expires_at,
+        )
+
     if not request.weather.stale:
-        edge_light = request.solar.day_phase in ("dawn", "sunset")
+        if request.forecast.thunder_next_three_hours:
+            add("thunderstorm-forecast", "safety", "weather", 0.9, "openSafety", "warning")
+        if request.forecast.next_three_hours_max_wind_speed_mps is not None and \
+                request.forecast.next_three_hours_max_wind_speed_mps >= 15:
+            add("strong-wind-forecast", "safety", "weather", 0.8, "openSafety", "caution")
+        if request.forecast.next_hour_precipitation_mm >= 5:
+            add("rain-soon", "safety", "weather", 0.8, "openWeather", "caution")
+        edge_light = solar.day_phase in ("dawn", "sunset")
         clear_enough = request.weather.condition in ("clear", "cloudy")
-        if scene is SceneType.CITY and request.solar.day_phase == "blueHour":
+        if scene is SceneType.CITY and solar.day_phase == "blueHour":
             add("blue-hour", "opportunity", "solar", 0.9, "openShootingWindow", geo_scope="point")
         if scene is SceneType.LAKE and request.weather.wind_speed_mps <= 3 and request.weather.precipitation_mm == 0:
             add("reflection", "opportunity", "rule", 0.82, "openExplore", geo_scope="point")
@@ -148,9 +184,9 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
             "thunder": request.weather.thunder,
         },
         "sunMoon": {
-            "dayPhase": request.solar.day_phase,
-            "sunElevationDegrees": request.solar.elevation_degrees,
-            "sunAzimuthDegrees": request.solar.azimuth_degrees,
+            "dayPhase": solar.day_phase,
+            "sunElevationDegrees": solar.elevation_degrees,
+            "sunAzimuthDegrees": solar.azimuth_degrees,
             "moonPhase": moon_phase,
             "moonIllumination": moon_illumination,
         },

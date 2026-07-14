@@ -24,6 +24,13 @@ def request_for(*, evidence=None, route=None, condition="clear", day_phase="suns
             "thunder": False,
             "stale": stale,
         },
+        "forecast": {
+            "observedAt": "2026-07-14T10:00:00+08:00",
+            "nextHourPrecipitationMm": 0,
+            "nextThreeHoursMaxWindSpeedMps": 3,
+            "thunderNextThreeHours": False,
+        },
+        "officialWarnings": [],
         "solar": {"dayPhase": day_phase},
     })
 

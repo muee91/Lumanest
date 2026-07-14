@@ -228,14 +228,39 @@ class ContextStore:
             return False
 
     async def source_statuses(self) -> list[SourceStatus]:
+        updated_at = None
+        if self.redis is not None:
+            try:
+                raw = await self.redis.get("source:qweather:last-updated")
+                updated_at = datetime.fromisoformat(raw.replace("Z", "+00:00")) if raw else None
+            except Exception:
+                updated_at = None
+        builtins = [
+            SourceStatus.model_validate({
+                "id": source_id,
+                "datasetType": "unknown",
+                "enabled": enabled,
+                "licenseStatus": license_status,
+                "attribution": "QWeather",
+                "version": "v7",
+                "updatedAt": updated_at if enabled else None,
+            })
+            for source_id, enabled, license_status in (
+                ("qweather-current", True, "approved"),
+                ("qweather-hourly", True, "approved"),
+                ("qweather-minutely", True, "approved"),
+                ("qweather-warning", True, "approved"),
+                ("qweather-air-quality", False, "pending"),
+            )
+        ]
         if self.engine is None:
-            return []
+            return builtins
         try:
             async with self.engine.connect() as connection:
                 rows = (await connection.execute(text("""
                     SELECT id, dataset_type, enabled, license_status, attribution, version, updated_at
                     FROM source_registry ORDER BY id
                 """))).mappings().all()
-            return [SourceStatus.model_validate(dict(row)) for row in rows]
+            return builtins + [SourceStatus.model_validate(dict(row)) for row in rows]
         except Exception:
-            return []
+            return builtins

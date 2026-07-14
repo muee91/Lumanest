@@ -11,6 +11,8 @@ import {
   createTokenBrokerServer,
 } from '../src/server.mjs';
 
+const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
+
 async function withServer(run, {
   fetcher,
   aiApiKey = '',
@@ -20,6 +22,7 @@ async function withServer(run, {
   runtimeConfig,
   contextServiceUrl = '',
   contextInternalToken = '',
+  qweatherApiHost = 'https://project.qweatherapi.com',
 } = {}) {
   const llmProfiles = aiApiKey ? [{
     id: 'test-profile', name: 'Test profile', providerId: 'custom_openai',
@@ -28,7 +31,7 @@ async function withServer(run, {
     model: aiModel ?? 'test-model', enabled: true, timeoutMs: 8_000, allowFallback: false,
   }] : [];
   const server = createTokenBrokerServer({
-    privateKey: {},
+    privateKey: testQWeatherPrivateKey,
     keyId: 'test-key',
     projectId: 'test-project',
     serviceToken: 'test-service-token',
@@ -44,6 +47,7 @@ async function withServer(run, {
     runtimeConfig,
     contextServiceUrl,
     contextInternalToken,
+    qweatherApiHost,
     fetcher,
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -72,14 +76,6 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
     locale: 'zh-CN',
     intent: 'photography',
     route: { mode: 'none', stage: 'none' },
-    evidence: { urban: false, waterBody: true, mountainous: false, aridLand: false, settlement: false },
-    weather: {
-      observedAt: '2026-07-14T10:00:00+08:00', condition: 'clear',
-      windSpeedMps: 2, precipitationMm: 0, visibilityKm: 20,
-      thunder: false, stale: false,
-      temperatureCelsius: 26, windDirectionDegrees: 90, cloudCoverPercent: null,
-    },
-    solar: { dayPhase: 'sunset', elevationDegrees: 4, azimuthDegrees: 280 },
   };
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/context/snapshot`, {
@@ -92,10 +88,41 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).scene, 'lake');
+    const legacyResponse = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...requestBody,
+        evidence: { urban: false, waterBody: false, mountainous: true, aridLand: false, settlement: false },
+        weather: {
+          observedAt: '2026-07-14T10:00:00+08:00', condition: 'rain',
+          windSpeedMps: 100, precipitationMm: 100, visibilityKm: 1,
+          thunder: true, stale: false,
+          temperatureCelsius: 5, windDirectionDegrees: 180, cloudCoverPercent: 100,
+        },
+        solar: { dayPhase: 'night', elevationDegrees: -30, azimuthDegrees: 1 },
+      }),
+    });
+    assert.equal(legacyResponse.status, 200);
   }, {
     contextServiceUrl: 'http://context-service:8000',
     contextInternalToken: 'internal-context-token',
     fetcher: async (url, options) => {
+      if (url.hostname.endsWith('.qweatherapi.com')) {
+        const bodies = {
+          '/v7/weather/now': { code: '200', now: {
+            obsTime: '2026-07-14T10:00:00+08:00', temp: '26', icon: '100',
+            windSpeed: '7.2', wind360: '90', vis: '20', precip: '0', cloud: '12',
+          } },
+          '/v7/weather/24h': { code: '200', hourly: [] },
+          '/v7/minutely/5m': { code: '200', minutely: [] },
+          '/v7/warning/now': { code: '200', warning: [] },
+        };
+        return new Response(JSON.stringify(bodies[url.pathname]), { status: 200 });
+      }
       upstreamRequest = { url, options };
       return new Response(JSON.stringify({
         contractVersion: 2,
@@ -123,7 +150,17 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
   });
   assert.equal(upstreamRequest.url.pathname, '/internal/v1/evaluate');
   assert.equal(upstreamRequest.options.headers['X-Internal-Service-Token'], 'internal-context-token');
-  assert.deepEqual(JSON.parse(upstreamRequest.options.body), requestBody);
+  const internalBody = JSON.parse(upstreamRequest.options.body);
+  assert.deepEqual(Object.keys(internalBody).sort(), [
+    'contractVersion', 'coordinate', 'forecast', 'intent', 'locale',
+    'observedAt', 'officialWarnings', 'route', 'weather',
+  ].sort());
+  assert.equal(internalBody.weather.temperatureCelsius, 26);
+  assert.equal(internalBody.weather.windSpeedMps, 2);
+  assert.equal(internalBody.weather.thunder, false);
+  assert.equal(Object.hasOwn(internalBody, 'evidence'), false);
+  assert.equal(Object.hasOwn(internalBody, 'solar'), false);
+  assert.deepEqual(internalBody.officialWarnings, []);
 });
 
 test('context snapshot rejects identity fields without contacting the context service', async () => {

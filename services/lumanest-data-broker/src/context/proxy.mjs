@@ -1,6 +1,8 @@
-const requestKeys = new Set([
-  'contractVersion', 'coordinate', 'observedAt', 'locale', 'intent',
-  'route', 'evidence', 'weather', 'solar',
+const canonicalRequestKeys = new Set([
+  'contractVersion', 'coordinate', 'observedAt', 'locale', 'intent', 'route',
+]);
+const legacyRequestKeys = new Set([
+  ...canonicalRequestKeys, 'evidence', 'weather', 'solar',
 ]);
 
 function object(value) {
@@ -15,7 +17,10 @@ function finiteIn(value, minimum, maximum) {
 }
 
 export function validContextRequest(body) {
-  if (!exactKeys(body, requestKeys) || body.contractVersion !== 2) return false;
+  const keys = Object.keys(body ?? {});
+  const legacy = keys.some((key) => ['evidence', 'weather', 'solar'].includes(key));
+  if (!exactKeys(body, legacy ? legacyRequestKeys : canonicalRequestKeys) ||
+      body.contractVersion !== 2) return false;
   if (!exactKeys(body.coordinate, new Set(['latitude', 'longitude', 'system'])) ||
       body.coordinate.system !== 'wgs84' ||
       !finiteIn(body.coordinate.latitude, -90, 90) ||
@@ -26,6 +31,7 @@ export function validContextRequest(body) {
   if (!exactKeys(body.route, new Set(['mode', 'stage'])) ||
       !['none', 'driving', 'hiking'].includes(body.route.mode) ||
       !['none', 'planned', 'active', 'paused'].includes(body.route.stage)) return false;
+  if (!legacy) return true;
   if (!exactKeys(body.evidence, new Set([
     'urban', 'waterBody', 'mountainous', 'aridLand', 'settlement',
   ])) || Object.values(body.evidence).some((value) => typeof value !== 'boolean')) return false;
@@ -53,6 +59,10 @@ export function validContextRequest(body) {
     (body.solar.elevationDegrees == null || finiteIn(body.solar.elevationDegrees, -90, 90)) &&
     (body.solar.azimuthDegrees == null ||
       (finiteIn(body.solar.azimuthDegrees, 0, 360) && body.solar.azimuthDegrees !== 360));
+}
+
+export function isLegacyContextRequest(body) {
+  return object(body) && ['evidence', 'weather', 'solar'].some((key) => Object.hasOwn(body, key));
 }
 
 const actions = new Set(['openExplore', 'openShootingWindow', 'openWeather', 'openSafety', 'openRoute']);
