@@ -136,8 +136,8 @@ function normalizedRouting(value, profiles) {
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   if (input.primaryProfileId !== null) {
     const primary = profilesById.get(input.primaryProfileId);
-    if (primary == null || !primary.enabled) {
-      throw new TypeError('primaryProfileId must reference an enabled profile');
+    if (primary == null || !primary.enabled || primary.model.length === 0) {
+      throw new TypeError('primaryProfileId must reference an enabled profile with a selected model');
     }
   }
   const fallbackIds = [...input.fallbackProfileIds];
@@ -146,8 +146,9 @@ function normalizedRouting(value, profiles) {
   }
   for (const id of fallbackIds) {
     const fallback = profilesById.get(id);
-    if (fallback == null || !fallback.enabled || !fallback.allowFallback || id === input.primaryProfileId) {
-      throw new TypeError('fallbackProfileIds must reference distinct enabled fallback profiles');
+    if (fallback == null || !fallback.enabled || fallback.model.length === 0 ||
+        !fallback.allowFallback || id === input.primaryProfileId) {
+      throw new TypeError('fallbackProfileIds must reference distinct enabled fallback profiles with selected models');
     }
   }
   return Object.freeze({

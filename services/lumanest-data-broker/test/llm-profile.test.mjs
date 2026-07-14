@@ -86,7 +86,7 @@ test('rejects unknown fields, providers and protocol mismatches', () => {
   assert.throws(() => validateLLMProfile({ ...base, protocol: 'anthropic_messages' }), /protocol/);
 });
 
-test('rejects malformed IDs, URLs, empty models and out-of-range timeouts', () => {
+test('accepts unselected draft models but rejects malformed IDs, URLs and timeouts', () => {
   const base = {
     id: 'profile-id', name: 'Profile', providerId: 'openai',
     protocol: 'openai_compatible', apiKey: 'secret',
@@ -95,6 +95,6 @@ test('rejects malformed IDs, URLs, empty models and out-of-range timeouts', () =
   };
   assert.throws(() => validateLLMProfile({ ...base, id: '../bad' }), /id/);
   assert.throws(() => validateLLMProfile({ ...base, baseUrl: 'file:///tmp/model' }), /baseUrl/);
-  assert.throws(() => validateLLMProfile({ ...base, model: '' }), /model/);
+  assert.equal(validateLLMProfile({ ...base, model: '' }).model, '');
   assert.throws(() => validateLLMProfile({ ...base, timeoutMs: 31_000 }), /timeoutMs/);
 });

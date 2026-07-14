@@ -88,6 +88,18 @@ test('rejects duplicate IDs and invalid fallback references', async () => {
   }), /fallbackProfileIds/);
 });
 
+test('allows an unselected model draft but never routes it', async () => {
+  const service = new RuntimeConfigService({ defaults: defaults(), store: new Store() });
+  await service.initialize();
+  await service.replace({ llmProfiles: [profile({ model: '' })] });
+  await assert.rejects(() => service.replace({
+    llmRouting: {
+      primaryProfileId: 'deepseek-main', fallbackEnabled: false,
+      fallbackProfileIds: [], maximumAttempts: 3,
+    },
+  }), /selected model/);
+});
+
 test('non-empty legacy credentials are only exposed as an unimported candidate', async () => {
   const service = new RuntimeConfigService({ defaults: defaults('legacy-secret'), store: new Store() });
   await service.initialize();

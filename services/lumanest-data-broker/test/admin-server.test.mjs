@@ -204,7 +204,7 @@ test('manages masked LLM profiles and explicit routing without a default provide
   });
 });
 
-test('lists models for a draft profile without persisting or returning its key', async () => {
+test('lists models for a draft with no model selected and never returns its key', async () => {
   await withAdmin(async ({ baseUrl }) => {
     const credentials = await login(baseUrl);
     const headers = {
@@ -213,7 +213,7 @@ test('lists models for a draft profile without persisting or returning its key',
     const draft = {
       id: 'openai-main', name: 'OpenAI 主模型', providerId: 'openai',
       protocol: 'openai_compatible', apiKey: 'profile-secret-9876',
-      baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1',
+      baseUrl: 'https://api.openai.com/v1', model: '',
       enabled: true, timeoutMs: 8_000, allowFallback: false,
     };
     const response = await fetch(`${baseUrl}/admin-api/llm/models`, {

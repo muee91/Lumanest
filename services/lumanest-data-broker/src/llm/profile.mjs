@@ -34,7 +34,9 @@ export function validateLLMProfile(input, { existing = null } = {}) {
   }
 
   const name = boundedString(input.name, 'name', { maximum: 80 });
-  const model = boundedString(input.model, 'model', { maximum: 160 });
+  // Profiles may be saved before their catalog has been discovered. Routing
+  // and connection testing separately require a selected model.
+  const model = boundedString(input.model, 'model', { minimum: 0, maximum: 160 });
   const baseUrl = boundedString(input.baseUrl, 'baseUrl', { maximum: 500 });
   let parsedUrl;
   try {

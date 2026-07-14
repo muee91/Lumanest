@@ -22,6 +22,14 @@ test('returns unconfigured without an explicitly selected primary profile', asyn
   assert.deepEqual(result, { ok: false, error: 'ai_unconfigured', attempts: [] });
 });
 
+test('does not send a narrative request for an unselected draft model', async () => {
+  const result = await routeNarrative({
+    profiles: [{ ...primary, model: '' }], routing, prompt,
+    requester: async () => { throw new Error('must not be called'); },
+  });
+  assert.deepEqual(result, { ok: false, error: 'ai_unconfigured', attempts: [] });
+});
+
 test('primary success stops without contacting fallback profiles', async () => {
   const calls = [];
   const result = await routeNarrative({

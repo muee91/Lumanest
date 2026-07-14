@@ -41,4 +41,11 @@ test('tests one saved LLM profile and returns only a stable category', async () 
   });
   assert.deepEqual(await tester('deepseek-main'), { status: 'ok', profileId: 'deepseek-main' });
   assert.deepEqual(await tester('missing'), { status: 'profile_not_found', profileId: 'missing' });
+  const draftTester = createLLMProfileTester({
+    runtimeConfig: { snapshot: () => ({ llmProfiles: [{ ...profile, model: '' }] }) },
+    requester: async () => { throw new Error('must not be called'); },
+  });
+  assert.deepEqual(await draftTester('deepseek-main'), {
+    status: 'model_required', profileId: 'deepseek-main',
+  });
 });
