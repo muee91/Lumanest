@@ -1,11 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 
 import 'map_consent_test_harness.dart';
 
@@ -14,6 +21,7 @@ Widget wrapExplorePage({
   FakeAmapInitializerGateway? gateway,
   MapSurfaceBuilder? mapBuilder,
   ExploreFocus focus = ExploreFocus.photography,
+  LocationSearchRepository? locationSearchRepository,
 }) {
   return ProviderScope(
     overrides: [
@@ -23,6 +31,10 @@ Widget wrapExplorePage({
       amapInitializerGatewayProvider.overrideWithValue(
         gateway ?? FakeAmapInitializerGateway(),
       ),
+      if (locationSearchRepository != null)
+        locationSearchRepositoryProvider.overrideWithValue(
+          locationSearchRepository,
+        ),
     ],
     child: MaterialApp(
       home: ExplorePage(mapBuilder: mapBuilder, focus: focus),
@@ -152,4 +164,189 @@ void main() {
 
     expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
   });
+
+  testWidgets('latest search wins when responses complete out of order', (
+    tester,
+  ) async {
+    final repository = _DeferredLocationSearchRepository();
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        mapBuilder: fakeMapSurface,
+        locationSearchRepository: repository,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+
+    await tester.tap(find.text('搜索地点'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '旧地点');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(find.byType(TextField), '新地点');
+    await tester.pump(const Duration(milliseconds: 500));
+
+    repository.complete('新地点', const [
+      LocationSearchResult(
+        id: 'new',
+        name: '新结果',
+        point: GeoPoint(
+          latitude: 30.25,
+          longitude: 120.16,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+      ),
+    ]);
+    await tester.pump();
+    expect(find.text('新结果'), findsOneWidget);
+
+    repository.complete('旧地点', const [
+      LocationSearchResult(
+        id: 'old',
+        name: '旧结果',
+        point: GeoPoint(
+          latitude: 31.23,
+          longitude: 121.47,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+      ),
+    ]);
+    await tester.pump();
+
+    expect(find.text('新结果'), findsOneWidget);
+    expect(find.text('旧结果'), findsNothing);
+  });
+
+  testWidgets('clearing search invalidates an in-flight response', (
+    tester,
+  ) async {
+    final repository = _DeferredLocationSearchRepository();
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        mapBuilder: fakeMapSurface,
+        locationSearchRepository: repository,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+
+    await tester.tap(find.text('搜索地点'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '稍后清空');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pump();
+
+    repository.complete('稍后清空', const [
+      LocationSearchResult(
+        id: 'stale',
+        name: '不应出现',
+        point: GeoPoint(
+          latitude: 30.25,
+          longitude: 120.16,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+      ),
+    ]);
+    await tester.pump();
+
+    expect(find.text('搜索结果'), findsNothing);
+    expect(find.text('不应出现'), findsNothing);
+  });
+
+  testWidgets('route action survives a recent-route persistence failure', (
+    tester,
+  ) async {
+    final repository = _DeferredLocationSearchRepository();
+    final router = GoRouter(
+      initialLocation: '/explore',
+      routes: [
+        GoRoute(
+          path: '/explore',
+          builder: (_, _) =>
+              Scaffold(body: ExplorePage(mapBuilder: fakeMapSurface)),
+        ),
+        GoRoute(
+          path: '/route',
+          builder: (_, state) => Scaffold(
+            body: Text('route:${state.uri.queryParameters['name']}'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentConfigProvider.overrideWithValue(
+            EnvironmentConfig(amapAndroidKey: 'test-key'),
+          ),
+          amapInitializerGatewayProvider.overrideWithValue(
+            FakeAmapInitializerGateway(),
+          ),
+          locationSearchRepositoryProvider.overrideWithValue(repository),
+          userLibraryStoreProvider.overrideWithValue(
+            _FailingUserLibraryStore(),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.tap(find.text('搜索地点'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '目的地');
+    await tester.pump(const Duration(milliseconds: 500));
+    repository.complete('目的地', const [
+      LocationSearchResult(
+        id: 'destination',
+        name: '继续前往',
+        point: GeoPoint(
+          latitude: 30.25,
+          longitude: 120.16,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+      ),
+    ]);
+    await tester.pump();
+
+    await tester.tap(find.text('继续前往'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('route:继续前往'), findsOneWidget);
+    expect(find.text('路线可以继续使用，但未能保存到最近路线'), findsOneWidget);
+  });
+}
+
+class _DeferredLocationSearchRepository implements LocationSearchRepository {
+  final Map<String, Completer<List<LocationSearchResult>>> _requests = {};
+
+  @override
+  Future<List<LocationSearchResult>> search(String keywords) {
+    final completer = Completer<List<LocationSearchResult>>();
+    _requests[keywords] = completer;
+    return completer.future;
+  }
+
+  void complete(String keywords, List<LocationSearchResult> results) {
+    final request = _requests[keywords];
+    if (request == null) {
+      throw StateError('No pending search for $keywords');
+    }
+    request.complete(results);
+  }
+}
+
+class _FailingUserLibraryStore implements UserLibraryStore {
+  @override
+  Future<UserLibraryState> read() async => const UserLibraryState();
+
+  @override
+  Future<void> write(UserLibraryState state) {
+    throw StateError('simulated persistence failure');
+  }
 }

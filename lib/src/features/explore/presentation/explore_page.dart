@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:amap_map/amap_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +15,7 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class ExplorePage extends ConsumerWidget {
@@ -114,11 +117,102 @@ class _MapView extends ConsumerStatefulWidget {
 }
 
 class _MapViewState extends ConsumerState<_MapView> {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  Timer? _debounce;
+  AsyncValue<List<LocationSearchResult>>? _searchResults;
+  bool _searchFocused = false;
+  int _searchRevision = 0;
+
   @override
   void initState() {
     super.initState();
     widget.onInit(context);
     _applyFocus();
+    _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    final focused = _searchFocusNode.hasFocus;
+    if (focused != _searchFocused) {
+      setState(() => _searchFocused = focused);
+    }
+  }
+
+  void _expandSearch() {
+    if (!_searchFocused) setState(() => _searchFocused = true);
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.trim();
+    final revision = ++_searchRevision;
+    _debounce?.cancel();
+    _debounce = null;
+    if (query.isEmpty) {
+      if (_searchResults != null) setState(() => _searchResults = null);
+      return;
+    }
+    _debounce = Timer(
+      const Duration(milliseconds: 500),
+      () => _performSearch(query, revision),
+    );
+  }
+
+  Future<void> _performSearch(String query, int revision) async {
+    if (!mounted || revision != _searchRevision) return;
+    setState(() => _searchResults = const AsyncLoading());
+    try {
+      final results = await ref
+          .read(locationSearchRepositoryProvider)
+          .search(query);
+      if (!mounted || revision != _searchRevision) return;
+      setState(() => _searchResults = AsyncData(results));
+    } on Object catch (e, st) {
+      if (!mounted || revision != _searchRevision) return;
+      setState(() => _searchResults = AsyncError(e, st));
+    }
+  }
+
+  Future<void> _onSearchResultSelected(LocationSearchResult result) async {
+    var persisted = true;
+    try {
+      await ref
+          .read(userLibraryProvider.notifier)
+          .saveRecentRoute(
+            SavedRouteDestination(
+              name: result.name,
+              latitude: result.point.latitude,
+              longitude: result.point.longitude,
+            ),
+          );
+    } on Object {
+      persisted = false;
+    }
+    if (!mounted) return;
+    if (!persisted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('路线可以继续使用，但未能保存到最近路线')));
+    }
+    context.go(
+      Uri(
+        path: '/route',
+        queryParameters: {
+          'name': result.name,
+          'lat': '${result.point.latitude}',
+          'lon': '${result.point.longitude}',
+        },
+      ).toString(),
+    );
   }
 
   @override
@@ -141,14 +235,39 @@ class _MapViewState extends ConsumerState<_MapView> {
         fit: StackFit.expand,
         children: [
           builder(),
-          if (widget.focus != ExploreFocus.photography)
+          Positioned(
+            left: 12,
+            right: 12,
+            top: 12,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  _SearchField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    expanded: _searchFocused,
+                    onExpand: _expandSearch,
+                  ),
+                  if (widget.focus != ExploreFocus.photography) ...[
+                    const SizedBox(height: 8),
+                    _FocusBanner(focus: widget.focus),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (_searchResults != null)
             Positioned(
               left: 12,
               right: 12,
-              top: 12,
+              bottom: 12,
               child: SafeArea(
-                bottom: false,
-                child: _FocusBanner(focus: widget.focus),
+                top: false,
+                child: _SearchResultPanel(
+                  _searchResults!,
+                  onSelect: _onSearchResultSelected,
+                ),
               ),
             ),
         ],
@@ -189,22 +308,7 @@ class _MapViewState extends ConsumerState<_MapView> {
               compassEnabled: true,
               scaleEnabled: true,
               myLocationStyleOptions: MyLocationStyleOptions(true),
-              markers:
-                  places.asData?.value
-                      .map(
-                        (place) => Marker(
-                          position: LatLng(
-                            place.point.latitude,
-                            place.point.longitude,
-                          ),
-                          infoWindow: InfoWindow(
-                            title: place.name,
-                            snippet: _distanceLabel(place.distanceMeters),
-                          ),
-                        ),
-                      )
-                      .toSet() ??
-                  const <Marker>{},
+              markers: _buildMarkers(places),
             ),
             Positioned(
               left: 12,
@@ -214,6 +318,13 @@ class _MapViewState extends ConsumerState<_MapView> {
                 bottom: false,
                 child: Column(
                   children: [
+                    _SearchField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      expanded: _searchFocused,
+                      onExpand: _expandSearch,
+                    ),
+                    const SizedBox(height: 8),
                     if (widget.focus != ExploreFocus.photography) ...[
                       _FocusBanner(focus: widget.focus),
                       const SizedBox(height: 8),
@@ -229,17 +340,47 @@ class _MapViewState extends ConsumerState<_MapView> {
               bottom: 12,
               child: SafeArea(
                 top: false,
-                child: _NearbyResultPanel(
-                  places,
-                  wildlifeActivity: value.wildlifeActivity,
-                  focusWildlife: widget.focus == ExploreFocus.wildlife,
-                ),
+                child: _searchResults != null
+                    ? _SearchResultPanel(
+                        _searchResults!,
+                        onSelect: _onSearchResultSelected,
+                      )
+                    : _NearbyResultPanel(
+                        places,
+                        wildlifeActivity: value.wildlifeActivity,
+                        focusWildlife: widget.focus == ExploreFocus.wildlife,
+                      ),
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  Set<Marker> _buildMarkers(AsyncValue<List<NearbyPlace>> places) {
+    if (_searchResults?.asData?.value case final results?) {
+      return results
+          .map(
+            (result) => Marker(
+              position: LatLng(result.point.latitude, result.point.longitude),
+              infoWindow: InfoWindow(title: result.name),
+            ),
+          )
+          .toSet();
+    }
+    return places.asData?.value
+            .map(
+              (place) => Marker(
+                position: LatLng(place.point.latitude, place.point.longitude),
+                infoWindow: InfoWindow(
+                  title: place.name,
+                  snippet: _distanceLabel(place.distanceMeters),
+                ),
+              ),
+            )
+            .toSet() ??
+        const <Marker>{};
   }
 
   static String _distanceLabel(int meters) =>
@@ -535,4 +676,158 @@ class _ExploreErrorView extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.expanded,
+    required this.onExpand,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool expanded;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      child: expanded
+          ? Material(
+              color: Colors.transparent,
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: '搜索地点',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (_, value, _) => value.text.isEmpty
+                        ? const SizedBox.shrink()
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () => controller.clear(),
+                          ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surface.withValues(alpha: .92),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            )
+          : GestureDetector(
+              onTap: onExpand,
+              child: Material(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surface.withValues(alpha: .92),
+                borderRadius: BorderRadius.circular(18),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search),
+                      SizedBox(width: 8),
+                      Text('搜索地点'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _SearchResultPanel extends StatelessWidget {
+  const _SearchResultPanel(this.results, {required this.onSelect});
+
+  final AsyncValue<List<LocationSearchResult>> results;
+  final ValueChanged<LocationSearchResult> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.search, size: 18),
+                const SizedBox(width: 8),
+                Text('搜索结果', style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+          ),
+          results.when(
+            loading: () => const SizedBox(
+              height: 88,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, _) => const SizedBox(
+              height: 88,
+              child: Center(child: Text('搜索暂时不可用')),
+            ),
+            data: (items) {
+              if (items.isEmpty) {
+                return const SizedBox(
+                  height: 88,
+                  child: Center(child: Text('未找到相关地点')),
+                );
+              }
+              return SizedBox(
+                height: 116,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    return SizedBox(
+                      width: 210,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                        ),
+                        title: Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          item.address ?? '',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.arrow_outward, size: 18),
+                        onTap: () => onSelect(item),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
