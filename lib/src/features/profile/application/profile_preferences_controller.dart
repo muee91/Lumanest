@@ -42,6 +42,30 @@ class ProfilePreferencesController extends Notifier<ProfilePreferences> {
     _update(state.copyWith(ambientMotionMode: mode));
   }
 
+  void togglePhotographyPreference(String option) {
+    final current = Set<String>.from(state.photographyPreferences);
+    if (!current.add(option)) current.remove(option);
+    _update(state.copyWith(photographyPreferences: current));
+  }
+
+  void toggleActivityPreference(String option) {
+    final current = Set<String>.from(state.activityPreferences);
+    if (!current.add(option)) current.remove(option);
+    _update(state.copyWith(activityPreferences: current));
+  }
+
+  void setEquipmentList(String value) {
+    _update(state.copyWith(equipmentList: value));
+  }
+
+  void setAiTone(AiTone tone) {
+    _update(state.copyWith(aiTone: tone));
+  }
+
+  void setRecommendationIntensity(double value) {
+    _update(state.copyWith(recommendationIntensity: value));
+  }
+
   void _update(ProfilePreferences value) {
     _changedThisSession = true;
     state = value;

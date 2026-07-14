@@ -5,6 +5,9 @@ import 'package:luma_nest/src/features/profile/presentation/environment_diagnost
 import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/features/profile/application/environment_privacy_service.dart';
+import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
+import 'package:luma_nest/src/features/profile/infrastructure/profile_preferences_store.dart';
 
 void main() {
   testWidgets('confirms before clearing environment data', (tester) async {
@@ -24,6 +27,16 @@ void main() {
       ),
     );
     await tester.pump();
+
+    // After the profile refactor, the environment-data section sits below
+    // photography, activity, device and AI sections. Scroll it into view
+    // before interacting (the widget may otherwise be recycled off-screen).
+    await tester.dragUntilVisible(
+      find.text('停止并清除'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('停止并清除'));
     await tester.pumpAndSettle();
@@ -99,6 +112,81 @@ void main() {
     );
   });
 
+  testWidgets(
+    'profile controls update state and persist the final preferences',
+    (tester) async {
+      final store = _FakeProfilePreferencesStore();
+      final container = ProviderContainer(
+        overrides: [profilePreferencesStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: ProfilePage()),
+        ),
+      );
+      await tester.pump();
+
+      final scrollable = find.byType(Scrollable).first;
+
+      await tester.dragUntilVisible(
+        find.text('风光'),
+        scrollable,
+        const Offset(0, -100),
+      );
+      await tester.tap(find.text('风光'));
+      await tester.pump();
+
+      await tester.dragUntilVisible(
+        find.text('自驾'),
+        scrollable,
+        const Offset(0, -100),
+      );
+      await tester.tap(find.text('自驾'));
+      await tester.pump();
+
+      await tester.dragUntilVisible(
+        find.byType(TextField),
+        scrollable,
+        const Offset(0, -100),
+      );
+      await tester.enterText(find.byType(TextField), '相机、35mm、三脚架');
+      await tester.pump();
+
+      await tester.dragUntilVisible(
+        find.text('详细'),
+        scrollable,
+        const Offset(0, -100),
+      );
+      await tester.tap(find.text('详细'));
+      await tester.pump();
+
+      await tester.dragUntilVisible(
+        find.byType(Slider),
+        scrollable,
+        const Offset(0, -100),
+      );
+      final slider = find.byType(Slider);
+      final sliderCenter = tester.getCenter(slider);
+      final sliderWidth = tester.getSize(slider).width;
+      await tester.tapAt(sliderCenter + Offset(sliderWidth * 0.3, 0));
+      await tester.pump();
+
+      final state = container.read(profilePreferencesProvider);
+      final renderedSliderValue = tester.widget<Slider>(slider).value;
+      expect(state.photographyPreferences, contains('风光'));
+      expect(state.activityPreferences, contains('自驾'));
+      expect(state.equipmentList, '相机、35mm、三脚架');
+      expect(state.aiTone, AiTone.detailed);
+      expect(state.recommendationIntensity, greaterThan(0.5));
+      expect(renderedSliderValue, state.recommendationIntensity);
+      expect(store.value, state);
+      expect(store.writeCount, greaterThanOrEqualTo(5));
+    },
+  );
+
   testWidgets('explains every external data source and its limitation', (
     tester,
   ) async {
@@ -113,8 +201,17 @@ void main() {
       ),
     );
 
+    // The data-sources entry is below the fold after the refactor added
+    // photography, activity, device and AI sections. Scroll it into view
+    // first because it may not be built yet (off the cache extent).
+    await tester.dragUntilVisible(
+      find.text('数据来源与使用说明'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+
     final entry = find.text('数据来源与使用说明');
-    await tester.ensureVisible(entry.first);
     await tester.tap(entry.first);
     await tester.pumpAndSettle();
 
@@ -390,4 +487,18 @@ class _GrantedConsentStore implements EnvironmentConsentStore {
 
   @override
   Future<void> writeGranted(bool granted) async {}
+}
+
+class _FakeProfilePreferencesStore implements ProfilePreferencesStore {
+  ProfilePreferences? value;
+  var writeCount = 0;
+
+  @override
+  Future<ProfilePreferences?> read() async => value;
+
+  @override
+  Future<void> write(ProfilePreferences value) async {
+    writeCount += 1;
+    this.value = value;
+  }
 }

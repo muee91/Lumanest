@@ -95,6 +95,118 @@ class ProfilePage extends ConsumerWidget {
             onChanged: (_) => controller.toggleHighContrast(),
           ),
           const Divider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+            child: Text(
+              '摄影偏好',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final option in _photographyOptions)
+                  FilterChip(
+                    label: Text(option),
+                    selected:
+                        preferences.photographyPreferences.contains(option),
+                    onSelected: (_) =>
+                        controller.togglePhotographyPreference(option),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+            child: Text(
+              '活动偏好',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final option in _activityOptions)
+                  FilterChip(
+                    label: Text(option),
+                    selected:
+                        preferences.activityPreferences.contains(option),
+                    onSelected: (_) =>
+                        controller.toggleActivityPreference(option),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+            child: Text(
+              '设备',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _EquipmentField(
+              initialValue: preferences.equipmentList,
+              onChanged: controller.setEquipmentList,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+            child: Text(
+              'AI 语气',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<AiTone>(
+              segments: const [
+                ButtonSegment(
+                  value: AiTone.concise,
+                  label: Text('简洁'),
+                ),
+                ButtonSegment(
+                  value: AiTone.balanced,
+                  label: Text('均衡'),
+                ),
+                ButtonSegment(
+                  value: AiTone.detailed,
+                  label: Text('详细'),
+                ),
+              ],
+              selected: {preferences.aiTone},
+              onSelectionChanged: (selection) =>
+                  controller.setAiTone(selection.single),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              children: [
+                Text(
+                  '推荐强度',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Slider(
+              value: preferences.recommendationIntensity,
+              min: 0,
+              max: 1,
+              divisions: 10,
+              label: '${(preferences.recommendationIntensity * 100).round()}%',
+              onChanged: controller.setRecommendationIntensity,
+            ),
+          ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('环境数据与定位'),
@@ -268,6 +380,57 @@ class _DataSourceEntry extends StatelessWidget {
           Text(detail, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
+    );
+  }
+}
+
+const _photographyOptions = ['风光', '人文', '星空', '城市'];
+
+const _activityOptions = ['自驾', '轻徒步', '重装徒步', '小众探索'];
+
+class _EquipmentField extends StatefulWidget {
+  const _EquipmentField({required this.initialValue, required this.onChanged});
+
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_EquipmentField> createState() => _EquipmentFieldState();
+}
+
+class _EquipmentFieldState extends State<_EquipmentField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EquipmentField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue &&
+        _controller.text != widget.initialValue) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      decoration: const InputDecoration(
+        hintText: '相机、镜头、三脚架等',
+        border: OutlineInputBorder(),
+      ),
+      onChanged: widget.onChanged,
     );
   }
 }
