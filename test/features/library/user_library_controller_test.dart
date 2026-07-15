@@ -79,6 +79,32 @@ void main() {
     expect(store.value.recentRoute?.travelMode, 'walking');
   });
 
+  test('explicitly saves and removes a bounded local route', () async {
+    final store = _FakeStore(const UserLibraryState());
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    await container.read(userLibraryProvider.future);
+    const destination = SavedRouteDestination(
+      name: '雪山机位',
+      latitude: 30,
+      longitude: 101,
+      travelMode: 'walking',
+    );
+    final controller = container.read(userLibraryProvider.notifier);
+
+    await controller.toggleSavedRoute(destination);
+
+    expect(store.value.savedRoutes, hasLength(1));
+    expect(store.value.savedRoutes.single.destination.name, '雪山机位');
+    expect(store.value.savedRoutes.single.id, hasLength(64));
+    expect(store.value.recentRoute, isNull);
+
+    await controller.toggleSavedRoute(destination);
+    expect(store.value.savedRoutes, isEmpty);
+  });
+
   test('persists and deletes an imported GPX track', () async {
     final store = _FakeStore(const UserLibraryState());
     final container = ProviderContainer(
@@ -137,6 +163,16 @@ void main() {
           latitude: 31,
           longitude: 121,
         ),
+        savedRoutes: [
+          SavedRoute.fromDestination(
+            const SavedRouteDestination(
+              name: '主动保存路线',
+              latitude: 30.5,
+              longitude: 120.5,
+            ),
+            savedAt: DateTime.utc(2026, 7, 15),
+          ),
+        ],
         importedTracks: [track],
       ),
     );
@@ -150,10 +186,15 @@ void main() {
     await controller.clearSavedPlaces();
     expect(store.value.savedPlaces, isEmpty);
     expect(store.value.recentRoute, isNotNull);
+    expect(store.value.savedRoutes, hasLength(1));
     expect(store.value.importedTracks, hasLength(1));
 
     await controller.clearRecentRoute();
     expect(store.value.recentRoute, isNull);
+    expect(store.value.savedRoutes, hasLength(1));
+
+    await controller.clearSavedRoutes();
+    expect(store.value.savedRoutes, isEmpty);
     expect(store.value.importedTracks, hasLength(1));
 
     await controller.clearImportedTracks();

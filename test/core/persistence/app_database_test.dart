@@ -78,6 +78,39 @@ void main() {
     expect(rows.single.travelMode, 'walking');
   });
 
+  test('saved routes retain independent local destinations', () async {
+    final savedAt = DateTime.utc(2026, 7, 15, 8);
+    await database
+        .into(database.savedRoutes)
+        .insert(
+          SavedRoutesCompanion.insert(
+            id: List.filled(64, 'a').join(),
+            name: '湖岸路线',
+            latitude: 30,
+            longitude: 120,
+            travelMode: 'driving',
+            savedAt: savedAt,
+          ),
+        );
+    await database
+        .into(database.savedRoutes)
+        .insert(
+          SavedRoutesCompanion.insert(
+            id: List.filled(64, 'b').join(),
+            name: '山路',
+            latitude: 31,
+            longitude: 121,
+            travelMode: 'walking',
+            savedAt: savedAt.add(const Duration(minutes: 1)),
+          ),
+        );
+
+    final rows = await database.select(database.savedRoutes).get();
+
+    expect(rows, hasLength(2));
+    expect(rows.map((row) => row.name), containsAll(['湖岸路线', '山路']));
+  });
+
   test('database rejects invalid coordinates and travel modes', () async {
     await expectLater(
       database
@@ -123,7 +156,7 @@ void main() {
     );
   });
 
-  test('schema 1 migrates to 5 without losing library data', () async {
+  test('schema 1 migrates to 6 without losing library data', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-migration-',
@@ -191,9 +224,10 @@ void main() {
       await migrated.select(migrated.savedInspirationNotes).get(),
       isEmpty,
     );
+    expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
   });
 
-  test('schema 2 migrates to 5 and preserves existing preferences', () async {
+  test('schema 2 migrates to 6 and preserves existing preferences', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-v2-migration-',
@@ -262,6 +296,7 @@ void main() {
       await migrated.select(migrated.savedInspirationNotes).get(),
       isEmpty,
     );
+    expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
   });
 
   test('base region is a replaceable local singleton', () async {

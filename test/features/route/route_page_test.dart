@@ -10,6 +10,7 @@ import 'package:luma_nest/src/features/explore/application/nearby_place_provider
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/route/application/gpx_track_import_service.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
@@ -412,7 +413,11 @@ void main() {
     late ProviderContainer container;
 
     setUp(() {
-      container = ProviderContainer();
+      container = ProviderContainer(
+        overrides: [
+          userLibraryStoreProvider.overrideWithValue(_MemoryLibraryStore()),
+        ],
+      );
       addTearDown(container.dispose);
     });
 
@@ -458,6 +463,30 @@ void main() {
       await tester.tap(find.text('继续'));
       await tester.pump();
       expect(state(), RouteContextState.active(ContextRouteMode.driving));
+    });
+
+    testWidgets('route saving is explicit and locally reversible', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+      await container.read(userLibraryProvider.future);
+
+      expect(find.text('保存路线'), findsOneWidget);
+      await tester.tap(find.text('保存路线'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(userLibraryProvider).requireValue.savedRoutes,
+        hasLength(1),
+      );
+      expect(find.text('取消保存路线'), findsOneWidget);
+
+      await tester.tap(find.text('取消保存路线'));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(userLibraryProvider).requireValue.savedRoutes,
+        isEmpty,
+      );
     });
 
     testWidgets('rebuild does not downgrade an active route to planned', (

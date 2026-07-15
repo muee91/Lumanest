@@ -25,6 +25,32 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     await _save(current.copyWith(recentRoute: destination));
   }
 
+  Future<void> toggleSavedRoute(SavedRouteDestination destination) async {
+    final current = await future;
+    final id = SavedRoute.idFor(destination);
+    final existing = current.savedRoutes.any((route) => route.id == id);
+    final routes = existing
+        ? current.savedRoutes
+              .where((route) => route.id != id)
+              .toList(growable: false)
+        : [
+            SavedRoute.fromDestination(destination, savedAt: DateTime.now()),
+            ...current.savedRoutes.where((route) => route.id != id),
+          ].take(50).toList(growable: false);
+    await _save(current.copyWith(savedRoutes: routes));
+  }
+
+  Future<void> deleteSavedRoute(String id) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        savedRoutes: current.savedRoutes
+            .where((route) => route.id != id)
+            .toList(growable: false),
+      ),
+    );
+  }
+
   Future<void> saveImportedTrack(ImportedRouteTrack track) async {
     final current = await future;
     final tracks = [
@@ -57,10 +83,16 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     await _save(
       UserLibraryState(
         savedPlaces: current.savedPlaces,
+        savedRoutes: current.savedRoutes,
         importedTracks: current.importedTracks,
         savedNotes: current.savedNotes,
       ),
     );
+  }
+
+  Future<void> clearSavedRoutes() async {
+    final current = await future;
+    await _save(current.copyWith(savedRoutes: const []));
   }
 
   Future<void> clearImportedTracks() async {

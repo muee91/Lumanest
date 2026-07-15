@@ -132,16 +132,49 @@ class SavedRouteDestination {
   }
 }
 
+class SavedRoute {
+  const SavedRoute({
+    required this.id,
+    required this.destination,
+    required this.savedAt,
+  });
+
+  factory SavedRoute.fromDestination(
+    SavedRouteDestination destination, {
+    required DateTime savedAt,
+  }) => SavedRoute(
+    id: idFor(destination),
+    destination: destination,
+    savedAt: savedAt.toUtc(),
+  );
+
+  static String idFor(SavedRouteDestination destination) => sha256
+      .convert(
+        utf8.encode(
+          '${destination.latitude.toStringAsFixed(6)}\u0000'
+          '${destination.longitude.toStringAsFixed(6)}\u0000'
+          '${destination.travelMode}',
+        ),
+      )
+      .toString();
+
+  final String id;
+  final SavedRouteDestination destination;
+  final DateTime savedAt;
+}
+
 class UserLibraryState {
   const UserLibraryState({
     this.savedPlaces = const [],
     this.recentRoute,
+    this.savedRoutes = const [],
     this.importedTracks = const [],
     this.savedNotes = const [],
   });
 
   final List<SavedPlace> savedPlaces;
   final SavedRouteDestination? recentRoute;
+  final List<SavedRoute> savedRoutes;
   final List<ImportedRouteTrack> importedTracks;
   final List<SavedInspirationNote> savedNotes;
 
@@ -150,14 +183,19 @@ class UserLibraryState {
   ImportedRouteTrack? importedTrack(String id) =>
       importedTracks.where((track) => track.id == id).firstOrNull;
 
+  bool containsSavedRoute(SavedRouteDestination destination) =>
+      savedRoutes.any((route) => route.id == SavedRoute.idFor(destination));
+
   UserLibraryState copyWith({
     List<SavedPlace>? savedPlaces,
     SavedRouteDestination? recentRoute,
+    List<SavedRoute>? savedRoutes,
     List<ImportedRouteTrack>? importedTracks,
     List<SavedInspirationNote>? savedNotes,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
     recentRoute: recentRoute ?? this.recentRoute,
+    savedRoutes: List.unmodifiable(savedRoutes ?? this.savedRoutes),
     importedTracks: List.unmodifiable(importedTracks ?? this.importedTracks),
     savedNotes: List.unmodifiable(savedNotes ?? this.savedNotes),
   );

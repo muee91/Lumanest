@@ -317,6 +317,43 @@ void main() {
     expect(find.text('GPX · 仅保存在本机'), findsOneWidget);
   });
 
+  testWidgets('shows explicitly saved routes as manageable local data', (
+    tester,
+  ) async {
+    final savedRoute = SavedRoute.fromDestination(
+      const SavedRouteDestination(
+        name: '湖岸收藏路线',
+        latitude: 30.2,
+        longitude: 120.1,
+      ),
+      savedAt: DateTime.utc(2026, 7, 15),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(UserLibraryState(savedRoutes: [savedRoute])),
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('湖岸收藏路线'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+
+    expect(find.text('已保存路线'), findsOneWidget);
+    expect(find.text('湖岸收藏路线'), findsOneWidget);
+    expect(find.text('自驾 · 仅保存在本机'), findsOneWidget);
+    expect(find.byTooltip('删除已保存路线'), findsOneWidget);
+  });
+
   testWidgets('shows no environment diagnostic when fully operational', (
     tester,
   ) async {

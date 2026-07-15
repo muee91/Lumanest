@@ -273,6 +273,35 @@ class ProfilePage extends ConsumerWidget {
               onTap: () => context.go(_routeUri(recent).toString()),
             ),
           ],
+          if (library?.savedRoutes.isNotEmpty == true) ...[
+            const Divider(),
+            _LibrarySectionHeader(
+              title: '已保存路线',
+              clearLabel: '清空路线',
+              onClear: () => _confirmLibraryClear(
+                context,
+                ref,
+                type: _LibraryClearType.savedRoutes,
+              ),
+            ),
+            for (final route in library!.savedRoutes)
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline),
+                title: Text(route.destination.name),
+                subtitle: Text(
+                  '${route.destination.travelMode == 'walking' ? '徒步' : '自驾'} · 仅保存在本机',
+                ),
+                trailing: IconButton(
+                  tooltip: '删除已保存路线',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => ref
+                      .read(userLibraryProvider.notifier)
+                      .deleteSavedRoute(route.id),
+                ),
+                onTap: () =>
+                    context.go(_routeUri(route.destination).toString()),
+              ),
+          ],
           if (library?.importedTracks.isNotEmpty == true) ...[
             const Divider(),
             _LibrarySectionHeader(
@@ -523,6 +552,11 @@ class ProfilePage extends ConsumerWidget {
         '将删除本机保存的最近路线；不会删除收藏、导入轨迹或环境数据。',
         '清除',
       ),
+      _LibraryClearType.savedRoutes => (
+        '清空已保存路线？',
+        '将永久删除本机主动保存的路线；不会删除最近路线、导入轨迹、收藏或环境数据。',
+        '清空路线',
+      ),
       _LibraryClearType.importedTracks => (
         '清空本地轨迹？',
         '将永久删除本机导入的 GPX 轨迹；不会删除收藏、路线或环境数据。',
@@ -558,6 +592,8 @@ class ProfilePage extends ConsumerWidget {
         await controller.clearSavedPlaces();
       case _LibraryClearType.recentRoute:
         await controller.clearRecentRoute();
+      case _LibraryClearType.savedRoutes:
+        await controller.clearSavedRoutes();
       case _LibraryClearType.importedTracks:
         await controller.clearImportedTracks();
       case _LibraryClearType.savedNotes:
@@ -566,7 +602,13 @@ class ProfilePage extends ConsumerWidget {
   }
 }
 
-enum _LibraryClearType { savedPlaces, recentRoute, importedTracks, savedNotes }
+enum _LibraryClearType {
+  savedPlaces,
+  recentRoute,
+  savedRoutes,
+  importedTracks,
+  savedNotes,
+}
 
 class _LibrarySectionHeader extends StatelessWidget {
   const _LibrarySectionHeader({

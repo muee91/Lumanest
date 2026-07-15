@@ -41,6 +41,16 @@ void main() {
         longitude: 121,
         travelMode: 'walking',
       ),
+      savedRoutes: [
+        SavedRoute.fromDestination(
+          const SavedRouteDestination(
+            name: '湖岸收藏路线',
+            latitude: 30.2,
+            longitude: 120.1,
+          ),
+          savedAt: DateTime.utc(2026, 7, 15, 8),
+        ),
+      ],
       importedTracks: [
         ImportedRouteTrack(
           id: 'track-1',
@@ -84,6 +94,8 @@ void main() {
     expect(restored.savedPlaces.single.name, '机位');
     expect(restored.recentRoute?.name, '终点');
     expect(restored.recentRoute?.travelMode, 'walking');
+    expect(restored.savedRoutes.single.destination.name, '湖岸收藏路线');
+    expect(restored.savedRoutes.single.savedAt, DateTime.utc(2026, 7, 15, 8));
     expect(restored.importedTracks.single.name, '本地徒步');
     expect(restored.importedTracks.single.points.last.longitude, 121.1);
     expect(restored.importedTracks.single.segmentBreakIndexes, [2]);
@@ -120,6 +132,7 @@ void main() {
 
     expect(restored.savedPlaces, isEmpty);
     expect(restored.recentRoute, isNull);
+    expect(restored.savedRoutes, isEmpty);
   });
 
   test('imports valid legacy JSON once and removes it after commit', () async {

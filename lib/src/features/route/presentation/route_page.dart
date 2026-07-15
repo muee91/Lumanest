@@ -262,6 +262,7 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
   Widget build(BuildContext context) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recentRoute = library?.recentRoute;
+    final savedRoutes = library?.savedRoutes ?? const [];
     final importedTracks = library?.importedTracks ?? const [];
     return SafeArea(
       child: SingleChildScrollView(
@@ -297,12 +298,33 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
               ],
             ),
             const SizedBox(height: LumaNestSpacing.lg),
-            Text('历史路线', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            if (savedRoutes.isNotEmpty) ...[
+              Text('已保存路线', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final route in savedRoutes)
+                ListTile(
+                  leading: const Icon(Icons.bookmark_outline),
+                  title: Text(route.destination.name),
+                  subtitle: Text(
+                    route.destination.travelMode == 'walking' ? '徒步' : '自驾',
+                  ),
+                  trailing: IconButton(
+                    tooltip: '删除已保存路线',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => ref
+                        .read(userLibraryProvider.notifier)
+                        .deleteSavedRoute(route.id),
+                  ),
+                  onTap: () =>
+                      context.go(_routeUri(route.destination).toString()),
+                ),
+              const SizedBox(height: 12),
+            ],
             if (recentRoute != null)
               ListTile(
                 leading: const Icon(Icons.history),
                 title: Text(recentRoute.name),
+                subtitle: const Text('最近规划'),
                 trailing: const Icon(Icons.arrow_outward),
                 onTap: () => context.go(_routeUri(recentRoute).toString()),
               ),
@@ -327,8 +349,10 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
                   ).toString(),
                 ),
               ),
-            if (recentRoute == null && importedTracks.isEmpty)
-              const Text('暂无历史路线'),
+            if (recentRoute == null &&
+                savedRoutes.isEmpty &&
+                importedTracks.isEmpty)
+              const Text('还没有保存路线或导入轨迹'),
           ],
         ),
       ),
@@ -495,6 +519,19 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
     final minutes = duration.inMinutes.remainder(60);
     final durationLabel = hours > 0 ? '$hours 小时 $minutes 分' : '$minutes 分钟';
     final routeState = ref.watch(routeContextStateProvider);
+    final destination = SavedRouteDestination(
+      name: route.destinationName,
+      latitude: widget.destinationLatitude,
+      longitude: widget.destinationLongitude,
+      travelMode: widget.travelMode.name,
+    );
+    final routeSaved =
+        ref
+            .watch(userLibraryProvider)
+            .asData
+            ?.value
+            .containsSavedRoute(destination) ??
+        false;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
       children: [
@@ -508,6 +545,16 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         ),
         const SizedBox(height: 10),
         _RouteLifecycleBar(state: routeState),
+        if (route.source != RouteSource.importedGpx) ...[
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => ref
+                .read(userLibraryProvider.notifier)
+                .toggleSavedRoute(destination),
+            icon: Icon(routeSaved ? Icons.bookmark : Icons.bookmark_outline),
+            label: Text(routeSaved ? '取消保存路线' : '保存路线'),
+          ),
+        ],
         if (route.source != RouteSource.importedGpx && !route.isStale) ...[
           const SizedBox(height: 10),
           FilledButton.icon(

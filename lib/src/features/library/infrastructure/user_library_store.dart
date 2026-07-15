@@ -25,6 +25,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
     final persisted = await _readDatabase();
     if (persisted.savedPlaces.isNotEmpty ||
         persisted.recentRoute != null ||
+        persisted.savedRoutes.isNotEmpty ||
         persisted.importedTracks.isNotEmpty ||
         persisted.savedNotes.isNotEmpty) {
       return persisted;
@@ -51,6 +52,9 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final route = await _database
           .select(_database.recentRouteDestinations)
           .getSingleOrNull();
+      final savedRouteQuery = _database.select(_database.savedRoutes)
+        ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
+      final savedRoutes = await savedRouteQuery.get();
       final trackQuery = _database.select(_database.importedRouteTracks)
         ..orderBy([(row) => OrderingTerm.desc(row.importedAt)]);
       final tracks = await trackQuery.get();
@@ -77,6 +81,20 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 longitude: route.longitude,
                 travelMode: route.travelMode,
               ),
+        savedRoutes: savedRoutes
+            .map(
+              (row) => SavedRoute(
+                id: row.id,
+                destination: SavedRouteDestination(
+                  name: row.name,
+                  latitude: row.latitude,
+                  longitude: row.longitude,
+                  travelMode: row.travelMode,
+                ),
+                savedAt: row.savedAt.toUtc(),
+              ),
+            )
+            .toList(growable: false),
         importedTracks: tracks
             .map(_decodeTrack)
             .whereType<ImportedRouteTrack>()
@@ -127,6 +145,23 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 latitude: route.latitude,
                 longitude: route.longitude,
                 travelMode: route.travelMode,
+              ),
+            );
+      }
+
+      await _database.delete(_database.savedRoutes).go();
+      for (final route in state.savedRoutes.take(50)) {
+        final destination = route.destination;
+        await _database
+            .into(_database.savedRoutes)
+            .insert(
+              SavedRoutesCompanion.insert(
+                id: route.id,
+                name: destination.name,
+                latitude: destination.latitude,
+                longitude: destination.longitude,
+                travelMode: destination.travelMode,
+                savedAt: route.savedAt.toUtc(),
               ),
             );
       }
@@ -237,6 +272,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
                   .toList(growable: false)
             : const [],
         recentRoute: SavedRouteDestination.fromJson(body['recentRoute']),
+        savedRoutes: const [],
         importedTracks: const [],
       );
     } on Object {

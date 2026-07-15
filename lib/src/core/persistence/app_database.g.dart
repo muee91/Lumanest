@@ -719,6 +719,416 @@ class RecentRouteDestinationsCompanion
   }
 }
 
+class $SavedRoutesTable extends SavedRoutes
+    with TableInfo<$SavedRoutesTable, SavedRouteRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SavedRoutesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _travelModeMeta = const VerificationMeta(
+    'travelMode',
+  );
+  @override
+  late final GeneratedColumn<String> travelMode = GeneratedColumn<String>(
+    'travel_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _savedAtMeta = const VerificationMeta(
+    'savedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> savedAt = GeneratedColumn<DateTime>(
+    'saved_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    latitude,
+    longitude,
+    travelMode,
+    savedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'saved_routes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SavedRouteRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('travel_mode')) {
+      context.handle(
+        _travelModeMeta,
+        travelMode.isAcceptableOrUnknown(data['travel_mode']!, _travelModeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_travelModeMeta);
+    }
+    if (data.containsKey('saved_at')) {
+      context.handle(
+        _savedAtMeta,
+        savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SavedRouteRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SavedRouteRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      travelMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}travel_mode'],
+      )!,
+      savedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}saved_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SavedRoutesTable createAlias(String alias) {
+    return $SavedRoutesTable(attachedDatabase, alias);
+  }
+}
+
+class SavedRouteRow extends DataClass implements Insertable<SavedRouteRow> {
+  final String id;
+  final String name;
+  final double latitude;
+  final double longitude;
+  final String travelMode;
+  final DateTime savedAt;
+  const SavedRouteRow({
+    required this.id,
+    required this.name,
+    required this.latitude,
+    required this.longitude,
+    required this.travelMode,
+    required this.savedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    map['travel_mode'] = Variable<String>(travelMode);
+    map['saved_at'] = Variable<DateTime>(savedAt);
+    return map;
+  }
+
+  SavedRoutesCompanion toCompanion(bool nullToAbsent) {
+    return SavedRoutesCompanion(
+      id: Value(id),
+      name: Value(name),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      travelMode: Value(travelMode),
+      savedAt: Value(savedAt),
+    );
+  }
+
+  factory SavedRouteRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SavedRouteRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      travelMode: serializer.fromJson<String>(json['travelMode']),
+      savedAt: serializer.fromJson<DateTime>(json['savedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'travelMode': serializer.toJson<String>(travelMode),
+      'savedAt': serializer.toJson<DateTime>(savedAt),
+    };
+  }
+
+  SavedRouteRow copyWith({
+    String? id,
+    String? name,
+    double? latitude,
+    double? longitude,
+    String? travelMode,
+    DateTime? savedAt,
+  }) => SavedRouteRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    travelMode: travelMode ?? this.travelMode,
+    savedAt: savedAt ?? this.savedAt,
+  );
+  SavedRouteRow copyWithCompanion(SavedRoutesCompanion data) {
+    return SavedRouteRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      travelMode: data.travelMode.present
+          ? data.travelMode.value
+          : this.travelMode,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedRouteRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('travelMode: $travelMode, ')
+          ..write('savedAt: $savedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, latitude, longitude, travelMode, savedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SavedRouteRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.travelMode == this.travelMode &&
+          other.savedAt == this.savedAt);
+}
+
+class SavedRoutesCompanion extends UpdateCompanion<SavedRouteRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<String> travelMode;
+  final Value<DateTime> savedAt;
+  final Value<int> rowid;
+  const SavedRoutesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.travelMode = const Value.absent(),
+    this.savedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SavedRoutesCompanion.insert({
+    required String id,
+    required String name,
+    required double latitude,
+    required double longitude,
+    required String travelMode,
+    required DateTime savedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       travelMode = Value(travelMode),
+       savedAt = Value(savedAt);
+  static Insertable<SavedRouteRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<String>? travelMode,
+    Expression<DateTime>? savedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (travelMode != null) 'travel_mode': travelMode,
+      if (savedAt != null) 'saved_at': savedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SavedRoutesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<String>? travelMode,
+    Value<DateTime>? savedAt,
+    Value<int>? rowid,
+  }) {
+    return SavedRoutesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      travelMode: travelMode ?? this.travelMode,
+      savedAt: savedAt ?? this.savedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (travelMode.present) {
+      map['travel_mode'] = Variable<String>(travelMode.value);
+    }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<DateTime>(savedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedRoutesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('travelMode: $travelMode, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ImportedRouteTracksTable extends ImportedRouteTracks
     with TableInfo<$ImportedRouteTracksTable, ImportedRouteTrackRow> {
   @override
@@ -2924,6 +3334,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SavedPlacesTable savedPlaces = $SavedPlacesTable(this);
   late final $RecentRouteDestinationsTable recentRouteDestinations =
       $RecentRouteDestinationsTable(this);
+  late final $SavedRoutesTable savedRoutes = $SavedRoutesTable(this);
   late final $ImportedRouteTracksTable importedRouteTracks =
       $ImportedRouteTracksTable(this);
   late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
@@ -2938,6 +3349,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     savedPlaces,
     recentRouteDestinations,
+    savedRoutes,
     importedRouteTracks,
     profilePreferenceRecords,
     baseRegions,
@@ -3358,6 +3770,227 @@ typedef $$RecentRouteDestinationsTableProcessedTableManager =
         >,
       ),
       RecentRouteDestinationRow,
+      PrefetchHooks Function()
+    >;
+typedef $$SavedRoutesTableCreateCompanionBuilder =
+    SavedRoutesCompanion Function({
+      required String id,
+      required String name,
+      required double latitude,
+      required double longitude,
+      required String travelMode,
+      required DateTime savedAt,
+      Value<int> rowid,
+    });
+typedef $$SavedRoutesTableUpdateCompanionBuilder =
+    SavedRoutesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<String> travelMode,
+      Value<DateTime> savedAt,
+      Value<int> rowid,
+    });
+
+class $$SavedRoutesTableFilterComposer
+    extends Composer<_$AppDatabase, $SavedRoutesTable> {
+  $$SavedRoutesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get travelMode => $composableBuilder(
+    column: $table.travelMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SavedRoutesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SavedRoutesTable> {
+  $$SavedRoutesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get travelMode => $composableBuilder(
+    column: $table.travelMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SavedRoutesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SavedRoutesTable> {
+  $$SavedRoutesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get travelMode => $composableBuilder(
+    column: $table.travelMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
+}
+
+class $$SavedRoutesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SavedRoutesTable,
+          SavedRouteRow,
+          $$SavedRoutesTableFilterComposer,
+          $$SavedRoutesTableOrderingComposer,
+          $$SavedRoutesTableAnnotationComposer,
+          $$SavedRoutesTableCreateCompanionBuilder,
+          $$SavedRoutesTableUpdateCompanionBuilder,
+          (
+            SavedRouteRow,
+            BaseReferences<_$AppDatabase, $SavedRoutesTable, SavedRouteRow>,
+          ),
+          SavedRouteRow,
+          PrefetchHooks Function()
+        > {
+  $$SavedRoutesTableTableManager(_$AppDatabase db, $SavedRoutesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SavedRoutesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SavedRoutesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SavedRoutesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<String> travelMode = const Value.absent(),
+                Value<DateTime> savedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SavedRoutesCompanion(
+                id: id,
+                name: name,
+                latitude: latitude,
+                longitude: longitude,
+                travelMode: travelMode,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required double latitude,
+                required double longitude,
+                required String travelMode,
+                required DateTime savedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => SavedRoutesCompanion.insert(
+                id: id,
+                name: name,
+                latitude: latitude,
+                longitude: longitude,
+                travelMode: travelMode,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SavedRoutesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SavedRoutesTable,
+      SavedRouteRow,
+      $$SavedRoutesTableFilterComposer,
+      $$SavedRoutesTableOrderingComposer,
+      $$SavedRoutesTableAnnotationComposer,
+      $$SavedRoutesTableCreateCompanionBuilder,
+      $$SavedRoutesTableUpdateCompanionBuilder,
+      (
+        SavedRouteRow,
+        BaseReferences<_$AppDatabase, $SavedRoutesTable, SavedRouteRow>,
+      ),
+      SavedRouteRow,
       PrefetchHooks Function()
     >;
 typedef $$ImportedRouteTracksTableCreateCompanionBuilder =
@@ -4496,6 +5129,8 @@ class $AppDatabaseManager {
         _db,
         _db.recentRouteDestinations,
       );
+  $$SavedRoutesTableTableManager get savedRoutes =>
+      $$SavedRoutesTableTableManager(_db, _db.savedRoutes);
   $$ImportedRouteTracksTableTableManager get importedRouteTracks =>
       $$ImportedRouteTracksTableTableManager(_db, _db.importedRouteTracks);
   $$ProfilePreferenceRecordsTableTableManager get profilePreferenceRecords =>
