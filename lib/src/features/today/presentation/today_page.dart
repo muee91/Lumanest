@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
@@ -19,6 +21,7 @@ class TodayPage extends StatelessWidget {
     super.key,
     required this.snapshotAsync,
     this.onRetry,
+    this.onOpenAppSettings,
     this.onSelectManualLocation,
     this.onManifestAction,
     this.narrativeAsync,
@@ -27,6 +30,7 @@ class TodayPage extends StatelessWidget {
 
   final AsyncValue<ContextSnapshot> snapshotAsync;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
   final ValueChanged<ManifestItem>? onManifestAction;
   final AsyncValue<ManifestNarrative>? narrativeAsync;
@@ -47,6 +51,13 @@ class TodayPage extends StatelessWidget {
 
   Widget _buildError(BuildContext context, Object error) {
     final message = _errorMessage(error);
+    final permanentlyDenied = isPermanentlyDeniedLocationFailure(error);
+    final primaryAction = permanentlyDenied
+        ? onOpenAppSettings ?? onRetry
+        : onRetry;
+    final primaryLabel = permanentlyDenied && onOpenAppSettings != null
+        ? '打开设置'
+        : '重试';
     return SafeArea(
       child: Center(
         child: Padding(
@@ -61,9 +72,12 @@ class TodayPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(message, style: Theme.of(context).textTheme.bodyLarge),
-              if (onRetry != null) ...[
+              if (primaryAction != null) ...[
                 const SizedBox(height: 16),
-                FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
+                FilledButton.tonal(
+                  onPressed: primaryAction,
+                  child: Text(primaryLabel),
+                ),
               ],
               if (error is EnvironmentLoadFailure &&
                   error.kind == EnvironmentFailureKind.location &&
@@ -528,6 +542,7 @@ class LiveTodayPage extends ConsumerWidget {
           : ref.watch(personalizedManifestProvider(snapshot.requireValue)),
       narrativeAsync: narrative,
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
+      onOpenAppSettings: Geolocator.openAppSettings,
       onSelectManualLocation: () => showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,

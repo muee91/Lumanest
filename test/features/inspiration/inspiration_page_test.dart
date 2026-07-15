@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/features/inspiration/presentation/inspiration_page.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
@@ -29,6 +31,31 @@ void main() {
     await tester.tap(find.text('手动选择地点'));
     expect(retries, 1);
     expect(manualSelections, 1);
+  });
+
+  testWidgets('permanent location denial offers app settings', (tester) async {
+    var settingsOpened = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: InspirationPage(
+            snapshotAsync: AsyncError(
+              const EnvironmentLoadFailure(
+                EnvironmentFailureKind.location,
+                cause: LocationRepositoryFailure(
+                  LocationFailureKind.permissionDeniedForever,
+                ),
+              ),
+              StackTrace.empty,
+            ),
+            onOpenAppSettings: () => settingsOpened++,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开设置'));
+    expect(settingsOpened, 1);
   });
 
   testWidgets('bottle keeps a subtle idle ticker when motion is allowed', (

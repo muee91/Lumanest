@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
@@ -26,6 +28,7 @@ Widget wrapExplorePage({
   LocationSearchRepository? locationSearchRepository,
   AsyncValue<ContextSnapshot>? snapshotAsync,
   VoidCallback? onRetry,
+  VoidCallback? onOpenAppSettings,
   VoidCallback? onSelectManualLocation,
 }) {
   return ProviderScope(
@@ -47,6 +50,7 @@ Widget wrapExplorePage({
         focus: focus,
         snapshotAsync: snapshotAsync,
         onRetry: onRetry,
+        onOpenAppSettings: onOpenAppSettings,
         onSelectManualLocation: onSelectManualLocation,
       ),
     ),
@@ -221,6 +225,36 @@ void main() {
     await tester.tap(find.text('重试'));
     await tester.tap(find.text('手动选择地点'));
     expect(retries, 1);
+    expect(manualSelections, 1);
+  });
+
+  testWidgets('permanent location denial offers app settings', (tester) async {
+    var settingsOpened = 0;
+    var manualSelections = 0;
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        snapshotAsync: AsyncError(
+          const EnvironmentLoadFailure(
+            EnvironmentFailureKind.location,
+            cause: LocationRepositoryFailure(
+              LocationFailureKind.permissionDeniedForever,
+            ),
+          ),
+          StackTrace.empty,
+        ),
+        onOpenAppSettings: () => settingsOpened++,
+        onSelectManualLocation: () => manualSelections++,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.tap(find.text('同意并获取位置'));
+    await tester.pump();
+
+    await tester.tap(find.text('打开设置'));
+    await tester.tap(find.text('手动选择地点'));
+    expect(settingsOpened, 1);
     expect(manualSelections, 1);
   });
 

@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
@@ -19,12 +21,14 @@ class InspirationPage extends ConsumerWidget {
     super.key,
     this.snapshotAsync,
     this.onRetry,
+    this.onOpenAppSettings,
     this.onSelectManualLocation,
   });
 
   /// Allows deterministic widget tests without starting the live environment.
   final AsyncValue<ContextSnapshot>? snapshotAsync;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
 
   @override
@@ -39,12 +43,16 @@ class InspirationPage extends ConsumerWidget {
         appBar: _InspirationAppBar(),
         body: Center(child: CircularProgressIndicator()),
       ),
-      error: (_, _) => _InspirationErrorView(
+      error: (error, _) => _InspirationErrorView(
+        error: error,
         onRetry:
             onRetry ??
             (this.snapshotAsync == null
                 ? () => ref.read(environmentSnapshotProvider.notifier).refresh()
                 : null),
+        onOpenAppSettings:
+            onOpenAppSettings ??
+            (this.snapshotAsync == null ? Geolocator.openAppSettings : null),
         onSelectManualLocation:
             onSelectManualLocation ??
             (this.snapshotAsync == null
@@ -116,48 +124,64 @@ class _InspirationAppBar extends StatelessWidget
 }
 
 class _InspirationErrorView extends StatelessWidget {
-  const _InspirationErrorView({this.onRetry, this.onSelectManualLocation});
+  const _InspirationErrorView({
+    required this.error,
+    this.onRetry,
+    this.onOpenAppSettings,
+    this.onSelectManualLocation,
+  });
 
+  final Object error;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const _InspirationAppBar(),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.location_off_outlined, size: 44),
-            const SizedBox(height: 12),
-            const Text('暂时无法读取此刻的创作线索'),
-            if (onRetry != null || onSelectManualLocation != null) ...[
+  Widget build(BuildContext context) {
+    final permanentlyDenied = isPermanentlyDeniedLocationFailure(error);
+    final primaryAction = permanentlyDenied
+        ? onOpenAppSettings ?? onRetry
+        : onRetry;
+    final primaryLabel = permanentlyDenied && onOpenAppSettings != null
+        ? '打开设置'
+        : '重试';
+    return Scaffold(
+      appBar: const _InspirationAppBar(),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.location_off_outlined, size: 44),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  if (onRetry case final action?)
-                    FilledButton.tonal(
-                      onPressed: action,
-                      child: const Text('重试'),
-                    ),
-                  if (onSelectManualLocation case final action?)
-                    OutlinedButton(
-                      onPressed: action,
-                      child: const Text('手动选择地点'),
-                    ),
-                ],
-              ),
+              const Text('暂时无法读取此刻的创作线索'),
+              if (primaryAction != null || onSelectManualLocation != null) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    if (primaryAction case final action?)
+                      FilledButton.tonal(
+                        onPressed: action,
+                        child: Text(primaryLabel),
+                      ),
+                    if (onSelectManualLocation case final action?)
+                      OutlinedButton(
+                        onPressed: action,
+                        child: const Text('手动选择地点'),
+                      ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _BottleScaffold extends StatefulWidget {

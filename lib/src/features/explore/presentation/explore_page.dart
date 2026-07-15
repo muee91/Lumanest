@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:amap_map/amap_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
@@ -29,6 +31,7 @@ class ExplorePage extends ConsumerWidget {
     this.intentTimeout = const Duration(minutes: 8),
     this.snapshotAsync,
     this.onRetry,
+    this.onOpenAppSettings,
     this.onSelectManualLocation,
   });
 
@@ -37,6 +40,7 @@ class ExplorePage extends ConsumerWidget {
   final Duration intentTimeout;
   final AsyncValue<ContextSnapshot>? snapshotAsync;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
 
   @override
@@ -56,6 +60,7 @@ class ExplorePage extends ConsumerWidget {
         intentTimeout: intentTimeout,
         snapshotAsync: snapshotAsync,
         onRetry: onRetry,
+        onOpenAppSettings: onOpenAppSettings,
         onSelectManualLocation: onSelectManualLocation,
         onInit: (context) {
           ref
@@ -189,6 +194,7 @@ class _MapView extends ConsumerStatefulWidget {
     required this.intentTimeout,
     this.snapshotAsync,
     this.onRetry,
+    this.onOpenAppSettings,
     this.onSelectManualLocation,
     required this.onInit,
   });
@@ -198,6 +204,7 @@ class _MapView extends ConsumerStatefulWidget {
   final Duration intentTimeout;
   final AsyncValue<ContextSnapshot>? snapshotAsync;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
   final void Function(BuildContext context) onInit;
 
@@ -400,12 +407,16 @@ class _MapViewState extends ConsumerState<_MapView> {
         widget.snapshotAsync ?? ref.watch(environmentSnapshotProvider)!;
     return snapshot.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => _ExploreErrorView(
+      error: (error, _) => _ExploreErrorView(
+        error: error,
         onRetry:
             widget.onRetry ??
             (widget.snapshotAsync == null
                 ? () => ref.read(environmentSnapshotProvider.notifier).refresh()
                 : null),
+        onOpenAppSettings:
+            widget.onOpenAppSettings ??
+            (widget.snapshotAsync == null ? Geolocator.openAppSettings : null),
         onSelectManualLocation:
             widget.onSelectManualLocation ??
             (widget.snapshotAsync == null
@@ -417,6 +428,7 @@ class _MapViewState extends ConsumerState<_MapView> {
         final location = value.location;
         if (location == null) {
           return _ExploreErrorView(
+            error: null,
             onRetry:
                 widget.onRetry ??
                 (widget.snapshotAsync == null
@@ -910,36 +922,61 @@ class _LocationConsentView extends StatelessWidget {
 }
 
 class _ExploreErrorView extends StatelessWidget {
-  const _ExploreErrorView({this.onRetry, this.onSelectManualLocation});
+  const _ExploreErrorView({
+    required this.error,
+    this.onRetry,
+    this.onOpenAppSettings,
+    this.onSelectManualLocation,
+  });
 
+  final Object? error;
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.location_off_outlined, size: 44),
-          const SizedBox(height: 12),
-          const Text('暂时无法获取当前位置'),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.center,
-            children: [
-              if (onRetry case final action?)
-                FilledButton.tonal(onPressed: action, child: const Text('重试')),
-              if (onSelectManualLocation case final action?)
-                OutlinedButton(onPressed: action, child: const Text('手动选择地点')),
-            ],
-          ),
-        ],
+  Widget build(BuildContext context) {
+    final permanentlyDenied = switch (error) {
+      final value? => isPermanentlyDeniedLocationFailure(value),
+      null => false,
+    };
+    final primaryAction = permanentlyDenied
+        ? onOpenAppSettings ?? onRetry
+        : onRetry;
+    final primaryLabel = permanentlyDenied && onOpenAppSettings != null
+        ? '打开设置'
+        : '重试';
+    return SafeArea(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_off_outlined, size: 44),
+            const SizedBox(height: 12),
+            const Text('暂时无法获取当前位置'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                if (primaryAction case final action?)
+                  FilledButton.tonal(
+                    onPressed: action,
+                    child: Text(primaryLabel),
+                  ),
+                if (onSelectManualLocation case final action?)
+                  OutlinedButton(
+                    onPressed: action,
+                    child: const Text('手动选择地点'),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SearchField extends StatelessWidget {

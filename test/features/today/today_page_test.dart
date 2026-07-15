@@ -5,6 +5,7 @@ import 'package:luma_nest/src/core/context/context_event.dart' as context;
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
@@ -111,6 +112,33 @@ void main() {
 
       await tester.tap(find.text('手动选择地点'));
       expect(selectedManualLocation, isTrue);
+    });
+
+    testWidgets('permanent location denial opens app settings', (tester) async {
+      var retries = 0;
+      var settingsOpened = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncError(
+              const EnvironmentLoadFailure(
+                EnvironmentFailureKind.location,
+                cause: LocationRepositoryFailure(
+                  LocationFailureKind.permissionDeniedForever,
+                ),
+              ),
+              StackTrace.empty,
+            ),
+            onRetry: () => retries++,
+            onOpenAppSettings: () => settingsOpened++,
+          ),
+        ),
+      );
+
+      expect(find.text('重试'), findsNothing);
+      await tester.tap(find.text('打开设置'));
+      expect(settingsOpened, 1);
+      expect(retries, 0);
     });
 
     testWidgets('stale cached snapshot shows stale label', (tester) async {

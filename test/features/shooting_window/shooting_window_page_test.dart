@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_controller.dart';
+import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/features/shooting_window/presentation/shooting_window_page.dart';
 
 void main() {
@@ -27,6 +29,31 @@ void main() {
     await tester.tap(find.text('手动选择地点'));
     expect(retries, 1);
     expect(manualSelections, 1);
+  });
+
+  testWidgets('permanent location denial offers app settings', (tester) async {
+    var settingsOpened = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: ShootingWindowPage(
+            snapshotAsync: AsyncError(
+              const EnvironmentLoadFailure(
+                EnvironmentFailureKind.location,
+                cause: LocationRepositoryFailure(
+                  LocationFailureKind.permissionDeniedForever,
+                ),
+              ),
+              StackTrace.empty,
+            ),
+            onOpenAppSettings: () => settingsOpened++,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开设置'));
+    expect(settingsOpened, 1);
   });
 
   testWidgets('renders calculated windows and the terrain limitation', (
