@@ -236,10 +236,32 @@ class _BottleScaffoldState extends State<_BottleScaffold>
     if (notes.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('灵感瓶')),
-        body: const Center(
+        body: Center(
           child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Text('此刻还没有可靠的创作线索', textAlign: TextAlign.center),
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.hourglass_empty_rounded,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '此刻还没有可靠的创作线索',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '环境变化后，新的纸条会按需出现。',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -249,132 +271,236 @@ class _BottleScaffoldState extends State<_BottleScaffold>
     return Scaffold(
       appBar: AppBar(title: const Text('灵感瓶')),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Center(
-                child: Text('此时此地的创作线索', style: TextStyle(fontSize: 16)),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+          children: [
+            Row(
+              children: [
+                Text(
+                  '此时此地的创作线索',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '${notes.length} 张纸条',
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Center(child: _buildBottle(context, notes, note)),
+            const SizedBox(height: 18),
+            Material(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerLow.withValues(alpha: .88),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
-              const SizedBox(height: 22),
-              Center(
-                child: Semantics(
-                  button: true,
-                  label: '抽一张灵感纸条',
-                  child: GestureDetector(
-                    key: const Key('inspiration-bottle'),
-                    onTap: _draw,
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([
-                        _idleController,
-                        _drawController,
-                      ]),
-                      builder: (_, _) => Transform.rotate(
-                        angle: widget.reduceMotion
-                            ? 0
-                            : _bottleRotation(_drawController.value),
-                        child: Container(
-                          width: 250,
-                          height: 340,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(55),
-                              bottom: Radius.circular(78),
-                            ),
-                            gradient: LinearGradient(
-                              colors: [
-                                Theme.of(context).colorScheme.primaryContainer
-                                    .withValues(alpha: .82),
-                                Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerHighest
-                                    .withValues(alpha: .72),
-                              ],
-                            ),
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outlineVariant,
-                              width: 2,
-                            ),
-                          ),
-                          child: Stack(
-                            children: [
-                              for (var i = 0; i < notes.length; i++)
-                                Positioned(
-                                  left: 28 + (i % 2) * 62.0,
-                                  top: 72 + (i ~/ 2) * 56.0 + _paperLift(i),
-                                  child: Transform.translate(
-                                    offset: Offset(_paperDrift(i), 0),
-                                    child: Transform.rotate(
-                                      angle: _paperRotation(i),
-                                      child: _Paper(
-                                        key: Key('bottle-paper-${notes[i].id}'),
-                                        text: notes[i].displayLabel,
-                                        faded: notes[i] != note,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Text(
+                      '抽到的纸条',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    AnimatedSwitcher(
+                      duration: widget.reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 220),
+                      child: _Paper(
+                        key: Key('selected-inspiration-${note.id}'),
+                        text: note.displayLabel,
+                        large: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      note.detail,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => widget.onAction(note),
+                    icon: const Icon(Icons.arrow_outward),
+                    label: const Text('去看看'),
+                  ),
+                ),
+                if (widget.onSave case final onSave?) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.isSaved?.call(note) == true
+                          ? null
+                          : () => onSave(note),
+                      icon: Icon(
+                        widget.isSaved?.call(note) == true
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                      ),
+                      label: Text(
+                        widget.isSaved?.call(note) == true ? '已收藏' : '收藏这张纸条',
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: _draw,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('再抽一张纸条'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottle(
+    BuildContext context,
+    List<InspirationNote> notes,
+    InspirationNote selected,
+  ) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      label: '抽一张灵感纸条',
+      child: GestureDetector(
+        key: const Key('inspiration-bottle'),
+        onTap: _draw,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_idleController, _drawController]),
+          builder: (_, _) => Transform.rotate(
+            angle: widget.reduceMotion
+                ? 0
+                : _bottleRotation(_drawController.value),
+            child: SizedBox(
+              width: 276,
+              height: 350,
+              child: Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Positioned(
+                    top: 0,
+                    child: Container(
+                      width: 88,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: .62),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                          width: 2,
+                        ),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(13),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 22),
-              AnimatedSwitcher(
-                duration: widget.reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 220),
-                child: _Paper(
-                  key: Key('selected-inspiration-${note.id}'),
-                  text: note.displayLabel,
-                  large: true,
-                ),
-              ),
-              const SizedBox(height: 22),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  note.detail,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () => widget.onAction(note),
-                icon: const Icon(Icons.arrow_outward),
-                label: const Text('去看看'),
-              ),
-              if (widget.onSave case final onSave?) ...[
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: widget.isSaved?.call(note) == true
-                      ? null
-                      : () => onSave(note),
-                  icon: Icon(
-                    widget.isSaved?.call(note) == true
-                        ? Icons.bookmark
-                        : Icons.bookmark_border,
+                  Positioned(
+                    top: 18,
+                    child: Container(
+                      width: 102,
+                      height: 13,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: .68),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
                   ),
-                  label: Text(
-                    widget.isSaved?.call(note) == true ? '已收藏' : '收藏这张纸条',
+                  Positioned(
+                    top: 52,
+                    child: Container(
+                      width: 250,
+                      height: 292,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(48),
+                          bottom: Radius.circular(76),
+                        ),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            theme.colorScheme.primaryContainer.withValues(
+                              alpha: .72,
+                            ),
+                            theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: .5),
+                          ],
+                        ),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                          width: 2,
+                        ),
+                      ),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            left: 18,
+                            top: 24,
+                            bottom: 38,
+                            child: Container(
+                              width: 10,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: .24),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                            ),
+                          ),
+                          for (var i = 0; i < notes.length; i++)
+                            Positioned(
+                              left: 32 + (i % 2) * 66.0,
+                              top: 64 + (i ~/ 2) * 58.0 + _paperLift(i),
+                              child: Transform.translate(
+                                offset: Offset(_paperDrift(i), 0),
+                                child: Transform.rotate(
+                                  angle: _paperRotation(i),
+                                  child: _Paper(
+                                    key: Key('bottle-paper-${notes[i].id}'),
+                                    text: notes[i].displayLabel,
+                                    faded: notes[i] != selected,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _draw,
-                icon: const Icon(Icons.auto_awesome),
-                label: const Text('抽一张纸条'),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -447,6 +573,7 @@ class _Paper extends StatelessWidget {
           style: TextStyle(
             fontSize: large ? 24 : 13,
             fontWeight: FontWeight.w600,
+            color: const Color(0xFF2B2924),
           ),
         ),
       ),

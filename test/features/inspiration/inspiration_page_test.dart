@@ -86,10 +86,10 @@ void main() {
     await tester.pump();
 
     final saveButton = find.text('收藏这张纸条');
-    await tester.dragUntilVisible(
+    await tester.scrollUntilVisible(
       saveButton,
-      find.byType(Scrollable).first,
-      const Offset(0, -100),
+      200,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(saveButton);
     await tester.pump();
