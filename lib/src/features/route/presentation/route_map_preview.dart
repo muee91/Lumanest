@@ -62,10 +62,69 @@ class _ReadyRouteMap extends StatefulWidget {
 }
 
 class _ReadyRouteMapState extends State<_ReadyRouteMap> {
+  Timer? _slowTimer;
+  Timer? _settleTimer;
+  var _platformCreated = false;
+  var _mapCreated = false;
+  var _loadingSlowly = false;
+
   @override
   void initState() {
     super.initState();
     widget.onInitialize(context);
+    _armLoadingState();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReadyRouteMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.route.sourceId != widget.route.sourceId ||
+        oldWidget.route.destinationName != widget.route.destinationName ||
+        oldWidget.route.travelMode != widget.route.travelMode) {
+      _armLoadingState();
+    }
+  }
+
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    _settleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _armLoadingState() {
+    _slowTimer?.cancel();
+    _settleTimer?.cancel();
+    _platformCreated = false;
+    _mapCreated = false;
+    _loadingSlowly = false;
+    _slowTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted && !_mapCreated) setState(() => _loadingSlowly = true);
+    });
+  }
+
+  void _onMapCreated(AMapController controller, LatLngBounds bounds) {
+    _platformCreated = true;
+    unawaited(
+      controller.moveCamera(
+        CameraUpdate.newLatLngBounds(bounds, 48),
+        animated: false,
+      ),
+    );
+    _settleTimer?.cancel();
+    _settleTimer = Timer(const Duration(seconds: 6), _markMapReady);
+  }
+
+  void _onCameraMoveEnd() {
+    if (!_platformCreated || _mapCreated) return;
+    _settleTimer?.cancel();
+    _settleTimer = Timer(const Duration(milliseconds: 450), _markMapReady);
+  }
+
+  void _markMapReady() {
+    _slowTimer?.cancel();
+    _settleTimer?.cancel();
+    if (mounted && !_mapCreated) setState(() => _mapCreated = true);
   }
 
   @override
@@ -117,14 +176,14 @@ class _ReadyRouteMapState extends State<_ReadyRouteMap> {
                     ),
               },
               onMapCreated: (controller) {
-                unawaited(
-                  controller.moveCamera(
-                    CameraUpdate.newLatLngBounds(bounds, 48),
-                    animated: false,
-                  ),
-                );
+                _onMapCreated(controller, bounds);
               },
+              onCameraMoveEnd: (_) => _onCameraMoveEnd(),
             ),
+            if (!_mapCreated)
+              Positioned.fill(
+                child: _RouteMapLoadingOverlay(slow: _loadingSlowly),
+              ),
             if (widget.route.isStale)
               const Positioned(
                 left: 10,
@@ -179,6 +238,54 @@ class _ReadyRouteMapState extends State<_ReadyRouteMap> {
 
   double mathMax(double first, double second) =>
       first > second ? first : second;
+}
+
+class _RouteMapLoadingOverlay extends StatelessWidget {
+  const _RouteMapLoadingOverlay({required this.slow});
+
+  final bool slow;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final message = slow ? '地图加载较慢，可先查看文字路线' : '正在绘制路线地图';
+    return Semantics(
+      key: const Key('route-map-loading'),
+      liveRegion: true,
+      label: message,
+      child: ColoredBox(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (slow)
+                  Icon(
+                    Icons.map_outlined,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  )
+                else
+                  const SizedBox.square(
+                    dimension: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MapConsentPrompt extends StatelessWidget {

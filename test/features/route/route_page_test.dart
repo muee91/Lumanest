@@ -323,7 +323,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('创建路线'), findsOneWidget);
+    expect(find.text('去探索选目的地'), findsOneWidget);
     expect(find.text('导入轨迹'), findsOneWidget);
     expect(find.byIcon(Icons.file_upload_outlined), findsOneWidget);
   });
@@ -361,7 +361,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('创建路线'), findsNothing);
+    expect(find.text('去探索选目的地'), findsNothing);
     expect(find.text('前往 湖岸机位'), findsOneWidget);
     expect(find.text('暂停'), findsOneWidget);
     expect(
@@ -474,7 +474,7 @@ void main() {
 
     expect(reminderService.cancelled, contains(journey.id));
     expect(store.value.activeJourney, isNull);
-    expect(find.text('创建路线'), findsOneWidget);
+    expect(find.text('去探索选目的地'), findsOneWidget);
   });
 
   testWidgets('imports, saves and opens a GPX track without route network', (
@@ -793,7 +793,7 @@ void main() {
 
       expect(state(), RouteContextState.none);
       expect(find.text('取消规划'), findsNothing);
-      expect(find.text('创建路线'), findsOneWidget);
+      expect(find.text('去探索选目的地'), findsOneWidget);
     });
 
     testWidgets(

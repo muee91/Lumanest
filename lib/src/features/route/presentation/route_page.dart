@@ -357,7 +357,7 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
                   child: FilledButton.icon(
                     onPressed: () => context.go('/explore'),
                     icon: const Icon(Icons.add_road_outlined),
-                    label: const Text('创建路线'),
+                    label: const Text('去探索选目的地'),
                   ),
                 ),
                 const SizedBox(width: LumaNestSpacing.xs),

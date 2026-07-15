@@ -91,6 +91,29 @@ void main() {
     );
   });
 
+  testWidgets('explains map creation and a slow platform view', (tester) async {
+    final container = createMapTestContainer(amapKey: 'test-key');
+    addTearDown(container.dispose);
+    container.read(mapConsentControllerProvider.notifier).grantConsent();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(body: RouteMapPreview(route: _route())),
+        ),
+      ),
+    );
+
+    final loading = find.byKey(const Key('route-map-loading'));
+    expect(loading, findsOneWidget);
+    expect(find.text('正在绘制路线地图'), findsOneWidget);
+    expect(tester.getSize(loading).height, 220);
+
+    await tester.pump(const Duration(seconds: 8));
+    expect(find.text('地图加载较慢，可先查看文字路线'), findsOneWidget);
+  });
+
   testWidgets('renders imported GPX segments as separate polylines', (
     tester,
   ) async {

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
@@ -23,6 +24,7 @@ class InspirationPage extends ConsumerWidget {
     this.onRetry,
     this.onOpenAppSettings,
     this.onSelectManualLocation,
+    this.onExplore,
   });
 
   /// Allows deterministic widget tests without starting the live environment.
@@ -30,6 +32,7 @@ class InspirationPage extends ConsumerWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
+  final VoidCallback? onExplore;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -83,6 +86,7 @@ class InspirationPage extends ConsumerWidget {
             manifest: manifest,
           ),
           reduceMotion: reduceMotion,
+          onExplore: onExplore ?? () => context.go('/explore'),
           onAction: (note) => _performAction(context, note),
           isSaved: (note) => savedNoteIds.contains(
             SavedInspirationNote.idFor(
@@ -188,12 +192,14 @@ class _BottleScaffold extends StatefulWidget {
   const _BottleScaffold({
     required this.notes,
     required this.reduceMotion,
+    required this.onExplore,
     required this.onAction,
     this.onSave,
     this.isSaved,
   });
   final List<InspirationNote> notes;
   final bool reduceMotion;
+  final VoidCallback onExplore;
   final void Function(InspirationNote note) onAction;
   final Future<void> Function(InspirationNote note)? onSave;
   final bool Function(InspirationNote note)? isSaved;
@@ -260,32 +266,72 @@ class _BottleScaffoldState extends State<_BottleScaffold>
     if (notes.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('灵感瓶')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.hourglass_empty_rounded,
-                  size: 48,
-                  color: Theme.of(context).colorScheme.secondary,
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            children: [
+              Material(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerLow.withValues(alpha: .88),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  '此刻还没有可靠的创作线索',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.hourglass_empty_rounded,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        '此刻还没有可靠的创作线索',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '当前规则没有成立的创作事件。环境变化后，新的纸条会按需出现。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton.icon(
+                        onPressed: widget.onExplore,
+                        icon: const Icon(Icons.explore_outlined),
+                        label: const Text('去探索附近'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '环境变化后，新的纸条会按需出现。',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  '安全和风险始终留在独立通道，不会放进灵感瓶。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );

@@ -58,6 +58,31 @@ void main() {
     expect(settingsOpened, 1);
   });
 
+  testWidgets('quiet context stays compact and offers a real next action', (
+    tester,
+  ) async {
+    var explorations = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: InspirationPage(
+            snapshotAsync: AsyncValue.data(ContextFixtures.quietCity()),
+            onExplore: () => explorations++,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('此刻还没有可靠的创作线索'), findsOneWidget);
+    expect(find.textContaining('当前规则没有成立'), findsOneWidget);
+    expect(find.byKey(const Key('inspiration-bottle')), findsNothing);
+    expect(find.text('去探索附近'), findsOneWidget);
+
+    await tester.tap(find.text('去探索附近'));
+    expect(explorations, 1);
+  });
+
   testWidgets('bottle keeps a subtle idle ticker when motion is allowed', (
     tester,
   ) async {
