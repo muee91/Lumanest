@@ -68,6 +68,17 @@ void main() {
       );
     });
 
+    test('applies the shared editorial component language', () {
+      final theme = LumaNestTheme.light;
+
+      expect(theme.scaffoldBackgroundColor, Colors.transparent);
+      expect(theme.navigationBarTheme.height, 72);
+      expect(theme.cardTheme.elevation, 0);
+      expect(theme.inputDecorationTheme.filled, isTrue);
+      expect(theme.snackBarTheme.behavior, SnackBarBehavior.floating);
+      expect(theme.textTheme.displaySmall?.fontWeight, FontWeight.w700);
+    });
+
     test('high contrast themes increase primary contrast', () {
       final normalLight = _contrastRatio(
         LumaNestTheme.light.colorScheme.primary,

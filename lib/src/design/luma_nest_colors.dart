@@ -23,6 +23,12 @@ abstract final class LumaNestColors {
   static const Color accentLight = Color(0xFF5B8C5A); // muted sage
   static const Color accentDark = Color(0xFF7CB77C);
 
+  // ── Editorial support ──
+  static const Color tertiaryLight = Color(0xFF6E665D);
+  static const Color tertiaryDark = Color(0xFFB9AFA3);
+  static const Color outlineLight = Color(0xFF8C8378);
+  static const Color outlineDark = Color(0xFF90887E);
+
   // ── Safety / alert ──
   static const Color safetyLight = Color(0xFFC75050);
   static const Color safetyDark = Color(0xFFE07070);
