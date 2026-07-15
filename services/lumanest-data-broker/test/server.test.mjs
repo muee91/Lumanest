@@ -283,6 +283,51 @@ test('wildlife endpoint returns regional aggregates without observation coordina
   });
 });
 
+test('wildlife layer endpoint forwards reviewed polygons without exposing internal token', async () => {
+  let upstreamRequest;
+  await withServer(async (baseUrl) => {
+    const unauthorized = await fetch(
+      `${baseUrl}/v1/wildlife/layers?location=120.15,30.25&radiusKm=20`,
+    );
+    assert.equal(unauthorized.status, 401);
+
+    const response = await fetch(
+      `${baseUrl}/v1/wildlife/layers?location=120.15,30.25&radiusKm=20`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.areas[0].name, '历史观察区域');
+    assert.equal(JSON.stringify(body).includes('internal-context-token'), false);
+  }, {
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    fetcher: async (url, options) => {
+      upstreamRequest = { url, options };
+      return new Response(JSON.stringify({
+        contractVersion: 1,
+        generatedAt: '2026-07-16T02:00:00Z',
+        radiusKm: 20,
+        areas: [{
+          id: 'd'.repeat(64),
+          name: '历史观察区域',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[[120, 30], [120.2, 30], [120.2, 30.2], [120, 30]]],
+          },
+          source: {
+            attribution: 'Reviewed wildlife dataset',
+            version: '2026.07',
+            updatedAt: '2026-07-16T00:00:00Z',
+          },
+        }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  assert.equal(upstreamRequest.url.pathname, '/internal/v1/wildlife/layers');
+  assert.equal(upstreamRequest.options.headers['X-Internal-Service-Token'], 'internal-context-token');
+});
+
 test('Amap proxy requires the app service token', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/amap/nearby?location=121.47,31.23`);

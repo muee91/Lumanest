@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models import ContextImportResult, RouteState
+from app.models import ContextImportResult, RouteState, WildlifeLayerArea
 from app.store import ContextStore
 
 
@@ -139,6 +139,110 @@ def test_source_status_exposes_enabled_weather_sources_and_disabled_air_quality(
     assert sources["qweather-warning"]["licenseStatus"] == "approved"
     assert sources["qweather-air-quality"]["enabled"] is False
     assert sources["qweather-air-quality"]["licenseStatus"] == "pending"
+
+
+def test_internal_wildlife_layers_require_token_and_return_reviewed_areas(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+
+    async def fake_layers(_store, latitude, longitude, radius_km):
+        assert (latitude, longitude, radius_km) == (30.25, 120.15, 20)
+        return [WildlifeLayerArea.model_validate({
+            "id": "a" * 64,
+            "name": "历史观察区域",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]
+                ]],
+            },
+            "source": {
+                "attribution": "Reviewed wildlife dataset",
+                "version": "2026.07",
+                "updatedAt": "2026-07-16T00:00:00Z",
+            },
+        })]
+
+    monkeypatch.setattr(ContextStore, "wildlife_layers", fake_layers)
+    path = "/internal/v1/wildlife/layers?latitude=30.25&longitude=120.15&radiusKm=20"
+    with TestClient(app) as client:
+        assert client.get(path).status_code == 401
+        response = client.get(
+            path,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["contractVersion"] == 1
+    assert body["radiusKm"] == 20
+    assert body["areas"][0]["name"] == "历史观察区域"
+    assert body["areas"][0]["source"]["attribution"] == "Reviewed wildlife dataset"
+    assert "sourceId" not in str(body)
+
+
+def test_wildlife_layer_contract_rejects_points_and_radius_outside_policy(monkeypatch):
+    with pytest.raises(ValidationError):
+        WildlifeLayerArea.model_validate({
+            "id": "b" * 64,
+            "name": "must not expose a point",
+            "geometry": {"type": "Point", "coordinates": [120.1, 30.1]},
+            "source": {"attribution": "fixture", "version": "1"},
+        })
+
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    with TestClient(app) as client:
+        response = client.get(
+            "/internal/v1/wildlife/layers?latitude=30&longitude=120&radiusKm=2",
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_wildlife_layer_store_filters_license_and_hides_sensitive_names():
+    captured = {}
+
+    class FakeMappings:
+        def all(self):
+            return [{
+                "id": "c" * 64,
+                "public_name": "历史观察区域",
+                "geometry": '{"type":"Polygon","coordinates":[[[120,30],[120.2,30],[120.2,30.2],[120,30]]]}',
+                "attribution": "Reviewed fixture",
+                "version": "2026.07",
+                "updated_at": datetime(2026, 7, 16, tzinfo=timezone.utc),
+            }]
+
+    class FakeResult:
+        def mappings(self):
+            return FakeMappings()
+
+    class FakeConnection:
+        async def execute(self, statement, parameters):
+            captured["statement"] = str(statement)
+            captured["parameters"] = parameters
+            return FakeResult()
+
+    class ConnectionContext:
+        async def __aenter__(self):
+            return FakeConnection()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class FakeEngine:
+        def connect(self):
+            return ConnectionContext()
+
+    store = ContextStore(None, None)
+    store.engine = FakeEngine()
+    result = await store.wildlife_layers(30.1, 120.1, 20)
+
+    assert result[0].name == "历史观察区域"
+    assert captured["parameters"]["radius_meters"] == 20_000
+    assert "license_status = 'approved'" in captured["statement"]
+    assert "category = 'wildlifeHistorical'" in captured["statement"]
+    assert "sensitivity = 'sensitive'" in captured["statement"]
 
 
 def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(monkeypatch):

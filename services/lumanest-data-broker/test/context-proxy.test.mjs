@@ -3,10 +3,30 @@ import test from 'node:test';
 
 import {
   forwardContextSnapshot,
+  fetchWildlifeLayers,
   importContextDataset,
   isLegacyContextRequest,
   validContextRequest,
 } from '../src/context/proxy.mjs';
+
+const wildlifeLayerResponse = {
+  contractVersion: 1,
+  generatedAt: '2026-07-16T02:00:00Z',
+  radiusKm: 20,
+  areas: [{
+    id: 'a'.repeat(64),
+    name: '历史观察区域',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[120, 30], [120.2, 30], [120.2, 30.2], [120, 30]]],
+    },
+    source: {
+      attribution: 'Reviewed wildlife dataset',
+      version: '2026.07',
+      updatedAt: '2026-07-16T00:00:00Z',
+    },
+  }],
+};
 
 const minimalRequest = {
   contractVersion: 2,
@@ -140,6 +160,64 @@ test('context import uses only the internal service token and bounded endpoint',
   assert.equal(request.url, 'http://context-service:8000/internal/v1/imports');
   assert.equal(request.options.headers['X-Internal-Service-Token'], 'internal-secret');
   assert.equal(request.options.body.includes('internal-secret'), false);
+});
+
+test('wildlife layer proxy sends only bounded location parameters and internal token', async () => {
+  let request;
+  const result = await fetchWildlifeLayers({
+    latitude: 30.25,
+    longitude: 120.15,
+    radiusKm: 20,
+    serviceUrl: 'http://context-service:8000',
+    internalToken: 'internal-secret',
+    fetcher: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify(wildlifeLayerResponse), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(request.url.pathname, '/internal/v1/wildlife/layers');
+  assert.equal(request.url.searchParams.get('latitude'), '30.25');
+  assert.equal(request.url.searchParams.get('longitude'), '120.15');
+  assert.equal(request.url.searchParams.get('radiusKm'), '20');
+  assert.equal(request.options.headers['X-Internal-Service-Token'], 'internal-secret');
+});
+
+test('wildlife layer proxy rejects points, unknown fields and invalid source dates', async () => {
+  for (const body of [
+    {
+      ...wildlifeLayerResponse,
+      areas: [{
+        ...wildlifeLayerResponse.areas[0],
+        geometry: { type: 'Point', coordinates: [120.1, 30.1] },
+      }],
+    },
+    { ...wildlifeLayerResponse, preciseCoordinates: true },
+    {
+      ...wildlifeLayerResponse,
+      areas: [{
+        ...wildlifeLayerResponse.areas[0],
+        source: { ...wildlifeLayerResponse.areas[0].source, updatedAt: 'not-a-date' },
+      }],
+    },
+  ]) {
+    const result = await fetchWildlifeLayers({
+      latitude: 30.25,
+      longitude: 120.15,
+      radiusKm: 20,
+      serviceUrl: 'http://context-service:8000',
+      internalToken: 'internal-secret',
+      fetcher: async () => new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    });
+    assert.deepEqual(result, { ok: false, error: 'upstream_unavailable' });
+  }
 });
 
 test('context import converts validation details into a safe error', async () => {

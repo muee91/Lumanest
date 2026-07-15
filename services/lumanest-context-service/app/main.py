@@ -3,8 +3,9 @@ from __future__ import annotations
 import hmac
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 
 from .models import (
@@ -14,6 +15,7 @@ from .models import (
     SnapshotRequest,
     SnapshotResponse,
     SourceStatus,
+    WildlifeLayerResponse,
 )
 from .rules import classify_scene, context_fingerprint, evaluate
 from .store import ContextStore
@@ -81,6 +83,31 @@ async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotR
 )
 async def sources(request: Request) -> list[SourceStatus]:
     return await request.app.state.store.source_statuses()
+
+
+@app.get(
+    "/internal/v1/wildlife/layers",
+    response_model=WildlifeLayerResponse,
+    response_model_by_alias=True,
+    dependencies=[Depends(require_internal_token)],
+)
+async def wildlife_layers(
+    request: Request,
+    latitude: float = Query(ge=-90, le=90),
+    longitude: float = Query(ge=-180, le=180),
+    radius_km: int = Query(20, alias="radiusKm", ge=5, le=50),
+) -> WildlifeLayerResponse:
+    try:
+        areas = await request.app.state.store.wildlife_layers(
+            latitude, longitude, radius_km
+        )
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail="storage_unavailable") from error
+    return WildlifeLayerResponse(
+        generatedAt=datetime.now(timezone.utc),
+        radiusKm=radius_km,
+        areas=areas,
+    )
 
 
 @app.post(

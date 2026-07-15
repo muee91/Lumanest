@@ -16,6 +16,7 @@ from .models import (
     SceneEvidence,
     SourceStatus,
     SpatialFeaturesImport,
+    WildlifeLayerArea,
 )
 
 
@@ -80,6 +81,68 @@ class ContextStore:
             wildlifeOpportunity=("wildlifeOpportunity", "wildlifeHistorical") in evidence,
             wildlifeSafety=("wildlifeSafety", "officialRisk") in evidence,
         )
+
+    async def wildlife_layers(
+        self, latitude: float, longitude: float, radius_km: int
+    ) -> list[WildlifeLayerArea]:
+        if self.engine is None:
+            raise RuntimeError("storage_not_configured")
+        query = text("""
+            SELECT spatial_features.id,
+                   CASE
+                       WHEN spatial_features.sensitivity = 'sensitive'
+                       THEN '历史观察区域'
+                       ELSE spatial_features.name
+                   END AS public_name,
+                   ST_AsGeoJSON(
+                       ST_SimplifyPreserveTopology(spatial_features.geometry, 0.0005),
+                       6
+                   ) AS geometry,
+                   source_registry.attribution,
+                   source_registry.version,
+                   source_registry.updated_at
+            FROM spatial_features
+            JOIN source_registry ON source_registry.id = spatial_features.source_id
+            WHERE spatial_features.enabled = TRUE
+              AND source_registry.enabled = TRUE
+              AND source_registry.license_status = 'approved'
+              AND source_registry.category = 'wildlifeHistorical'
+              AND spatial_features.evidence_class = 'wildlifeOpportunity'
+              AND spatial_features.kind = 'protected'
+              AND ST_GeometryType(spatial_features.geometry) IN ('ST_Polygon', 'ST_MultiPolygon')
+              AND ST_DWithin(
+                  spatial_features.geometry::geography,
+                  ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography,
+                  :radius_meters
+              )
+            ORDER BY spatial_features.sensitivity DESC, spatial_features.id
+            LIMIT 50
+        """)
+        try:
+            async with self.engine.connect() as connection:
+                rows = (await connection.execute(
+                    query,
+                    {
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "radius_meters": radius_km * 1000,
+                    },
+                )).mappings().all()
+        except SQLAlchemyError as error:
+            raise RuntimeError("storage_unavailable") from error
+        return [
+            WildlifeLayerArea.model_validate({
+                "id": row["id"],
+                "name": row["public_name"],
+                "geometry": json.loads(row["geometry"]),
+                "source": {
+                    "attribution": row["attribution"],
+                    "version": row["version"],
+                    "updatedAt": row["updated_at"],
+                },
+            })
+            for row in rows
+        ]
 
     async def cached_snapshot(self, fingerprint: str) -> dict | None:
         if self.redis is None:

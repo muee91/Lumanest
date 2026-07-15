@@ -18,6 +18,7 @@ import {
 import { routeNarrative } from './llm/router.mjs';
 import {
   forwardContextSnapshot,
+  fetchWildlifeLayers,
   importContextDataset,
   listContextSources,
   validContextRequest,
@@ -465,6 +466,37 @@ export function createTokenBrokerServer({
         return;
       }
       writeJson(response, 200, body);
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/wildlife/layers') {
+      const location = requestUrl.searchParams.get('location');
+      if (!validCoordinate(location)) {
+        writeJson(response, 400, { error: 'invalid_location' });
+        return;
+      }
+      const [longitude, latitude] = location.split(',').map(Number);
+      const radiusKm = clampInteger(requestUrl.searchParams.get('radiusKm'), {
+        fallback: configuration.settings.wildlifeRadiusKm,
+        min: 5,
+        max: 50,
+      });
+      const result = await fetchWildlifeLayers({
+        latitude,
+        longitude,
+        radiusKm,
+        serviceUrl: configuration.contextServiceUrl,
+        internalToken: configuration.contextInternalToken,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
+          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      writeJson(response, 200, result.body);
       return;
     }
 

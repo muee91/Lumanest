@@ -206,6 +206,72 @@ export async function listContextSources({ serviceUrl, internalToken, fetcher = 
   }
 }
 
+function validPosition(value) {
+  return Array.isArray(value) && value.length >= 2 &&
+    finiteIn(value[0], -180, 180) && finiteIn(value[1], -90, 90);
+}
+
+function validRing(value) {
+  return Array.isArray(value) && value.length >= 4 && value.every(validPosition) &&
+    value[0][0] === value.at(-1)[0] && value[0][1] === value.at(-1)[1];
+}
+
+function validWildlifeGeometry(value) {
+  if (!exactKeys(value, new Set(['type', 'coordinates'])) || !Array.isArray(value.coordinates)) return false;
+  if (value.type === 'Polygon') return value.coordinates.length > 0 && value.coordinates.every(validRing);
+  if (value.type === 'MultiPolygon') {
+    return value.coordinates.length > 0 && value.coordinates.every((polygon) =>
+      Array.isArray(polygon) && polygon.length > 0 && polygon.every(validRing));
+  }
+  return false;
+}
+
+function validWildlifeLayerResponse(body) {
+  if (!exactKeys(body, new Set(['contractVersion', 'generatedAt', 'radiusKm', 'areas'])) ||
+      body.contractVersion !== 1 || !Number.isFinite(Date.parse(body.generatedAt)) ||
+      !Number.isInteger(body.radiusKm) || body.radiusKm < 5 || body.radiusKm > 50 ||
+      !Array.isArray(body.areas) || body.areas.length > 50) return false;
+  return body.areas.every((area) =>
+    exactKeys(area, new Set(['id', 'name', 'geometry', 'source'])) &&
+    typeof area.id === 'string' && /^[a-f0-9]{64}$/.test(area.id) &&
+    typeof area.name === 'string' && [...area.name.trim()].length >= 1 && [...area.name.trim()].length <= 200 &&
+    validWildlifeGeometry(area.geometry) &&
+    exactKeys(area.source, new Set(['attribution', 'version', 'updatedAt'])) &&
+    typeof area.source.attribution === 'string' && area.source.attribution.trim().length > 0 &&
+    typeof area.source.version === 'string' && area.source.version.trim().length > 0 &&
+    (area.source.updatedAt == null ||
+      (typeof area.source.updatedAt === 'string' && Number.isFinite(Date.parse(area.source.updatedAt)))));
+}
+
+export async function fetchWildlifeLayers({
+  latitude,
+  longitude,
+  radiusKm,
+  serviceUrl,
+  internalToken,
+  fetcher = fetch,
+  timeoutMs = 8_000,
+}) {
+  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  try {
+    const url = new URL('/internal/v1/wildlife/layers', serviceUrl);
+    url.searchParams.set('latitude', String(latitude));
+    url.searchParams.set('longitude', String(longitude));
+    url.searchParams.set('radiusKm', String(radiusKm));
+    const upstream = await fetcher(url, {
+      headers: { 'X-Internal-Service-Token': internalToken },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const body = await upstream.json();
+    if (!upstream.ok || !validWildlifeLayerResponse(body)) {
+      return { ok: false, error: 'upstream_unavailable' };
+    }
+    return { ok: true, body };
+  } catch {
+    return { ok: false, error: 'upstream_unavailable' };
+  }
+}
+
 function validImportResult(body) {
   return object(body) && typeof body.sourceId === 'string' &&
     ['spatialFeatures', 'astronomyEvents'].includes(body.datasetType) &&

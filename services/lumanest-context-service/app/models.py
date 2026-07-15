@@ -323,6 +323,32 @@ class GeoJsonGeometry(ApiModel):
         return self
 
 
+class WildlifeLayerSource(ApiModel):
+    attribution: str = Field(min_length=1, max_length=500)
+    version: str = Field(min_length=1, max_length=100)
+    updated_at: datetime | None = Field(None, alias="updatedAt")
+
+
+class WildlifeLayerArea(ApiModel):
+    id: str = Field(pattern=r"^[a-f0-9]{64}$")
+    name: str = Field(min_length=1, max_length=200)
+    geometry: GeoJsonGeometry
+    source: WildlifeLayerSource
+
+    @model_validator(mode="after")
+    def require_area_geometry(self) -> "WildlifeLayerArea":
+        if self.geometry.type not in ("Polygon", "MultiPolygon"):
+            raise ValueError("wildlife layers require polygon geometry")
+        return self
+
+
+class WildlifeLayerResponse(ApiModel):
+    contract_version: Literal[1] = Field(1, alias="contractVersion")
+    generated_at: datetime = Field(alias="generatedAt")
+    radius_km: int = Field(ge=5, le=50, alias="radiusKm")
+    areas: list[WildlifeLayerArea] = Field(max_length=50)
+
+
 class GeoJsonFeature(ApiModel):
     type: Literal["Feature"]
     id: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$")
