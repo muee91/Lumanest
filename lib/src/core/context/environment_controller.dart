@@ -8,6 +8,7 @@ import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/monitoring/app_logger.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
@@ -46,6 +47,7 @@ class EnvironmentLoader {
     // above the whole recovery chain so every fallback remains available.
     this.locationTimeout = const Duration(seconds: 21),
     this.weatherTimeout = const Duration(seconds: 10),
+    this.logger,
     required this.now,
     required this.utcOffset,
   });
@@ -62,6 +64,7 @@ class EnvironmentLoader {
   final RouteContextState route;
   final Duration locationTimeout;
   final Duration weatherTimeout;
+  final AppLogger? logger;
   final DateTime Function() now;
   final Duration Function() utcOffset;
 
@@ -100,12 +103,17 @@ class EnvironmentLoader {
         if (wildlifeActivity?.hasActivity == true) {
           snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);
         }
-        await cache.write(snapshot);
+        await _writeCache(snapshot);
         return snapshot;
       } catch (error) {
         remoteFailure = error is RemoteContextFailure
             ? error
             : const RemoteContextFailure(RemoteContextFailureKind.response);
+        logger?.warning(
+          LogCategory.degradation,
+          'broker.snapshot_failed',
+          data: {LogDataKey.reason: remoteFailure.kind.name},
+        );
       }
     }
 
@@ -153,14 +161,37 @@ class EnvironmentLoader {
             .timeout(const Duration(seconds: 3));
       } catch (_) {
         // The local deterministic snapshot remains the offline-safe source.
+        logger?.warning(
+          LogCategory.degradation,
+          'broker.enrichment_failed',
+          data: const {LogDataKey.source: 'local'},
+        );
       }
     }
     final wildlifeActivity = await wildlifeFuture;
     if (wildlifeActivity?.hasActivity == true) {
       snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);
     }
-    await cache.write(snapshot);
+    await _writeCache(snapshot);
     return snapshot;
+  }
+
+  Future<void> _writeCache(ContextSnapshot snapshot) async {
+    try {
+      await cache.write(snapshot);
+      logger?.debug(
+        LogCategory.contextCache,
+        'cache.updated',
+        data: {
+          LogDataKey.freshness: snapshot.dataFreshness.name,
+          LogDataKey.scene: snapshot.primaryScene.name,
+        },
+      );
+    } on Object {
+      // A storage failure must not hide a usable live snapshot. The raw
+      // storage exception is deliberately not attached to the record.
+      logger?.error(LogCategory.contextCache, 'cache.write_failed');
+    }
   }
 
   Future<SceneEvidence> _fetchSceneEvidence(GeoPoint location) async {
@@ -196,7 +227,19 @@ class EnvironmentLoader {
     Object cause,
   ) async {
     final cached = await cache.readLatest();
-    if (cached != null) return cached.asStale();
+    if (cached != null) {
+      logger?.warning(
+        LogCategory.contextCache,
+        'cache.stale_hit',
+        data: {LogDataKey.cache: 'hit', LogDataKey.reason: kind.name},
+      );
+      return cached.asStale();
+    }
+    logger?.warning(
+      LogCategory.contextCache,
+      'cache.miss',
+      data: {LogDataKey.cache: 'miss', LogDataKey.reason: kind.name},
+    );
     throw EnvironmentLoadFailure(kind, cause: cause);
   }
 }

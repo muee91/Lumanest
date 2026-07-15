@@ -4,6 +4,7 @@ import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
+import 'package:luma_nest/src/core/monitoring/app_logger.dart';
 import 'package:luma_nest/src/core/narrative/data_broker_manifest_narrative_model.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_coordinator.dart';
@@ -31,6 +32,7 @@ final manifestNarrativeCoordinatorProvider =
       return ManifestNarrativeCoordinator(
         model: ref.watch(manifestNarrativeModelProvider),
         now: DateTime.now,
+        logger: ref.watch(appLoggerProvider),
       );
     });
 

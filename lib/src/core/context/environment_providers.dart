@@ -11,6 +11,7 @@ import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/fixed_location_repository.dart';
+import 'package:luma_nest/src/core/monitoring/app_logger.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
@@ -167,6 +168,7 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
     sceneEvidenceRepository: ref.watch(sceneEvidenceRepositoryProvider),
     remoteContextRepository: ref.watch(remoteContextRepositoryProvider),
     route: ref.watch(routeContextStateProvider),
+    logger: ref.watch(appLoggerProvider),
     now: DateTime.now,
     utcOffset: () => DateTime.now().timeZoneOffset,
   );
@@ -175,7 +177,7 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
 class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
   @override
   Future<ContextSnapshot> build() {
-    return ref.watch(environmentLoaderProvider).load();
+    return _load(ref.watch(environmentLoaderProvider), trigger: 'automatic');
   }
 
   Future<void> refresh() async {
@@ -184,8 +186,51 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
       // `environmentLoaderProvider` already watches the effective location
       // source. A refresh is an imperative action: resolve its current value
       // now instead of adding a dependency from this notifier method.
-      () => ref.read(environmentLoaderProvider).load(),
+      () => _load(ref.read(environmentLoaderProvider), trigger: 'manual'),
     );
+  }
+
+  Future<ContextSnapshot> _load(
+    EnvironmentLoader loader, {
+    required String trigger,
+  }) async {
+    final logger = ref.read(appLoggerProvider);
+    logger.debug(
+      LogCategory.contextSnapshot,
+      'context.refresh_started',
+      data: {LogDataKey.source: trigger},
+    );
+    try {
+      final snapshot = await loader.load();
+      final data = {
+        LogDataKey.freshness: snapshot.dataFreshness.name,
+        LogDataKey.scene: snapshot.primaryScene.name,
+      };
+      if (snapshot.isStale) {
+        logger.warning(
+          LogCategory.degradation,
+          'context.stale_fallback',
+          data: data,
+        );
+      } else {
+        logger.info(
+          LogCategory.contextSnapshot,
+          'context.refresh_completed',
+          data: data,
+        );
+      }
+      return snapshot;
+    } on EnvironmentLoadFailure catch (failure) {
+      logger.warning(
+        LogCategory.degradation,
+        'context.refresh_failed',
+        data: {LogDataKey.reason: failure.kind.name},
+      );
+      rethrow;
+    } on Object {
+      logger.error(LogCategory.error, 'context.unexpected_failure');
+      rethrow;
+    }
   }
 }
 

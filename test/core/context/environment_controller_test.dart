@@ -15,6 +15,7 @@ import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
+import 'package:luma_nest/src/core/monitoring/app_logger.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/weather/weather_repository.dart';
@@ -60,6 +61,8 @@ void main() {
     Duration locationTimeout = const Duration(seconds: 15),
     Duration weatherTimeout = const Duration(seconds: 10),
     RouteContextState route = RouteContextState.none,
+    AppLogger? logger,
+    ContextCache? contextCache,
   }) {
     return EnvironmentLoader(
       qweatherConfigured: configured,
@@ -67,13 +70,14 @@ void main() {
       weatherRepository: weather,
       solarService: solar,
       snapshotBuilder: const ContextSnapshotBuilder(),
-      cache: cache,
+      cache: contextCache ?? cache,
       wildlifeRepository: wildlifeRepository,
       sceneEvidenceRepository: sceneEvidenceRepository,
       remoteContextRepository: remoteContextRepository,
       route: route,
       locationTimeout: locationTimeout,
       weatherTimeout: weatherTimeout,
+      logger: logger,
       now: () => now,
       utcOffset: () => const Duration(hours: 8),
     );
@@ -88,6 +92,24 @@ void main() {
     expect(snapshot.isStale, isFalse);
     expect(await cache.readLatest(), same(snapshot));
   });
+
+  test(
+    'cache write failure does not hide a fresh snapshot or raw error',
+    () async {
+      final records = <LogRecord>[];
+      final snapshot = await createLoader(
+        contextCache: _FailingWriteContextCache(),
+        logger: AppLogger(sink: records.add, now: () => now),
+      ).load();
+
+      expect(snapshot.isStale, isFalse);
+      expect(
+        records.map((record) => record.event),
+        contains('cache.write_failed'),
+      );
+      expect(records.join('\n'), isNot(contains('storage-token-secret')));
+    },
+  );
 
   test(
     'uses the minimal Broker snapshot before client weather or solar',
@@ -238,6 +260,8 @@ void main() {
   });
 
   test('returns a stale cached snapshot when weather refresh fails', () async {
+    final records = <LogRecord>[];
+    final logger = AppLogger(sink: records.add, now: () => now);
     final cached = ContextSnapshot(
       id: 'cached',
       observedAt: now.subtract(const Duration(hours: 1)),
@@ -248,13 +272,16 @@ void main() {
       activeRoute: false,
     );
     await cache.write(cached);
-    weather.error = StateError('offline');
+    weather.error = StateError('offline with raw-token-secret');
 
-    final snapshot = await createLoader().load();
+    final snapshot = await createLoader(logger: logger).load();
 
     expect(snapshot.id, 'cached');
     expect(snapshot.isStale, isTrue);
     expect(snapshot.observedAt, cached.observedAt);
+    expect(records.map((record) => record.event), contains('cache.stale_hit'));
+    expect(records.join('\n'), isNot(contains('raw-token-secret')));
+    expect(records.join('\n'), isNot(contains('31.2304')));
   });
 
   test(
@@ -352,14 +379,25 @@ void main() {
   });
 
   test('Riverpod controller exposes the loader result', () async {
+    final records = <LogRecord>[];
     final container = ProviderContainer(
-      overrides: [environmentLoaderProvider.overrideWithValue(createLoader())],
+      overrides: [
+        environmentLoaderProvider.overrideWithValue(createLoader()),
+        appLoggerProvider.overrideWithValue(
+          AppLogger(sink: records.add, now: () => now),
+        ),
+      ],
     );
     addTearDown(container.dispose);
 
     final snapshot = await container.read(environmentSnapshotProvider.future);
 
     expect(snapshot.location?.latitude, 31.2304);
+    expect(records.map((record) => record.event), [
+      'context.refresh_started',
+      'context.refresh_completed',
+    ]);
+    expect(records.join('\n'), isNot(contains('31.2304')));
   });
 
   test(
@@ -371,6 +409,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           environmentLoaderProvider.overrideWithValue(createLoader()),
+          appLoggerProvider.overrideWithValue(AppLogger(enabled: false)),
         ],
       );
       addTearDown(container.dispose);
@@ -437,6 +476,19 @@ class _FakeLocationRepository implements LocationRepository {
     calls += 1;
     if (error case final error?) return Future.error(error);
     return pending ?? Future.value(value);
+  }
+}
+
+class _FailingWriteContextCache implements ContextCache {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<ContextSnapshot?> readLatest() async => null;
+
+  @override
+  Future<void> write(ContextSnapshot snapshot) {
+    throw StateError('storage-token-secret');
   }
 }
 

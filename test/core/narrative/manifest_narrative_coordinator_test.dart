@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
+import 'package:luma_nest/src/core/monitoring/app_logger.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_coordinator.dart';
 
@@ -63,6 +64,7 @@ void main() {
   );
 
   test('rejects unknown events and falls back to deterministic copy', () async {
+    final records = <LogRecord>[];
     final coordinator = ManifestNarrativeCoordinator(
       model: _FakeModel(
         const ManifestNarrativeCandidate(
@@ -71,6 +73,7 @@ void main() {
         ),
       ),
       now: () => now,
+      logger: AppLogger(sink: records.add, now: () => now),
     );
 
     final narrative = await coordinator.resolve(
@@ -81,15 +84,22 @@ void main() {
     expect(narrative.source, ManifestNarrativeSource.template);
     expect(narrative.summary, manifest.summary);
     expect(narrative.noteLabels, isEmpty);
+    expect(records.map((record) => record.event), [
+      'narrative.request_started',
+      'narrative.invalid_output',
+    ]);
+    expect(records.join('\n'), isNot(contains('invented-event')));
   });
 
   test(
     'model failure and stale snapshots use the template without throwing',
     () async {
       final failing = _ThrowingModel();
+      final records = <LogRecord>[];
       final coordinator = ManifestNarrativeCoordinator(
         model: failing,
         now: () => now,
+        logger: AppLogger(sink: records.add, now: () => now),
       );
 
       final failed = await coordinator.resolve(
@@ -109,6 +119,13 @@ void main() {
         1,
         reason: 'stale facts must not be sent to a model',
       );
+      expect(records.map((record) => record.event), [
+        'narrative.request_started',
+        'narrative.request_failed',
+        'narrative.template_used',
+      ]);
+      expect(records.join('\n'), isNot(contains('model unavailable')));
+      expect(records.join('\n'), isNot(contains(snapshot.id)));
     },
   );
 
@@ -117,9 +134,11 @@ void main() {
     () async {
       final completer = Completer<ManifestNarrativeCandidate>();
       final model = _CompletingModel(completer.future);
+      final records = <LogRecord>[];
       final coordinator = ManifestNarrativeCoordinator(
         model: model,
         now: () => now,
+        logger: AppLogger(sink: records.add, now: () => now),
       );
 
       final first = coordinator.resolve(snapshot: snapshot, manifest: manifest);
@@ -138,6 +157,15 @@ void main() {
       expect(await first, await second);
       await coordinator.resolve(snapshot: snapshot, manifest: manifest);
       expect(model.calls, 1);
+      expect(
+        records.map((record) => record.event),
+        containsAll([
+          'narrative.request_deduplicated',
+          'narrative.model_used',
+          'narrative.cache_hit',
+        ]),
+      );
+      expect(records.join('\n'), isNot(contains('preference')));
     },
   );
 
