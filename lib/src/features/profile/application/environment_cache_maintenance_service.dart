@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/features/explore/application/wildlife_map_layer_providers.dart';
 
 enum EnvironmentCacheAvailability { absent, current, stale }
 
@@ -42,7 +43,14 @@ class RiverpodEnvironmentCacheMaintenanceService
   }
 
   @override
-  Future<void> clear() => _ref.read(contextCacheProvider).clear();
+  Future<void> clear() async {
+    _ref.read(contextCacheWriteGuardProvider).invalidate();
+    await Future.wait([
+      _ref.read(contextCacheProvider).clear(),
+      _ref.read(wildlifeMapLayerCacheProvider).clear(),
+    ]);
+    _ref.invalidate(wildlifeMapLayerProvider);
+  }
 }
 
 final environmentCacheMaintenanceServiceProvider =

@@ -202,6 +202,29 @@ class SavedInspirationNotes extends Table {
   ];
 }
 
+@DataClassName('WildlifeMapLayerCacheRow')
+class WildlifeMapLayerCaches extends Table {
+  TextColumn get id => text()();
+  RealColumn get centerLatitude => real()();
+  RealColumn get centerLongitude => real()();
+  IntColumn get radiusKilometers => integer()();
+  DateTimeColumn get savedAt => dateTime()();
+  DateTimeColumn get generatedAt => dateTime()();
+  TextColumn get payloadJson => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) = 64)',
+    'CHECK (center_latitude BETWEEN -90 AND 90)',
+    'CHECK (center_longitude BETWEEN -180 AND 180)',
+    'CHECK (radius_kilometers BETWEEN 5 AND 50)',
+    'CHECK (length(payload_json) BETWEEN 1 AND 524288)',
+  ];
+}
+
 @DriftDatabase(
   tables: [
     SavedPlaces,
@@ -212,6 +235,7 @@ class SavedInspirationNotes extends Table {
     ProfilePreferenceRecords,
     BaseRegions,
     SavedInspirationNotes,
+    WildlifeMapLayerCaches,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -221,7 +245,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -253,6 +277,9 @@ class AppDatabase extends _$AppDatabase {
           savedInspirationNotes,
           savedInspirationNotes.authorityUrl,
         );
+      }
+      if (from < 9) {
+        await migrator.createTable(wildlifeMapLayerCaches);
       }
     },
   );

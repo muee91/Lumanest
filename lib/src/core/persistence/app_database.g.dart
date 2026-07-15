@@ -3954,6 +3954,502 @@ class SavedInspirationNotesCompanion
   }
 }
 
+class $WildlifeMapLayerCachesTable extends WildlifeMapLayerCaches
+    with TableInfo<$WildlifeMapLayerCachesTable, WildlifeMapLayerCacheRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WildlifeMapLayerCachesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centerLatitudeMeta = const VerificationMeta(
+    'centerLatitude',
+  );
+  @override
+  late final GeneratedColumn<double> centerLatitude = GeneratedColumn<double>(
+    'center_latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centerLongitudeMeta = const VerificationMeta(
+    'centerLongitude',
+  );
+  @override
+  late final GeneratedColumn<double> centerLongitude = GeneratedColumn<double>(
+    'center_longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _radiusKilometersMeta = const VerificationMeta(
+    'radiusKilometers',
+  );
+  @override
+  late final GeneratedColumn<int> radiusKilometers = GeneratedColumn<int>(
+    'radius_kilometers',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _savedAtMeta = const VerificationMeta(
+    'savedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> savedAt = GeneratedColumn<DateTime>(
+    'saved_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generatedAtMeta = const VerificationMeta(
+    'generatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> generatedAt = GeneratedColumn<DateTime>(
+    'generated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    centerLatitude,
+    centerLongitude,
+    radiusKilometers,
+    savedAt,
+    generatedAt,
+    payloadJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'wildlife_map_layer_caches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WildlifeMapLayerCacheRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('center_latitude')) {
+      context.handle(
+        _centerLatitudeMeta,
+        centerLatitude.isAcceptableOrUnknown(
+          data['center_latitude']!,
+          _centerLatitudeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centerLatitudeMeta);
+    }
+    if (data.containsKey('center_longitude')) {
+      context.handle(
+        _centerLongitudeMeta,
+        centerLongitude.isAcceptableOrUnknown(
+          data['center_longitude']!,
+          _centerLongitudeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centerLongitudeMeta);
+    }
+    if (data.containsKey('radius_kilometers')) {
+      context.handle(
+        _radiusKilometersMeta,
+        radiusKilometers.isAcceptableOrUnknown(
+          data['radius_kilometers']!,
+          _radiusKilometersMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_radiusKilometersMeta);
+    }
+    if (data.containsKey('saved_at')) {
+      context.handle(
+        _savedAtMeta,
+        savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
+    if (data.containsKey('generated_at')) {
+      context.handle(
+        _generatedAtMeta,
+        generatedAt.isAcceptableOrUnknown(
+          data['generated_at']!,
+          _generatedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_generatedAtMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WildlifeMapLayerCacheRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WildlifeMapLayerCacheRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      centerLatitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}center_latitude'],
+      )!,
+      centerLongitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}center_longitude'],
+      )!,
+      radiusKilometers: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}radius_kilometers'],
+      )!,
+      savedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}saved_at'],
+      )!,
+      generatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}generated_at'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+    );
+  }
+
+  @override
+  $WildlifeMapLayerCachesTable createAlias(String alias) {
+    return $WildlifeMapLayerCachesTable(attachedDatabase, alias);
+  }
+}
+
+class WildlifeMapLayerCacheRow extends DataClass
+    implements Insertable<WildlifeMapLayerCacheRow> {
+  final String id;
+  final double centerLatitude;
+  final double centerLongitude;
+  final int radiusKilometers;
+  final DateTime savedAt;
+  final DateTime generatedAt;
+  final String payloadJson;
+  const WildlifeMapLayerCacheRow({
+    required this.id,
+    required this.centerLatitude,
+    required this.centerLongitude,
+    required this.radiusKilometers,
+    required this.savedAt,
+    required this.generatedAt,
+    required this.payloadJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['center_latitude'] = Variable<double>(centerLatitude);
+    map['center_longitude'] = Variable<double>(centerLongitude);
+    map['radius_kilometers'] = Variable<int>(radiusKilometers);
+    map['saved_at'] = Variable<DateTime>(savedAt);
+    map['generated_at'] = Variable<DateTime>(generatedAt);
+    map['payload_json'] = Variable<String>(payloadJson);
+    return map;
+  }
+
+  WildlifeMapLayerCachesCompanion toCompanion(bool nullToAbsent) {
+    return WildlifeMapLayerCachesCompanion(
+      id: Value(id),
+      centerLatitude: Value(centerLatitude),
+      centerLongitude: Value(centerLongitude),
+      radiusKilometers: Value(radiusKilometers),
+      savedAt: Value(savedAt),
+      generatedAt: Value(generatedAt),
+      payloadJson: Value(payloadJson),
+    );
+  }
+
+  factory WildlifeMapLayerCacheRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WildlifeMapLayerCacheRow(
+      id: serializer.fromJson<String>(json['id']),
+      centerLatitude: serializer.fromJson<double>(json['centerLatitude']),
+      centerLongitude: serializer.fromJson<double>(json['centerLongitude']),
+      radiusKilometers: serializer.fromJson<int>(json['radiusKilometers']),
+      savedAt: serializer.fromJson<DateTime>(json['savedAt']),
+      generatedAt: serializer.fromJson<DateTime>(json['generatedAt']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'centerLatitude': serializer.toJson<double>(centerLatitude),
+      'centerLongitude': serializer.toJson<double>(centerLongitude),
+      'radiusKilometers': serializer.toJson<int>(radiusKilometers),
+      'savedAt': serializer.toJson<DateTime>(savedAt),
+      'generatedAt': serializer.toJson<DateTime>(generatedAt),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+    };
+  }
+
+  WildlifeMapLayerCacheRow copyWith({
+    String? id,
+    double? centerLatitude,
+    double? centerLongitude,
+    int? radiusKilometers,
+    DateTime? savedAt,
+    DateTime? generatedAt,
+    String? payloadJson,
+  }) => WildlifeMapLayerCacheRow(
+    id: id ?? this.id,
+    centerLatitude: centerLatitude ?? this.centerLatitude,
+    centerLongitude: centerLongitude ?? this.centerLongitude,
+    radiusKilometers: radiusKilometers ?? this.radiusKilometers,
+    savedAt: savedAt ?? this.savedAt,
+    generatedAt: generatedAt ?? this.generatedAt,
+    payloadJson: payloadJson ?? this.payloadJson,
+  );
+  WildlifeMapLayerCacheRow copyWithCompanion(
+    WildlifeMapLayerCachesCompanion data,
+  ) {
+    return WildlifeMapLayerCacheRow(
+      id: data.id.present ? data.id.value : this.id,
+      centerLatitude: data.centerLatitude.present
+          ? data.centerLatitude.value
+          : this.centerLatitude,
+      centerLongitude: data.centerLongitude.present
+          ? data.centerLongitude.value
+          : this.centerLongitude,
+      radiusKilometers: data.radiusKilometers.present
+          ? data.radiusKilometers.value
+          : this.radiusKilometers,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+      generatedAt: data.generatedAt.present
+          ? data.generatedAt.value
+          : this.generatedAt,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WildlifeMapLayerCacheRow(')
+          ..write('id: $id, ')
+          ..write('centerLatitude: $centerLatitude, ')
+          ..write('centerLongitude: $centerLongitude, ')
+          ..write('radiusKilometers: $radiusKilometers, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('payloadJson: $payloadJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    centerLatitude,
+    centerLongitude,
+    radiusKilometers,
+    savedAt,
+    generatedAt,
+    payloadJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WildlifeMapLayerCacheRow &&
+          other.id == this.id &&
+          other.centerLatitude == this.centerLatitude &&
+          other.centerLongitude == this.centerLongitude &&
+          other.radiusKilometers == this.radiusKilometers &&
+          other.savedAt == this.savedAt &&
+          other.generatedAt == this.generatedAt &&
+          other.payloadJson == this.payloadJson);
+}
+
+class WildlifeMapLayerCachesCompanion
+    extends UpdateCompanion<WildlifeMapLayerCacheRow> {
+  final Value<String> id;
+  final Value<double> centerLatitude;
+  final Value<double> centerLongitude;
+  final Value<int> radiusKilometers;
+  final Value<DateTime> savedAt;
+  final Value<DateTime> generatedAt;
+  final Value<String> payloadJson;
+  final Value<int> rowid;
+  const WildlifeMapLayerCachesCompanion({
+    this.id = const Value.absent(),
+    this.centerLatitude = const Value.absent(),
+    this.centerLongitude = const Value.absent(),
+    this.radiusKilometers = const Value.absent(),
+    this.savedAt = const Value.absent(),
+    this.generatedAt = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WildlifeMapLayerCachesCompanion.insert({
+    required String id,
+    required double centerLatitude,
+    required double centerLongitude,
+    required int radiusKilometers,
+    required DateTime savedAt,
+    required DateTime generatedAt,
+    required String payloadJson,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       centerLatitude = Value(centerLatitude),
+       centerLongitude = Value(centerLongitude),
+       radiusKilometers = Value(radiusKilometers),
+       savedAt = Value(savedAt),
+       generatedAt = Value(generatedAt),
+       payloadJson = Value(payloadJson);
+  static Insertable<WildlifeMapLayerCacheRow> custom({
+    Expression<String>? id,
+    Expression<double>? centerLatitude,
+    Expression<double>? centerLongitude,
+    Expression<int>? radiusKilometers,
+    Expression<DateTime>? savedAt,
+    Expression<DateTime>? generatedAt,
+    Expression<String>? payloadJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (centerLatitude != null) 'center_latitude': centerLatitude,
+      if (centerLongitude != null) 'center_longitude': centerLongitude,
+      if (radiusKilometers != null) 'radius_kilometers': radiusKilometers,
+      if (savedAt != null) 'saved_at': savedAt,
+      if (generatedAt != null) 'generated_at': generatedAt,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WildlifeMapLayerCachesCompanion copyWith({
+    Value<String>? id,
+    Value<double>? centerLatitude,
+    Value<double>? centerLongitude,
+    Value<int>? radiusKilometers,
+    Value<DateTime>? savedAt,
+    Value<DateTime>? generatedAt,
+    Value<String>? payloadJson,
+    Value<int>? rowid,
+  }) {
+    return WildlifeMapLayerCachesCompanion(
+      id: id ?? this.id,
+      centerLatitude: centerLatitude ?? this.centerLatitude,
+      centerLongitude: centerLongitude ?? this.centerLongitude,
+      radiusKilometers: radiusKilometers ?? this.radiusKilometers,
+      savedAt: savedAt ?? this.savedAt,
+      generatedAt: generatedAt ?? this.generatedAt,
+      payloadJson: payloadJson ?? this.payloadJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (centerLatitude.present) {
+      map['center_latitude'] = Variable<double>(centerLatitude.value);
+    }
+    if (centerLongitude.present) {
+      map['center_longitude'] = Variable<double>(centerLongitude.value);
+    }
+    if (radiusKilometers.present) {
+      map['radius_kilometers'] = Variable<int>(radiusKilometers.value);
+    }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<DateTime>(savedAt.value);
+    }
+    if (generatedAt.present) {
+      map['generated_at'] = Variable<DateTime>(generatedAt.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WildlifeMapLayerCachesCompanion(')
+          ..write('id: $id, ')
+          ..write('centerLatitude: $centerLatitude, ')
+          ..write('centerLongitude: $centerLongitude, ')
+          ..write('radiusKilometers: $radiusKilometers, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3969,6 +4465,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BaseRegionsTable baseRegions = $BaseRegionsTable(this);
   late final $SavedInspirationNotesTable savedInspirationNotes =
       $SavedInspirationNotesTable(this);
+  late final $WildlifeMapLayerCachesTable wildlifeMapLayerCaches =
+      $WildlifeMapLayerCachesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3982,6 +4480,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     profilePreferenceRecords,
     baseRegions,
     savedInspirationNotes,
+    wildlifeMapLayerCaches,
   ];
 }
 
@@ -6047,6 +6546,273 @@ typedef $$SavedInspirationNotesTableProcessedTableManager =
       SavedInspirationNoteRow,
       PrefetchHooks Function()
     >;
+typedef $$WildlifeMapLayerCachesTableCreateCompanionBuilder =
+    WildlifeMapLayerCachesCompanion Function({
+      required String id,
+      required double centerLatitude,
+      required double centerLongitude,
+      required int radiusKilometers,
+      required DateTime savedAt,
+      required DateTime generatedAt,
+      required String payloadJson,
+      Value<int> rowid,
+    });
+typedef $$WildlifeMapLayerCachesTableUpdateCompanionBuilder =
+    WildlifeMapLayerCachesCompanion Function({
+      Value<String> id,
+      Value<double> centerLatitude,
+      Value<double> centerLongitude,
+      Value<int> radiusKilometers,
+      Value<DateTime> savedAt,
+      Value<DateTime> generatedAt,
+      Value<String> payloadJson,
+      Value<int> rowid,
+    });
+
+class $$WildlifeMapLayerCachesTableFilterComposer
+    extends Composer<_$AppDatabase, $WildlifeMapLayerCachesTable> {
+  $$WildlifeMapLayerCachesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get centerLatitude => $composableBuilder(
+    column: $table.centerLatitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get centerLongitude => $composableBuilder(
+    column: $table.centerLongitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get radiusKilometers => $composableBuilder(
+    column: $table.radiusKilometers,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$WildlifeMapLayerCachesTableOrderingComposer
+    extends Composer<_$AppDatabase, $WildlifeMapLayerCachesTable> {
+  $$WildlifeMapLayerCachesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get centerLatitude => $composableBuilder(
+    column: $table.centerLatitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get centerLongitude => $composableBuilder(
+    column: $table.centerLongitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get radiusKilometers => $composableBuilder(
+    column: $table.radiusKilometers,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$WildlifeMapLayerCachesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WildlifeMapLayerCachesTable> {
+  $$WildlifeMapLayerCachesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<double> get centerLatitude => $composableBuilder(
+    column: $table.centerLatitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get centerLongitude => $composableBuilder(
+    column: $table.centerLongitude,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get radiusKilometers => $composableBuilder(
+    column: $table.radiusKilometers,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+}
+
+class $$WildlifeMapLayerCachesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WildlifeMapLayerCachesTable,
+          WildlifeMapLayerCacheRow,
+          $$WildlifeMapLayerCachesTableFilterComposer,
+          $$WildlifeMapLayerCachesTableOrderingComposer,
+          $$WildlifeMapLayerCachesTableAnnotationComposer,
+          $$WildlifeMapLayerCachesTableCreateCompanionBuilder,
+          $$WildlifeMapLayerCachesTableUpdateCompanionBuilder,
+          (
+            WildlifeMapLayerCacheRow,
+            BaseReferences<
+              _$AppDatabase,
+              $WildlifeMapLayerCachesTable,
+              WildlifeMapLayerCacheRow
+            >,
+          ),
+          WildlifeMapLayerCacheRow,
+          PrefetchHooks Function()
+        > {
+  $$WildlifeMapLayerCachesTableTableManager(
+    _$AppDatabase db,
+    $WildlifeMapLayerCachesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WildlifeMapLayerCachesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$WildlifeMapLayerCachesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$WildlifeMapLayerCachesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<double> centerLatitude = const Value.absent(),
+                Value<double> centerLongitude = const Value.absent(),
+                Value<int> radiusKilometers = const Value.absent(),
+                Value<DateTime> savedAt = const Value.absent(),
+                Value<DateTime> generatedAt = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WildlifeMapLayerCachesCompanion(
+                id: id,
+                centerLatitude: centerLatitude,
+                centerLongitude: centerLongitude,
+                radiusKilometers: radiusKilometers,
+                savedAt: savedAt,
+                generatedAt: generatedAt,
+                payloadJson: payloadJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required double centerLatitude,
+                required double centerLongitude,
+                required int radiusKilometers,
+                required DateTime savedAt,
+                required DateTime generatedAt,
+                required String payloadJson,
+                Value<int> rowid = const Value.absent(),
+              }) => WildlifeMapLayerCachesCompanion.insert(
+                id: id,
+                centerLatitude: centerLatitude,
+                centerLongitude: centerLongitude,
+                radiusKilometers: radiusKilometers,
+                savedAt: savedAt,
+                generatedAt: generatedAt,
+                payloadJson: payloadJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$WildlifeMapLayerCachesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WildlifeMapLayerCachesTable,
+      WildlifeMapLayerCacheRow,
+      $$WildlifeMapLayerCachesTableFilterComposer,
+      $$WildlifeMapLayerCachesTableOrderingComposer,
+      $$WildlifeMapLayerCachesTableAnnotationComposer,
+      $$WildlifeMapLayerCachesTableCreateCompanionBuilder,
+      $$WildlifeMapLayerCachesTableUpdateCompanionBuilder,
+      (
+        WildlifeMapLayerCacheRow,
+        BaseReferences<
+          _$AppDatabase,
+          $WildlifeMapLayerCachesTable,
+          WildlifeMapLayerCacheRow
+        >,
+      ),
+      WildlifeMapLayerCacheRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6073,4 +6839,9 @@ class $AppDatabaseManager {
       $$BaseRegionsTableTableManager(_db, _db.baseRegions);
   $$SavedInspirationNotesTableTableManager get savedInspirationNotes =>
       $$SavedInspirationNotesTableTableManager(_db, _db.savedInspirationNotes);
+  $$WildlifeMapLayerCachesTableTableManager get wildlifeMapLayerCaches =>
+      $$WildlifeMapLayerCachesTableTableManager(
+        _db,
+        _db.wildlifeMapLayerCaches,
+      );
 }

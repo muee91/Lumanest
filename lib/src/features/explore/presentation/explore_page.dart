@@ -995,11 +995,16 @@ class _WildlifeLayerStatus extends StatelessWidget {
             error: (_, _) => const Text('审核区域图层暂不可用；GBIF 区域摘要仍可参考'),
             data: (value) {
               if (value.areas.isEmpty) {
-                return const Text('附近暂无已审核的历史观察区域图层');
+                return Text(
+                  '${value.isOfflineCache ? '离线缓存 · ' : ''}'
+                  '附近暂无已审核的历史观察区域图层',
+                );
               }
               final sources = value.attributions.take(2).join(' · ');
               return Text(
-                '已覆盖 ${value.areas.length} 个审核区域 · 非实时位置 · $sources',
+                '已覆盖 ${value.areas.length} 个审核区域 · '
+                '${value.isOfflineCache ? '离线缓存 · ' : ''}'
+                '非实时位置 · $sources',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               );

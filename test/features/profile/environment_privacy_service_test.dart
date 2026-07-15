@@ -6,9 +6,12 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
+import 'package:luma_nest/src/features/explore/application/wildlife_map_layer_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/domain/wildlife_map_layer.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/nearby_place_cache.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/wildlife_map_layer_cache.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/location/domain/base_region.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
@@ -35,6 +38,7 @@ void main() {
     final supportCache = _FakeRouteSupportCache();
     final locationSearchCache = _FakeLocationSearchCache();
     final nearbyPlaceCache = _FakeNearbyPlaceCache();
+    final wildlifeMapLayerCache = _FakeWildlifeMapLayerCache();
     final gateway = FakeAmapInitializerGateway();
     final now = DateTime.utc(2026, 7, 13, 10);
     await cache.write(
@@ -63,6 +67,7 @@ void main() {
         routeSupportCacheProvider.overrideWithValue(supportCache),
         locationSearchCacheProvider.overrideWithValue(locationSearchCache),
         nearbyPlaceCacheProvider.overrideWithValue(nearbyPlaceCache),
+        wildlifeMapLayerCacheProvider.overrideWithValue(wildlifeMapLayerCache),
       ],
     );
     addTearDown(container.dispose);
@@ -87,7 +92,27 @@ void main() {
     expect(supportCache.cleared, isTrue);
     expect(locationSearchCache.cleared, isTrue);
     expect(nearbyPlaceCache.cleared, isTrue);
+    expect(wildlifeMapLayerCache.cleared, isTrue);
   });
+}
+
+class _FakeWildlifeMapLayerCache implements WildlifeMapLayerCache {
+  bool cleared = false;
+
+  @override
+  Future<void> clear() async => cleared = true;
+
+  @override
+  Future<WildlifeMapLayer?> readMatching({
+    required GeoPoint center,
+    required int radiusKilometers,
+  }) async => null;
+
+  @override
+  Future<void> write({
+    required GeoPoint center,
+    required WildlifeMapLayer layer,
+  }) async {}
 }
 
 class _FakeLocationSearchCache implements LocationSearchCache {

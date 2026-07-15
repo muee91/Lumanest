@@ -182,7 +182,7 @@ void main() {
     );
   });
 
-  test('schema 1 migrates to 8 without losing library data', () async {
+  test('schema 1 migrates to 9 without losing library data', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-migration-',
@@ -252,9 +252,13 @@ void main() {
     );
     expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
     expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
+    expect(
+      await migrated.select(migrated.wildlifeMapLayerCaches).get(),
+      isEmpty,
+    );
   });
 
-  test('schema 2 migrates to 8 and preserves existing preferences', () async {
+  test('schema 2 migrates to 9 and preserves existing preferences', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-v2-migration-',
@@ -325,6 +329,10 @@ void main() {
     );
     expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
     expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
+    expect(
+      await migrated.select(migrated.wildlifeMapLayerCaches).get(),
+      isEmpty,
+    );
   });
 
   test('base region is a replaceable local singleton', () async {

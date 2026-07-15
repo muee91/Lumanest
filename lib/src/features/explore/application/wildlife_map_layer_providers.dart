@@ -2,14 +2,21 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/persistence/app_database.dart';
 import 'package:luma_nest/src/features/explore/domain/wildlife_map_layer.dart';
 import 'package:luma_nest/src/features/explore/domain/wildlife_map_layer_repository.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/data_broker_wildlife_map_layer_repository.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/resilient_wildlife_map_layer_repository.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/wildlife_map_layer_cache.dart';
+
+final wildlifeMapLayerCacheProvider = Provider<WildlifeMapLayerCache>((ref) {
+  return DriftWildlifeMapLayerCache(ref.watch(appDatabaseProvider));
+});
 
 final wildlifeMapLayerRepositoryProvider = Provider<WildlifeMapLayerRepository>(
   (ref) {
     final config = ref.watch(environmentConfigProvider);
-    return DataBrokerWildlifeMapLayerRepository(
+    final primary = DataBrokerWildlifeMapLayerRepository(
       brokerBaseUrl: config.dataBrokerBaseUrl,
       serviceToken: config.lumaNestServiceToken,
       transport: DioWildlifeMapLayerTransport(
@@ -21,6 +28,11 @@ final wildlifeMapLayerRepositoryProvider = Provider<WildlifeMapLayerRepository>(
           ),
         ),
       ),
+    );
+    return ResilientWildlifeMapLayerRepository(
+      primary: primary,
+      cache: ref.watch(wildlifeMapLayerCacheProvider),
+      writeGuard: ref.watch(contextCacheWriteGuardProvider),
     );
   },
 );
