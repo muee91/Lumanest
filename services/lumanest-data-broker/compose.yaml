@@ -1,6 +1,8 @@
 services:
   qweather-token-broker:
-    build: .
+    build:
+      context: .
+      dockerfile: ${BROKER_DOCKERFILE:-Dockerfile}
     container_name: lumanest-qweather-token-broker
     restart: unless-stopped
     environment:
@@ -45,7 +47,9 @@ services:
         condition: service_healthy
 
   context-service:
-    build: ../lumanest-context-service
+    build:
+      context: ../lumanest-context-service
+      dockerfile: ${CONTEXT_DOCKERFILE:-Dockerfile}
     container_name: lumanest-context-service
     restart: unless-stopped
     environment:

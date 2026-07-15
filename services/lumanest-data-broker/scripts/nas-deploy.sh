@@ -6,6 +6,8 @@ RELEASE_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd -P)
 LUMANEST_ROOT_INPUT=${LUMANEST_ROOT:-/vol2/docker/lumanest}
 LIVE_DIR_INPUT=${LIVE_DIR:-$LUMANEST_ROOT_INPUT/qweather-token-broker}
 PROJECT_NAME=${PROJECT_NAME:-qweather-token-broker}
+BROKER_DOCKERFILE=${BROKER_DOCKERFILE:-Dockerfile}
+CONTEXT_DOCKERFILE=${CONTEXT_DOCKERFILE:-Dockerfile}
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine}
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
@@ -308,6 +310,15 @@ if ! valid_identifier "$PROJECT_NAME"; then
   echo "Unsafe Compose project name: $PROJECT_NAME" >&2
   exit 1
 fi
+if ! valid_identifier "$BROKER_DOCKERFILE"; then
+  echo "Unsafe Broker Dockerfile name: $BROKER_DOCKERFILE" >&2
+  exit 1
+fi
+if ! valid_identifier "$CONTEXT_DOCKERFILE"; then
+  echo "Unsafe Context Dockerfile name: $CONTEXT_DOCKERFILE" >&2
+  exit 1
+fi
+export BROKER_DOCKERFILE CONTEXT_DOCKERFILE
 case "$HEALTHCHECK_ATTEMPTS" in
   ''|0|*[!0-9]*) echo "HEALTHCHECK_ATTEMPTS must be a positive integer." >&2; exit 1 ;;
 esac
@@ -344,7 +355,8 @@ COMPOSE_FILE=$RELEASE_DIR/compose.yaml
 BACKUP_DIR=$LUMANEST_ROOT/backups/$TIMESTAMP
 
 require_file "$COMPOSE_FILE"
-require_file "$RELEASE_DIR/../lumanest-context-service/Dockerfile"
+require_file "$RELEASE_DIR/$BROKER_DOCKERFILE"
+require_file "$RELEASE_DIR/../lumanest-context-service/$CONTEXT_DOCKERFILE"
 require_file "$PREVIOUS_RELEASE/compose.yaml"
 require_file "$PREVIOUS_RELEASE/qweather-token-broker.env"
 

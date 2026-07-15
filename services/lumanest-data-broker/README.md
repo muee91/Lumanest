@@ -99,6 +99,16 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    ./scripts/nas-deploy.sh
    ```
 
+   如果 NAS 镜像代理暂时不可用、但当前 release 健康且依赖清单没有变化，可显式复用当前应用镜像中的已安装依赖，仅覆盖新 release 的源码与迁移文件：
+
+   ```bash
+   BROKER_DOCKERFILE=Dockerfile.cached \
+   CONTEXT_DOCKERFILE=Dockerfile.cached \
+   ./scripts/nas-deploy.sh
+   ```
+
+   缓存构建只用于依赖清单未变化的 release；`package-lock.json` 或 `pyproject.toml` 变化时必须恢复标准 Dockerfile 构建。缓存基底仍会在部署前作为旧应用镜像归档，失败时走同一套卷与镜像自动恢复流程。
+
    新 release 没有环境文件时，脚本会从当前 release 继承受保护的环境文件并保持 `600` 权限。脚本在停服务前归档当前 Broker/Context 镜像和旧 release 源码，停服务后再一致性归档命名卷；新栈迁移、健康检查或管理端口边界失败时，会先停新栈、恢复旧卷和旧镜像，再启动并验证旧栈。任一步恢复失败都会明确报错，不会声称恢复成功。
 
    成功后，备份位置以原子方式写入 `/vol2/docker/lumanest/last-backup`。需要恢复旧配置、镜像和卷时必须显式确认破坏性卷恢复：

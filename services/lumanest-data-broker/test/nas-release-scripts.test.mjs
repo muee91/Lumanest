@@ -11,6 +11,36 @@ const scripts = [
   new URL('../scripts/nas-rollback.sh', import.meta.url),
 ];
 
+test('cached NAS builds reuse application images without reinstalling dependencies', async () => {
+  const brokerDockerfile = await readFile(
+    new URL('../Dockerfile.cached', import.meta.url),
+    'utf8',
+  );
+  const contextDockerfile = await readFile(
+    new URL('../../lumanest-context-service/Dockerfile.cached', import.meta.url),
+    'utf8',
+  );
+  const compose = await readFile(new URL('../compose.yaml', import.meta.url), 'utf8');
+
+  assert.match(
+    brokerDockerfile,
+    /ARG BROKER_BASE_IMAGE=qweather-token-broker-qweather-token-broker:latest\nFROM \$\{BROKER_BASE_IMAGE\}/,
+  );
+  assert.match(brokerDockerfile, /COPY src \.\/src/);
+  assert.doesNotMatch(brokerDockerfile, /npm (?:ci|install)|package-lock\.json/);
+
+  assert.match(
+    contextDockerfile,
+    /ARG CONTEXT_BASE_IMAGE=qweather-token-broker-context-service:latest\nFROM \$\{CONTEXT_BASE_IMAGE\}/,
+  );
+  assert.match(contextDockerfile, /COPY alembic \.\/alembic/);
+  assert.match(contextDockerfile, /COPY app \.\/app/);
+  assert.doesNotMatch(contextDockerfile, /pip install|pyproject\.toml/);
+
+  assert.match(compose, /dockerfile: \$\{BROKER_DOCKERFILE:-Dockerfile\}/);
+  assert.match(compose, /dockerfile: \$\{CONTEXT_DOCKERFILE:-Dockerfile\}/);
+});
+
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {
   for (const script of scripts) {
     const path = fileURLToPath(script);
@@ -149,6 +179,21 @@ test('release state writes and recovery failures remain explicit', async () => {
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });
 
+test('deployment validates selected Dockerfiles before stopping the previous stack', async () => {
+  const source = await readFile(scripts[0], 'utf8');
+  const brokerRequirement = 'require_file "$RELEASE_DIR/$BROKER_DOCKERFILE"';
+  const contextRequirement =
+    'require_file "$RELEASE_DIR/../lumanest-context-service/$CONTEXT_DOCKERFILE"';
+  const stopPrevious = 'compose_previous stop';
+
+  assert.match(source, /valid_identifier "\$BROKER_DOCKERFILE"/);
+  assert.match(source, /valid_identifier "\$CONTEXT_DOCKERFILE"/);
+  assert.ok(source.indexOf(brokerRequirement) >= 0);
+  assert.ok(source.indexOf(contextRequirement) >= 0);
+  assert.ok(source.indexOf(brokerRequirement) < source.indexOf(stopPrevious));
+  assert.ok(source.indexOf(contextRequirement) < source.indexOf(stopPrevious));
+});
+
 async function deploymentFixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'lumanest-deploy-')));
   const previousRelease = join(root, 'releases', 'old', 'qweather-token-broker');
@@ -171,6 +216,7 @@ async function deploymentFixture() {
     writeFile(join(previousRelease, 'compose.yaml'), 'services: {}\n'),
     writeFile(join(previousRelease, 'qweather-token-broker.env'), 'TEST_ONLY=1\n'),
     writeFile(join(releaseDir, 'compose.yaml'), 'services: {}\n'),
+    writeFile(join(releaseDir, 'Dockerfile'), 'FROM scratch\n'),
     writeFile(join(contextDir, 'Dockerfile'), 'FROM scratch\n'),
     writeFile(join(root, 'current-release'), `${previousRelease}\n`),
     writeFile(join(volumeSource, 'data.txt'), 'pre-migration\n'),

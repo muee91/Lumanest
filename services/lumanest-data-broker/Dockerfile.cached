@@ -1,0 +1,11 @@
+ARG BROKER_BASE_IMAGE=qweather-token-broker-qweather-token-broker:latest
+FROM ${BROKER_BASE_IMAGE}
+
+USER root
+WORKDIR /app
+COPY src ./src
+RUN chown -R node:node /app/src
+
+USER node
+EXPOSE 8787 8788
+CMD ["node", "src/server.mjs"]
