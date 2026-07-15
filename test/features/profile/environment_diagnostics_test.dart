@@ -158,27 +158,45 @@ void main() {
       expect(retryCalled, isTrue);
     });
 
-    testWidgets(
-      'tapping the open-settings action invokes onOpenLocationSettings',
-      (tester) async {
-        var settingsCalled = false;
-        await tester.pumpWidget(
-          MaterialApp(
-            home: EnvironmentDiagnostics(
-              status: EnvironmentDiagnosticStatus.locationPermissionDenied,
-              actions: EnvironmentDiagnosticsActions(
-                onOpenLocationSettings: () => settingsCalled = true,
-              ),
+    testWidgets('location service action invokes onOpenLocationSettings', (
+      tester,
+    ) async {
+      var settingsCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EnvironmentDiagnostics(
+            status: EnvironmentDiagnosticStatus.locationServiceDisabled,
+            actions: EnvironmentDiagnosticsActions(
+              onOpenLocationSettings: () => settingsCalled = true,
             ),
           ),
-        );
+        ),
+      );
 
-        await tester.tap(find.text('打开设置'));
-        await tester.pump();
+      await tester.tap(find.text('打开设置'));
+      await tester.pump();
 
-        expect(settingsCalled, isTrue);
-      },
-    );
+      expect(settingsCalled, isTrue);
+    });
+
+    testWidgets('permission action invokes onOpenAppSettings', (tester) async {
+      var settingsCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EnvironmentDiagnostics(
+            status: EnvironmentDiagnosticStatus.locationPermissionDeniedForever,
+            actions: EnvironmentDiagnosticsActions(
+              onOpenAppSettings: () => settingsCalled = true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('打开设置'));
+      await tester.pump();
+
+      expect(settingsCalled, isTrue);
+    });
 
     testWidgets(
       'tapping the privacy-consent action invokes onOpenPrivacyConsent',

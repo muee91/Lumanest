@@ -402,14 +402,14 @@ void main() {
   });
 
   testWidgets(
-    'tapping the open-settings button invokes an injected onOpenLocationSettings spy',
+    'location service button invokes injected onOpenLocationSettings',
     (tester) async {
       var settingsCalled = 0;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             environmentDiagnosticStatusProvider.overrideWithValue(
-              EnvironmentDiagnosticStatus.locationPermissionDenied,
+              EnvironmentDiagnosticStatus.locationServiceDisabled,
             ),
           ],
           child: MaterialApp(
@@ -428,6 +428,33 @@ void main() {
       expect(settingsCalled, 1);
     },
   );
+
+  testWidgets('permission button invokes injected onOpenAppSettings', (
+    tester,
+  ) async {
+    var settingsCalled = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.locationPermissionDeniedForever,
+          ),
+        ],
+        child: MaterialApp(
+          home: ProfilePage(
+            actions: EnvironmentDiagnosticsActions(
+              onOpenAppSettings: () => settingsCalled++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开设置'));
+    await tester.pump();
+
+    expect(settingsCalled, 1);
+  });
 
   testWidgets(
     'never renders sensitive key or host values in the profile page',

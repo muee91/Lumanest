@@ -38,6 +38,7 @@ class ProfilePage extends ConsumerWidget {
 
     final liveActions = EnvironmentDiagnosticsActions(
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
+      onOpenAppSettings: Geolocator.openAppSettings,
       onOpenLocationSettings: Geolocator.openLocationSettings,
       onOpenPrivacyConsent: () =>
           ref.read(environmentConsentProvider.notifier).grant(),

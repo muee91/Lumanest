@@ -47,11 +47,13 @@ enum EnvironmentDiagnosticStatus {
 class EnvironmentDiagnosticsActions {
   const EnvironmentDiagnosticsActions({
     this.onRetry,
+    this.onOpenAppSettings,
     this.onOpenLocationSettings,
     this.onOpenPrivacyConsent,
   });
 
   final VoidCallback? onRetry;
+  final VoidCallback? onOpenAppSettings;
   final VoidCallback? onOpenLocationSettings;
   final VoidCallback? onOpenPrivacyConsent;
 }
@@ -128,9 +130,9 @@ class EnvironmentDiagnostics extends StatelessWidget {
         actions.onOpenPrivacyConsent,
       EnvironmentDiagnosticStatus.qweatherConfigMissing => actions.onRetry,
       EnvironmentDiagnosticStatus.locationPermissionDenied =>
-        actions.onOpenLocationSettings,
+        actions.onOpenAppSettings,
       EnvironmentDiagnosticStatus.locationPermissionDeniedForever =>
-        actions.onOpenLocationSettings,
+        actions.onOpenAppSettings,
       EnvironmentDiagnosticStatus.locationServiceDisabled =>
         actions.onOpenLocationSettings,
       EnvironmentDiagnosticStatus.staleCache => actions.onRetry,
