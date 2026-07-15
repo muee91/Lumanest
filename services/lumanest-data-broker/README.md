@@ -83,13 +83,15 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    docker compose up -d --build
    ```
 
-   NAS 正式更新应从按提交号隔离的 release 目录执行，并使用仓库内的部署脚本。脚本会先校验 Compose，停止旧栈以一致性归档现有命名卷，再构建新栈；健康检查或管理端口边界失败时会自动重新启动旧栈：
+   NAS 正式更新应从按提交号隔离的 release 目录执行，并使用仓库内的部署脚本。脚本会先校验 Compose 和当前应用镜像，停止旧栈以一致性归档现有命名卷，再构建新栈；健康检查或管理端口边界失败时会恢复归档卷和旧镜像，再验证旧栈：
 
-   release 可用 `rsync --delete` 更新，但必须排除 NAS 上独立维护的环境文件，避免同步删除密钥：
+   release 可用 `rsync --delete` 更新，但必须排除 NAS 上独立维护的环境文件，避免同步删除密钥。Broker 和情境服务必须放在同一个提交目录下，保持 Compose 的相对构建路径：
 
    ```bash
    rsync -az --delete --exclude qweather-token-broker.env \
      services/lumanest-data-broker/ NAS:/vol2/docker/lumanest/releases/<commit>/qweather-token-broker/
+   rsync -az --delete \
+     services/lumanest-context-service/ NAS:/vol2/docker/lumanest/releases/<commit>/lumanest-context-service/
    ```
 
    ```bash
@@ -97,14 +99,23 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    ./scripts/nas-deploy.sh
    ```
 
-   成功后，备份位置写入 `/vol2/docker/lumanest/last-backup`。需要恢复旧配置和卷时必须显式确认破坏性卷恢复：
+   新 release 没有环境文件时，脚本会从当前 release 继承受保护的环境文件并保持 `600` 权限。脚本在停服务前归档当前 Broker/Context 镜像和旧 release 源码，停服务后再一致性归档命名卷；新栈迁移、健康检查或管理端口边界失败时，会先停新栈、恢复旧卷和旧镜像，再启动并验证旧栈。任一步恢复失败都会明确报错，不会声称恢复成功。
+
+   成功后，备份位置以原子方式写入 `/vol2/docker/lumanest/last-backup`。需要恢复旧配置、镜像和卷时必须显式确认破坏性卷恢复：
 
    ```bash
    backup=$(cat /vol2/docker/lumanest/last-backup)
    env CONFIRM_ROLLBACK=yes ./scripts/nas-rollback.sh "$backup"
    ```
 
-   部署账号必须属于 NAS 的 `docker` 组。脚本通过受限、无网络的临时容器读取和恢复命名卷，不再读取宿主机 Docker 卷目录，也不要求以 root 运行。回滚会停止当前 release、清空目标命名卷并从归档恢复，再启动备份记录中的旧 Broker；执行前应确认备份路径和时间。
+   如果部署中断且自动恢复也明确失败，`current-release` 可能仍指向旧 release。确认使用的正是失败部署刚生成的备份后，才可增加二次确认重试恢复；此开关不允许把更早的备份跨过后续 release 覆盖回来：
+
+   ```bash
+   env CONFIRM_ROLLBACK=yes CONFIRM_FAILED_DEPLOY_RECOVERY=yes \
+     ./scripts/nas-rollback.sh /vol2/docker/lumanest/backups/<failed-deploy-timestamp>
+   ```
+
+   部署账号必须属于 NAS 的 `docker` 组。脚本通过受限、无网络的临时容器读取和恢复命名卷，不再读取宿主机 Docker 卷目录，也不要求以 root 运行。回滚会先校验路径、源码归档、镜像归档和全部卷归档，再停止当前 release；恢复后必须通过 Broker、管理端口边界和内部情境服务健康检查，才会更新 `current-release`。执行前应确认备份路径和时间。
 
 5. 在 NAS 本机或局域网验证：
 
