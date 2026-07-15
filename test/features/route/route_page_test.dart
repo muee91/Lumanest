@@ -411,12 +411,12 @@ void main() {
 
   group('route context lifecycle', () {
     late ProviderContainer container;
+    late _MemoryLibraryStore libraryStore;
 
     setUp(() {
+      libraryStore = _MemoryLibraryStore();
       container = ProviderContainer(
-        overrides: [
-          userLibraryStoreProvider.overrideWithValue(_MemoryLibraryStore()),
-        ],
+        overrides: [userLibraryStoreProvider.overrideWithValue(libraryStore)],
       );
       addTearDown(container.dispose);
     });
@@ -487,6 +487,46 @@ void main() {
         container.read(userLibraryProvider).requireValue.savedRoutes,
         isEmpty,
       );
+    });
+
+    testWidgets('start and end persist a completed local journey', (
+      tester,
+    ) async {
+      await pumpRoute(tester);
+
+      await tester.tap(find.text('开始行程'));
+      await tester.pumpAndSettle();
+      expect(state().stage, ContextRouteStage.active);
+      expect(libraryStore.value.activeJourney, isNotNull);
+
+      await tester.tap(find.text('结束行程'));
+      await tester.pumpAndSettle();
+      expect(state(), RouteContextState.none);
+      expect(libraryStore.value.activeJourney, isNull);
+      expect(libraryStore.value.journeys.single.endedAt, isNotNull);
+    });
+
+    testWidgets('reopening an unfinished journey restores active following', (
+      tester,
+    ) async {
+      libraryStore.value = UserLibraryState(
+        journeys: [
+          SavedJourney.start(
+            const SavedRouteDestination(
+              name: '湖岸机位',
+              latitude: 31,
+              longitude: 121,
+            ),
+            startedAt: DateTime.utc(2026, 7, 15, 8),
+          ),
+        ],
+      );
+
+      await pumpRoute(tester);
+      await tester.pumpAndSettle();
+
+      expect(state(), RouteContextState.active(ContextRouteMode.driving));
+      expect(find.text('暂停'), findsOneWidget);
     });
 
     testWidgets('rebuild does not downgrade an active route to planned', (

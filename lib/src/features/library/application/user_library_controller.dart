@@ -51,6 +51,59 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     );
   }
 
+  Future<SavedJourney> startJourney(
+    SavedRouteDestination destination, {
+    String? routeKey,
+  }) async {
+    final current = await future;
+    final active = current.activeJourney;
+    if (active != null) {
+      if (active.matches(destination, routeKey: routeKey)) return active;
+      throw ActiveJourneyConflict(active);
+    }
+    final journey = SavedJourney.start(
+      destination,
+      startedAt: DateTime.now(),
+      routeKey: routeKey,
+    );
+    await _save(
+      current.copyWith(
+        journeys: [journey, ...current.journeys].take(100).toList(),
+      ),
+    );
+    return journey;
+  }
+
+  Future<void> endJourney(
+    SavedRouteDestination destination, {
+    String? routeKey,
+  }) async {
+    final current = await future;
+    final active = current.activeJourney;
+    if (active == null || !active.matches(destination, routeKey: routeKey)) {
+      return;
+    }
+    final ended = active.end(DateTime.now());
+    await _save(
+      current.copyWith(
+        journeys: current.journeys
+            .map((journey) => journey.id == active.id ? ended : journey)
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  Future<void> deleteJourney(String id) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        journeys: current.journeys
+            .where((journey) => journey.id != id)
+            .toList(growable: false),
+      ),
+    );
+  }
+
   Future<void> saveImportedTrack(ImportedRouteTrack track) async {
     final current = await future;
     final tracks = [
@@ -84,6 +137,7 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
       UserLibraryState(
         savedPlaces: current.savedPlaces,
         savedRoutes: current.savedRoutes,
+        journeys: current.journeys,
         importedTracks: current.importedTracks,
         savedNotes: current.savedNotes,
       ),
@@ -93,6 +147,11 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   Future<void> clearSavedRoutes() async {
     final current = await future;
     await _save(current.copyWith(savedRoutes: const []));
+  }
+
+  Future<void> clearJourneys() async {
+    final current = await future;
+    await _save(current.copyWith(journeys: const []));
   }
 
   Future<void> clearImportedTracks() async {

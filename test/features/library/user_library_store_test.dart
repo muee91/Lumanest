@@ -51,6 +51,18 @@ void main() {
           savedAt: DateTime.utc(2026, 7, 15, 8),
         ),
       ],
+      journeys: [
+        SavedJourney.start(
+          const SavedRouteDestination(
+            name: '清晨徒步',
+            latitude: 30.3,
+            longitude: 120.2,
+            travelMode: 'walking',
+          ),
+          startedAt: DateTime.utc(2026, 7, 15, 6),
+          routeKey: 'track-1',
+        ).end(DateTime.utc(2026, 7, 15, 8)),
+      ],
       importedTracks: [
         ImportedRouteTrack(
           id: 'track-1',
@@ -96,6 +108,9 @@ void main() {
     expect(restored.recentRoute?.travelMode, 'walking');
     expect(restored.savedRoutes.single.destination.name, '湖岸收藏路线');
     expect(restored.savedRoutes.single.savedAt, DateTime.utc(2026, 7, 15, 8));
+    expect(restored.journeys.single.destination.name, '清晨徒步');
+    expect(restored.journeys.single.routeKey, 'track-1');
+    expect(restored.journeys.single.endedAt, DateTime.utc(2026, 7, 15, 8));
     expect(restored.importedTracks.single.name, '本地徒步');
     expect(restored.importedTracks.single.points.last.longitude, 121.1);
     expect(restored.importedTracks.single.segmentBreakIndexes, [2]);
@@ -133,6 +148,7 @@ void main() {
     expect(restored.savedPlaces, isEmpty);
     expect(restored.recentRoute, isNull);
     expect(restored.savedRoutes, isEmpty);
+    expect(restored.journeys, isEmpty);
   });
 
   test('imports valid legacy JSON once and removes it after commit', () async {

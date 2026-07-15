@@ -354,6 +354,45 @@ void main() {
     expect(find.byTooltip('删除已保存路线'), findsOneWidget);
   });
 
+  testWidgets('shows explicit journey records without exposing server data', (
+    tester,
+  ) async {
+    final journey = SavedJourney.start(
+      const SavedRouteDestination(
+        name: '清晨徒步',
+        latitude: 30.2,
+        longitude: 120.1,
+        travelMode: 'walking',
+      ),
+      startedAt: DateTime.utc(2026, 7, 15, 6),
+      routeKey: 'track-1',
+    ).end(DateTime.utc(2026, 7, 15, 8));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(UserLibraryState(journeys: [journey])),
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('清晨徒步'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+
+    expect(find.text('行程记录'), findsOneWidget);
+    expect(find.text('清晨徒步'), findsOneWidget);
+    expect(find.textContaining('徒步 ·'), findsOneWidget);
+    expect(find.byTooltip('删除行程记录'), findsOneWidget);
+  });
+
   testWidgets('shows no environment diagnostic when fully operational', (
     tester,
   ) async {

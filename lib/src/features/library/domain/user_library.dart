@@ -163,11 +163,69 @@ class SavedRoute {
   final DateTime savedAt;
 }
 
+class SavedJourney {
+  const SavedJourney({
+    required this.id,
+    required this.destination,
+    required this.startedAt,
+    this.endedAt,
+    this.routeKey,
+  });
+
+  factory SavedJourney.start(
+    SavedRouteDestination destination, {
+    required DateTime startedAt,
+    String? routeKey,
+  }) {
+    final start = startedAt.toUtc();
+    return SavedJourney(
+      id: sha256
+          .convert(
+            utf8.encode(
+              '${SavedRoute.idFor(destination)}\u0000'
+              '${routeKey ?? ''}\u0000${start.microsecondsSinceEpoch}',
+            ),
+          )
+          .toString(),
+      destination: destination,
+      startedAt: start,
+      routeKey: routeKey,
+    );
+  }
+
+  final String id;
+  final SavedRouteDestination destination;
+  final DateTime startedAt;
+  final DateTime? endedAt;
+  final String? routeKey;
+
+  bool get isActive => endedAt == null;
+
+  bool matches(SavedRouteDestination value, {String? routeKey}) =>
+      SavedRoute.idFor(destination) == SavedRoute.idFor(value) &&
+      this.routeKey == routeKey;
+
+  SavedJourney end(DateTime value) => SavedJourney(
+    id: id,
+    destination: destination,
+    startedAt: startedAt,
+    endedAt: value.toUtc().isBefore(startedAt) ? startedAt : value.toUtc(),
+    routeKey: routeKey,
+  );
+}
+
+class ActiveJourneyConflict implements Exception {
+  const ActiveJourneyConflict(this.activeJourney);
+
+  final SavedJourney activeJourney;
+}
+
 class UserLibraryState {
   const UserLibraryState({
     this.savedPlaces = const [],
     this.recentRoute,
     this.savedRoutes = const [],
+    this.journeys = const [],
     this.importedTracks = const [],
     this.savedNotes = const [],
   });
@@ -175,6 +233,7 @@ class UserLibraryState {
   final List<SavedPlace> savedPlaces;
   final SavedRouteDestination? recentRoute;
   final List<SavedRoute> savedRoutes;
+  final List<SavedJourney> journeys;
   final List<ImportedRouteTrack> importedTracks;
   final List<SavedInspirationNote> savedNotes;
 
@@ -186,16 +245,21 @@ class UserLibraryState {
   bool containsSavedRoute(SavedRouteDestination destination) =>
       savedRoutes.any((route) => route.id == SavedRoute.idFor(destination));
 
+  SavedJourney? get activeJourney =>
+      journeys.where((journey) => journey.isActive).firstOrNull;
+
   UserLibraryState copyWith({
     List<SavedPlace>? savedPlaces,
     SavedRouteDestination? recentRoute,
     List<SavedRoute>? savedRoutes,
+    List<SavedJourney>? journeys,
     List<ImportedRouteTrack>? importedTracks,
     List<SavedInspirationNote>? savedNotes,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
     recentRoute: recentRoute ?? this.recentRoute,
     savedRoutes: List.unmodifiable(savedRoutes ?? this.savedRoutes),
+    journeys: List.unmodifiable(journeys ?? this.journeys),
     importedTracks: List.unmodifiable(importedTracks ?? this.importedTracks),
     savedNotes: List.unmodifiable(savedNotes ?? this.savedNotes),
   );

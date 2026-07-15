@@ -263,6 +263,7 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recentRoute = library?.recentRoute;
     final savedRoutes = library?.savedRoutes ?? const [];
+    final journeys = library?.journeys ?? const [];
     final importedTracks = library?.importedTracks ?? const [];
     return SafeArea(
       child: SingleChildScrollView(
@@ -328,6 +329,33 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
                 trailing: const Icon(Icons.arrow_outward),
                 onTap: () => context.go(_routeUri(recentRoute).toString()),
               ),
+            if (journeys.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('行程记录', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final journey in journeys)
+                ListTile(
+                  leading: Icon(
+                    journey.isActive
+                        ? Icons.play_circle_outline
+                        : Icons.check_circle_outline,
+                  ),
+                  title: Text(journey.destination.name),
+                  subtitle: Text(
+                    journey.isActive
+                        ? '进行中 · 仅保存在本机'
+                        : '${journey.destination.travelMode == 'walking' ? '徒步' : '自驾'} · ${_dateTime(journey.startedAt)}',
+                  ),
+                  trailing: IconButton(
+                    tooltip: '删除行程记录',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => ref
+                        .read(userLibraryProvider.notifier)
+                        .deleteJourney(journey.id),
+                  ),
+                  onTap: () => context.go(_journeyUri(journey).toString()),
+                ),
+            ],
             for (final track in importedTracks)
               ListTile(
                 leading: const Icon(Icons.hiking_outlined),
@@ -351,6 +379,7 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
               ),
             if (recentRoute == null &&
                 savedRoutes.isEmpty &&
+                journeys.isEmpty &&
                 importedTracks.isEmpty)
               const Text('还没有保存路线或导入轨迹'),
           ],
@@ -368,6 +397,17 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
       'mode': destination.travelMode,
     },
   );
+
+  static Uri _journeyUri(SavedJourney journey) => journey.routeKey == null
+      ? _routeUri(journey.destination)
+      : Uri(path: '/route', queryParameters: {'track': journey.routeKey});
+
+  static String _dateTime(DateTime value) {
+    final local = value.toLocal();
+    return '${local.month}月${local.day}日 '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
 
   static String _distanceLabel(int meters) =>
       meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)} km' : '$meters m';
@@ -445,21 +485,43 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
   /// coordinates + travel mode), so a rebuild does not reset an in-progress
   /// follow, while switching to a different destination resets to planned.
   void _syncPlanned() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      ref
-          .read(routeContextStateProvider.notifier)
-          .plan(
-            _contextMode(widget.travelMode),
-            identity: RouteIdentity(
-              latitude: widget.destinationLatitude,
-              longitude: widget.destinationLongitude,
-              mode: _contextMode(widget.travelMode),
-              routeKey: widget.route.sourceId,
-            ),
-          );
+      final notifier = ref.read(routeContextStateProvider.notifier);
+      final mode = _contextMode(widget.travelMode);
+      notifier.plan(
+        mode,
+        identity: RouteIdentity(
+          latitude: widget.destinationLatitude,
+          longitude: widget.destinationLongitude,
+          mode: mode,
+          routeKey: widget.route.sourceId,
+        ),
+      );
+      try {
+        final library = await ref.read(userLibraryProvider.future);
+        if (!mounted) return;
+        final active = library.activeJourney;
+        if (active != null &&
+            active.matches(_journeyDestination, routeKey: _journeyRouteKey)) {
+          notifier.start();
+        }
+      } on Object {
+        // Route planning remains usable if the optional local library fails.
+      }
     });
   }
+
+  SavedRouteDestination get _journeyDestination => SavedRouteDestination(
+    name: widget.route.destinationName,
+    latitude: widget.destinationLatitude,
+    longitude: widget.destinationLongitude,
+    travelMode: widget.travelMode.name,
+  );
+
+  String? get _journeyRouteKey => widget.route.source == RouteSource.importedGpx
+      ? widget.route.sourceId
+      : null;
 
   Future<void> _scanSupport() async {
     setState(() => _support = const AsyncLoading());
@@ -544,7 +606,11 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 10),
-        _RouteLifecycleBar(state: routeState),
+        _RouteLifecycleBar(
+          state: routeState,
+          destination: _journeyDestination,
+          routeKey: _journeyRouteKey,
+        ),
         if (route.source != RouteSource.importedGpx) ...[
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -939,9 +1005,15 @@ class _RouteNoneSyncState extends ConsumerState<_RouteNoneSync> {
 /// [routeContextStateProvider] so the environment snapshot pipeline can follow
 /// the user's route. They do NOT provide turn-by-turn navigation.
 class _RouteLifecycleBar extends ConsumerWidget {
-  const _RouteLifecycleBar({required this.state});
+  const _RouteLifecycleBar({
+    required this.state,
+    required this.destination,
+    this.routeKey,
+  });
 
   final RouteContextState state;
+  final SavedRouteDestination destination;
+  final String? routeKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -974,7 +1046,7 @@ class _RouteLifecycleBar extends ConsumerWidget {
                 // that start() cannot act on.
                 if (isPlanned)
                   FilledButton.icon(
-                    onPressed: () => notifier.start(),
+                    onPressed: () => _start(context, ref, notifier),
                     icon: const Icon(Icons.play_arrow_outlined),
                     label: const Text('开始行程'),
                   ),
@@ -1002,12 +1074,7 @@ class _RouteLifecycleBar extends ConsumerWidget {
                   ),
                 if (hasRoute && !isPlanned)
                   OutlinedButton(
-                    onPressed: () {
-                      notifier.end();
-                      // Leave the destination route so the page and state stay
-                      // consistent: no destination, none state.
-                      context.go('/route');
-                    },
+                    onPressed: () => _end(context, ref, notifier),
                     child: const Text('结束行程'),
                   ),
               ],
@@ -1016,5 +1083,56 @@ class _RouteLifecycleBar extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _start(
+    BuildContext context,
+    WidgetRef ref,
+    RouteContextStateController notifier,
+  ) async {
+    try {
+      await ref
+          .read(userLibraryProvider.notifier)
+          .startJourney(destination, routeKey: routeKey);
+      notifier.start();
+    } on ActiveJourneyConflict catch (conflict) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '请先结束正在进行的“${conflict.activeJourney.destination.name}”',
+          ),
+        ),
+      );
+    } on Object {
+      notifier.start();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('情境跟随已开始，但本地行程记录未能保存')));
+    }
+  }
+
+  Future<void> _end(
+    BuildContext context,
+    WidgetRef ref,
+    RouteContextStateController notifier,
+  ) async {
+    var recordFailed = false;
+    try {
+      await ref
+          .read(userLibraryProvider.notifier)
+          .endJourney(destination, routeKey: routeKey);
+    } on Object {
+      recordFailed = true;
+    }
+    notifier.end();
+    if (!context.mounted) return;
+    context.go('/route');
+    if (recordFailed) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('行程已结束，但本地结束时间未能保存')));
+    }
   }
 }

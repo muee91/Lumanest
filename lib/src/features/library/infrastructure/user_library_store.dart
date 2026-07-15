@@ -26,6 +26,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
     if (persisted.savedPlaces.isNotEmpty ||
         persisted.recentRoute != null ||
         persisted.savedRoutes.isNotEmpty ||
+        persisted.journeys.isNotEmpty ||
         persisted.importedTracks.isNotEmpty ||
         persisted.savedNotes.isNotEmpty) {
       return persisted;
@@ -55,6 +56,9 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final savedRouteQuery = _database.select(_database.savedRoutes)
         ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
       final savedRoutes = await savedRouteQuery.get();
+      final journeyQuery = _database.select(_database.savedJourneys)
+        ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]);
+      final journeys = await journeyQuery.get();
       final trackQuery = _database.select(_database.importedRouteTracks)
         ..orderBy([(row) => OrderingTerm.desc(row.importedAt)]);
       final tracks = await trackQuery.get();
@@ -92,6 +96,22 @@ class DriftUserLibraryStore implements UserLibraryStore {
                   travelMode: row.travelMode,
                 ),
                 savedAt: row.savedAt.toUtc(),
+              ),
+            )
+            .toList(growable: false),
+        journeys: journeys
+            .map(
+              (row) => SavedJourney(
+                id: row.id,
+                destination: SavedRouteDestination(
+                  name: row.name,
+                  latitude: row.latitude,
+                  longitude: row.longitude,
+                  travelMode: row.travelMode,
+                ),
+                routeKey: row.routeKey,
+                startedAt: row.startedAt.toUtc(),
+                endedAt: row.endedAt?.toUtc(),
               ),
             )
             .toList(growable: false),
@@ -162,6 +182,25 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 longitude: destination.longitude,
                 travelMode: destination.travelMode,
                 savedAt: route.savedAt.toUtc(),
+              ),
+            );
+      }
+
+      await _database.delete(_database.savedJourneys).go();
+      for (final journey in state.journeys.take(100)) {
+        final destination = journey.destination;
+        await _database
+            .into(_database.savedJourneys)
+            .insert(
+              SavedJourneysCompanion.insert(
+                id: journey.id,
+                name: destination.name,
+                latitude: destination.latitude,
+                longitude: destination.longitude,
+                travelMode: destination.travelMode,
+                routeKey: Value(journey.routeKey),
+                startedAt: journey.startedAt.toUtc(),
+                endedAt: Value(journey.endedAt?.toUtc()),
               ),
             );
       }
@@ -273,6 +312,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
             : const [],
         recentRoute: SavedRouteDestination.fromJson(body['recentRoute']),
         savedRoutes: const [],
+        journeys: const [],
         importedTracks: const [],
       );
     } on Object {

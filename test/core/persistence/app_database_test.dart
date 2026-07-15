@@ -111,6 +111,32 @@ void main() {
     expect(rows.map((row) => row.name), containsAll(['湖岸路线', '山路']));
   });
 
+  test('journeys preserve explicit start and end state', () async {
+    final startedAt = DateTime.utc(2026, 7, 15, 6);
+    final endedAt = DateTime.utc(2026, 7, 15, 8);
+    await database
+        .into(database.savedJourneys)
+        .insert(
+          SavedJourneysCompanion.insert(
+            id: List.filled(64, 'c').join(),
+            name: '清晨徒步',
+            latitude: 30,
+            longitude: 120,
+            travelMode: 'walking',
+            routeKey: const Value('track-1'),
+            startedAt: startedAt,
+            endedAt: Value(endedAt),
+          ),
+        );
+
+    final row = await database.select(database.savedJourneys).getSingle();
+
+    expect(row.name, '清晨徒步');
+    expect(row.routeKey, 'track-1');
+    expect(row.startedAt.toUtc(), startedAt);
+    expect(row.endedAt?.toUtc(), endedAt);
+  });
+
   test('database rejects invalid coordinates and travel modes', () async {
     await expectLater(
       database
@@ -156,7 +182,7 @@ void main() {
     );
   });
 
-  test('schema 1 migrates to 6 without losing library data', () async {
+  test('schema 1 migrates to 7 without losing library data', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-migration-',
@@ -225,9 +251,10 @@ void main() {
       isEmpty,
     );
     expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
+    expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
   });
 
-  test('schema 2 migrates to 6 and preserves existing preferences', () async {
+  test('schema 2 migrates to 7 and preserves existing preferences', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-v2-migration-',
@@ -297,6 +324,7 @@ void main() {
       isEmpty,
     );
     expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
+    expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
   });
 
   test('base region is a replaceable local singleton', () async {

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/context/environment_consent.dart';
 import '../../../core/context/environment_providers.dart';
+import '../../../core/context/route_context_state.dart';
 import '../application/profile_preferences_controller.dart';
 import '../application/environment_privacy_service.dart';
 import '../application/environment_cache_maintenance_service.dart';
@@ -302,6 +303,45 @@ class ProfilePage extends ConsumerWidget {
                     context.go(_routeUri(route.destination).toString()),
               ),
           ],
+          if (library?.journeys.isNotEmpty == true) ...[
+            const Divider(),
+            _LibrarySectionHeader(
+              title: '行程记录',
+              clearLabel: '清空行程',
+              onClear: () => _confirmLibraryClear(
+                context,
+                ref,
+                type: _LibraryClearType.journeys,
+              ),
+            ),
+            for (final journey in library!.journeys)
+              ListTile(
+                leading: Icon(
+                  journey.isActive
+                      ? Icons.play_circle_outline
+                      : Icons.check_circle_outline,
+                ),
+                title: Text(journey.destination.name),
+                subtitle: Text(
+                  journey.isActive
+                      ? '进行中 · 仅保存在本机'
+                      : '${journey.destination.travelMode == 'walking' ? '徒步' : '自驾'} · ${_dateTime(journey.startedAt)}',
+                ),
+                trailing: IconButton(
+                  tooltip: '删除行程记录',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () async {
+                    if (journey.isActive) {
+                      ref.read(routeContextStateProvider.notifier).end();
+                    }
+                    await ref
+                        .read(userLibraryProvider.notifier)
+                        .deleteJourney(journey.id);
+                  },
+                ),
+                onTap: () => context.go(_journeyUri(journey).toString()),
+              ),
+          ],
           if (library?.importedTracks.isNotEmpty == true) ...[
             const Divider(),
             _LibrarySectionHeader(
@@ -407,6 +447,17 @@ class ProfilePage extends ConsumerWidget {
       'mode': destination.travelMode,
     },
   );
+
+  static Uri _journeyUri(SavedJourney journey) => journey.routeKey == null
+      ? _routeUri(journey.destination)
+      : Uri(path: '/route', queryParameters: {'track': journey.routeKey});
+
+  static String _dateTime(DateTime value) {
+    final local = value.toLocal();
+    return '${local.month}月${local.day}日 '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
 
   static Future<void> _confirmEnvironmentDataRemoval(
     BuildContext context,
@@ -557,6 +608,11 @@ class ProfilePage extends ConsumerWidget {
         '将永久删除本机主动保存的路线；不会删除最近路线、导入轨迹、收藏或环境数据。',
         '清空路线',
       ),
+      _LibraryClearType.journeys => (
+        '清空行程记录？',
+        '将永久删除本机的进行中和已结束行程；不会删除保存路线、轨迹、收藏或环境数据。',
+        '清空行程',
+      ),
       _LibraryClearType.importedTracks => (
         '清空本地轨迹？',
         '将永久删除本机导入的 GPX 轨迹；不会删除收藏、路线或环境数据。',
@@ -594,6 +650,9 @@ class ProfilePage extends ConsumerWidget {
         await controller.clearRecentRoute();
       case _LibraryClearType.savedRoutes:
         await controller.clearSavedRoutes();
+      case _LibraryClearType.journeys:
+        ref.read(routeContextStateProvider.notifier).end();
+        await controller.clearJourneys();
       case _LibraryClearType.importedTracks:
         await controller.clearImportedTracks();
       case _LibraryClearType.savedNotes:
@@ -606,6 +665,7 @@ enum _LibraryClearType {
   savedPlaces,
   recentRoute,
   savedRoutes,
+  journeys,
   importedTracks,
   savedNotes,
 }

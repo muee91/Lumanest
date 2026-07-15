@@ -105,6 +105,40 @@ void main() {
     expect(store.value.savedRoutes, isEmpty);
   });
 
+  test('records an explicit journey lifecycle and rejects overlap', () async {
+    final store = _FakeStore(const UserLibraryState());
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    await container.read(userLibraryProvider.future);
+    const first = SavedRouteDestination(
+      name: '湖岸行程',
+      latitude: 30,
+      longitude: 120,
+    );
+    const second = SavedRouteDestination(
+      name: '山地行程',
+      latitude: 31,
+      longitude: 121,
+      travelMode: 'walking',
+    );
+    final controller = container.read(userLibraryProvider.notifier);
+
+    final started = await controller.startJourney(first);
+    expect(started.isActive, isTrue);
+    expect(store.value.activeJourney?.destination.name, '湖岸行程');
+    expect(await controller.startJourney(first), same(started));
+    await expectLater(
+      controller.startJourney(second),
+      throwsA(isA<ActiveJourneyConflict>()),
+    );
+
+    await controller.endJourney(first);
+    expect(store.value.activeJourney, isNull);
+    expect(store.value.journeys.single.endedAt, isNotNull);
+  });
+
   test('persists and deletes an imported GPX track', () async {
     final store = _FakeStore(const UserLibraryState());
     final container = ProviderContainer(
@@ -173,6 +207,16 @@ void main() {
             savedAt: DateTime.utc(2026, 7, 15),
           ),
         ],
+        journeys: [
+          SavedJourney.start(
+            const SavedRouteDestination(
+              name: '进行中行程',
+              latitude: 30.6,
+              longitude: 120.6,
+            ),
+            startedAt: DateTime.utc(2026, 7, 15),
+          ),
+        ],
         importedTracks: [track],
       ),
     );
@@ -187,14 +231,20 @@ void main() {
     expect(store.value.savedPlaces, isEmpty);
     expect(store.value.recentRoute, isNotNull);
     expect(store.value.savedRoutes, hasLength(1));
+    expect(store.value.journeys, hasLength(1));
     expect(store.value.importedTracks, hasLength(1));
 
     await controller.clearRecentRoute();
     expect(store.value.recentRoute, isNull);
     expect(store.value.savedRoutes, hasLength(1));
+    expect(store.value.journeys, hasLength(1));
 
     await controller.clearSavedRoutes();
     expect(store.value.savedRoutes, isEmpty);
+    expect(store.value.journeys, hasLength(1));
+
+    await controller.clearJourneys();
+    expect(store.value.journeys, isEmpty);
     expect(store.value.importedTracks, hasLength(1));
 
     await controller.clearImportedTracks();

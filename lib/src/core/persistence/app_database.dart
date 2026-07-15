@@ -69,6 +69,32 @@ class SavedRoutes extends Table {
   ];
 }
 
+@DataClassName('SavedJourneyRow')
+class SavedJourneys extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+  TextColumn get travelMode => text()();
+  TextColumn get routeKey => text().nullable()();
+  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get endedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) = 64)',
+    'CHECK (length(name) BETWEEN 1 AND 160)',
+    'CHECK (latitude BETWEEN -90 AND 90)',
+    'CHECK (longitude BETWEEN -180 AND 180)',
+    "CHECK (travel_mode IN ('driving', 'walking'))",
+    'CHECK (route_key IS NULL OR length(route_key) BETWEEN 1 AND 160)',
+    'CHECK (ended_at IS NULL OR ended_at >= started_at)',
+  ];
+}
+
 @DataClassName('ImportedRouteTrackRow')
 class ImportedRouteTracks extends Table {
   TextColumn get id => text()();
@@ -176,6 +202,7 @@ class SavedInspirationNotes extends Table {
     SavedPlaces,
     RecentRouteDestinations,
     SavedRoutes,
+    SavedJourneys,
     ImportedRouteTracks,
     ProfilePreferenceRecords,
     BaseRegions,
@@ -189,7 +216,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -208,6 +235,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 6) {
         await migrator.createTable(savedRoutes);
+      }
+      if (from < 7) {
+        await migrator.createTable(savedJourneys);
       }
     },
   );
