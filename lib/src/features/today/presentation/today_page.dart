@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
+import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
@@ -95,21 +96,26 @@ class TodayPage extends StatelessWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+        padding: const EdgeInsets.fromLTRB(
+          LumaNestSpacing.md,
+          LumaNestSpacing.md,
+          LumaNestSpacing.md,
+          LumaNestSpacing.xl,
+        ),
         children: [
           if (snapshot.isStale) _StaleLabel(),
           _TodayMasthead(snapshot: snapshot),
-          const SizedBox(height: 28),
+          const SizedBox(height: LumaNestSpacing.lg),
           _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
-          const SizedBox(height: 16),
+          const SizedBox(height: LumaNestSpacing.md),
           _EnvironmentStrip(snapshot: snapshot),
-          const SizedBox(height: 20),
+          const SizedBox(height: LumaNestSpacing.lg),
           if (effectiveManifest.safety.isNotEmpty) ...[
             _SafetyRegion(
               items: effectiveManifest.safety,
               onAction: performAction,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: LumaNestSpacing.lg),
           ],
           if (effectiveManifest.primary case final primary?) ...[
             _OpportunityCard(
@@ -117,16 +123,16 @@ class TodayPage extends StatelessWidget {
               item: primary,
               onTap: () => performAction(primary),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: LumaNestSpacing.sm),
           ],
           if (effectiveManifest.secondary.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: LumaNestSpacing.sm),
             Column(
               key: const Key('secondary-opportunities'),
               children: [
                 for (final item in effectiveManifest.secondary)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: LumaNestSpacing.xs),
                     child: _OpportunityCard(
                       item: item,
                       compact: true,
@@ -137,17 +143,20 @@ class TodayPage extends StatelessWidget {
             ),
           ],
           if (effectiveManifest.inspirationPreview.isNotEmpty) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: LumaNestSpacing.md),
             _InspirationTeaser(
               note: effectiveManifest.inspirationPreview,
               onTap: () => context.go('/inspiration'),
             ),
           ],
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: () => context.go('/explore'),
-            icon: const Icon(Icons.explore_outlined),
-            label: const Text('探索附近'),
+          const SizedBox(height: LumaNestSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.go('/explore'),
+              icon: const Icon(Icons.explore_outlined),
+              label: const Text('探索附近'),
+            ),
           ),
         ],
       ),
@@ -182,29 +191,61 @@ class _TodayMasthead extends StatelessWidget {
       SceneType.hiking => '徒步中',
       SceneType.unknown => '此刻环境',
     };
-    return Row(
+    final theme = Theme.of(context);
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('栖光', style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 3),
-              Text('循光而行，择光而栖。', style: Theme.of(context).textTheme.bodyMedium),
-            ],
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withValues(alpha: .28),
+                    blurRadius: 12,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: LumaNestSpacing.sm),
+            Expanded(child: Text('栖光', style: theme.textTheme.displaySmall)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: .78,
+                ),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: .75,
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                child: Text(scene, style: theme.textTheme.labelLarge),
+              ),
+            ),
+          ],
         ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest.withValues(alpha: .72),
-            borderRadius: BorderRadius.circular(99),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Text(scene, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: LumaNestSpacing.xxs),
+        Padding(
+          padding: const EdgeInsets.only(left: 23),
+          child: Text(
+            '循光而行，择光而栖。',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              letterSpacing: .8,
+            ),
           ),
         ),
       ],
@@ -219,6 +260,7 @@ class _DecisionHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final label = switch (dayPhase) {
       DayPhase.dawn => '晨光判断',
       DayPhase.day => '今日判断',
@@ -226,21 +268,77 @@ class _DecisionHero extends StatelessWidget {
       DayPhase.blueHour => '蓝调判断',
       DayPhase.night => '夜间判断',
     };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.primaryContainer.withValues(alpha: .82),
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Semantics(
+      container: true,
+      label: '$label，$summary',
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 190),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.colorScheme.primaryContainer.withValues(alpha: .94),
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: .88),
+            ],
+          ),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: .2),
+          ),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 10),
-            Text(summary, style: Theme.of(context).textTheme.headlineSmall),
+            Positioned(
+              right: -48,
+              top: -58,
+              child: Container(
+                width: 176,
+                height: 176,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: .13),
+                    width: 26,
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(LumaNestSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        label,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(
+                        Icons.north_east_rounded,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: LumaNestSpacing.xl),
+                  Text(summary, style: theme.textTheme.headlineMedium),
+                  const SizedBox(height: LumaNestSpacing.md),
+                  Text(
+                    '基于此刻环境与有效事件',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -254,69 +352,98 @@ class _EnvironmentStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = <(IconData, String)>[
+    final entries = <(IconData, String, String)>[
       if (snapshot.temperatureCelsius case final value?)
-        (Icons.device_thermostat_outlined, '${value.round()}°'),
+        (Icons.device_thermostat_outlined, '${value.round()}°', '气温'),
       if (snapshot.windSpeedMetersPerSecond case final value?)
-        (Icons.air_outlined, '${value.toStringAsFixed(1)} m/s'),
+        (Icons.air_outlined, '${value.toStringAsFixed(1)} m/s', '风速'),
       if (snapshot.visibilityKilometers case final value?)
-        (Icons.visibility_outlined, '${value.round()} km'),
+        (Icons.visibility_outlined, '${value.round()} km', '能见度'),
     ];
     if (entries.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Row(
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: .86),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: .7),
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+        child: Column(
           children: [
-            for (final entry in entries)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: entry == entries.last ? 0 : 8,
+            Row(
+              children: [
+                for (var index = 0; index < entries.length; index++) ...[
+                  Expanded(
+                    child: _MetricPill(
+                      icon: entries[index].$1,
+                      value: entries[index].$2,
+                      label: entries[index].$3,
+                    ),
                   ),
-                  child: _MetricPill(icon: entry.$1, label: entry.$2),
+                  if (index != entries.length - 1)
+                    Container(
+                      width: 1,
+                      height: 42,
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: .7,
+                      ),
+                    ),
+                ],
+              ],
+            ),
+            const SizedBox(height: LumaNestSpacing.xs),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '天气数据：和风天气',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+            ),
           ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          '天气数据：和风天气',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _MetricPill extends StatelessWidget {
-  const _MetricPill({required this.icon, required this.label});
+  const _MetricPill({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
   final IconData icon;
+  final String value;
   final String label;
+
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: Theme.of(
-        context,
-      ).colorScheme.surfaceContainer.withValues(alpha: .8),
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Column(
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17, color: Theme.of(context).colorScheme.secondary),
+        const SizedBox(height: 7),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -326,19 +453,28 @@ class _InspirationTeaser extends StatelessWidget {
   final String note;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    behavior: HitTestBehavior.opaque,
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(18),
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(
+      context,
+    ).colorScheme.secondaryContainer.withValues(alpha: .7),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(20),
+      side: BorderSide(
+        color: Theme.of(context).colorScheme.secondary.withValues(alpha: .22),
       ),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 15),
         child: Row(
           children: [
-            const Icon(Icons.auto_awesome_outlined, size: 19),
+            Icon(
+              Icons.auto_awesome_outlined,
+              size: 19,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -347,7 +483,7 @@ class _InspirationTeaser extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            const Icon(Icons.arrow_outward, size: 18),
+            const Icon(Icons.arrow_forward_rounded, size: 18),
           ],
         ),
       ),
@@ -474,21 +610,47 @@ class _SafetyRegion extends StatelessWidget {
       container: true,
       label: '安全提醒',
       child: Material(
-        color: Theme.of(context).colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(16),
+        color: Theme.of(
+          context,
+        ).colorScheme.errorContainer.withValues(alpha: .96),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(
+            color: Theme.of(context).colorScheme.error.withValues(alpha: .28),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(18, 17, 12, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('安全提醒', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.shield_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 9),
+                  Text(
+                    '安全提醒',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text('独立通道', style: Theme.of(context).textTheme.labelSmall),
+                ],
+              ),
+              const SizedBox(height: 6),
               for (final item in items)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   title: Text(item.title),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: const Icon(Icons.arrow_forward_rounded, size: 18),
                   onTap: () => onAction(item),
                 ),
             ],
@@ -513,25 +675,65 @@ class _OpportunityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainer,
-      borderRadius: BorderRadius.circular(16),
+      color: compact
+          ? theme.colorScheme.surfaceContainerLow.withValues(alpha: .86)
+          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: .9),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(compact ? 18 : 24),
+        side: BorderSide(
+          color: compact
+              ? theme.colorScheme.outlineVariant.withValues(alpha: .72)
+              : theme.colorScheme.primary.withValues(alpha: .34),
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.all(compact ? 12 : 20),
+          padding: EdgeInsets.all(compact ? 14 : 20),
           child: Row(
             children: [
+              if (!compact) ...[
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: .12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.camera_alt_outlined,
+                    size: 19,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+              ],
               Expanded(
-                child: Text(
-                  item.title,
-                  style: compact
-                      ? Theme.of(context).textTheme.bodyLarge
-                      : Theme.of(context).textTheme.titleLarge,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      compact ? '备选线索' : '此刻主行动',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.title,
+                      style: compact
+                          ? theme.textTheme.bodyLarge
+                          : theme.textTheme.titleLarge,
+                    ),
+                  ],
                 ),
               ),
-              const Icon(Icons.arrow_outward, size: 18),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward_rounded, size: 18),
             ],
           ),
         ),
