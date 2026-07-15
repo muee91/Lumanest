@@ -109,4 +109,17 @@ void main() {
     expect(restored?.descentMeters, 64);
     expect(restored?.elevationSource, 'Open-Meteo Elevation API');
   });
+
+  test('clear removes the persisted route including its polyline', () async {
+    final cache = PersistentDrivingRouteCache(
+      SharedPreferencesAsync(),
+      storageKey: 'route-cache-clear',
+      now: () => now,
+    );
+    await cache.write(request, route);
+
+    await cache.clear();
+
+    expect(await cache.readMatching(request), isNull);
+  });
 }

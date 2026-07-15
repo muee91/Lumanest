@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 abstract interface class DrivingRouteCache {
   Future<DrivingRoute?> readMatching(DrivingRouteRequest request);
   Future<void> write(DrivingRouteRequest request, DrivingRoute route);
+  Future<void> clear();
 }
 
 class PersistentDrivingRouteCache implements DrivingRouteCache {
@@ -67,6 +68,9 @@ class PersistentDrivingRouteCache implements DrivingRouteCache {
       }),
     );
   }
+
+  @override
+  Future<void> clear() => _preferences.remove(storageKey);
 
   Map<String, Object?> _encodeRequest(DrivingRouteRequest request) => {
     'origin': _encodePoint(request.origin),

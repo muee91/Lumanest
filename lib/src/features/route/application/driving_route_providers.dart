@@ -35,6 +35,10 @@ class RouteDestination {
       Object.hash(name, point.latitude, point.longitude, travelMode);
 }
 
+final drivingRouteCacheProvider = Provider<DrivingRouteCache>((ref) {
+  return PersistentDrivingRouteCache(SharedPreferencesAsync());
+});
+
 final drivingRouteRepositoryProvider = Provider<DrivingRouteRepository>((ref) {
   final config = ref.watch(environmentConfigProvider);
   final primary = AmapDrivingRouteRepository(
@@ -50,7 +54,7 @@ final drivingRouteRepositoryProvider = Provider<DrivingRouteRepository>((ref) {
       ),
     ),
   );
-  final cache = PersistentDrivingRouteCache(SharedPreferencesAsync());
+  final cache = ref.watch(drivingRouteCacheProvider);
   final resilient = ResilientDrivingRouteRepository(
     primary: primary,
     cache: cache,

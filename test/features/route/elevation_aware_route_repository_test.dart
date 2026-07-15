@@ -77,6 +77,9 @@ class _FakeCache implements DrivingRouteCache {
   DrivingRoute? route;
 
   @override
+  Future<void> clear() async => route = null;
+
+  @override
   Future<DrivingRoute?> readMatching(DrivingRouteRequest request) async => null;
 
   @override
