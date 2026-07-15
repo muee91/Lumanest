@@ -12,6 +12,7 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
+import 'package:luma_nest/src/features/notifications/application/route_reminder_service.dart';
 
 void main() {
   testWidgets('confirms before clearing environment data', (tester) async {
@@ -114,6 +115,43 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('return reminder switch requests permission before enabling', (
+    tester,
+  ) async {
+    final service = _ProfileRouteReminderService();
+    final store = _ProfileRouteReminderPreferenceStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          routeReminderServiceProvider.overrideWithValue(service),
+          routeReminderPreferenceStoreProvider.overrideWithValue(store),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('徒步返程提醒'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+
+    await tester.tap(
+      find.ancestor(
+        of: find.text('徒步返程提醒'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.permissionRequests, 1);
+    expect(store.enabled, isTrue);
+    expect(find.textContaining('按最晚返程时间'), findsOneWidget);
   });
 
   testWidgets(
@@ -663,4 +701,41 @@ class _ProfileLibraryStore implements UserLibraryStore {
 
   @override
   Future<void> write(UserLibraryState state) async => value = state;
+}
+
+class _ProfileRouteReminderPreferenceStore
+    implements RouteReminderPreferenceStore {
+  bool enabled = false;
+
+  @override
+  Future<bool> readEnabled() async => enabled;
+
+  @override
+  Future<void> writeEnabled(bool value) async => enabled = value;
+}
+
+class _ProfileRouteReminderService implements RouteReminderService {
+  var permissionRequests = 0;
+
+  @override
+  Future<void> cancel(String journeyId) async {}
+
+  @override
+  Future<void> cancelAll() async {}
+
+  @override
+  Future<bool> permissionGranted() async => true;
+
+  @override
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return true;
+  }
+
+  @override
+  Future<bool> scheduleReturnReminder({
+    required String journeyId,
+    required String destinationName,
+    required DateTime scheduledAt,
+  }) async => true;
 }

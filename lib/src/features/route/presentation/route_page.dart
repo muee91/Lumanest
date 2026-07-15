@@ -26,6 +26,7 @@ import 'package:luma_nest/src/features/route/infrastructure/gpx_track_parser.dar
 import 'package:luma_nest/src/features/route/presentation/route_map_preview.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/notifications/application/route_reminder_service.dart';
 
 class RoutePage extends ConsumerWidget {
   const RoutePage({
@@ -349,9 +350,7 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
                   trailing: IconButton(
                     tooltip: '删除行程记录',
                     icon: const Icon(Icons.delete_outline),
-                    onPressed: () => ref
-                        .read(userLibraryProvider.notifier)
-                        .deleteJourney(journey.id),
+                    onPressed: () => _deleteJourney(journey),
                   ),
                   onTap: () => context.go(_journeyUri(journey).toString()),
                 ),
@@ -407,6 +406,21 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
     return '${local.month}月${local.day}日 '
         '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _deleteJourney(SavedJourney journey) async {
+    if (journey.isActive) {
+      try {
+        await ref.read(routeReminderServiceProvider).cancel(journey.id);
+      } on Object {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('系统返程提醒未能取消，行程记录仍保留')));
+        return;
+      }
+    }
+    await ref.read(userLibraryProvider.notifier).deleteJourney(journey.id);
   }
 
   static String _distanceLabel(int meters) =>
@@ -610,6 +624,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           state: routeState,
           destination: _journeyDestination,
           routeKey: _journeyRouteKey,
+          returnReminderAt: hikingAssessment?.latestReturnDeparture,
         ),
         if (route.source != RouteSource.importedGpx) ...[
           const SizedBox(height: 10),
@@ -1009,11 +1024,13 @@ class _RouteLifecycleBar extends ConsumerWidget {
     required this.state,
     required this.destination,
     this.routeKey,
+    this.returnReminderAt,
   });
 
   final RouteContextState state;
   final SavedRouteDestination destination;
   final String? routeKey;
+  final DateTime? returnReminderAt;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1091,10 +1108,39 @@ class _RouteLifecycleBar extends ConsumerWidget {
     RouteContextStateController notifier,
   ) async {
     try {
-      await ref
+      final journey = await ref
           .read(userLibraryProvider.notifier)
           .startJourney(destination, routeKey: routeKey);
       notifier.start();
+      try {
+        final enabled = await ref.read(routeReminderEnabledProvider.future);
+        final reminderAt = returnReminderAt;
+        if (enabled && reminderAt != null) {
+          final scheduled = await ref
+              .read(routeReminderServiceProvider)
+              .scheduleReturnReminder(
+                journeyId: journey.id,
+                destinationName: destination.name,
+                scheduledAt: reminderAt,
+              );
+          if (!scheduled && context.mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('最晚返程时间已过，本次未安排系统提醒')));
+          }
+        } else if (enabled &&
+            destination.travelMode == 'walking' &&
+            context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('缺少可用日落时间，本次未安排系统提醒')));
+        }
+      } on Object {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('行程已开始，但返程提醒未能安排')));
+      }
     } on ActiveJourneyConflict catch (conflict) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1119,20 +1165,34 @@ class _RouteLifecycleBar extends ConsumerWidget {
     RouteContextStateController notifier,
   ) async {
     var recordFailed = false;
+    var reminderCancelFailed = false;
+    SavedJourney? active;
     try {
+      active = (await ref.read(userLibraryProvider.future)).activeJourney;
       await ref
           .read(userLibraryProvider.notifier)
           .endJourney(destination, routeKey: routeKey);
     } on Object {
       recordFailed = true;
     }
+    if (active != null && active.matches(destination, routeKey: routeKey)) {
+      try {
+        await ref.read(routeReminderServiceProvider).cancel(active.id);
+      } on Object {
+        reminderCancelFailed = true;
+      }
+    }
     notifier.end();
     if (!context.mounted) return;
     context.go('/route');
-    if (recordFailed) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('行程已结束，但本地结束时间未能保存')));
+    if (recordFailed || reminderCancelFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            recordFailed ? '行程已结束，但本地结束时间未能保存' : '行程已结束，但系统返程提醒未能取消',
+          ),
+        ),
+      );
     }
   }
 }

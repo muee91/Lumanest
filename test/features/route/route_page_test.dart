@@ -12,6 +12,7 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.da
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/notifications/application/route_reminder_service.dart';
 import 'package:luma_nest/src/features/route/application/gpx_track_import_service.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
@@ -32,6 +33,8 @@ Widget _routeApp(
   String destinationName = '湖岸机位',
   double destinationLatitude = 31,
   double destinationLongitude = 121,
+  ContextSnapshot? contextSnapshot,
+  DateTime? timelineNow,
 }) {
   return UncontrolledProviderScope(
     container: container,
@@ -53,6 +56,8 @@ Widget _routeApp(
                 ),
                 routeAsync: routeAsync,
                 travelMode: travelMode,
+                contextSnapshot: contextSnapshot,
+                timelineNow: timelineNow,
               ),
             ),
           ),
@@ -412,11 +417,21 @@ void main() {
   group('route context lifecycle', () {
     late ProviderContainer container;
     late _MemoryLibraryStore libraryStore;
+    late _MemoryRouteReminderPreferenceStore reminderPreferenceStore;
+    late _FakeRouteReminderService reminderService;
 
     setUp(() {
       libraryStore = _MemoryLibraryStore();
+      reminderPreferenceStore = _MemoryRouteReminderPreferenceStore();
+      reminderService = _FakeRouteReminderService();
       container = ProviderContainer(
-        overrides: [userLibraryStoreProvider.overrideWithValue(libraryStore)],
+        overrides: [
+          userLibraryStoreProvider.overrideWithValue(libraryStore),
+          routeReminderPreferenceStoreProvider.overrideWithValue(
+            reminderPreferenceStore,
+          ),
+          routeReminderServiceProvider.overrideWithValue(reminderService),
+        ],
       );
       addTearDown(container.dispose);
     });
@@ -529,6 +544,56 @@ void main() {
       expect(find.text('暂停'), findsOneWidget);
     });
 
+    testWidgets('walking start schedules and end cancels a return reminder', (
+      tester,
+    ) async {
+      reminderPreferenceStore.enabled = true;
+      final now = DateTime.utc(2026, 7, 15, 8);
+      final sunset = DateTime.utc(2026, 7, 15, 18);
+      final snapshot = ContextSnapshot(
+        id: 'walking-reminder',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.hiking,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        sunset: sunset,
+      );
+      final walkingRoute = DrivingRoute(
+        destinationName: '山谷步道',
+        distanceMeters: 5000,
+        durationSeconds: const Duration(hours: 2).inSeconds,
+        tollsYuan: 0,
+        polyline: const [],
+        travelMode: RouteTravelMode.walking,
+      );
+      await tester.pumpWidget(
+        _routeApp(
+          container,
+          routeAsync: AsyncData(walkingRoute),
+          travelMode: RouteTravelMode.walking,
+          destinationName: '山谷步道',
+          contextSnapshot: snapshot,
+          timelineNow: now,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('开始行程'));
+      await tester.pumpAndSettle();
+
+      expect(reminderService.scheduled, hasLength(1));
+      expect(
+        reminderService.scheduled.single.scheduledAt,
+        sunset.subtract(const Duration(hours: 2)),
+      );
+
+      await tester.tap(find.text('结束行程'));
+      await tester.pumpAndSettle();
+      expect(reminderService.cancelled, hasLength(1));
+    });
+
     testWidgets('rebuild does not downgrade an active route to planned', (
       tester,
     ) async {
@@ -628,6 +693,56 @@ class _MemoryLibraryStore implements UserLibraryStore {
 
   @override
   Future<void> write(UserLibraryState state) async => value = state;
+}
+
+class _MemoryRouteReminderPreferenceStore
+    implements RouteReminderPreferenceStore {
+  bool enabled = false;
+
+  @override
+  Future<bool> readEnabled() async => enabled;
+
+  @override
+  Future<void> writeEnabled(bool value) async => enabled = value;
+}
+
+class _ScheduledReminder {
+  const _ScheduledReminder({
+    required this.journeyId,
+    required this.scheduledAt,
+  });
+
+  final String journeyId;
+  final DateTime scheduledAt;
+}
+
+class _FakeRouteReminderService implements RouteReminderService {
+  final scheduled = <_ScheduledReminder>[];
+  final cancelled = <String>[];
+
+  @override
+  Future<void> cancel(String journeyId) async => cancelled.add(journeyId);
+
+  @override
+  Future<void> cancelAll() async => cancelled.add('all');
+
+  @override
+  Future<bool> permissionGranted() async => true;
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<bool> scheduleReturnReminder({
+    required String journeyId,
+    required String destinationName,
+    required DateTime scheduledAt,
+  }) async {
+    scheduled.add(
+      _ScheduledReminder(journeyId: journeyId, scheduledAt: scheduledAt),
+    );
+    return true;
+  }
 }
 
 class _TimelineNearbyPlaceRepository implements NearbyPlaceRepository {

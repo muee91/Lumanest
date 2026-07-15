@@ -15,6 +15,7 @@ import '../../library/domain/user_library.dart';
 import '../../location/application/base_region_controller.dart';
 import '../../location/application/manual_location_providers.dart';
 import '../../location/presentation/manual_location_sheet.dart';
+import '../../notifications/application/route_reminder_service.dart';
 import 'environment_diagnostics.dart';
 
 /// Local profile settings surface.
@@ -42,6 +43,7 @@ class ProfilePage extends ConsumerWidget {
     final environmentConsentGranted = ref.watch(environmentConsentProvider);
     final baseRegion = ref.watch(baseRegionProvider).asData?.value;
     final cacheStatus = ref.watch(environmentCacheStatusProvider);
+    final routeReminderEnabled = ref.watch(routeReminderEnabledProvider);
 
     final liveActions = EnvironmentDiagnosticsActions(
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
@@ -229,6 +231,37 @@ class ProfilePage extends ConsumerWidget {
               child: const Text('清除缓存'),
             ),
           ),
+          SwitchListTile(
+            secondary: const Icon(Icons.notifications_active_outlined),
+            title: const Text('徒步返程提醒'),
+            subtitle: Text(
+              routeReminderEnabled.when(
+                data: (enabled) =>
+                    enabled ? '开始徒步行程后，按最晚返程时间安排本地通知' : '关闭；不会在后台持续获取位置或天气',
+                loading: () => '正在读取本机设置',
+                error: (_, _) => '暂时无法读取通知设置',
+              ),
+            ),
+            value: routeReminderEnabled.asData?.value ?? false,
+            onChanged: routeReminderEnabled.isLoading
+                ? null
+                : (value) async {
+                    try {
+                      final enabled = await ref
+                          .read(routeReminderEnabledProvider.notifier)
+                          .setEnabled(value);
+                      if (!value || enabled || !context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('未获得系统通知权限，返程提醒保持关闭')),
+                      );
+                    } on Object {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('通知设置未能更新，请稍后重试')),
+                      );
+                    }
+                  },
+          ),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('环境数据与定位'),
@@ -330,14 +363,7 @@ class ProfilePage extends ConsumerWidget {
                 trailing: IconButton(
                   tooltip: '删除行程记录',
                   icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    if (journey.isActive) {
-                      ref.read(routeContextStateProvider.notifier).end();
-                    }
-                    await ref
-                        .read(userLibraryProvider.notifier)
-                        .deleteJourney(journey.id);
-                  },
+                  onPressed: () => _deleteJourney(context, ref, journey),
                 ),
                 onTap: () => context.go(_journeyUri(journey).toString()),
               ),
@@ -457,6 +483,26 @@ class ProfilePage extends ConsumerWidget {
     return '${local.month}月${local.day}日 '
         '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  static Future<void> _deleteJourney(
+    BuildContext context,
+    WidgetRef ref,
+    SavedJourney journey,
+  ) async {
+    if (journey.isActive) {
+      try {
+        await ref.read(routeReminderServiceProvider).cancel(journey.id);
+      } on Object {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('系统返程提醒未能取消，行程记录仍保留')));
+        return;
+      }
+      ref.read(routeContextStateProvider.notifier).end();
+    }
+    await ref.read(userLibraryProvider.notifier).deleteJourney(journey.id);
   }
 
   static Future<void> _confirmEnvironmentDataRemoval(
@@ -651,6 +697,15 @@ class ProfilePage extends ConsumerWidget {
       case _LibraryClearType.savedRoutes:
         await controller.clearSavedRoutes();
       case _LibraryClearType.journeys:
+        try {
+          await ref.read(routeReminderServiceProvider).cancelAll();
+        } on Object {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('系统返程提醒未能取消，行程记录仍保留')));
+          return;
+        }
         ref.read(routeContextStateProvider.notifier).end();
         await controller.clearJourneys();
       case _LibraryClearType.importedTracks:
