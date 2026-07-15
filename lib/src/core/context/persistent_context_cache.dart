@@ -263,8 +263,60 @@ class PersistentContextCache implements ContextCache {
   }
 
   Map<String, Object?> _encodeWildlife(RegionalWildlifeActivity activity) => {
+    'contractVersion': activity.contractVersion,
     'radiusKilometers': activity.radiusKilometers,
     'occurrenceSampleSize': activity.occurrenceSampleSize,
+    'scannedOccurrenceSampleSize': activity.scannedOccurrenceSampleSize,
+    'eligibleOccurrenceSampleSize': activity.eligibleOccurrenceSampleSize,
+    'datasetReferencesTruncated': activity.datasetReferencesTruncated,
+    'qualityPolicy': activity.qualityPolicy == null
+        ? null
+        : {
+            'acceptedLicenses': activity.qualityPolicy!.acceptedLicenses,
+            'acceptedBasisOfRecord':
+                activity.qualityPolicy!.acceptedBasisOfRecord,
+            'maximumCoordinateUncertaintyMeters':
+                activity.qualityPolicy!.maximumCoordinateUncertaintyMeters,
+            'maximumDatasetReferences':
+                activity.qualityPolicy!.maximumDatasetReferences,
+            'excludesSevereGeospatialIssues':
+                activity.qualityPolicy!.excludesSevereGeospatialIssues,
+          },
+    'historicalRecordConcentration':
+        activity.historicalRecordConcentration == null
+        ? null
+        : {
+            'recordsWithMonth':
+                activity.historicalRecordConcentration!.recordsWithMonth,
+            'recordsWithTime':
+                activity.historicalRecordConcentration!.recordsWithTime,
+            'months': activity.historicalRecordConcentration!.months
+                .map(
+                  (entry) => {'month': entry.month, 'records': entry.records},
+                )
+                .toList(),
+            'timePeriods': activity.historicalRecordConcentration!.timePeriods
+                .map(
+                  (entry) => {
+                    'period': entry.period.name,
+                    'records': entry.records,
+                  },
+                )
+                .toList(),
+          },
+    'datasets': activity.datasets
+        .map(
+          (dataset) => {
+            'datasetKey': dataset.datasetKey,
+            'title': dataset.title,
+            'publisher': dataset.publisher,
+            'licenses': dataset.licenses,
+            'records': dataset.records,
+            'citation': dataset.citation,
+            'url': dataset.url.toString(),
+          },
+        )
+        .toList(),
     'taxa': activity.taxa
         .map(
           (taxon) => {
@@ -282,6 +334,18 @@ class PersistentContextCache implements ContextCache {
     final radius = raw['radiusKilometers'];
     final sampleSize = raw['occurrenceSampleSize'];
     if (radius is! int || sampleSize is! int) return null;
+    final contractVersion = raw['contractVersion'] is int
+        ? raw['contractVersion'] as int
+        : 1;
+    final scannedSampleSize = raw['scannedOccurrenceSampleSize'] is int
+        ? raw['scannedOccurrenceSampleSize'] as int
+        : 0;
+    final eligibleSampleSize = raw['eligibleOccurrenceSampleSize'] is int
+        ? raw['eligibleOccurrenceSampleSize'] as int
+        : 0;
+    final datasetReferencesTruncated = raw['datasetReferencesTruncated'] is bool
+        ? raw['datasetReferencesTruncated'] as bool
+        : false;
     final taxa = _list(raw['taxa']).map((value) {
       if (value is! Map) return null;
       final scientificName = value['scientificName'];
@@ -299,11 +363,117 @@ class PersistentContextCache implements ContextCache {
       );
     }).whereType<WildlifeTaxon>();
     return RegionalWildlifeActivity(
+      contractVersion: contractVersion,
       radiusKilometers: radius,
       occurrenceSampleSize: sampleSize,
+      scannedOccurrenceSampleSize: scannedSampleSize,
+      eligibleOccurrenceSampleSize: eligibleSampleSize,
+      datasetReferencesTruncated: datasetReferencesTruncated,
+      qualityPolicy: _decodeWildlifeQualityPolicy(raw['qualityPolicy']),
+      historicalRecordConcentration: _decodeWildlifeConcentration(
+        raw['historicalRecordConcentration'],
+      ),
+      datasets: _decodeWildlifeDatasets(raw['datasets']),
       taxa: taxa.toList(growable: false),
     );
   }
+
+  WildlifeQualityPolicy? _decodeWildlifeQualityPolicy(Object? raw) {
+    if (raw is! Map ||
+        raw['acceptedLicenses'] is! List ||
+        raw['acceptedBasisOfRecord'] is! List ||
+        raw['maximumCoordinateUncertaintyMeters'] is! int ||
+        raw['maximumDatasetReferences'] is! int ||
+        raw['excludesSevereGeospatialIssues'] is! bool) {
+      return null;
+    }
+    return WildlifeQualityPolicy(
+      acceptedLicenses: _list(
+        raw['acceptedLicenses'],
+      ).whereType<String>().toList(),
+      acceptedBasisOfRecord: _list(
+        raw['acceptedBasisOfRecord'],
+      ).whereType<String>().toList(),
+      maximumCoordinateUncertaintyMeters:
+          raw['maximumCoordinateUncertaintyMeters'] as int,
+      maximumDatasetReferences: raw['maximumDatasetReferences'] as int,
+      excludesSevereGeospatialIssues:
+          raw['excludesSevereGeospatialIssues'] as bool,
+    );
+  }
+
+  WildlifeHistoricalRecordConcentration? _decodeWildlifeConcentration(
+    Object? raw,
+  ) {
+    if (raw is! Map ||
+        raw['recordsWithMonth'] is! int ||
+        raw['recordsWithTime'] is! int) {
+      return null;
+    }
+    final months = _list(raw['months'])
+        .map((entry) {
+          if (entry is! Map ||
+              entry['month'] is! int ||
+              entry['records'] is! int) {
+            return null;
+          }
+          return WildlifeMonthConcentration(
+            month: entry['month'] as int,
+            records: entry['records'] as int,
+          );
+        })
+        .whereType<WildlifeMonthConcentration>()
+        .toList();
+    final periods = _list(raw['timePeriods'])
+        .map((entry) {
+          if (entry is! Map || entry['records'] is! int) return null;
+          final period = _enumByName(
+            WildlifeObservationPeriod.values,
+            entry['period'],
+          );
+          if (period == null) return null;
+          return WildlifePeriodConcentration(
+            period: period,
+            records: entry['records'] as int,
+          );
+        })
+        .whereType<WildlifePeriodConcentration>()
+        .toList();
+    return WildlifeHistoricalRecordConcentration(
+      recordsWithMonth: raw['recordsWithMonth'] as int,
+      recordsWithTime: raw['recordsWithTime'] as int,
+      months: months,
+      timePeriods: periods,
+    );
+  }
+
+  List<WildlifeDatasetReference> _decodeWildlifeDatasets(Object? raw) =>
+      _list(raw)
+          .map((entry) {
+            if (entry is! Map ||
+                entry['datasetKey'] is! String ||
+                entry['title'] is! String ||
+                entry['publisher'] is! String ||
+                entry['licenses'] is! List ||
+                entry['records'] is! int ||
+                entry['citation'] is! String ||
+                entry['url'] is! String) {
+              return null;
+            }
+            final url = Uri.tryParse(entry['url'] as String);
+            if (url == null || url.scheme != 'https') return null;
+            return WildlifeDatasetReference(
+              datasetKey: entry['datasetKey'] as String,
+              title: entry['title'] as String,
+              publisher: entry['publisher'] as String,
+              licenses: _list(entry['licenses']).whereType<String>().toList(),
+              records: entry['records'] as int,
+              citation: entry['citation'] as String,
+              url: url,
+            );
+          })
+          .whereType<WildlifeDatasetReference>()
+          .toList(growable: false);
 
   /// Canonical sentinel returned by [_decodeManifest] when the persisted
   /// manifest data fails validation. Signals the caller to discard the

@@ -923,6 +923,14 @@ class _WildlifeActivitySummary extends StatelessWidget {
     final labels = activity.groups.map((group) => group.label).join(' · ');
     final hasMammals = activity.groups.contains(WildlifeGroup.mammal);
     final advice = hasMammals ? '仅在公共区域远观，不追逐、不投喂。' : '保持安静和距离，避免追逐、投喂或使用闪光灯。';
+    final concentration = activity.historicalRecordConcentration?.summary;
+    final datasetAttribution = activity.datasets
+        .take(2)
+        .map((dataset) {
+          final licenses = dataset.licenses.join('/');
+          return '${dataset.publisher}《${dataset.title}》${licenses.isEmpty ? '' : '（$licenses）'}';
+        })
+        .join('；');
     return Semantics(
       container: true,
       label: '野外观察线索，GBIF 区域公开记录',
@@ -952,11 +960,25 @@ class _WildlifeActivitySummary extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${activity.radiusKilometers} km 区域记录 · $labels',
+                      '${activity.radiusKilometers} km 区域记录 · ${activity.occurrenceSampleSize} 条可追溯采样 · $labels',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if (concentration != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        '历史记录集中：$concentration（仅反映公开记录采样，不代表活动规律）',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: 3),
                     Text(advice, style: Theme.of(context).textTheme.bodySmall),
+                    if (datasetAttribution.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        '数据署名：$datasetAttribution${activity.datasets.length > 2 ? '等 ${activity.datasets.length} 个数据集' : ''}',
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
                     const SizedBox(height: 3),
                     Text(
                       'GBIF 公开历史记录，不代表实时分布或风险。',

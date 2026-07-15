@@ -27,4 +27,23 @@ void main() {
       expect(activity.groupRecordCount(WildlifeGroup.mammal), 2);
     },
   );
+
+  test('historical concentration wording describes records, not activity', () {
+    final concentration = WildlifeHistoricalRecordConcentration(
+      recordsWithMonth: 9,
+      recordsWithTime: 6,
+      months: const [
+        WildlifeMonthConcentration(month: 10, records: 5),
+        WildlifeMonthConcentration(month: 9, records: 4),
+      ],
+      timePeriods: const [
+        WildlifePeriodConcentration(
+          period: WildlifeObservationPeriod.dusk,
+          records: 4,
+        ),
+      ],
+    );
+
+    expect(concentration.summary, '10月 · 傍晚');
+  });
 }

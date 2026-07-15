@@ -56,8 +56,43 @@ void main() {
           ),
         ],
         wildlifeActivity: RegionalWildlifeActivity(
+          contractVersion: 2,
           radiusKilometers: 20,
           occurrenceSampleSize: 3,
+          scannedOccurrenceSampleSize: 5,
+          eligibleOccurrenceSampleSize: 3,
+          datasetReferencesTruncated: false,
+          qualityPolicy: WildlifeQualityPolicy(
+            acceptedLicenses: const ['CC-BY-4.0'],
+            acceptedBasisOfRecord: const ['HUMAN_OBSERVATION'],
+            maximumCoordinateUncertaintyMeters: 10000,
+            maximumDatasetReferences: 8,
+            excludesSevereGeospatialIssues: true,
+          ),
+          historicalRecordConcentration: WildlifeHistoricalRecordConcentration(
+            recordsWithMonth: 3,
+            recordsWithTime: 2,
+            months: const [WildlifeMonthConcentration(month: 5, records: 3)],
+            timePeriods: const [
+              WildlifePeriodConcentration(
+                period: WildlifeObservationPeriod.dawn,
+                records: 2,
+              ),
+            ],
+          ),
+          datasets: [
+            WildlifeDatasetReference(
+              datasetKey: '11111111-1111-4111-8111-111111111111',
+              title: 'Regional observations',
+              publisher: 'Open Nature Lab',
+              licenses: const ['CC-BY-4.0'],
+              records: 3,
+              citation: 'Open Nature Lab (2026). Regional observations.',
+              url: Uri.parse(
+                'https://www.gbif.org/dataset/11111111-1111-4111-8111-111111111111',
+              ),
+            ),
+          ],
           taxa: const [
             WildlifeTaxon(
               scientificName: 'Lutra lutra',
@@ -100,6 +135,17 @@ void main() {
       expect(restored?.primaryScene, SceneType.lake);
       expect(restored?.events.first.confidence, .82);
       expect(restored?.wildlifeActivity?.taxa.single.commonName, '水獭');
+      expect(restored?.wildlifeActivity?.contractVersion, 2);
+      expect(restored?.wildlifeActivity?.scannedOccurrenceSampleSize, 5);
+      expect(restored?.wildlifeActivity?.eligibleOccurrenceSampleSize, 3);
+      expect(
+        restored?.wildlifeActivity?.historicalRecordConcentration?.summary,
+        '5月 · 晨间',
+      );
+      expect(
+        restored?.wildlifeActivity?.datasets.single.publisher,
+        'Open Nature Lab',
+      );
       expect(restored?.location?.coordinateSystem, CoordinateSystem.wgs84);
       expect(restored?.sunset, snapshot.sunset);
       expect(restored?.moonPhase, MoonPhase.waxingCrescent);

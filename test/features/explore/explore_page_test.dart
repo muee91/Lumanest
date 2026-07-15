@@ -10,7 +10,9 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
+import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
@@ -32,6 +34,7 @@ Widget wrapExplorePage({
   VoidCallback? onOpenAppSettings,
   VoidCallback? onSelectManualLocation,
   EnvironmentLocationDisplay? locationDisplay,
+  List<NearbyPlace>? nearbyPlaces,
 }) {
   return ProviderScope(
     overrides: [
@@ -47,6 +50,8 @@ Widget wrapExplorePage({
         ),
       if (locationDisplay != null)
         environmentLocationDisplayProvider.overrideWithValue(locationDisplay),
+      if (nearbyPlaces != null)
+        nearbyPlacesProvider.overrideWith((_) async => nearbyPlaces),
     ],
     child: MaterialApp(
       home: ExplorePage(
@@ -202,6 +207,78 @@ void main() {
     await tester.pump();
 
     expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
+  });
+
+  testWidgets('wildlife summary shows sampling caveat and dataset attribution', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final now = DateTime.utc(2026, 7, 16, 8);
+    final snapshot = ContextSnapshot(
+      id: 'wildlife-attribution',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.city,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      location: const GeoPoint(latitude: 31.23, longitude: 121.47),
+      wildlifeActivity: RegionalWildlifeActivity(
+        contractVersion: 2,
+        radiusKilometers: 20,
+        occurrenceSampleSize: 3,
+        historicalRecordConcentration: WildlifeHistoricalRecordConcentration(
+          recordsWithMonth: 3,
+          recordsWithTime: 2,
+          months: const [WildlifeMonthConcentration(month: 5, records: 3)],
+          timePeriods: const [
+            WildlifePeriodConcentration(
+              period: WildlifeObservationPeriod.dawn,
+              records: 2,
+            ),
+          ],
+        ),
+        datasets: [
+          WildlifeDatasetReference(
+            datasetKey: '11111111-1111-4111-8111-111111111111',
+            title: '区域观察记录',
+            publisher: '开放自然实验室',
+            licenses: const ['CC-BY-4.0'],
+            records: 3,
+            citation: '开放自然实验室（2026）。区域观察记录。',
+            url: Uri.parse(
+              'https://www.gbif.org/dataset/11111111-1111-4111-8111-111111111111',
+            ),
+          ),
+        ],
+        taxa: const [
+          WildlifeTaxon(
+            scientificName: 'Passer montanus',
+            group: WildlifeGroup.bird,
+            records: 3,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        snapshotAsync: AsyncData(snapshot),
+        nearbyPlaces: const [],
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.tap(find.text('同意并获取位置'));
+    await tester.pump();
+
+    expect(find.textContaining('仅反映公开记录采样'), findsOneWidget);
+    expect(find.textContaining('开放自然实验室《区域观察记录》'), findsOneWidget);
+    expect(find.textContaining('活动规律'), findsOneWidget);
   });
 
   testWidgets('manual location is visibly marked as non-live', (tester) async {

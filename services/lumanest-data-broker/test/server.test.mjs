@@ -239,15 +239,23 @@ test('empty legacy AI environment has no provider-specific defaults', async () =
   }
 });
 
-test('wildlife endpoint returns regional aggregates without observation coordinates', async () => {
+test('wildlife endpoint enforces production quality and keeps traceable aggregates', async () => {
+  const datasetKey = '11111111-1111-4111-8111-111111111111';
+  const secondDatasetKey = '33333333-3333-4333-8333-333333333333';
+  const occurrenceUrls = [];
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/wildlife/nearby?location=121.47,31.23&radiusKm=20`, {
       headers: { Authorization: 'Bearer test-service-token' },
     });
     assert.equal(response.status, 200);
     const body = await response.json();
+    assert.equal(body.contractVersion, 2);
     assert.equal(body.source, 'GBIF');
     assert.equal(body.scope, 'regional_wildlife_observations');
+    assert.equal(body.scannedOccurrenceSampleSize, 7);
+    assert.equal(body.eligibleOccurrenceSampleSize, 3);
+    assert.equal(body.occurrenceSampleSize, 3);
+    assert.equal(body.datasetReferencesTruncated, false);
     assert.deepEqual(body.taxa, [
       {
         scientificName: 'Passer montanus',
@@ -262,23 +270,158 @@ test('wildlife endpoint returns regional aggregates without observation coordina
         records: 1,
       },
     ]);
+    assert.deepEqual(body.qualityPolicy.acceptedLicenses, ['CC0-1.0', 'CC-BY-4.0']);
+    assert.equal(body.qualityPolicy.maximumCoordinateUncertaintyMeters, 10_000);
+    assert.equal(body.qualityPolicy.maximumDatasetReferences, 8);
+    assert.deepEqual(body.historicalRecordConcentration, {
+      recordsWithMonth: 3,
+      recordsWithTime: 3,
+      months: [{ month: 5, records: 2 }, { month: 6, records: 1 }],
+      timePeriods: [{ period: 'dawn', records: 2 }, { period: 'night', records: 1 }],
+    });
+    assert.deepEqual(body.datasets, [
+      {
+        datasetKey,
+        title: 'Shanghai bird observations',
+        publisher: 'Open Bird Lab',
+        licenses: ['CC-BY-4.0'],
+        records: 2,
+        citation: 'Open Bird Lab (2026). Shanghai bird observations.',
+        url: `https://www.gbif.org/dataset/${datasetKey}`,
+      },
+      {
+        datasetKey: secondDatasetKey,
+        title: 'Regional mammal observations',
+        publisher: 'Regional Nature Centre',
+        licenses: ['CC0-1.0'],
+        records: 1,
+        citation: 'Regional mammal observations. GBIF occurrence dataset.',
+        url: `https://www.gbif.org/dataset/${secondDatasetKey}`,
+      },
+    ]);
     assert.equal(JSON.stringify(body).includes('decimalLatitude'), false);
     assert.equal(JSON.stringify(body).includes('decimalLongitude'), false);
   }, {
     fetcher: async (url) => {
+      if (url.pathname.startsWith('/v1/dataset/')) {
+        const isBirdDataset = url.pathname.endsWith(datasetKey);
+        return new Response(JSON.stringify(isBirdDataset ? {
+          title: 'Shanghai bird observations',
+          citation: { text: 'Open Bird Lab (2026). Shanghai bird observations.' },
+        } : {
+          title: 'Regional mammal observations',
+          citation: { text: 'Regional mammal observations. GBIF occurrence dataset.' },
+        }), { status: 200 });
+      }
+      occurrenceUrls.push(url);
       const classKey = url.searchParams.get('classKey');
+      const good = {
+        occurrenceStatus: 'PRESENT',
+        basisOfRecord: 'HUMAN_OBSERVATION',
+        coordinateUncertaintyInMeters: 120,
+        license: 'http://creativecommons.org/licenses/by/4.0/legalcode',
+        issues: [],
+      };
       const records = classKey === '212'
         ? [
-          { species: 'Passer montanus', class: 'Aves', decimalLatitude: 31.2, decimalLongitude: 121.4 },
-          { species: 'Passer montanus', class: 'Aves', decimalLatitude: 31.3, decimalLongitude: 121.5 },
+          { ...good, species: 'Passer montanus', class: 'Aves', datasetKey,
+            publishingOrgName: 'Open Bird Lab', month: 5, eventDate: '2026-05-01T06:20:00',
+            decimalLatitude: 31.2, decimalLongitude: 121.4 },
+          { ...good, species: 'Passer montanus', class: 'Aves', datasetKey,
+            publishingOrgName: 'Open Bird Lab', month: 5, hour: 7,
+            decimalLatitude: 31.3, decimalLongitude: 121.5 },
+          { ...good, species: 'Uncertain bird', class: 'Aves',
+            coordinateUncertaintyInMeters: 50_000 },
+          { ...good, species: 'Restricted bird', class: 'Aves', license: 'CC_BY_NC_4_0' },
         ]
         : classKey === '359'
         ? [
-          { species: 'Lutra lutra', vernacularName: 'Eurasian Otter', class: 'Mammalia', decimalLatitude: 31.2, decimalLongitude: 121.4 },
-          { species: 'Felis catus', class: 'Mammalia', decimalLatitude: 31.2, decimalLongitude: 121.4 },
+          { ...good, species: 'Lutra lutra', vernacularName: 'Eurasian Otter',
+            class: 'Mammalia', datasetKey: secondDatasetKey,
+            publishingOrgName: 'Regional Nature Centre', license: 'CC0_1_0',
+            month: 6, hour: 23, decimalLatitude: 31.2, decimalLongitude: 121.4 },
+          { ...good, species: 'Felis catus', class: 'Mammalia', datasetKey },
+          { ...good, species: 'Panthera pardus', class: 'Mammalia', datasetKey,
+            issues: ['PRESUMED_SWAPPED_COORDINATE'] },
         ]
         : [];
       return new Response(JSON.stringify({ results: records }), { status: 200 });
+    },
+  });
+  assert.equal(occurrenceUrls.length, 5);
+  for (const url of occurrenceUrls) {
+    assert.equal(url.searchParams.get('occurrenceStatus'), 'PRESENT');
+    assert.equal(url.searchParams.get('hasGeospatialIssue'), 'false');
+    assert.equal(url.searchParams.get('coordinateUncertaintyInMeters'), '10000');
+    assert.deepEqual(url.searchParams.getAll('license'), ['CC0_1_0', 'CC_BY_4_0']);
+    assert.deepEqual(url.searchParams.getAll('basisOfRecord'), [
+      'HUMAN_OBSERVATION', 'MACHINE_OBSERVATION', 'OBSERVATION',
+    ]);
+  }
+});
+
+test('wildlife endpoint distinguishes an honest empty region from upstream failure', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/wildlife/nearby?location=121.47,31.23&radiusKm=20`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.contractVersion, 2);
+    assert.equal(body.occurrenceSampleSize, 0);
+    assert.deepEqual(body.taxa, []);
+    assert.deepEqual(body.datasets, []);
+  }, {
+    fetcher: async () => new Response(JSON.stringify({ results: [] }), { status: 200 }),
+  });
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/wildlife/nearby?location=121.47,31.23&radiusKm=20`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 502);
+  }, {
+    fetcher: async () => new Response(JSON.stringify({ error: 'failed' }), { status: 503 }),
+  });
+});
+
+test('wildlife aggregates only records covered by its bounded dataset references', async () => {
+  const records = Array.from({ length: 9 }, (_, index) => {
+    const digit = index + 1;
+    return {
+      species: `Traceable species ${digit}`,
+      class: 'Aves',
+      occurrenceStatus: 'PRESENT',
+      basisOfRecord: 'HUMAN_OBSERVATION',
+      coordinateUncertaintyInMeters: 100,
+      license: 'CC0_1_0',
+      issues: [],
+      datasetKey: `0000000${digit}-0000-4000-8000-00000000000${digit}`,
+      publishingOrgName: `Publisher ${digit}`,
+    };
+  });
+  await withServer(async (baseUrl) => {
+    const response = await fetch(
+      `${baseUrl}/v1/wildlife/nearby?location=121.47,31.23&radiusKm=20`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.eligibleOccurrenceSampleSize, 9);
+    assert.equal(body.occurrenceSampleSize, 8);
+    assert.equal(body.datasetReferencesTruncated, true);
+    assert.equal(body.datasets.length, 8);
+    assert.equal(body.taxa.length, 8);
+  }, {
+    fetcher: async (url) => {
+      if (url.pathname.startsWith('/v1/dataset/')) {
+        return new Response(JSON.stringify({ title: 'Traceable dataset' }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        results: url.searchParams.get('classKey') === '212' ? records : [],
+      }), { status: 200 });
     },
   });
 });
