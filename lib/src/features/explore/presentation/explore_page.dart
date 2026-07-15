@@ -148,6 +148,7 @@ class _MapViewState extends ConsumerState<_MapView> {
   bool _mapInitialized = false;
   bool _searchFocused = false;
   int _searchRevision = 0;
+  SceneType? _requestedScene;
 
   @override
   void initState() {
@@ -346,6 +347,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                 : null),
       ),
       data: (value) {
+        _syncSceneLayer(value.primaryScene);
         final location = value.location;
         if (location == null) {
           return _ExploreErrorView(
@@ -424,6 +426,15 @@ class _MapViewState extends ConsumerState<_MapView> {
         );
       },
     );
+  }
+
+  void _syncSceneLayer(SceneType scene) {
+    if (_requestedScene == scene) return;
+    _requestedScene = scene;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _requestedScene != scene) return;
+      ref.read(exploreIntentProvider.notifier).syncScene(scene);
+    });
   }
 
   Set<Marker> _buildMarkers(AsyncValue<List<NearbyPlace>> places) {

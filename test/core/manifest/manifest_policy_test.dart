@@ -21,7 +21,8 @@ void main() {
   });
 
   test('lake sunset prioritizes reflection and limits secondary cards', () {
-    final manifest = ManifestPolicy.build(ContextFixtures.lakeSunset());
+    final snapshot = ContextFixtures.lakeSunset();
+    final manifest = ManifestPolicy.build(snapshot, now: snapshot.observedAt);
 
     expect(manifest.layoutMode, LayoutMode.opportunity);
     expect(manifest.primary?.id, 'reflection');
@@ -30,7 +31,11 @@ void main() {
   });
 
   test('mountain dawn emits alpenglow only when present in context', () {
-    final withAlpenglow = ManifestPolicy.build(ContextFixtures.mountainDawn());
+    final mountainDawn = ContextFixtures.mountainDawn();
+    final withAlpenglow = ManifestPolicy.build(
+      mountainDawn,
+      now: mountainDawn.observedAt,
+    );
     final withoutAlpenglow = ManifestPolicy.build(
       ContextSnapshot(
         id: 'mountain-without-opportunity',
@@ -168,7 +173,20 @@ void main() {
   });
 
   test('no serverManifest old creative fallback does not regress', () {
-    final manifest = ManifestPolicy.build(ContextFixtures.lakeSunset());
+    final now = DateTime.utc(2026, 7, 11, 10);
+    final manifest = ManifestPolicy.build(
+      ContextSnapshot(
+        id: 'legacy-local-opportunities',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 20)),
+        primaryScene: SceneType.lake,
+        dayPhase: DayPhase.sunset,
+        weather: WeatherType.cloudy,
+        activeRoute: false,
+        opportunityIds: const ['reflection', 'blue-hour'],
+      ),
+      now: now,
+    );
 
     // Local fallback still works without a server manifest: known opportunity
     // IDs produce creative items even without structured events.

@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
@@ -128,7 +129,12 @@ void main() {
       final snapshot = ContextFixtures.quietCity();
 
       await tester.pumpWidget(
-        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncData(snapshot),
+            manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+          ),
+        ),
       );
 
       expect(find.text('数据已过期'), findsNothing);
@@ -200,7 +206,12 @@ void main() {
       final snapshot = ContextFixtures.lakeSunset();
 
       await tester.pumpWidget(
-        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncData(snapshot),
+            manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+          ),
+        ),
       );
 
       expect(find.byKey(const Key('primary-opportunity')), findsOneWidget);
@@ -211,10 +222,12 @@ void main() {
       tester,
     ) async {
       ManifestItem? tapped;
+      final snapshot = ContextFixtures.lakeSunset();
       await tester.pumpWidget(
         MaterialApp(
           home: TodayPage(
-            snapshotAsync: AsyncData(ContextFixtures.lakeSunset()),
+            snapshotAsync: AsyncData(snapshot),
+            manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
             onManifestAction: (item) => tapped = item,
           ),
         ),

@@ -159,10 +159,10 @@ abstract final class ManifestPolicy {
     final primary = orderedCreative.firstOrNull;
 
     return UiManifest(
-      layoutMode: primary == null
-          ? LayoutMode.quiet
-          : snapshot.activeRoute
+      layoutMode: snapshot.activeRoute
           ? LayoutMode.operation
+          : primary == null
+          ? LayoutMode.quiet
           : LayoutMode.opportunity,
       summary: _summaryFor(snapshot, primary),
       primary: primary,

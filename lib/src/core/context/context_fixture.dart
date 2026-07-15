@@ -17,16 +17,43 @@ abstract final class ContextFixtures {
     );
   }
 
-  static ContextSnapshot lakeSunset() {
+  static ContextSnapshot lakeSunset({DateTime? observedAt}) {
+    final eventTime = observedAt?.toUtc() ?? _baseTime;
     return ContextSnapshot(
       id: 'fixture-lake-sunset',
-      observedAt: _baseTime,
-      expiresAt: _baseTime.add(const Duration(minutes: 20)),
+      observedAt: eventTime,
+      expiresAt: eventTime.add(const Duration(minutes: 20)),
       primaryScene: SceneType.lake,
       dayPhase: DayPhase.sunset,
       weather: WeatherType.cloudy,
       activeRoute: false,
       opportunityIds: const ['reflection', 'blue-hour'],
+      events: [
+        ContextEvent(
+          id: 'reflection',
+          channel: ContextEventChannel.opportunity,
+          source: ContextEventSource.weather,
+          observedAt: eventTime,
+          expiresAt: eventTime.add(const Duration(minutes: 20)),
+          confidence: 0.78,
+          geoScope: ContextGeoScope.point,
+          allowedAction: ContextAction.openExplore,
+        ),
+        ContextEvent(
+          id: 'blue-hour',
+          channel: ContextEventChannel.opportunity,
+          source: ContextEventSource.solar,
+          observedAt: eventTime,
+          expiresAt: eventTime.add(const Duration(minutes: 20)),
+          confidence: 0.9,
+          geoScope: ContextGeoScope.point,
+          allowedAction: ContextAction.openShootingWindow,
+        ),
+      ],
+      allowedActions: const [
+        ContextAction.openExplore,
+        ContextAction.openShootingWindow,
+      ],
     );
   }
 
@@ -40,6 +67,19 @@ abstract final class ContextFixtures {
       weather: WeatherType.clear,
       activeRoute: false,
       opportunityIds: const ['alpenglow'],
+      events: [
+        ContextEvent(
+          id: 'alpenglow',
+          channel: ContextEventChannel.opportunity,
+          source: ContextEventSource.solar,
+          observedAt: _baseTime,
+          expiresAt: _baseTime.add(const Duration(minutes: 15)),
+          confidence: 0.76,
+          geoScope: ContextGeoScope.point,
+          allowedAction: ContextAction.openShootingWindow,
+        ),
+      ],
+      allowedActions: const [ContextAction.openShootingWindow],
     );
   }
 
@@ -71,8 +111,10 @@ abstract final class ContextFixtures {
           expiresAt: observedAt.add(const Duration(minutes: 25)),
           confidence: 0.72,
           geoScope: ContextGeoScope.point,
+          allowedAction: ContextAction.openShootingWindow,
         ),
       ],
+      allowedActions: const [ContextAction.openShootingWindow],
     );
   }
 
@@ -104,8 +146,10 @@ abstract final class ContextFixtures {
           expiresAt: observedAt.add(const Duration(minutes: 20)),
           confidence: 0.65,
           geoScope: ContextGeoScope.point,
+          allowedAction: ContextAction.openExplore,
         ),
       ],
+      allowedActions: const [ContextAction.openExplore],
     );
   }
 

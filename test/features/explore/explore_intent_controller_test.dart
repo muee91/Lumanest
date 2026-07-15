@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
@@ -49,4 +50,42 @@ void main() {
       expect(state().category, NearbyPlaceCategory.viewpoint);
     },
   );
+
+  test('scene defaults select lake and humanity layers deterministically', () {
+    controller().syncScene(SceneType.lake);
+    expect(state().category, NearbyPlaceCategory.waterfront);
+
+    controller().syncScene(SceneType.village);
+    expect(state().category, NearbyPlaceCategory.humanity);
+
+    for (final scene in [
+      SceneType.unknown,
+      SceneType.city,
+      SceneType.mountain,
+      SceneType.desert,
+      SceneType.driving,
+      SceneType.hiking,
+    ]) {
+      controller().syncScene(scene);
+      expect(state().category, NearbyPlaceCategory.viewpoint);
+    }
+  });
+
+  test('manual category is not overwritten by later scene updates', () {
+    controller().complete(category: NearbyPlaceCategory.food);
+    controller().syncScene(SceneType.lake);
+
+    expect(state().category, NearbyPlaceCategory.food);
+    expect(state().sceneCategory, NearbyPlaceCategory.waterfront);
+  });
+
+  test('temporary intent expires back to the latest scene layer', () {
+    controller().syncScene(SceneType.lake);
+    controller().activate(ExploreFocus.water);
+    controller().syncScene(SceneType.village);
+
+    expect(controller().expire(), isTrue);
+    expect(state().category, NearbyPlaceCategory.humanity);
+    expect(state().activeFocus, isNull);
+  });
 }

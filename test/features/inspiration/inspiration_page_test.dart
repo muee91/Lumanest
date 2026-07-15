@@ -76,7 +76,9 @@ void main() {
         overrides: [userLibraryStoreProvider.overrideWithValue(store)],
         child: MaterialApp(
           home: InspirationPage(
-            snapshotAsync: AsyncValue.data(ContextFixtures.lakeSunset()),
+            snapshotAsync: AsyncValue.data(
+              ContextFixtures.lakeSunset(observedAt: DateTime.now()),
+            ),
           ),
         ),
       ),
@@ -104,7 +106,9 @@ Widget _app({required bool disableAnimations}) {
       home: MediaQuery(
         data: MediaQueryData(disableAnimations: disableAnimations),
         child: InspirationPage(
-          snapshotAsync: AsyncValue.data(ContextFixtures.lakeSunset()),
+          snapshotAsync: AsyncValue.data(
+            ContextFixtures.lakeSunset(observedAt: DateTime.now()),
+          ),
         ),
       ),
     ),

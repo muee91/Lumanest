@@ -18,7 +18,9 @@ void main() {
 
   testWidgets('accepts an injected context snapshot', (tester) async {
     await tester.pumpWidget(
-      LumaNestApp(initialContext: ContextFixtures.lakeSunset()),
+      LumaNestApp(
+        initialContext: ContextFixtures.lakeSunset(observedAt: DateTime.now()),
+      ),
     );
 
     expect(find.text('倒影条件改善'), findsWidgets);

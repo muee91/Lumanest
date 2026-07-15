@@ -2,12 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 void main() {
   test('creative opportunities become short inspiration notes', () {
-    final notes = InspirationNotes.build(ContextFixtures.lakeSunset());
+    final snapshot = ContextFixtures.lakeSunset();
+    final notes = InspirationNotes.build(
+      snapshot,
+      manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+    );
 
     expect(notes.first.id, 'reflection');
     expect(notes.first.displayLabel, '找倒影🪞');
@@ -23,7 +28,11 @@ void main() {
       expiresAt: DateTime.utc(2026, 7, 11, 10, 10),
     );
 
-    final notes = InspirationNotes.build(snapshot, narrative: narrative);
+    final notes = InspirationNotes.build(
+      snapshot,
+      narrative: narrative,
+      manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+    );
 
     expect(notes.map((note) => note.id), ['reflection', 'blue-hour']);
     expect(notes.first.displayLabel, '等倒影🪞');

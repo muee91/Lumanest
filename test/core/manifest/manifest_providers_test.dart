@@ -17,7 +17,7 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    final snapshot = ContextFixtures.lakeSunset();
+    final snapshot = ContextFixtures.lakeSunset(observedAt: DateTime.now());
 
     final manifest = container.read(personalizedManifestProvider(snapshot));
 
