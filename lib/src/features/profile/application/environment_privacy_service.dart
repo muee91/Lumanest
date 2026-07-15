@@ -30,6 +30,7 @@ class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
     await _ref.read(baseRegionProvider.notifier).clear();
     await _ref.read(contextCacheProvider).clear();
     await _ref.read(drivingRouteCacheProvider).clear();
+    await _ref.read(routeSupportCacheProvider).clear();
 
     // Drop in-memory snapshots and generated wording. These providers stay
     // dormant while consent is false and rebuild only after a new opt-in.

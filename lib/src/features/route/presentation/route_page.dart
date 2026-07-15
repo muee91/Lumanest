@@ -407,7 +407,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
   }
 
   void _scheduleAutomaticSupportScan() {
-    if (widget.route.polyline.length < 2 || widget.route.isStale) return;
+    if (widget.route.polyline.length < 2) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _support != null) return;
       unawaited(_scanSupport());
@@ -441,6 +441,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
     setState(() => _support = const AsyncLoading());
     final scanner = RouteCorridorScanner(
       ref.read(nearbyPlaceRepositoryProvider),
+      cache: ref.read(routeSupportCacheProvider),
     );
     final result = await AsyncValue.guard(() => scanner.scan(widget.route));
     if (mounted) setState(() => _support = result);
@@ -789,7 +790,7 @@ class _SupportResults extends StatelessWidget {
             ),
             title: Text(stop.place.name),
             subtitle: Text(
-              '${stop.place.category.label} · 约在路线 ${(stop.routeProgress * 100).round()}% · 距采样点约 ${stop.place.distanceMeters} m',
+              '${stop.place.category.label} · 约在路线 ${(stop.routeProgress * 100).round()}% · 距采样点约 ${stop.place.distanceMeters} m${stop.isCached ? ' · 离线缓存' : ''}',
             ),
           ),
       ],

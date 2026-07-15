@@ -5,6 +5,7 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/infrastructure/amap_driving_route_repository.dart';
 import 'package:luma_nest/src/features/route/infrastructure/driving_route_cache.dart';
+import 'package:luma_nest/src/features/route/infrastructure/route_support_cache.dart';
 import 'package:luma_nest/src/features/route/infrastructure/resilient_driving_route_repository.dart';
 import 'package:luma_nest/src/features/route/application/route_elevation_service.dart';
 import 'package:luma_nest/src/features/route/infrastructure/data_broker_elevation_repository.dart';
@@ -37,6 +38,10 @@ class RouteDestination {
 
 final drivingRouteCacheProvider = Provider<DrivingRouteCache>((ref) {
   return PersistentDrivingRouteCache(SharedPreferencesAsync());
+});
+
+final routeSupportCacheProvider = Provider<RouteSupportCache>((ref) {
+  return PersistentRouteSupportCache(SharedPreferencesAsync());
 });
 
 final drivingRouteRepositoryProvider = Provider<DrivingRouteRepository>((ref) {

@@ -5,11 +5,13 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/domain/route_support_stop.dart';
+import 'package:luma_nest/src/features/route/infrastructure/route_support_cache.dart';
 
 class RouteCorridorScanner {
-  const RouteCorridorScanner(this._places);
+  const RouteCorridorScanner(this._places, {this.cache});
 
   final NearbyPlaceRepository _places;
+  final RouteSupportCache? cache;
 
   Future<List<RouteSupportStop>> scan(DrivingRoute route) async {
     final samples = _sample(route, maximum: 3);
@@ -29,6 +31,8 @@ class RouteCorridorScanner {
         .where((attempt) => attempt.error == null)
         .toList(growable: false);
     if (successful.isEmpty) {
+      final cached = await cache?.readMatching(route);
+      if (cached != null) return cached;
       final failed = attempts.first;
       Error.throwWithStackTrace(failed.error!, failed.stackTrace!);
     }
@@ -58,7 +62,13 @@ class RouteCorridorScanner {
           ? distanceOrder
           : a.place.category.index.compareTo(b.place.category.index);
     });
-    return List.unmodifiable(result.take(12));
+    final bounded = List<RouteSupportStop>.unmodifiable(result.take(12));
+    try {
+      await cache?.write(route, bounded);
+    } on Object {
+      // A cache write failure must not hide fresh POI results.
+    }
+    return bounded;
   }
 
   Future<_ScanAttempt> _fetch(

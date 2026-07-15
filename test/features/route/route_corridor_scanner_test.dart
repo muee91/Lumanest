@@ -4,6 +4,8 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
 import 'package:luma_nest/src/features/route/application/route_corridor_scanner.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
+import 'package:luma_nest/src/features/route/domain/route_support_stop.dart';
+import 'package:luma_nest/src/features/route/infrastructure/route_support_cache.dart';
 
 void main() {
   test('samples a bounded corridor and deduplicates repeated POIs', () async {
@@ -112,6 +114,45 @@ void main() {
   });
 
   test(
+    'restores matching cached support when every live request fails',
+    () async {
+      final repository = _FakeNearbyPlaceRepository(failAll: true);
+      final cache = _FakeSupportCache();
+      final route = DrivingRoute(
+        destinationName: '离线路线',
+        distanceMeters: 2000,
+        durationSeconds: 1200,
+        tollsYuan: 0,
+        polyline: const [
+          GeoPoint(latitude: 31, longitude: 121),
+          GeoPoint(latitude: 31.01, longitude: 121.01),
+        ],
+      );
+      cache.value = [
+        RouteSupportStop(
+          place: const NearbyPlace(
+            id: 'cached-supply',
+            name: '缓存补给点',
+            category: NearbyPlaceCategory.supply,
+            point: GeoPoint(latitude: 31.005, longitude: 121.005),
+            distanceMeters: 500,
+          ),
+          routeProgress: 0.5,
+          cachedAt: DateTime.utc(2026, 7, 15),
+        ),
+      ];
+
+      final result = await RouteCorridorScanner(
+        repository,
+        cache: cache,
+      ).scan(route);
+
+      expect(result.single.place.id, 'cached-supply');
+      expect(result.single.isCached, isTrue);
+    },
+  );
+
+  test(
     'derives sample progress from geometry rather than point index',
     () async {
       final route = DrivingRoute(
@@ -186,5 +227,21 @@ class _ProgressNearbyPlaceRepository implements NearbyPlaceRepository {
         distanceMeters: 100,
       ),
     ];
+  }
+}
+
+class _FakeSupportCache implements RouteSupportCache {
+  List<RouteSupportStop>? value;
+
+  @override
+  Future<void> clear() async => value = null;
+
+  @override
+  Future<List<RouteSupportStop>?> readMatching(DrivingRoute route) async =>
+      value;
+
+  @override
+  Future<void> write(DrivingRoute route, List<RouteSupportStop> stops) async {
+    value = stops;
   }
 }

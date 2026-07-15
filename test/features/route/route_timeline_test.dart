@@ -63,9 +63,9 @@ void main() {
     final timeline = RouteTimeline.build(
       route: route,
       departureAt: now,
-      supportStops: const [
+      supportStops: [
         RouteSupportStop(
-          place: NearbyPlace(
+          place: const NearbyPlace(
             id: 'supply-1',
             name: '山脚补给站',
             category: NearbyPlaceCategory.supply,
@@ -73,6 +73,7 @@ void main() {
             distanceMeters: 180,
           ),
           routeProgress: 0.25,
+          cachedAt: now.subtract(const Duration(hours: 1)),
         ),
       ],
       routeRisks: const [RouteTimelineRisk(id: 'route-wind', title: '路线范围有强风')],
@@ -100,6 +101,7 @@ void main() {
       now.add(const Duration(minutes: 30)),
     );
     expect(timeline.any((entry) => entry.description.contains('进度估算')), isTrue);
+    expect(timeline.any((entry) => entry.description.contains('离线缓存')), isTrue);
     expect(
       timeline.any((entry) => entry.description.contains('不代表已规划返程路线')),
       isTrue,

@@ -170,7 +170,8 @@ abstract final class RouteTimeline {
     };
     final address = stop.place.address;
     final location = address == null ? '' : ' · $address';
-    return '$category$location · 距路线采样点约 ${stop.place.distanceMeters} m，时间为进度估算。';
+    final freshness = stop.isCached ? ' · 离线缓存' : '';
+    return '$category$location · 距路线采样点约 ${stop.place.distanceMeters} m，时间为进度估算$freshness。';
   }
 
   static List<RouteSupportStop> _representativeSupportStops(

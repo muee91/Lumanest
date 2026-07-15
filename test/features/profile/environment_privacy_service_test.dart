@@ -9,6 +9,11 @@ import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.d
 import 'package:luma_nest/src/features/location/domain/base_region.dart';
 import 'package:luma_nest/src/features/location/infrastructure/base_region_store.dart';
 import 'package:luma_nest/src/features/profile/application/environment_privacy_service.dart';
+import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
+import 'package:luma_nest/src/features/route/domain/driving_route.dart';
+import 'package:luma_nest/src/features/route/domain/route_support_stop.dart';
+import 'package:luma_nest/src/features/route/infrastructure/driving_route_cache.dart';
+import 'package:luma_nest/src/features/route/infrastructure/route_support_cache.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../explore/map_consent_test_harness.dart';
@@ -20,6 +25,8 @@ void main() {
     final cache = InMemoryContextCache();
     final cacheWriteGuard = ContextCacheWriteGuard();
     final baseRegionStore = _FakeBaseRegionStore();
+    final routeCache = _FakeDrivingRouteCache();
+    final supportCache = _FakeRouteSupportCache();
     final gateway = FakeAmapInitializerGateway();
     final now = DateTime.utc(2026, 7, 13, 10);
     await cache.write(
@@ -44,6 +51,8 @@ void main() {
         amapInitializerGatewayProvider.overrideWithValue(gateway),
         mapConsentStoreProvider.overrideWithValue(mapConsentStore),
         baseRegionStoreProvider.overrideWithValue(baseRegionStore),
+        drivingRouteCacheProvider.overrideWithValue(routeCache),
+        routeSupportCacheProvider.overrideWithValue(supportCache),
       ],
     );
     addTearDown(container.dispose);
@@ -64,6 +73,8 @@ void main() {
     expect(gateway.lastStatement?.hasAgree, isFalse);
     expect(mapConsentStore.granted, isFalse);
     expect(baseRegionStore.cleared, isTrue);
+    expect(routeCache.cleared, isTrue);
+    expect(supportCache.cleared, isTrue);
   });
 }
 
@@ -78,6 +89,33 @@ class _FakeBaseRegionStore implements BaseRegionStore {
 
   @override
   Future<void> write(BaseRegion value) async {}
+}
+
+class _FakeDrivingRouteCache implements DrivingRouteCache {
+  bool cleared = false;
+
+  @override
+  Future<void> clear() async => cleared = true;
+
+  @override
+  Future<DrivingRoute?> readMatching(DrivingRouteRequest request) async => null;
+
+  @override
+  Future<void> write(DrivingRouteRequest request, DrivingRoute route) async {}
+}
+
+class _FakeRouteSupportCache implements RouteSupportCache {
+  bool cleared = false;
+
+  @override
+  Future<void> clear() async => cleared = true;
+
+  @override
+  Future<List<RouteSupportStop>?> readMatching(DrivingRoute route) async =>
+      null;
+
+  @override
+  Future<void> write(DrivingRoute route, List<RouteSupportStop> stops) async {}
 }
 
 class _FakeConsentStore implements EnvironmentConsentStore {
