@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
@@ -176,8 +178,47 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
 
 class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
   @override
-  Future<ContextSnapshot> build() {
-    return _load(ref.watch(environmentLoaderProvider), trigger: 'automatic');
+  Future<ContextSnapshot> build() async {
+    final loader = ref.watch(environmentLoaderProvider);
+    final cached = await loader.cache.readLatest();
+    if (cached == null) return _load(loader, trigger: 'automatic');
+
+    final cacheIsCurrent =
+        !cached.isStale &&
+        cached.expiresAt.toUtc().isAfter(loader.now().toUtc());
+    final startupSnapshot = cacheIsCurrent ? cached : cached.asStale();
+    final logger = ref.read(appLoggerProvider);
+    final logData = {
+      LogDataKey.freshness: startupSnapshot.dataFreshness.name,
+      LogDataKey.scene: startupSnapshot.primaryScene.name,
+    };
+    if (startupSnapshot.isStale) {
+      logger.warning(
+        LogCategory.contextCache,
+        'context.cache_restored',
+        data: logData,
+      );
+    } else {
+      logger.debug(
+        LogCategory.contextCache,
+        'context.cache_restored',
+        data: logData,
+      );
+    }
+    // Schedule the refresh after the cached build value has committed so a
+    // fast network response cannot be overwritten by the startup cache.
+    unawaited(Future<void>(() => _refreshInBackground(loader)));
+    return startupSnapshot;
+  }
+
+  Future<void> _refreshInBackground(EnvironmentLoader loader) async {
+    try {
+      final snapshot = await _load(loader, trigger: 'background');
+      if (ref.mounted) state = AsyncData(snapshot);
+    } on Object {
+      // The cached snapshot remains the safe visible state. `_load` already
+      // records a sanitized failure category without exposing raw errors.
+    }
   }
 
   Future<void> refresh() async {

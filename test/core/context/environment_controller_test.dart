@@ -401,6 +401,93 @@ void main() {
   });
 
   test(
+    'provider exposes stale cache before background refresh completes',
+    () async {
+      final cached = ContextSnapshot(
+        id: 'cached-startup',
+        observedAt: now.subtract(const Duration(minutes: 20)),
+        expiresAt: now.subtract(const Duration(minutes: 5)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.cloudy,
+        activeRoute: false,
+      );
+      await cache.write(cached);
+      final locationRequest = Completer<LocationReading>();
+      location.pending = locationRequest.future;
+      final records = <LogRecord>[];
+      final container = ProviderContainer(
+        overrides: [
+          environmentLoaderProvider.overrideWithValue(createLoader()),
+          appLoggerProvider.overrideWithValue(
+            AppLogger(sink: records.add, now: () => now),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final initial = await container
+          .read(environmentSnapshotProvider.future)
+          .timeout(const Duration(seconds: 1));
+
+      expect(initial.id, 'cached-startup');
+      expect(initial.isStale, isTrue);
+      expect(
+        records.map((record) => record.event),
+        contains('context.cache_restored'),
+      );
+
+      final freshResult = Completer<ContextSnapshot>();
+      final subscription = container.listen(environmentSnapshotProvider, (
+        _,
+        next,
+      ) {
+        final value = next.asData?.value;
+        if (value != null && !value.isStale && !freshResult.isCompleted) {
+          freshResult.complete(value);
+        }
+      });
+      addTearDown(subscription.close);
+
+      locationRequest.complete(_location(now));
+      final fresh = await freshResult.future.timeout(
+        const Duration(seconds: 1),
+      );
+
+      expect(fresh.id, isNot('cached-startup'));
+      expect(fresh.isStale, isFalse);
+    },
+  );
+
+  test('provider keeps an unexpired startup cache fresh', () async {
+    final cached = ContextSnapshot(
+      id: 'fresh-startup-cache',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 10)),
+      primaryScene: SceneType.city,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+    );
+    await cache.write(cached);
+    location.pending = Completer<LocationReading>().future;
+    final container = ProviderContainer(
+      overrides: [
+        environmentLoaderProvider.overrideWithValue(createLoader()),
+        appLoggerProvider.overrideWithValue(AppLogger(enabled: false)),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final initial = await container
+        .read(environmentSnapshotProvider.future)
+        .timeout(const Duration(seconds: 1));
+
+    expect(initial.id, 'fresh-startup-cache');
+    expect(initial.isStale, isFalse);
+  });
+
+  test(
     'provider keeps a location failure visible instead of retrying itself',
     () async {
       location.error = const LocationRepositoryFailure(

@@ -10,10 +10,11 @@ import 'package:luma_nest/src/features/profile/infrastructure/profile_preference
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
 
 void main() {
-  final now = DateTime.utc(2026, 7, 15, 12);
+  late DateTime now;
   late ContextSnapshot snapshot;
 
   setUp(() {
+    now = DateTime.now().toUtc();
     snapshot = ContextSnapshot(
       id: 'shared-personalized-manifest',
       observedAt: now,
