@@ -82,6 +82,24 @@ def test_official_wildlife_risk_remains_a_safety_event_when_weather_is_stale():
     assert event.confidence == 1
 
 
+def test_fresh_unhealthy_air_is_rule_owned_safety_but_stale_aqi_is_not():
+    body = request_for()
+    body.weather.air_quality_index = 168
+    body.weather.air_quality_category = "中度污染"
+    body.weather.air_quality_observed_at = body.weather.observed_at
+    body.weather.air_quality_stale = False
+    result = evaluate(body)
+    event = next(event for event in result.events if event.id == "unhealthy-air")
+    assert event.channel == "safety"
+    assert event.source == "weather"
+    assert event.allowed_action == "openWeather"
+    assert event.severity == "caution"
+
+    body.weather.air_quality_stale = True
+    stale = evaluate(body)
+    assert all(event.id != "unhealthy-air" for event in stale.events)
+
+
 def test_fingerprint_uses_a_grid_instead_of_exposing_coordinates():
     result = evaluate(request_for(evidence={"urban": True}, day_phase="blueHour"))
     assert "120.15" not in result.fingerprint

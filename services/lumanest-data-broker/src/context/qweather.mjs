@@ -93,6 +93,47 @@ function normalizedForecast(hourlyBody, minutelyBody, fetchedAt) {
   };
 }
 
+function normalizedAirQuality(body, fetchedAt) {
+  const value = body?.code === '200' && body.now != null && typeof body.now === 'object'
+    ? body.now
+    : null;
+  if (value == null) {
+    return {
+      airQualityIndex: null,
+      airQualityCategory: null,
+      primaryPollutant: null,
+      airQualityObservedAt: null,
+      airQualityStale: true,
+    };
+  }
+  const index = finite(value.aqi, 0, 500);
+  const observedAt = new Date(value.pubTime ?? body.updateTime ?? fetchedAt);
+  const category = typeof value.category === 'string' && value.category.trim().length <= 40
+    ? value.category.trim()
+    : null;
+  const primary = typeof value.primary === 'string' && value.primary.trim().length <= 40 &&
+      !['NA', 'N/A', '-'].includes(value.primary.trim().toUpperCase())
+    ? value.primary.trim()
+    : null;
+  if (index == null || !Number.isFinite(observedAt.getTime())) {
+    return {
+      airQualityIndex: null,
+      airQualityCategory: null,
+      primaryPollutant: null,
+      airQualityObservedAt: null,
+      airQualityStale: true,
+    };
+  }
+  const age = fetchedAt.getTime() - observedAt.getTime();
+  return {
+    airQualityIndex: Math.round(index),
+    airQualityCategory: category,
+    primaryPollutant: primary,
+    airQualityObservedAt: observedAt.toISOString(),
+    airQualityStale: age > 2 * 60 * 60 * 1_000 || age < -5 * 60 * 1_000,
+  };
+}
+
 function normalizedWarnings(body, fetchedAt) {
   if (body?.code !== '200' || !Array.isArray(body.warning)) return [];
   return body.warning.flatMap((warning) => {
@@ -153,13 +194,20 @@ export async function authoritativeWeather({
       qweatherRequest({ host, path: '/v7/weather/24h', location, token, fetcher, timeoutMs }),
       qweatherRequest({ host, path: '/v7/minutely/5m', location, token, fetcher, timeoutMs }),
       qweatherRequest({ host, path: '/v7/warning/now', location, token, fetcher, timeoutMs }),
+      qweatherRequest({ host, path: '/v7/air/now', location, token, fetcher, timeoutMs }),
     ]);
     const current = requests[0].status === 'fulfilled'
       ? normalizedCurrent(requests[0].value, fetchedAt)
       : null;
     if (current == null) throw new Error('current_weather_unavailable');
     const body = {
-      weather: current,
+      weather: {
+        ...current,
+        ...normalizedAirQuality(
+          requests[4].status === 'fulfilled' ? requests[4].value : null,
+          fetchedAt,
+        ),
+      },
       forecast: normalizedForecast(
         requests[1].status === 'fulfilled' ? requests[1].value : null,
         requests[2].status === 'fulfilled' ? requests[2].value : null,
@@ -176,7 +224,10 @@ export async function authoritativeWeather({
     if (cachedAge >= 0 && cachedAge <= staleCacheMilliseconds) {
       return {
         ok: true,
-        body: { ...cached.body, weather: { ...cached.body.weather, stale: true } },
+        body: {
+          ...cached.body,
+          weather: { ...cached.body.weather, stale: true, airQualityStale: true },
+        },
         cache: 'stale',
       };
     }

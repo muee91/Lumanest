@@ -62,6 +62,7 @@ def context_fingerprint(
         str(round(request.forecast.next_three_hours_max_wind_speed_mps or 0, 1)),
         str(request.forecast.thunder_next_three_hours),
     ))
+    air_state = f"{request.weather.air_quality_index}:{request.weather.air_quality_stale}"
     grid = f"{request.coordinate.latitude:.2f},{request.coordinate.longitude:.2f}"
     raw = "|".join((
         grid,
@@ -70,6 +71,7 @@ def context_fingerprint(
         request.weather.condition,
         request.weather.observed_at.astimezone(timezone.utc).isoformat(timespec="minutes"),
         forecast_state,
+        air_state,
         warning_ids,
         request.route.mode,
         request.route.stage,
@@ -147,6 +149,11 @@ def evaluate(
         add("heavy-rain", "safety", "weather", 0.9, "openSafety", "warning", "regional")
     if facts.wildlife_safety:
         add("wildlife-area-risk", "wildlifeSafety", "official", 1, "openSafety", "warning", "regional")
+    if not request.weather.stale and not request.weather.air_quality_stale and \
+            request.weather.air_quality_index is not None and request.weather.air_quality_index >= 150:
+        severity = "critical" if request.weather.air_quality_index >= 300 else \
+            "warning" if request.weather.air_quality_index >= 200 else "caution"
+        add("unhealthy-air", "safety", "weather", 0.95, "openWeather", severity, "regional")
 
     for warning in request.official_warnings:
         if warning.expires_at <= generated_at:
@@ -221,6 +228,11 @@ def evaluate(
             "visibilityKm": request.weather.visibility_km,
             "cloudCoverPercent": request.weather.cloud_cover_percent,
             "thunder": request.weather.thunder,
+            "airQualityIndex": request.weather.air_quality_index,
+            "airQualityCategory": request.weather.air_quality_category,
+            "primaryPollutant": request.weather.primary_pollutant,
+            "airQualityObservedAt": request.weather.air_quality_observed_at,
+            "airQualityStale": request.weather.air_quality_stale,
         },
         "sunMoon": {
             "dayPhase": solar.day_phase,

@@ -247,6 +247,41 @@ void main() {
       expect(find.textContaining('--'), findsNothing);
     });
 
+    testWidgets('fresh AQI appears while stale AQI keeps no placeholder', (
+      tester,
+    ) async {
+      final now = DateTime.utc(2026, 7, 15, 8);
+      ContextSnapshot snapshot({required bool stale}) => ContextSnapshot(
+        id: 'air-quality-$stale',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        airQualityIndex: 168,
+        airQualityCategory: '中度污染',
+        airQualityObservedAt: now,
+        airQualityStale: stale,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(snapshotAsync: AsyncData(snapshot(stale: false))),
+        ),
+      );
+      expect(find.text('168'), findsOneWidget);
+      expect(find.text('AQI · 中度污染'), findsOneWidget);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(snapshotAsync: AsyncData(snapshot(stale: true))),
+        ),
+      );
+      expect(find.text('168'), findsNothing);
+      expect(find.textContaining('AQI'), findsNothing);
+    });
+
     testWidgets('lake sunset renders one primary opportunity', (tester) async {
       final snapshot = ContextFixtures.lakeSunset();
 

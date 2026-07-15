@@ -42,6 +42,9 @@ void main() {
       expect(result.allowedActions, [ContextAction.openExplore]);
       expect(result.temperatureCelsius, 26);
       expect(result.windSpeedMetersPerSecond, 2);
+      expect(result.airQualityIndex, 42);
+      expect(result.airQualityCategory, '优');
+      expect(result.airQualityStale, isFalse);
       expect(result.solarAzimuthDegrees, 280);
       expect(result.serverManifest, isNotNull);
       expect(result.serverManifest!.layout, ServerManifestLayout.opportunity);
@@ -740,6 +743,11 @@ class _FakeTransport implements ContextDataTransport {
         'visibilityKm': 20,
         'cloudCoverPercent': null,
         'thunder': false,
+        'airQualityIndex': 42,
+        'airQualityCategory': '优',
+        'primaryPollutant': null,
+        'airQualityObservedAt': '2026-07-14T02:00:00Z',
+        'airQualityStale': false,
       },
       'sunMoon': {
         'dayPhase': 'sunset',

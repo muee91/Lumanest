@@ -406,6 +406,15 @@ class _EnvironmentStrip extends StatelessWidget {
         (Icons.air_outlined, '${value.toStringAsFixed(1)} m/s', '风速'),
       if (snapshot.visibilityKilometers case final value?)
         (Icons.visibility_outlined, '${value.round()} km', '能见度'),
+      if (snapshot.airQualityIndex case final value?
+          when !snapshot.airQualityStale)
+        (
+          Icons.eco_outlined,
+          '$value',
+          snapshot.airQualityCategory == null
+              ? 'AQI'
+              : 'AQI · ${snapshot.airQualityCategory}',
+        ),
     ];
     if (entries.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);

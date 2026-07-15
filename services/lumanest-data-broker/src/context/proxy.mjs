@@ -129,7 +129,8 @@ function validContextResponse(body) {
   const weather = body.weather;
   if (!exactKeys(weather, new Set([
     'condition', 'temperatureCelsius', 'windSpeedMps', 'windDirectionDegrees', 'precipitationMm',
-    'visibilityKm', 'cloudCoverPercent', 'thunder',
+    'visibilityKm', 'cloudCoverPercent', 'thunder', 'airQualityIndex', 'airQualityCategory',
+    'primaryPollutant', 'airQualityObservedAt', 'airQualityStale',
   ])) || !['clear', 'cloudy', 'rain', 'snow', 'dust', 'unknown'].includes(weather.condition) ||
       (weather.temperatureCelsius != null && !finiteIn(weather.temperatureCelsius, -100, 100)) ||
       !finiteIn(weather.windSpeedMps, 0, 150) ||
@@ -137,7 +138,18 @@ function validContextResponse(body) {
         (!finiteIn(weather.windDirectionDegrees, 0, 360) || weather.windDirectionDegrees === 360)) ||
       !finiteIn(weather.precipitationMm, 0, 2000) || !finiteIn(weather.visibilityKm, 0, 500) ||
       (weather.cloudCoverPercent != null && !finiteIn(weather.cloudCoverPercent, 0, 100)) ||
-      typeof weather.thunder !== 'boolean') return false;
+      typeof weather.thunder !== 'boolean' ||
+      (weather.airQualityIndex != null && !Number.isInteger(weather.airQualityIndex)) ||
+      (weather.airQualityIndex != null && !finiteIn(weather.airQualityIndex, 0, 500)) ||
+      (weather.airQualityCategory != null &&
+        (typeof weather.airQualityCategory !== 'string' || weather.airQualityCategory.length > 40)) ||
+      (weather.primaryPollutant != null &&
+        (typeof weather.primaryPollutant !== 'string' || weather.primaryPollutant.length > 40)) ||
+      (weather.airQualityObservedAt != null &&
+        (typeof weather.airQualityObservedAt !== 'string' ||
+          !Number.isFinite(Date.parse(weather.airQualityObservedAt)))) ||
+      typeof weather.airQualityStale !== 'boolean') return false;
+  if ((weather.airQualityIndex == null) !== (weather.airQualityObservedAt == null)) return false;
   const sunMoon = body.sunMoon;
   if (!exactKeys(sunMoon, new Set([
     'dayPhase', 'sunElevationDegrees', 'sunAzimuthDegrees', 'moonPhase', 'moonIllumination',

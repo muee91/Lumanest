@@ -29,6 +29,12 @@ HTTPS authority URL are carried through the Broker as an `openAuthority`
 action. The catalog proves that an event is scheduled; it does not claim local
 visibility, which still depends on weather and the observer's horizon.
 
+Migration `0004_nasa_meteor_catalog_2026` installs four reviewed 2026 annual
+meteor-shower windows from NASA Science. The windows are intentionally broad
+and are not presented as precise peak-time predictions. Each event links to
+its NASA guide; local visibility still depends on daylight, weather and the
+observer's horizon.
+
 ## Local verification
 
 ```bash

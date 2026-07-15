@@ -77,6 +77,8 @@ test('context snapshot rejects a response where active disagrees with stage', as
     weather: {
       condition: 'clear', temperatureCelsius: 20, windSpeedMps: 2, windDirectionDegrees: 90,
       precipitationMm: 0, visibilityKm: 20, cloudCoverPercent: 10, thunder: false,
+      airQualityIndex: 42, airQualityCategory: '优', primaryPollutant: null,
+      airQualityObservedAt: '2026-07-14T02:00:00Z', airQualityStale: false,
     },
     sunMoon: {
       dayPhase: 'day', sunElevationDegrees: 60, sunAzimuthDegrees: 180,

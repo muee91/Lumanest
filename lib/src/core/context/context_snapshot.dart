@@ -56,6 +56,11 @@ class ContextSnapshot {
     this.visibilityKilometers,
     this.precipitationMillimeters,
     this.cloudCoverPercent,
+    this.airQualityIndex,
+    this.airQualityCategory,
+    this.primaryPollutant,
+    this.airQualityObservedAt,
+    this.airQualityStale = true,
     this.solarElevationDegrees,
     this.solarAzimuthDegrees,
     this.sunrise,
@@ -94,6 +99,11 @@ class ContextSnapshot {
   final double? visibilityKilometers;
   final double? precipitationMillimeters;
   final double? cloudCoverPercent;
+  final int? airQualityIndex;
+  final String? airQualityCategory;
+  final String? primaryPollutant;
+  final DateTime? airQualityObservedAt;
+  final bool airQualityStale;
   final double? solarElevationDegrees;
   final double? solarAzimuthDegrees;
   final DateTime? sunrise;
@@ -132,6 +142,11 @@ class ContextSnapshot {
       visibilityKilometers: visibilityKilometers,
       precipitationMillimeters: precipitationMillimeters,
       cloudCoverPercent: cloudCoverPercent,
+      airQualityIndex: airQualityIndex,
+      airQualityCategory: airQualityCategory,
+      primaryPollutant: primaryPollutant,
+      airQualityObservedAt: airQualityObservedAt,
+      airQualityStale: true,
       solarElevationDegrees: solarElevationDegrees,
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,
@@ -192,6 +207,11 @@ class ContextSnapshot {
       visibilityKilometers: visibilityKilometers,
       precipitationMillimeters: precipitationMillimeters,
       cloudCoverPercent: cloudCoverPercent,
+      airQualityIndex: airQualityIndex,
+      airQualityCategory: airQualityCategory,
+      primaryPollutant: primaryPollutant,
+      airQualityObservedAt: airQualityObservedAt,
+      airQualityStale: airQualityStale,
       solarElevationDegrees: solarElevationDegrees,
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,
@@ -246,6 +266,11 @@ class ContextSnapshot {
       visibilityKilometers: visibilityKilometers,
       precipitationMillimeters: precipitationMillimeters,
       cloudCoverPercent: cloudCoverPercent,
+      airQualityIndex: airQualityIndex,
+      airQualityCategory: airQualityCategory,
+      primaryPollutant: primaryPollutant,
+      airQualityObservedAt: airQualityObservedAt,
+      airQualityStale: airQualityStale,
       solarElevationDegrees: solarElevationDegrees,
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,

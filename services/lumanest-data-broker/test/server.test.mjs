@@ -123,6 +123,16 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
         };
         return new Response(JSON.stringify(bodies[url.pathname]), { status: 200 });
       }
+      if (url.hostname === 'restapi.amap.com') {
+        return new Response(JSON.stringify({
+          status: '1',
+          regeocode: {
+            addressComponent: { citycode: '0571' },
+            aois: [{ name: '西湖风景名胜区', type: '风景名胜' }],
+            pois: [],
+          },
+        }), { status: 200 });
+      }
       upstreamRequest = { url, options };
       return new Response(JSON.stringify({
         contractVersion: 2,
@@ -136,7 +146,9 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
         weather: {
           condition: 'clear', temperatureCelsius: 26, windSpeedMps: 2,
           windDirectionDegrees: 90, precipitationMm: 0, visibilityKm: 20,
-          cloudCoverPercent: null, thunder: false,
+          cloudCoverPercent: null, thunder: false, airQualityIndex: 42,
+          airQualityCategory: '优', primaryPollutant: null,
+          airQualityObservedAt: '2026-07-14T02:00:00Z', airQualityStale: false,
         },
         sunMoon: {
           dayPhase: 'sunset', sunElevationDegrees: 4, sunAzimuthDegrees: 280,
@@ -152,13 +164,15 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
   assert.equal(upstreamRequest.options.headers['X-Internal-Service-Token'], 'internal-context-token');
   const internalBody = JSON.parse(upstreamRequest.options.body);
   assert.deepEqual(Object.keys(internalBody).sort(), [
-    'contractVersion', 'coordinate', 'forecast', 'intent', 'locale',
+    'contractVersion', 'coordinate', 'evidence', 'forecast', 'intent', 'locale',
     'observedAt', 'officialWarnings', 'route', 'weather',
   ].sort());
+  assert.deepEqual(internalBody.evidence, {
+    urban: false, waterBody: true, mountainous: false, aridLand: false, settlement: false,
+  });
   assert.equal(internalBody.weather.temperatureCelsius, 26);
   assert.equal(internalBody.weather.windSpeedMps, 2);
   assert.equal(internalBody.weather.thunder, false);
-  assert.equal(Object.hasOwn(internalBody, 'evidence'), false);
   assert.equal(Object.hasOwn(internalBody, 'solar'), false);
   assert.deepEqual(internalBody.officialWarnings, []);
 });

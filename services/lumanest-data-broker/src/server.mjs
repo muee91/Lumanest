@@ -24,6 +24,7 @@ import {
   validContextRequest,
 } from './context/proxy.mjs';
 import { authoritativeWeather } from './context/qweather.mjs';
+import { fetchAmapSceneEvidence } from './context/amap-evidence.mjs';
 import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
 
 const tokenLifetimeSeconds = 900;
@@ -811,17 +812,25 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_context_request' });
         return;
       }
-      const weather = await authoritativeWeather({
-        coordinate: body.coordinate,
-        apiHost: configuration.qweatherApiHost,
-        privateKey: configuration.privateKey,
-        keyId: configuration.keyId,
-        projectId: configuration.projectId,
-        cache: weatherCache,
-        fetcher,
-        now,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
+      const [weather, sceneEvidence] = await Promise.all([
+        authoritativeWeather({
+          coordinate: body.coordinate,
+          apiHost: configuration.qweatherApiHost,
+          privateKey: configuration.privateKey,
+          keyId: configuration.keyId,
+          projectId: configuration.projectId,
+          cache: weatherCache,
+          fetcher,
+          now,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+        }),
+        fetchAmapSceneEvidence({
+          coordinate: body.coordinate,
+          apiKey: configuration.amapWebKey,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+        }),
+      ]);
       if (!weather.ok) {
         writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
           error: weather.error === 'not_configured' ? 'weather_unconfigured' : 'upstream_unavailable',
@@ -835,6 +844,13 @@ export function createTokenBrokerServer({
         locale: body.locale,
         intent: body.intent,
         route: body.route,
+        evidence: sceneEvidence.ok ? sceneEvidence.evidence : {
+          urban: false,
+          waterBody: false,
+          mountainous: false,
+          aridLand: false,
+          settlement: false,
+        },
         weather: weather.body.weather,
         forecast: weather.body.forecast,
         officialWarnings: weather.body.officialWarnings,

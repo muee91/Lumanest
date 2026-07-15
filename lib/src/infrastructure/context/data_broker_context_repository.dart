@@ -256,6 +256,13 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     final visibility = weatherState['visibilityKm'];
     final cloudCover = weatherState['cloudCoverPercent'];
     final thunder = weatherState['thunder'];
+    final airQualityIndex = weatherState['airQualityIndex'];
+    final airQualityCategory = weatherState['airQualityCategory'];
+    final primaryPollutant = weatherState['primaryPollutant'];
+    final airQualityObservedAt = DateTime.tryParse(
+      '${weatherState['airQualityObservedAt'] ?? ''}',
+    );
+    final airQualityStale = weatherState['airQualityStale'];
     final sunDayPhase = DayPhase.values
         .where((value) => value.name == sunMoon['dayPhase'])
         .firstOrNull;
@@ -298,6 +305,11 @@ class DataBrokerContextRepository implements RemoteContextRepository {
           'visibilityKm',
           'cloudCoverPercent',
           'thunder',
+          'airQualityIndex',
+          'airQualityCategory',
+          'primaryPollutant',
+          'airQualityObservedAt',
+          'airQualityStale',
         }) ||
         !_hasExactKeys(sunMoon, const {
           'dayPhase',
@@ -328,6 +340,18 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         !_finiteIn(visibility, 0, 500) ||
         (cloudCover != null && !_finiteIn(cloudCover, 0, 100)) ||
         thunder is! bool ||
+        (airQualityIndex != null &&
+            (airQualityIndex is! int || !_finiteIn(airQualityIndex, 0, 500))) ||
+        (airQualityCategory != null &&
+            (airQualityCategory is! String ||
+                airQualityCategory.isEmpty ||
+                airQualityCategory.runes.length > 40)) ||
+        (primaryPollutant != null &&
+            (primaryPollutant is! String ||
+                primaryPollutant.isEmpty ||
+                primaryPollutant.runes.length > 40)) ||
+        airQualityStale is! bool ||
+        ((airQualityIndex == null) != (airQualityObservedAt == null)) ||
         sunDayPhase == null ||
         (solarElevation != null && !_finiteIn(solarElevation, -90, 90)) ||
         (solarAzimuth != null && !_finiteIn(solarAzimuth, 0, 359.999)) ||
@@ -427,6 +451,11 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       visibilityKilometers: (visibility! as num).toDouble(),
       precipitationMillimeters: (precipitation! as num).toDouble(),
       cloudCoverPercent: (cloudCover as num?)?.toDouble(),
+      airQualityIndex: airQualityIndex as int?,
+      airQualityCategory: airQualityCategory as String?,
+      primaryPollutant: primaryPollutant as String?,
+      airQualityObservedAt: airQualityObservedAt?.toUtc(),
+      airQualityStale: airQualityStale,
       solarElevationDegrees: (solarElevation as num?)?.toDouble(),
       solarAzimuthDegrees: (solarAzimuth as num?)?.toDouble(),
       sunrise: fallback?.sunrise,

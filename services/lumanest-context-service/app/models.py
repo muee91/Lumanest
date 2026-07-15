@@ -52,6 +52,21 @@ class WeatherInput(ApiModel):
         None, ge=0, lt=360, alias="windDirectionDegrees"
     )
     cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    air_quality_index: int | None = Field(None, ge=0, le=500, alias="airQualityIndex")
+    air_quality_category: str | None = Field(None, min_length=1, max_length=40, alias="airQualityCategory")
+    primary_pollutant: str | None = Field(None, min_length=1, max_length=40, alias="primaryPollutant")
+    air_quality_observed_at: datetime | None = Field(None, alias="airQualityObservedAt")
+    air_quality_stale: bool = Field(True, alias="airQualityStale")
+
+    @model_validator(mode="after")
+    def require_complete_air_quality(self) -> "WeatherInput":
+        if self.air_quality_index is None:
+            if any((self.air_quality_category, self.primary_pollutant, self.air_quality_observed_at)):
+                raise ValueError("air quality metadata requires an AQI")
+            return self
+        if self.air_quality_observed_at is None or self.air_quality_observed_at.tzinfo is None:
+            raise ValueError("AQI requires a timezone-aware observation time")
+        return self
 
 
 class SolarInput(ApiModel):
@@ -183,6 +198,11 @@ class WeatherState(ApiModel):
     visibility_km: float = Field(alias="visibilityKm")
     cloud_cover_percent: float | None = Field(None, alias="cloudCoverPercent")
     thunder: bool
+    air_quality_index: int | None = Field(None, ge=0, le=500, alias="airQualityIndex")
+    air_quality_category: str | None = Field(None, min_length=1, max_length=40, alias="airQualityCategory")
+    primary_pollutant: str | None = Field(None, min_length=1, max_length=40, alias="primaryPollutant")
+    air_quality_observed_at: datetime | None = Field(None, alias="airQualityObservedAt")
+    air_quality_stale: bool = Field(True, alias="airQualityStale")
 
 
 class SunMoonState(ApiModel):

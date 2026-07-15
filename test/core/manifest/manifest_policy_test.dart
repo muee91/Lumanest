@@ -297,6 +297,30 @@ void main() {
       expect(manifest.safety.map((item) => item.id), contains('thunderstorm'));
     });
 
+    test('unhealthy AQI uses the weather action and stays in safety', () {
+      final snapshot = ContextSnapshot(
+        id: 'unhealthy-air',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 30)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        events: [
+          safetyEvent(id: 'unhealthy-air', action: ContextAction.openWeather),
+        ],
+        serverManifest: ServerManifest(
+          layout: ServerManifestLayout.safety,
+          safetyEventIds: const ['unhealthy-air'],
+        ),
+      );
+
+      final manifest = ManifestPolicy.build(snapshot, now: now);
+      final item = manifest.safety.single;
+      expect(item.title, '当前空气质量不适合长时间户外拍摄');
+      expect(item.action, ManifestAction.openWeather);
+    });
+
     test('missing structured safety in server list still shows', () {
       // Server manifest omits 'strong-wind' from safetyEventIds, but it exists
       // as a current unexpired structured safety event — must still appear.

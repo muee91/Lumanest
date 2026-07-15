@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models import ContextImportResult, RouteState, WildlifeLayerArea
+from app.models import ContextImportResult, RouteState, SceneEvidence, WildlifeLayerArea
 from app.store import ContextStore
 
 
@@ -73,6 +73,28 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
         assert "latitude" not in body and "longitude" not in body
 
 
+def test_internal_evaluate_merges_generic_scene_with_reviewed_safety(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+
+    async def spatial_evidence(_store, _latitude, _longitude):
+        return SceneEvidence(wildlifeSafety=True)
+
+    monkeypatch.setattr(ContextStore, "spatial_evidence", spatial_evidence)
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=payload(),
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scene"] == "lake"
+    risk = next(event for event in body["events"] if event["id"] == "wildlife-area-risk")
+    assert risk["channel"] == "wildlifeSafety"
+    assert risk["source"] == "official"
+
+
 def test_unknown_fields_are_rejected(monkeypatch):
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
     invalid = payload() | {"deviceId": "must-not-be-accepted"}
@@ -96,6 +118,41 @@ async def test_cached_snapshot_reads_redis_value_after_astronomy_store_extension
     store.redis = FakeRedis()
 
     assert await store.cached_snapshot("fingerprint") == {"contextId": "cached"}
+
+
+@pytest.mark.asyncio
+async def test_spatial_evidence_reads_all_query_columns_for_scene_and_wildlife():
+    class Result:
+        def all(self):
+            return [
+                ("water", "scene", "spatial"),
+                ("protected", "wildlifeOpportunity", "wildlifeHistorical"),
+                ("risk", "wildlifeSafety", "officialRisk"),
+            ]
+
+    class Connection:
+        async def execute(self, _statement, parameters):
+            assert parameters == {"latitude": 30.25, "longitude": 120.15}
+            return Result()
+
+    class ConnectionContext:
+        async def __aenter__(self):
+            return Connection()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Engine:
+        def connect(self):
+            return ConnectionContext()
+
+    store = ContextStore(None, None)
+    store.engine = Engine()
+    evidence = await store.spatial_evidence(30.25, 120.15)
+
+    assert evidence.water_body is True
+    assert evidence.wildlife_opportunity is True
+    assert evidence.wildlife_safety is True
 
 
 def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch):
@@ -126,7 +183,7 @@ def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch
     assert event["allowedAction"] == "openAuthority"
 
 
-def test_source_status_exposes_enabled_weather_sources_and_disabled_air_quality(monkeypatch):
+def test_source_status_exposes_all_enabled_qweather_sources(monkeypatch):
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
     with TestClient(app) as client:
         response = client.get(
@@ -137,8 +194,8 @@ def test_source_status_exposes_enabled_weather_sources_and_disabled_air_quality(
     sources = {source["id"]: source for source in response.json()}
     assert sources["qweather-hourly"]["enabled"] is True
     assert sources["qweather-warning"]["licenseStatus"] == "approved"
-    assert sources["qweather-air-quality"]["enabled"] is False
-    assert sources["qweather-air-quality"]["licenseStatus"] == "pending"
+    assert sources["qweather-air-quality"]["enabled"] is True
+    assert sources["qweather-air-quality"]["licenseStatus"] == "approved"
 
 
 def test_internal_wildlife_layers_require_token_and_return_reviewed_areas(monkeypatch):

@@ -57,11 +57,20 @@ async def readyz(request: Request) -> dict[str, object]:
     dependencies=[Depends(require_internal_token)],
 )
 async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotResponse:
-    evidence = body.evidence
-    if not any((evidence.urban, evidence.water_body, evidence.mountainous, evidence.arid_land, evidence.settlement)):
-        evidence = await request.app.state.store.spatial_evidence(
-            body.coordinate.latitude, body.coordinate.longitude
-        )
+    stored = await request.app.state.store.spatial_evidence(
+        body.coordinate.latitude, body.coordinate.longitude
+    )
+    evidence = SceneEvidence(
+        urban=body.evidence.urban or stored.urban,
+        waterBody=body.evidence.water_body or stored.water_body,
+        mountainous=body.evidence.mountainous or stored.mountainous,
+        aridLand=body.evidence.arid_land or stored.arid_land,
+        settlement=body.evidence.settlement or stored.settlement,
+        wildlifeOpportunity=(
+            body.evidence.wildlife_opportunity or stored.wildlife_opportunity
+        ),
+        wildlifeSafety=body.evidence.wildlife_safety or stored.wildlife_safety,
+    )
     scene = classify_scene(body, evidence)
     astronomy_events = await request.app.state.store.active_astronomy_events(body.observed_at)
     fingerprint = context_fingerprint(body, scene, evidence, astronomy_events)

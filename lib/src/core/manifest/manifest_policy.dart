@@ -271,6 +271,11 @@ abstract final class ManifestPolicy {
         title: '当前降水较强',
         action: ManifestAction.openSafety,
       ),
+      'unhealthy-air' => const ManifestItem(
+        id: 'unhealthy-air',
+        title: '当前空气质量不适合长时间户外拍摄',
+        action: ManifestAction.openWeather,
+      ),
       'hiking-return-check' => const ManifestItem(
         id: 'hiking-return-check',
         title: '留意返程时间',

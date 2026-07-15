@@ -109,6 +109,11 @@ void main() {
         visibilityKilometers: 12,
         precipitationMillimeters: 0,
         cloudCoverPercent: 70,
+        airQualityIndex: 86,
+        airQualityCategory: '良',
+        primaryPollutant: 'PM2.5',
+        airQualityObservedAt: now.subtract(const Duration(minutes: 5)),
+        airQualityStale: false,
         solarElevationDegrees: 4,
         solarAzimuthDegrees: 270,
         sunrise: now.subtract(const Duration(hours: 10)),
@@ -149,6 +154,10 @@ void main() {
       expect(restored?.location?.coordinateSystem, CoordinateSystem.wgs84);
       expect(restored?.sunset, snapshot.sunset);
       expect(restored?.moonPhase, MoonPhase.waxingCrescent);
+      expect(restored?.airQualityIndex, 86);
+      expect(restored?.airQualityCategory, '良');
+      expect(restored?.primaryPollutant, 'PM2.5');
+      expect(restored?.airQualityStale, isFalse);
       expect(restored?.events.first.allowedAction, ContextAction.openExplore);
       expect(restored?.events.last.title, '英仙座流星雨极大期');
       expect(restored?.events.last.allowedAction, ContextAction.openAuthority);

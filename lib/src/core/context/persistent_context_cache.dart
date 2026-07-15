@@ -90,6 +90,13 @@ class PersistentContextCache implements ContextCache {
     'visibilityKilometers': value.visibilityKilometers,
     'precipitationMillimeters': value.precipitationMillimeters,
     'cloudCoverPercent': value.cloudCoverPercent,
+    'airQualityIndex': value.airQualityIndex,
+    'airQualityCategory': value.airQualityCategory,
+    'primaryPollutant': value.primaryPollutant,
+    'airQualityObservedAt': value.airQualityObservedAt
+        ?.toUtc()
+        .toIso8601String(),
+    'airQualityStale': value.airQualityStale,
     'solarElevationDegrees': value.solarElevationDegrees,
     'solarAzimuthDegrees': value.solarAzimuthDegrees,
     'sunrise': value.sunrise?.toUtc().toIso8601String(),
@@ -158,6 +165,17 @@ class PersistentContextCache implements ContextCache {
       visibilityKilometers: _double(raw['visibilityKilometers']),
       precipitationMillimeters: _double(raw['precipitationMillimeters']),
       cloudCoverPercent: _double(raw['cloudCoverPercent']),
+      airQualityIndex: raw['airQualityIndex'] is int
+          ? raw['airQualityIndex'] as int
+          : null,
+      airQualityCategory: raw['airQualityCategory'] is String
+          ? raw['airQualityCategory'] as String
+          : null,
+      primaryPollutant: raw['primaryPollutant'] is String
+          ? raw['primaryPollutant'] as String
+          : null,
+      airQualityObservedAt: _date(raw['airQualityObservedAt']),
+      airQualityStale: raw['airQualityStale'] != false,
       solarElevationDegrees: _double(raw['solarElevationDegrees']),
       solarAzimuthDegrees: _double(raw['solarAzimuthDegrees']),
       sunrise: _date(raw['sunrise']),

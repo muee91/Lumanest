@@ -67,7 +67,7 @@ class ContextStore:
             async with self.engine.connect() as connection:
                 rows = (await connection.execute(
                     query, {"latitude": latitude, "longitude": longitude}
-                )).scalars().all()
+                )).all()
         except Exception:
             return SceneEvidence()
         kinds = {row[0] for row in rows}
@@ -346,7 +346,7 @@ class ContextStore:
                 ("qweather-hourly", True, "approved"),
                 ("qweather-minutely", True, "approved"),
                 ("qweather-warning", True, "approved"),
-                ("qweather-air-quality", False, "pending"),
+                ("qweather-air-quality", True, "approved"),
             )
         ]
         if self.engine is None:

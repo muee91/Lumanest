@@ -25,6 +25,10 @@ function response(path) {
       id: 'official-1', pubTime: '2026-07-14T09:55:00+08:00',
       endTime: '2026-07-14T12:00:00+08:00', level: 'Red', status: 'active',
     }] },
+    '/v7/air/now': { code: '200', updateTime: '2026-07-14T10:00:00+08:00', now: {
+      pubTime: '2026-07-14T10:00:00+08:00', aqi: '168', category: '中度污染',
+      primary: 'PM2.5',
+    } },
   };
   return new Response(JSON.stringify(bodies[path]), { status: 200 });
 }
@@ -50,19 +54,42 @@ test('authoritative weather normalizes all licensed QWeather sources and caches 
   assert.equal(first.ok, true);
   assert.equal(first.cache, 'miss');
   assert.deepEqual(paths.sort(), [
-    '/v7/minutely/5m', '/v7/warning/now', '/v7/weather/24h', '/v7/weather/now',
+    '/v7/air/now', '/v7/minutely/5m', '/v7/warning/now', '/v7/weather/24h', '/v7/weather/now',
   ]);
   assert.equal(first.body.weather.thunder, true);
   assert.equal(first.body.forecast.nextHourPrecipitationMm, 5.5);
   assert.equal(first.body.forecast.nextThreeHoursMaxWindSpeedMps, 15);
   assert.equal(first.body.forecast.thunderNextThreeHours, true);
   assert.equal(first.body.officialWarnings[0].severity, 'critical');
+  assert.equal(first.body.weather.airQualityIndex, 168);
+  assert.equal(first.body.weather.airQualityCategory, '中度污染');
+  assert.equal(first.body.weather.primaryPollutant, 'PM2.5');
+  assert.equal(first.body.weather.airQualityStale, false);
 
   const second = await authoritativeWeather({ ...options, fetcher: async () => {
     throw new Error('fresh cache must avoid the network');
   } });
   assert.equal(second.ok, true);
   assert.equal(second.cache, 'fresh');
+});
+
+test('air quality failure never breaks authoritative weather', async () => {
+  const result = await authoritativeWeather({
+    coordinate,
+    apiHost: 'https://project.qweatherapi.com',
+    privateKey,
+    keyId: 'key-id',
+    projectId: 'project-id',
+    cache: new MemoryWeatherCache(),
+    now: () => new Date('2026-07-14T02:02:00Z'),
+    fetcher: async (url) => url.pathname === '/v7/air/now'
+      ? new Response(JSON.stringify({ code: '500' }), { status: 503 })
+      : response(url.pathname),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.body.weather.airQualityIndex, null);
+  assert.equal(result.body.weather.airQualityStale, true);
 });
 
 test('authoritative weather uses a bounded stale cache and rejects arbitrary hosts', async () => {
