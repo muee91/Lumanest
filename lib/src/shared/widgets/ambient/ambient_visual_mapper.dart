@@ -63,6 +63,7 @@ class AmbientVisualMapper {
   const AmbientVisualMapper();
 
   static const _dayPhaseBlendRatio = 0.15;
+  static const _sceneBlendRatio = 0.06;
 
   AmbientPalette resolve(
     WeatherType weather,
@@ -84,7 +85,10 @@ class AmbientVisualMapper {
     final cloudCover =
         snapshot.cloudCoverPercent ?? _estimatedCloudCover(snapshot.weather);
     return AmbientVisualState(
-      palette: resolve(snapshot.weather, snapshot.dayPhase, brightness),
+      palette: _applySceneAccent(
+        resolve(snapshot.weather, snapshot.dayPhase, brightness),
+        snapshot.primaryScene,
+      ),
       flowDirection: (snapshot.windDirectionDegrees ?? 0) % 360,
       motionIntensity: (0.08 + wind / 30).clamp(0.08, 0.4),
       precipitationIntensity: (rain / 8).clamp(0, 1),
@@ -164,6 +168,30 @@ class AmbientVisualMapper {
       DayPhase.blueHour => const Color(0xFF8090E0),
       DayPhase.night => null,
     };
+  }
+
+  /// Adds a deliberately subtle scene accent after weather and daylight have
+  /// established the authoritative palette. This keeps the seven V1 contexts
+  /// perceptibly distinct without turning scene labels into weather facts.
+  static AmbientPalette _applySceneAccent(
+    AmbientPalette base,
+    SceneType scene,
+  ) {
+    final accent = switch (scene) {
+      SceneType.unknown => null,
+      SceneType.city => const Color(0xFF718096),
+      SceneType.lake => const Color(0xFF3E9296),
+      SceneType.mountain => const Color(0xFF8A7668),
+      SceneType.desert => const Color(0xFFC28745),
+      SceneType.village => const Color(0xFFAA6654),
+      SceneType.driving => const Color(0xFF596A82),
+      SceneType.hiking => const Color(0xFF55785C),
+    };
+    if (accent == null) return base;
+    return AmbientPalette(
+      topColor: Color.lerp(base.topColor, accent, _sceneBlendRatio)!,
+      bottomColor: Color.lerp(base.bottomColor, accent, _sceneBlendRatio)!,
+    );
   }
 
   static AmbientPalette _lightPalette(WeatherType weather) {

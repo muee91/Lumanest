@@ -169,6 +169,33 @@ void main() {
       }
     });
 
+    test('all seven V1 scenes produce distinct subtle background accents', () {
+      final palettes = <AmbientPalette>{};
+      for (final scene in SceneType.values.where(
+        (scene) => scene != SceneType.unknown,
+      )) {
+        palettes.add(
+          mapper
+              .resolveSnapshot(
+                ContextSnapshot(
+                  id: 'scene-${scene.name}',
+                  observedAt: DateTime.utc(2026, 7, 16, 8),
+                  expiresAt: DateTime.utc(2026, 7, 16, 8, 30),
+                  primaryScene: scene,
+                  dayPhase: DayPhase.day,
+                  weather: WeatherType.clear,
+                  activeRoute:
+                      scene == SceneType.driving || scene == SceneType.hiking,
+                ),
+                Brightness.light,
+              )
+              .palette,
+        );
+      }
+
+      expect(palettes, hasLength(7));
+    });
+
     test('snapshot maps wind, rain and thunder into visual parameters', () {
       final state = mapper.resolveSnapshot(
         ContextSnapshot(
