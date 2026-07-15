@@ -121,16 +121,24 @@ class _MapViewState extends ConsumerState<_MapView> {
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
   AsyncValue<List<LocationSearchResult>>? _searchResults;
+  bool _mapInitialized = false;
   bool _searchFocused = false;
   int _searchRevision = 0;
 
   @override
   void initState() {
     super.initState();
-    widget.onInit(context);
     _applyFocus();
     _searchController.addListener(_onSearchChanged);
     _searchFocusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_mapInitialized) return;
+    _mapInitialized = true;
+    widget.onInit(context);
   }
 
   @override

@@ -149,6 +149,25 @@ void main() {
     expect(gateway.initialized, isTrue);
   });
 
+  testWidgets('map init may depend on inherited MediaQuery data', (
+    tester,
+  ) async {
+    final gateway = FakeAmapInitializerGateway(readMediaQueryOnInit: true);
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        gateway: gateway,
+        mapBuilder: fakeMapSurface,
+      ),
+    );
+
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(gateway.initialized, isTrue);
+  });
+
   testWidgets('focused exploration exposes the selected intent', (
     tester,
   ) async {

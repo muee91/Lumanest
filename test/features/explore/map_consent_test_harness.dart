@@ -13,6 +13,9 @@ class FakeBuildContext implements BuildContext {
 }
 
 class FakeAmapInitializerGateway implements AmapInitializerGateway {
+  FakeAmapInitializerGateway({this.readMediaQueryOnInit = false});
+
+  final bool readMediaQueryOnInit;
   bool privacyAgreed = false;
   bool initialized = false;
   int privacyCallIndex = -1;
@@ -31,6 +34,7 @@ class FakeAmapInitializerGateway implements AmapInitializerGateway {
 
   @override
   void init(BuildContext context, {AMapApiKey? apiKey}) {
+    if (readMediaQueryOnInit) MediaQuery.sizeOf(context);
     initialized = true;
     initCallIndex = totalCalls;
     totalCalls++;
