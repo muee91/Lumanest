@@ -14,9 +14,9 @@ import 'environment_diagnostics.dart';
 
 /// Local profile settings surface.
 ///
-/// Phase 1 exposes only the accessibility switches. Collections, routes and
-/// devices are intentionally absent until real data sources exist — no empty
-/// groups or placeholder counts are rendered.
+/// Only groups backed by real local data are rendered. Saved places, recent
+/// routes and imported GPX tracks appear on demand; no empty collection or
+/// device placeholders reserve space.
 ///
 /// Environment diagnostics appear only when a problem or stale fallback
 /// exists; a healthy system reserves no space. Recovery action callbacks are
@@ -98,10 +98,7 @@ class ProfilePage extends ConsumerWidget {
           const Divider(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text(
-              '摄影偏好',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            child: Text('摄影偏好', style: Theme.of(context).textTheme.titleMedium),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -111,8 +108,9 @@ class ProfilePage extends ConsumerWidget {
                 for (final option in _photographyOptions)
                   FilterChip(
                     label: Text(option),
-                    selected:
-                        preferences.photographyPreferences.contains(option),
+                    selected: preferences.photographyPreferences.contains(
+                      option,
+                    ),
                     onSelected: (_) =>
                         controller.togglePhotographyPreference(option),
                   ),
@@ -121,10 +119,7 @@ class ProfilePage extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text(
-              '活动偏好',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            child: Text('活动偏好', style: Theme.of(context).textTheme.titleMedium),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -134,8 +129,7 @@ class ProfilePage extends ConsumerWidget {
                 for (final option in _activityOptions)
                   FilterChip(
                     label: Text(option),
-                    selected:
-                        preferences.activityPreferences.contains(option),
+                    selected: preferences.activityPreferences.contains(option),
                     onSelected: (_) =>
                         controller.toggleActivityPreference(option),
                   ),
@@ -144,10 +138,7 @@ class ProfilePage extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text(
-              '设备',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            child: Text('设备', style: Theme.of(context).textTheme.titleMedium),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -167,18 +158,9 @@ class ProfilePage extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SegmentedButton<AiTone>(
               segments: const [
-                ButtonSegment(
-                  value: AiTone.concise,
-                  label: Text('简洁'),
-                ),
-                ButtonSegment(
-                  value: AiTone.balanced,
-                  label: Text('均衡'),
-                ),
-                ButtonSegment(
-                  value: AiTone.detailed,
-                  label: Text('详细'),
-                ),
+                ButtonSegment(value: AiTone.concise, label: Text('简洁')),
+                ButtonSegment(value: AiTone.balanced, label: Text('均衡')),
+                ButtonSegment(value: AiTone.detailed, label: Text('详细')),
               ],
               selected: {preferences.aiTone},
               onSelectionChanged: (selection) =>
@@ -189,10 +171,7 @@ class ProfilePage extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Row(
               children: [
-                Text(
-                  '推荐强度',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('推荐强度', style: Theme.of(context).textTheme.titleMedium),
               ],
             ),
           ),
@@ -238,6 +217,35 @@ class ProfilePage extends ConsumerWidget {
               trailing: const Icon(Icons.arrow_outward),
               onTap: () => context.go(_routeUri(recent).toString()),
             ),
+          ],
+          if (library?.importedTracks.isNotEmpty == true) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+              child: Text(
+                '本地轨迹',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            for (final track in library!.importedTracks)
+              ListTile(
+                leading: const Icon(Icons.hiking_outlined),
+                title: Text(track.name),
+                subtitle: const Text('GPX · 仅保存在本机'),
+                trailing: IconButton(
+                  tooltip: '删除轨迹',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => ref
+                      .read(userLibraryProvider.notifier)
+                      .deleteImportedTrack(track.id),
+                ),
+                onTap: () => context.go(
+                  Uri(
+                    path: '/route',
+                    queryParameters: {'track': track.id},
+                  ).toString(),
+                ),
+              ),
           ],
           if (library?.savedPlaces.isNotEmpty == true) ...[
             const Divider(),

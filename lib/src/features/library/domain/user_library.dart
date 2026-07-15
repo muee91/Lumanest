@@ -1,3 +1,5 @@
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
+
 class SavedPlace {
   const SavedPlace({
     required this.id,
@@ -82,18 +84,28 @@ class SavedRouteDestination {
 }
 
 class UserLibraryState {
-  const UserLibraryState({this.savedPlaces = const [], this.recentRoute});
+  const UserLibraryState({
+    this.savedPlaces = const [],
+    this.recentRoute,
+    this.importedTracks = const [],
+  });
 
   final List<SavedPlace> savedPlaces;
   final SavedRouteDestination? recentRoute;
+  final List<ImportedRouteTrack> importedTracks;
 
   bool containsPlace(String id) => savedPlaces.any((place) => place.id == id);
+
+  ImportedRouteTrack? importedTrack(String id) =>
+      importedTracks.where((track) => track.id == id).firstOrNull;
 
   UserLibraryState copyWith({
     List<SavedPlace>? savedPlaces,
     SavedRouteDestination? recentRoute,
+    List<ImportedRouteTrack>? importedTracks,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
     recentRoute: recentRoute ?? this.recentRoute,
+    importedTracks: List.unmodifiable(importedTracks ?? this.importedTracks),
   );
 }

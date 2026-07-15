@@ -719,6 +719,602 @@ class RecentRouteDestinationsCompanion
   }
 }
 
+class $ImportedRouteTracksTable extends ImportedRouteTracks
+    with TableInfo<$ImportedRouteTracksTable, ImportedRouteTrackRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImportedRouteTracksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _importedAtMeta = const VerificationMeta(
+    'importedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> importedAt = GeneratedColumn<DateTime>(
+    'imported_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pointsJsonMeta = const VerificationMeta(
+    'pointsJson',
+  );
+  @override
+  late final GeneratedColumn<String> pointsJson = GeneratedColumn<String>(
+    'points_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _distanceMetersMeta = const VerificationMeta(
+    'distanceMeters',
+  );
+  @override
+  late final GeneratedColumn<int> distanceMeters = GeneratedColumn<int>(
+    'distance_meters',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
+    'duration_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationEstimatedMeta = const VerificationMeta(
+    'durationEstimated',
+  );
+  @override
+  late final GeneratedColumn<bool> durationEstimated = GeneratedColumn<bool>(
+    'duration_estimated',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("duration_estimated" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _ascentMetersMeta = const VerificationMeta(
+    'ascentMeters',
+  );
+  @override
+  late final GeneratedColumn<int> ascentMeters = GeneratedColumn<int>(
+    'ascent_meters',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descentMetersMeta = const VerificationMeta(
+    'descentMeters',
+  );
+  @override
+  late final GeneratedColumn<int> descentMeters = GeneratedColumn<int>(
+    'descent_meters',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    importedAt,
+    pointsJson,
+    distanceMeters,
+    durationSeconds,
+    durationEstimated,
+    ascentMeters,
+    descentMeters,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'imported_route_tracks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ImportedRouteTrackRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('imported_at')) {
+      context.handle(
+        _importedAtMeta,
+        importedAt.isAcceptableOrUnknown(data['imported_at']!, _importedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_importedAtMeta);
+    }
+    if (data.containsKey('points_json')) {
+      context.handle(
+        _pointsJsonMeta,
+        pointsJson.isAcceptableOrUnknown(data['points_json']!, _pointsJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pointsJsonMeta);
+    }
+    if (data.containsKey('distance_meters')) {
+      context.handle(
+        _distanceMetersMeta,
+        distanceMeters.isAcceptableOrUnknown(
+          data['distance_meters']!,
+          _distanceMetersMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_distanceMetersMeta);
+    }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_durationSecondsMeta);
+    }
+    if (data.containsKey('duration_estimated')) {
+      context.handle(
+        _durationEstimatedMeta,
+        durationEstimated.isAcceptableOrUnknown(
+          data['duration_estimated']!,
+          _durationEstimatedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_durationEstimatedMeta);
+    }
+    if (data.containsKey('ascent_meters')) {
+      context.handle(
+        _ascentMetersMeta,
+        ascentMeters.isAcceptableOrUnknown(
+          data['ascent_meters']!,
+          _ascentMetersMeta,
+        ),
+      );
+    }
+    if (data.containsKey('descent_meters')) {
+      context.handle(
+        _descentMetersMeta,
+        descentMeters.isAcceptableOrUnknown(
+          data['descent_meters']!,
+          _descentMetersMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ImportedRouteTrackRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImportedRouteTrackRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      importedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}imported_at'],
+      )!,
+      pointsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}points_json'],
+      )!,
+      distanceMeters: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}distance_meters'],
+      )!,
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      )!,
+      durationEstimated: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}duration_estimated'],
+      )!,
+      ascentMeters: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ascent_meters'],
+      ),
+      descentMeters: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}descent_meters'],
+      ),
+    );
+  }
+
+  @override
+  $ImportedRouteTracksTable createAlias(String alias) {
+    return $ImportedRouteTracksTable(attachedDatabase, alias);
+  }
+}
+
+class ImportedRouteTrackRow extends DataClass
+    implements Insertable<ImportedRouteTrackRow> {
+  final String id;
+  final String name;
+  final DateTime importedAt;
+  final String pointsJson;
+  final int distanceMeters;
+  final int durationSeconds;
+  final bool durationEstimated;
+  final int? ascentMeters;
+  final int? descentMeters;
+  const ImportedRouteTrackRow({
+    required this.id,
+    required this.name,
+    required this.importedAt,
+    required this.pointsJson,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    required this.durationEstimated,
+    this.ascentMeters,
+    this.descentMeters,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['imported_at'] = Variable<DateTime>(importedAt);
+    map['points_json'] = Variable<String>(pointsJson);
+    map['distance_meters'] = Variable<int>(distanceMeters);
+    map['duration_seconds'] = Variable<int>(durationSeconds);
+    map['duration_estimated'] = Variable<bool>(durationEstimated);
+    if (!nullToAbsent || ascentMeters != null) {
+      map['ascent_meters'] = Variable<int>(ascentMeters);
+    }
+    if (!nullToAbsent || descentMeters != null) {
+      map['descent_meters'] = Variable<int>(descentMeters);
+    }
+    return map;
+  }
+
+  ImportedRouteTracksCompanion toCompanion(bool nullToAbsent) {
+    return ImportedRouteTracksCompanion(
+      id: Value(id),
+      name: Value(name),
+      importedAt: Value(importedAt),
+      pointsJson: Value(pointsJson),
+      distanceMeters: Value(distanceMeters),
+      durationSeconds: Value(durationSeconds),
+      durationEstimated: Value(durationEstimated),
+      ascentMeters: ascentMeters == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ascentMeters),
+      descentMeters: descentMeters == null && nullToAbsent
+          ? const Value.absent()
+          : Value(descentMeters),
+    );
+  }
+
+  factory ImportedRouteTrackRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImportedRouteTrackRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      importedAt: serializer.fromJson<DateTime>(json['importedAt']),
+      pointsJson: serializer.fromJson<String>(json['pointsJson']),
+      distanceMeters: serializer.fromJson<int>(json['distanceMeters']),
+      durationSeconds: serializer.fromJson<int>(json['durationSeconds']),
+      durationEstimated: serializer.fromJson<bool>(json['durationEstimated']),
+      ascentMeters: serializer.fromJson<int?>(json['ascentMeters']),
+      descentMeters: serializer.fromJson<int?>(json['descentMeters']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'importedAt': serializer.toJson<DateTime>(importedAt),
+      'pointsJson': serializer.toJson<String>(pointsJson),
+      'distanceMeters': serializer.toJson<int>(distanceMeters),
+      'durationSeconds': serializer.toJson<int>(durationSeconds),
+      'durationEstimated': serializer.toJson<bool>(durationEstimated),
+      'ascentMeters': serializer.toJson<int?>(ascentMeters),
+      'descentMeters': serializer.toJson<int?>(descentMeters),
+    };
+  }
+
+  ImportedRouteTrackRow copyWith({
+    String? id,
+    String? name,
+    DateTime? importedAt,
+    String? pointsJson,
+    int? distanceMeters,
+    int? durationSeconds,
+    bool? durationEstimated,
+    Value<int?> ascentMeters = const Value.absent(),
+    Value<int?> descentMeters = const Value.absent(),
+  }) => ImportedRouteTrackRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    importedAt: importedAt ?? this.importedAt,
+    pointsJson: pointsJson ?? this.pointsJson,
+    distanceMeters: distanceMeters ?? this.distanceMeters,
+    durationSeconds: durationSeconds ?? this.durationSeconds,
+    durationEstimated: durationEstimated ?? this.durationEstimated,
+    ascentMeters: ascentMeters.present ? ascentMeters.value : this.ascentMeters,
+    descentMeters: descentMeters.present
+        ? descentMeters.value
+        : this.descentMeters,
+  );
+  ImportedRouteTrackRow copyWithCompanion(ImportedRouteTracksCompanion data) {
+    return ImportedRouteTrackRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      importedAt: data.importedAt.present
+          ? data.importedAt.value
+          : this.importedAt,
+      pointsJson: data.pointsJson.present
+          ? data.pointsJson.value
+          : this.pointsJson,
+      distanceMeters: data.distanceMeters.present
+          ? data.distanceMeters.value
+          : this.distanceMeters,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
+      durationEstimated: data.durationEstimated.present
+          ? data.durationEstimated.value
+          : this.durationEstimated,
+      ascentMeters: data.ascentMeters.present
+          ? data.ascentMeters.value
+          : this.ascentMeters,
+      descentMeters: data.descentMeters.present
+          ? data.descentMeters.value
+          : this.descentMeters,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImportedRouteTrackRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('importedAt: $importedAt, ')
+          ..write('pointsJson: $pointsJson, ')
+          ..write('distanceMeters: $distanceMeters, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('durationEstimated: $durationEstimated, ')
+          ..write('ascentMeters: $ascentMeters, ')
+          ..write('descentMeters: $descentMeters')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    importedAt,
+    pointsJson,
+    distanceMeters,
+    durationSeconds,
+    durationEstimated,
+    ascentMeters,
+    descentMeters,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImportedRouteTrackRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.importedAt == this.importedAt &&
+          other.pointsJson == this.pointsJson &&
+          other.distanceMeters == this.distanceMeters &&
+          other.durationSeconds == this.durationSeconds &&
+          other.durationEstimated == this.durationEstimated &&
+          other.ascentMeters == this.ascentMeters &&
+          other.descentMeters == this.descentMeters);
+}
+
+class ImportedRouteTracksCompanion
+    extends UpdateCompanion<ImportedRouteTrackRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<DateTime> importedAt;
+  final Value<String> pointsJson;
+  final Value<int> distanceMeters;
+  final Value<int> durationSeconds;
+  final Value<bool> durationEstimated;
+  final Value<int?> ascentMeters;
+  final Value<int?> descentMeters;
+  final Value<int> rowid;
+  const ImportedRouteTracksCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.importedAt = const Value.absent(),
+    this.pointsJson = const Value.absent(),
+    this.distanceMeters = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
+    this.durationEstimated = const Value.absent(),
+    this.ascentMeters = const Value.absent(),
+    this.descentMeters = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ImportedRouteTracksCompanion.insert({
+    required String id,
+    required String name,
+    required DateTime importedAt,
+    required String pointsJson,
+    required int distanceMeters,
+    required int durationSeconds,
+    required bool durationEstimated,
+    this.ascentMeters = const Value.absent(),
+    this.descentMeters = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       importedAt = Value(importedAt),
+       pointsJson = Value(pointsJson),
+       distanceMeters = Value(distanceMeters),
+       durationSeconds = Value(durationSeconds),
+       durationEstimated = Value(durationEstimated);
+  static Insertable<ImportedRouteTrackRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<DateTime>? importedAt,
+    Expression<String>? pointsJson,
+    Expression<int>? distanceMeters,
+    Expression<int>? durationSeconds,
+    Expression<bool>? durationEstimated,
+    Expression<int>? ascentMeters,
+    Expression<int>? descentMeters,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (importedAt != null) 'imported_at': importedAt,
+      if (pointsJson != null) 'points_json': pointsJson,
+      if (distanceMeters != null) 'distance_meters': distanceMeters,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
+      if (durationEstimated != null) 'duration_estimated': durationEstimated,
+      if (ascentMeters != null) 'ascent_meters': ascentMeters,
+      if (descentMeters != null) 'descent_meters': descentMeters,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ImportedRouteTracksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<DateTime>? importedAt,
+    Value<String>? pointsJson,
+    Value<int>? distanceMeters,
+    Value<int>? durationSeconds,
+    Value<bool>? durationEstimated,
+    Value<int?>? ascentMeters,
+    Value<int?>? descentMeters,
+    Value<int>? rowid,
+  }) {
+    return ImportedRouteTracksCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      importedAt: importedAt ?? this.importedAt,
+      pointsJson: pointsJson ?? this.pointsJson,
+      distanceMeters: distanceMeters ?? this.distanceMeters,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      durationEstimated: durationEstimated ?? this.durationEstimated,
+      ascentMeters: ascentMeters ?? this.ascentMeters,
+      descentMeters: descentMeters ?? this.descentMeters,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (importedAt.present) {
+      map['imported_at'] = Variable<DateTime>(importedAt.value);
+    }
+    if (pointsJson.present) {
+      map['points_json'] = Variable<String>(pointsJson.value);
+    }
+    if (distanceMeters.present) {
+      map['distance_meters'] = Variable<int>(distanceMeters.value);
+    }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<int>(durationSeconds.value);
+    }
+    if (durationEstimated.present) {
+      map['duration_estimated'] = Variable<bool>(durationEstimated.value);
+    }
+    if (ascentMeters.present) {
+      map['ascent_meters'] = Variable<int>(ascentMeters.value);
+    }
+    if (descentMeters.present) {
+      map['descent_meters'] = Variable<int>(descentMeters.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImportedRouteTracksCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('importedAt: $importedAt, ')
+          ..write('pointsJson: $pointsJson, ')
+          ..write('distanceMeters: $distanceMeters, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('durationEstimated: $durationEstimated, ')
+          ..write('ascentMeters: $ascentMeters, ')
+          ..write('descentMeters: $descentMeters, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
     with TableInfo<$ProfilePreferenceRecordsTable, ProfilePreferenceRow> {
   @override
@@ -1470,6 +2066,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SavedPlacesTable savedPlaces = $SavedPlacesTable(this);
   late final $RecentRouteDestinationsTable recentRouteDestinations =
       $RecentRouteDestinationsTable(this);
+  late final $ImportedRouteTracksTable importedRouteTracks =
+      $ImportedRouteTracksTable(this);
   late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
       $ProfilePreferenceRecordsTable(this);
   @override
@@ -1479,6 +2077,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     savedPlaces,
     recentRouteDestinations,
+    importedRouteTracks,
     profilePreferenceRecords,
   ];
 }
@@ -1898,6 +2497,312 @@ typedef $$RecentRouteDestinationsTableProcessedTableManager =
       RecentRouteDestinationRow,
       PrefetchHooks Function()
     >;
+typedef $$ImportedRouteTracksTableCreateCompanionBuilder =
+    ImportedRouteTracksCompanion Function({
+      required String id,
+      required String name,
+      required DateTime importedAt,
+      required String pointsJson,
+      required int distanceMeters,
+      required int durationSeconds,
+      required bool durationEstimated,
+      Value<int?> ascentMeters,
+      Value<int?> descentMeters,
+      Value<int> rowid,
+    });
+typedef $$ImportedRouteTracksTableUpdateCompanionBuilder =
+    ImportedRouteTracksCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<DateTime> importedAt,
+      Value<String> pointsJson,
+      Value<int> distanceMeters,
+      Value<int> durationSeconds,
+      Value<bool> durationEstimated,
+      Value<int?> ascentMeters,
+      Value<int?> descentMeters,
+      Value<int> rowid,
+    });
+
+class $$ImportedRouteTracksTableFilterComposer
+    extends Composer<_$AppDatabase, $ImportedRouteTracksTable> {
+  $$ImportedRouteTracksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get importedAt => $composableBuilder(
+    column: $table.importedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pointsJson => $composableBuilder(
+    column: $table.pointsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get distanceMeters => $composableBuilder(
+    column: $table.distanceMeters,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get durationEstimated => $composableBuilder(
+    column: $table.durationEstimated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ascentMeters => $composableBuilder(
+    column: $table.ascentMeters,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get descentMeters => $composableBuilder(
+    column: $table.descentMeters,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ImportedRouteTracksTableOrderingComposer
+    extends Composer<_$AppDatabase, $ImportedRouteTracksTable> {
+  $$ImportedRouteTracksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get importedAt => $composableBuilder(
+    column: $table.importedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pointsJson => $composableBuilder(
+    column: $table.pointsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get distanceMeters => $composableBuilder(
+    column: $table.distanceMeters,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get durationEstimated => $composableBuilder(
+    column: $table.durationEstimated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ascentMeters => $composableBuilder(
+    column: $table.ascentMeters,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get descentMeters => $composableBuilder(
+    column: $table.descentMeters,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ImportedRouteTracksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ImportedRouteTracksTable> {
+  $$ImportedRouteTracksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get importedAt => $composableBuilder(
+    column: $table.importedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pointsJson => $composableBuilder(
+    column: $table.pointsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get distanceMeters => $composableBuilder(
+    column: $table.distanceMeters,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get durationEstimated => $composableBuilder(
+    column: $table.durationEstimated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ascentMeters => $composableBuilder(
+    column: $table.ascentMeters,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get descentMeters => $composableBuilder(
+    column: $table.descentMeters,
+    builder: (column) => column,
+  );
+}
+
+class $$ImportedRouteTracksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ImportedRouteTracksTable,
+          ImportedRouteTrackRow,
+          $$ImportedRouteTracksTableFilterComposer,
+          $$ImportedRouteTracksTableOrderingComposer,
+          $$ImportedRouteTracksTableAnnotationComposer,
+          $$ImportedRouteTracksTableCreateCompanionBuilder,
+          $$ImportedRouteTracksTableUpdateCompanionBuilder,
+          (
+            ImportedRouteTrackRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ImportedRouteTracksTable,
+              ImportedRouteTrackRow
+            >,
+          ),
+          ImportedRouteTrackRow,
+          PrefetchHooks Function()
+        > {
+  $$ImportedRouteTracksTableTableManager(
+    _$AppDatabase db,
+    $ImportedRouteTracksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImportedRouteTracksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImportedRouteTracksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ImportedRouteTracksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<DateTime> importedAt = const Value.absent(),
+                Value<String> pointsJson = const Value.absent(),
+                Value<int> distanceMeters = const Value.absent(),
+                Value<int> durationSeconds = const Value.absent(),
+                Value<bool> durationEstimated = const Value.absent(),
+                Value<int?> ascentMeters = const Value.absent(),
+                Value<int?> descentMeters = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImportedRouteTracksCompanion(
+                id: id,
+                name: name,
+                importedAt: importedAt,
+                pointsJson: pointsJson,
+                distanceMeters: distanceMeters,
+                durationSeconds: durationSeconds,
+                durationEstimated: durationEstimated,
+                ascentMeters: ascentMeters,
+                descentMeters: descentMeters,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required DateTime importedAt,
+                required String pointsJson,
+                required int distanceMeters,
+                required int durationSeconds,
+                required bool durationEstimated,
+                Value<int?> ascentMeters = const Value.absent(),
+                Value<int?> descentMeters = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImportedRouteTracksCompanion.insert(
+                id: id,
+                name: name,
+                importedAt: importedAt,
+                pointsJson: pointsJson,
+                distanceMeters: distanceMeters,
+                durationSeconds: durationSeconds,
+                durationEstimated: durationEstimated,
+                ascentMeters: ascentMeters,
+                descentMeters: descentMeters,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ImportedRouteTracksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ImportedRouteTracksTable,
+      ImportedRouteTrackRow,
+      $$ImportedRouteTracksTableFilterComposer,
+      $$ImportedRouteTracksTableOrderingComposer,
+      $$ImportedRouteTracksTableAnnotationComposer,
+      $$ImportedRouteTracksTableCreateCompanionBuilder,
+      $$ImportedRouteTracksTableUpdateCompanionBuilder,
+      (
+        ImportedRouteTrackRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ImportedRouteTracksTable,
+          ImportedRouteTrackRow
+        >,
+      ),
+      ImportedRouteTrackRow,
+      PrefetchHooks Function()
+    >;
 typedef $$ProfilePreferenceRecordsTableCreateCompanionBuilder =
     ProfilePreferenceRecordsCompanion Function({
       Value<int> id,
@@ -2254,6 +3159,8 @@ class $AppDatabaseManager {
         _db,
         _db.recentRouteDestinations,
       );
+  $$ImportedRouteTracksTableTableManager get importedRouteTracks =>
+      $$ImportedRouteTracksTableTableManager(_db, _db.importedRouteTracks);
   $$ProfilePreferenceRecordsTableTableManager get profilePreferenceRecords =>
       $$ProfilePreferenceRecordsTableTableManager(
         _db,

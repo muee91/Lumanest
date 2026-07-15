@@ -90,6 +90,40 @@ void main() {
       isTrue,
     );
   });
+
+  testWidgets('renders imported GPX segments as separate polylines', (
+    tester,
+  ) async {
+    final container = createMapTestContainer(amapKey: 'test-key');
+    addTearDown(container.dispose);
+    container.read(mapConsentControllerProvider.notifier).grantConsent();
+    final route = DrivingRoute(
+      destinationName: '分段轨迹',
+      distanceMeters: 500,
+      durationSeconds: 600,
+      tollsYuan: 0,
+      polyline: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.01, longitude: 120.01),
+        GeoPoint(latitude: 31, longitude: 121),
+        GeoPoint(latitude: 31.01, longitude: 121.01),
+      ],
+      polylineSegmentBreakIndexes: const [2],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(body: RouteMapPreview(route: route)),
+        ),
+      ),
+    );
+
+    final map = tester.widget<AMapWidget>(find.byType(AMapWidget));
+    expect(map.polylines, hasLength(2));
+    expect(map.polylines.every((line) => line.points.length == 2), isTrue);
+  });
 }
 
 DrivingRoute _route() => DrivingRoute(

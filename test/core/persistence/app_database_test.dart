@@ -123,7 +123,7 @@ void main() {
     );
   });
 
-  test('schema 1 migrates to 2 without losing library data', () async {
+  test('schema 1 migrates to 3 without losing library data', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-migration-',
@@ -185,5 +185,72 @@ void main() {
       await migrated.select(migrated.profilePreferenceRecords).get(),
       isEmpty,
     );
+    expect(await migrated.select(migrated.importedRouteTracks).get(), isEmpty);
+  });
+
+  test('schema 2 migrates to 3 and preserves existing preferences', () async {
+    await database.close();
+    final directory = await Directory.systemTemp.createTemp(
+      'lumanest-drift-v2-migration-',
+    );
+    final file = File('${directory.path}/lumanest.sqlite');
+    addTearDown(() async {
+      if (await file.exists()) await file.delete();
+      if (await directory.exists()) await directory.delete();
+    });
+
+    final legacy = sqlite.sqlite3.open(file.path);
+    legacy.execute('''
+      CREATE TABLE saved_places (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL
+      )
+    ''');
+    legacy.execute('''
+      CREATE TABLE recent_route_destinations (
+        id INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
+        name TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        travel_mode TEXT NOT NULL
+      )
+    ''');
+    legacy.execute('''
+      CREATE TABLE profile_preferences (
+        id INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
+        ambient_background_enabled INTEGER NOT NULL,
+        reduce_motion INTEGER NOT NULL,
+        reduce_flashing INTEGER NOT NULL,
+        high_contrast INTEGER NOT NULL,
+        ambient_motion_mode TEXT NOT NULL,
+        photography_preferences_json TEXT NOT NULL,
+        activity_preferences_json TEXT NOT NULL,
+        equipment_list TEXT NOT NULL,
+        ai_tone TEXT NOT NULL,
+        recommendation_intensity REAL NOT NULL
+      )
+    ''');
+    legacy.execute('''
+      INSERT INTO profile_preferences VALUES (
+        1, 1, 0, 1, 0, 'energySaver', '["风光"]', '["徒步"]',
+        '相机', 'balanced', 0.5
+      )
+    ''');
+    legacy.execute('PRAGMA user_version = 2');
+    legacy.close();
+
+    final migrated = AppDatabase(NativeDatabase(file));
+    addTearDown(migrated.close);
+
+    expect(
+      (await migrated.select(migrated.profilePreferenceRecords).get())
+          .single
+          .ambientMotionMode,
+      'energySaver',
+    );
+    expect(await migrated.select(migrated.importedRouteTracks).get(), isEmpty);
   });
 }

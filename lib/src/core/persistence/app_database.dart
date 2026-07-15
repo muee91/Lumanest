@@ -47,6 +47,31 @@ class RecentRouteDestinations extends Table {
   ];
 }
 
+@DataClassName('ImportedRouteTrackRow')
+class ImportedRouteTracks extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  DateTimeColumn get importedAt => dateTime()();
+  TextColumn get pointsJson => text()();
+  IntColumn get distanceMeters => integer()();
+  IntColumn get durationSeconds => integer()();
+  BoolColumn get durationEstimated => boolean()();
+  IntColumn get ascentMeters => integer().nullable()();
+  IntColumn get descentMeters => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(name) BETWEEN 1 AND 120)',
+    'CHECK (distance_meters > 0)',
+    'CHECK (duration_seconds > 0)',
+    'CHECK (ascent_meters IS NULL OR ascent_meters >= 0)',
+    'CHECK (descent_meters IS NULL OR descent_meters >= 0)',
+  ];
+}
+
 @DataClassName('ProfilePreferenceRow')
 class ProfilePreferenceRecords extends Table {
   @override
@@ -77,7 +102,12 @@ class ProfilePreferenceRecords extends Table {
 }
 
 @DriftDatabase(
-  tables: [SavedPlaces, RecentRouteDestinations, ProfilePreferenceRecords],
+  tables: [
+    SavedPlaces,
+    RecentRouteDestinations,
+    ImportedRouteTracks,
+    ProfilePreferenceRecords,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
@@ -86,13 +116,16 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
       if (from < 2) {
         await migrator.createTable(profilePreferenceRecords);
+      }
+      if (from < 3) {
+        await migrator.createTable(importedRouteTracks);
       }
     },
   );

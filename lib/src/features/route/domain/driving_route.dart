@@ -2,6 +2,8 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 
 enum RouteTravelMode { driving, walking }
 
+enum RouteSource { amap, importedGpx }
+
 class DrivingRouteRequest {
   const DrivingRouteRequest({
     required this.origin,
@@ -43,6 +45,7 @@ class DrivingRoute {
     required this.durationSeconds,
     required this.tollsYuan,
     required List<GeoPoint> polyline,
+    List<int> polylineSegmentBreakIndexes = const [],
     List<String> instructions = const [],
     this.isStale = false,
     this.cachedAt,
@@ -50,7 +53,13 @@ class DrivingRoute {
     this.ascentMeters,
     this.descentMeters,
     this.elevationSource,
+    this.source = RouteSource.amap,
+    this.sourceId,
+    this.durationEstimated = false,
   }) : polyline = List.unmodifiable(polyline),
+       polylineSegmentBreakIndexes = List.unmodifiable(
+         polylineSegmentBreakIndexes,
+       ),
        instructions = List.unmodifiable(instructions);
 
   final String destinationName;
@@ -58,6 +67,7 @@ class DrivingRoute {
   final int durationSeconds;
   final double tollsYuan;
   final List<GeoPoint> polyline;
+  final List<int> polylineSegmentBreakIndexes;
   final List<String> instructions;
   final bool isStale;
   final DateTime? cachedAt;
@@ -65,6 +75,9 @@ class DrivingRoute {
   final int? ascentMeters;
   final int? descentMeters;
   final String? elevationSource;
+  final RouteSource source;
+  final String? sourceId;
+  final bool durationEstimated;
 
   DrivingRoute asStale(DateTime savedAt) => DrivingRoute(
     destinationName: destinationName,
@@ -72,6 +85,7 @@ class DrivingRoute {
     durationSeconds: durationSeconds,
     tollsYuan: tollsYuan,
     polyline: polyline,
+    polylineSegmentBreakIndexes: polylineSegmentBreakIndexes,
     instructions: instructions,
     isStale: true,
     cachedAt: savedAt.toUtc(),
@@ -79,6 +93,9 @@ class DrivingRoute {
     ascentMeters: ascentMeters,
     descentMeters: descentMeters,
     elevationSource: elevationSource,
+    source: source,
+    sourceId: sourceId,
+    durationEstimated: durationEstimated,
   );
 
   DrivingRoute withElevation({
@@ -91,6 +108,7 @@ class DrivingRoute {
     durationSeconds: durationSeconds,
     tollsYuan: tollsYuan,
     polyline: polyline,
+    polylineSegmentBreakIndexes: polylineSegmentBreakIndexes,
     instructions: instructions,
     isStale: isStale,
     cachedAt: cachedAt,
@@ -98,6 +116,9 @@ class DrivingRoute {
     ascentMeters: ascentMeters,
     descentMeters: descentMeters,
     elevationSource: source,
+    source: this.source,
+    sourceId: sourceId,
+    durationEstimated: durationEstimated,
   );
 }
 

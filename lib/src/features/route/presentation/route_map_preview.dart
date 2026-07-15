@@ -74,6 +74,10 @@ class _ReadyRouteMapState extends State<_ReadyRouteMap> {
     if (builder != null) return builder(widget.route);
 
     final points = widget.route.polyline.map(_toLatLng).toList(growable: false);
+    final segments = _splitSegments(
+      points,
+      widget.route.polylineSegmentBreakIndexes,
+    );
     final start = points.first;
     final end = points.last;
     final bounds = _bounds(points);
@@ -102,13 +106,15 @@ class _ReadyRouteMapState extends State<_ReadyRouteMap> {
                 ),
               },
               polylines: {
-                Polyline(
-                  points: points,
-                  width: 6,
-                  color: Theme.of(context).colorScheme.primary,
-                  capType: CapType.round,
-                  joinType: JoinType.round,
-                ),
+                for (final segment in segments)
+                  if (segment.length >= 2)
+                    Polyline(
+                      points: segment,
+                      width: 6,
+                      color: Theme.of(context).colorScheme.primary,
+                      capType: CapType.round,
+                      joinType: JoinType.round,
+                    ),
               },
               onMapCreated: (controller) {
                 unawaited(
@@ -154,6 +160,18 @@ class _ReadyRouteMapState extends State<_ReadyRouteMap> {
       southwest: LatLng(minLatitude, minLongitude),
       northeast: LatLng(maxLatitude, maxLongitude),
     );
+  }
+
+  List<List<LatLng>> _splitSegments(List<LatLng> points, List<int> breaks) {
+    final starts = <int>[
+      0,
+      ...breaks.where((index) => index > 0 && index < points.length),
+    ];
+    starts.sort();
+    return List.generate(starts.length, (index) {
+      final end = index + 1 < starts.length ? starts[index + 1] : points.length;
+      return points.sublist(starts[index], end);
+    }, growable: false);
   }
 
   double mathMin(double first, double second) =>

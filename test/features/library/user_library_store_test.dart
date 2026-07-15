@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -21,7 +23,7 @@ void main() {
   tearDown(() => database.close());
 
   test('drift store round-trips the library schema', () async {
-    const state = UserLibraryState(
+    final state = UserLibraryState(
       savedPlaces: [
         SavedPlace(
           id: '1',
@@ -37,6 +39,25 @@ void main() {
         longitude: 121,
         travelMode: 'walking',
       ),
+      importedTracks: [
+        ImportedRouteTrack(
+          id: 'track-1',
+          name: '本地徒步',
+          importedAt: DateTime.utc(2026, 7, 15),
+          points: const [
+            GeoPoint(latitude: 30, longitude: 120),
+            GeoPoint(latitude: 30.1, longitude: 120.1),
+            GeoPoint(latitude: 31, longitude: 121),
+            GeoPoint(latitude: 31.1, longitude: 121.1),
+          ],
+          segmentBreakIndexes: const [2],
+          distanceMeters: 1200,
+          durationSeconds: 900,
+          durationEstimated: false,
+          ascentMeters: 80,
+          descentMeters: 20,
+        ),
+      ],
     );
 
     await store.write(state);
@@ -45,6 +66,10 @@ void main() {
     expect(restored.savedPlaces.single.name, '机位');
     expect(restored.recentRoute?.name, '终点');
     expect(restored.recentRoute?.travelMode, 'walking');
+    expect(restored.importedTracks.single.name, '本地徒步');
+    expect(restored.importedTracks.single.points.last.longitude, 121.1);
+    expect(restored.importedTracks.single.segmentBreakIndexes, [2]);
+    expect(restored.importedTracks.single.ascentMeters, 80);
   });
 
   test('a write replaces removed places and clears a removed route', () async {

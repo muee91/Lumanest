@@ -96,11 +96,15 @@ class PersistentDrivingRouteCache implements DrivingRouteCache {
     'durationSeconds': route.durationSeconds,
     'tollsYuan': route.tollsYuan,
     'polyline': route.polyline.map(_encodePoint).toList(),
+    'polylineSegmentBreakIndexes': route.polylineSegmentBreakIndexes,
     'instructions': route.instructions,
     'travelMode': route.travelMode.name,
     'ascentMeters': route.ascentMeters,
     'descentMeters': route.descentMeters,
     'elevationSource': route.elevationSource,
+    'source': route.source.name,
+    'sourceId': route.sourceId,
+    'durationEstimated': route.durationEstimated,
   };
 
   DrivingRoute? _decodeRoute(Object? raw) {
@@ -133,6 +137,12 @@ class PersistentDrivingRouteCache implements DrivingRouteCache {
       durationSeconds: duration,
       tollsYuan: tolls.toDouble(),
       polyline: polyline,
+      polylineSegmentBreakIndexes: raw['polylineSegmentBreakIndexes'] is List
+          ? (raw['polylineSegmentBreakIndexes'] as List)
+                .whereType<int>()
+                .where((index) => index > 0 && index < polyline.length)
+                .toList(growable: false)
+          : const [],
       instructions: instructions,
       travelMode: travelMode,
       ascentMeters: raw['ascentMeters'] is int
@@ -144,6 +154,13 @@ class PersistentDrivingRouteCache implements DrivingRouteCache {
       elevationSource: raw['elevationSource'] is String
           ? raw['elevationSource'] as String
           : null,
+      source:
+          RouteSource.values
+              .where((source) => source.name == raw['source'])
+              .firstOrNull ??
+          RouteSource.amap,
+      sourceId: raw['sourceId'] is String ? raw['sourceId'] as String : null,
+      durationEstimated: raw['durationEstimated'] == true,
     );
   }
 

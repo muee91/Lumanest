@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
 class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   @override
@@ -21,6 +22,26 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   Future<void> saveRecentRoute(SavedRouteDestination destination) async {
     final current = await future;
     await _save(current.copyWith(recentRoute: destination));
+  }
+
+  Future<void> saveImportedTrack(ImportedRouteTrack track) async {
+    final current = await future;
+    final tracks = [
+      track,
+      ...current.importedTracks.where((candidate) => candidate.id != track.id),
+    ];
+    await _save(current.copyWith(importedTracks: tracks));
+  }
+
+  Future<void> deleteImportedTrack(String id) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        importedTracks: current.importedTracks
+            .where((track) => track.id != id)
+            .toList(growable: false),
+      ),
+    );
   }
 
   Future<void> _save(UserLibraryState value) async {

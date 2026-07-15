@@ -13,10 +13,13 @@ import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
+import 'package:luma_nest/src/features/route/application/gpx_track_import_service.dart';
 import 'package:luma_nest/src/features/route/application/route_corridor_scanner.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/features/route/domain/route_timeline.dart';
 import 'package:luma_nest/src/features/route/domain/hiking_return_assessment.dart';
+import 'package:luma_nest/src/features/route/infrastructure/gpx_track_parser.dart';
 import 'package:luma_nest/src/features/route/presentation/route_map_preview.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -27,6 +30,7 @@ class RoutePage extends ConsumerWidget {
     this.destinationName,
     this.destinationLatitude,
     this.destinationLongitude,
+    this.importedTrackId,
     this.routeAsync,
     this.contextSnapshot,
     this.timelineNow,
@@ -37,6 +41,7 @@ class RoutePage extends ConsumerWidget {
   final String? destinationName;
   final double? destinationLatitude;
   final double? destinationLongitude;
+  final String? importedTrackId;
   final AsyncValue<DrivingRoute>? routeAsync;
   final ContextSnapshot? contextSnapshot;
   final DateTime? timelineNow;
@@ -45,6 +50,19 @@ class RoutePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (importedTrackId case final trackId? when trackId.isNotEmpty) {
+      return ref
+          .watch(userLibraryProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => const _ImportedTrackUnavailableView(),
+            data: (library) {
+              final track = library.importedTrack(trackId);
+              if (track == null) return const _ImportedTrackUnavailableView();
+              return _buildImportedTrack(ref, track);
+            },
+          );
+    }
     if (destinationName == null ||
         destinationLatitude == null ||
         destinationLongitude == null) {
@@ -68,6 +86,23 @@ class RoutePage extends ConsumerWidget {
         travelMode: travelMode.name,
       ),
       mode: travelMode,
+    );
+  }
+
+  Widget _buildImportedTrack(WidgetRef ref, ImportedRouteTrack track) {
+    final snapshot =
+        contextSnapshot ?? ref.watch(environmentSnapshotProvider).asData?.value;
+    final destination = track.destination;
+    return SafeArea(
+      child: _RouteContent(
+        route: track.toRoute(),
+        snapshot: snapshot,
+        departureAt: timelineNow ?? DateTime.now(),
+        routeMapBuilder: routeMapBuilder,
+        travelMode: RouteTravelMode.walking,
+        destinationLatitude: destination.latitude,
+        destinationLongitude: destination.longitude,
+      ),
     );
   }
 
@@ -180,13 +215,49 @@ class _RouteModeSelector extends StatelessWidget {
   );
 }
 
-class _EmptyRouteView extends ConsumerWidget {
+class _EmptyRouteView extends ConsumerStatefulWidget {
   const _EmptyRouteView();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_EmptyRouteView> createState() => _EmptyRouteViewState();
+}
+
+class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
+  bool _importing = false;
+
+  Future<void> _importTrack() async {
+    if (_importing) return;
+    setState(() => _importing = true);
+    try {
+      final track = await ref
+          .read(gpxTrackImportServiceProvider)
+          .pickAndParse();
+      if (track == null || !mounted) return;
+      await ref.read(userLibraryProvider.notifier).saveImportedTrack(track);
+      if (!mounted) return;
+      context.go(
+        Uri(path: '/route', queryParameters: {'track': track.id}).toString(),
+      );
+    } on GpxTrackFailure catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_trackFailureMessage(error.kind))));
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('轨迹未能保存，请重试')));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recentRoute = library?.recentRoute;
+    final importedTracks = library?.importedTracks ?? const [];
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(LumaNestSpacing.lg),
@@ -197,7 +268,7 @@ class _EmptyRouteView extends ConsumerWidget {
             const SizedBox(height: LumaNestSpacing.lg),
             Text('路线', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: LumaNestSpacing.sm),
-            const Text('从探索页选择机位、加油站或补给点，栖光会从当前位置生成路线。'),
+            const Text('从探索页选择目的地生成路线，也可以导入已有 GPX 轨迹离线查看。'),
             const SizedBox(height: LumaNestSpacing.lg),
             Wrap(
               spacing: 8,
@@ -213,6 +284,11 @@ class _EmptyRouteView extends ConsumerWidget {
                   icon: const Icon(Icons.add_road_outlined),
                   label: const Text('创建路线'),
                 ),
+                FilledButton.tonalIcon(
+                  onPressed: _importing ? null : _importTrack,
+                  icon: const Icon(Icons.file_upload_outlined),
+                  label: Text(_importing ? '正在导入' : '导入轨迹'),
+                ),
               ],
             ),
             const SizedBox(height: LumaNestSpacing.lg),
@@ -224,8 +300,29 @@ class _EmptyRouteView extends ConsumerWidget {
                 title: Text(recentRoute.name),
                 trailing: const Icon(Icons.arrow_outward),
                 onTap: () => context.go(_routeUri(recentRoute).toString()),
-              )
-            else
+              ),
+            for (final track in importedTracks)
+              ListTile(
+                leading: const Icon(Icons.hiking_outlined),
+                title: Text(track.name),
+                subtitle: Text(
+                  'GPX · ${_distanceLabel(track.distanceMeters)} · 本地保存',
+                ),
+                trailing: IconButton(
+                  tooltip: '删除轨迹',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => ref
+                      .read(userLibraryProvider.notifier)
+                      .deleteImportedTrack(track.id),
+                ),
+                onTap: () => context.go(
+                  Uri(
+                    path: '/route',
+                    queryParameters: {'track': track.id},
+                  ).toString(),
+                ),
+              ),
+            if (recentRoute == null && importedTracks.isEmpty)
               const Text('暂无历史路线'),
           ],
         ),
@@ -242,6 +339,18 @@ class _EmptyRouteView extends ConsumerWidget {
       'mode': destination.travelMode,
     },
   );
+
+  static String _distanceLabel(int meters) =>
+      meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)} km' : '$meters m';
+
+  static String _trackFailureMessage(GpxTrackFailureKind kind) =>
+      switch (kind) {
+        GpxTrackFailureKind.tooLarge => 'GPX 文件不能超过 5 MB',
+        GpxTrackFailureKind.tooManyPoints => '轨迹点过多，请先精简到 20000 点以内',
+        GpxTrackFailureKind.noTrackPoints => '没有找到可用的 GPX 轨迹点',
+        GpxTrackFailureKind.invalidDocument => '这不是有效的 GPX 轨迹文件',
+        GpxTrackFailureKind.unreadable => '无法读取这个文件，请重新选择',
+      };
 }
 
 class _RouteContent extends ConsumerStatefulWidget {
@@ -303,6 +412,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
               latitude: widget.destinationLatitude,
               longitude: widget.destinationLongitude,
               mode: _contextMode(widget.travelMode),
+              routeKey: widget.route.sourceId,
             ),
           );
     });
@@ -352,11 +462,25 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         Text('路线', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 6),
         Text(
-          '前往 ${route.destinationName}',
+          route.source == RouteSource.importedGpx
+              ? route.destinationName
+              : '前往 ${route.destinationName}',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 10),
         _RouteLifecycleBar(state: routeState),
+        if (route.source == RouteSource.importedGpx) ...[
+          const SizedBox(height: 12),
+          Material(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(16),
+            child: const ListTile(
+              leading: Icon(Icons.file_present_outlined),
+              title: Text('本地导入轨迹'),
+              subtitle: Text('轨迹线来自所选 GPX 文件，可离线查看；不包含实时路况，也不能用于逐向导航。'),
+            ),
+          ),
+        ],
         if (route.isStale) ...[
           const SizedBox(height: 12),
           Material(
@@ -404,7 +528,14 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
                   child: _RouteMetric(label: '距离', value: distance),
                 ),
                 Expanded(
-                  child: _RouteMetric(label: '预计', value: durationLabel),
+                  child: _RouteMetric(
+                    label: route.source == RouteSource.importedGpx
+                        ? route.durationEstimated
+                              ? '估算用时'
+                              : '记录用时'
+                        : '预计',
+                    value: durationLabel,
+                  ),
                 ),
                 Expanded(
                   child: _RouteMetric(
@@ -427,7 +558,9 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         if (route.elevationSource case final source?) ...[
           const SizedBox(height: 6),
           Text(
-            '高程来源：$source · 采样估算，不替代专业测绘',
+            route.source == RouteSource.importedGpx
+                ? '高程来源：$source · 可能受设备漂移影响，不替代专业测绘'
+                : '高程来源：$source · 采样估算，不替代专业测绘',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -454,7 +587,11 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         Text('路线步骤', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (route.instructions.isEmpty)
-          const Text('路线已生成，暂时没有详细道路说明。')
+          Text(
+            route.source == RouteSource.importedGpx
+                ? 'GPX 仅包含轨迹线，不含道路转向说明。'
+                : '路线已生成，暂时没有详细道路说明。',
+          )
         else
           for (
             var index = 0;
@@ -621,6 +758,27 @@ class _RouteErrorView extends StatelessWidget {
         const Text('路线暂时无法生成'),
         const SizedBox(height: 12),
         FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
+      ],
+    ),
+  );
+}
+
+class _ImportedTrackUnavailableView extends StatelessWidget {
+  const _ImportedTrackUnavailableView();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.broken_image_outlined, size: 44),
+        const SizedBox(height: 12),
+        const Text('这条本地轨迹已不存在或无法读取'),
+        const SizedBox(height: 12),
+        FilledButton.tonal(
+          onPressed: () => context.go('/route'),
+          child: const Text('返回路线'),
+        ),
       ],
     ),
   );

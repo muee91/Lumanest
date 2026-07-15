@@ -58,6 +58,7 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                       destinationName: query['name'],
                       destinationLatitude: double.tryParse(query['lat'] ?? ''),
                       destinationLongitude: double.tryParse(query['lon'] ?? ''),
+                      importedTrackId: query['track'],
                       travelMode: query['mode'] == RouteTravelMode.walking.name
                           ? RouteTravelMode.walking
                           : RouteTravelMode.driving,

@@ -56,6 +56,29 @@ void main() {
 
     expect(places, isEmpty);
   });
+
+  test(
+    'does not convert an already GCJ-02 route sample a second time',
+    () async {
+      final transport = _FakeTransport({'status': '1', 'pois': <Object>[]});
+      final repository = AmapNearbyPlaceRepository(
+        brokerBaseUrl: 'https://broker.example.com',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      await repository.fetchNearby(
+        center: const GeoPoint(
+          latitude: 31.2304,
+          longitude: 121.4737,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+        category: NearbyPlaceCategory.supply,
+      );
+
+      expect(transport.query['location'], '121.4737,31.2304');
+    },
+  );
 }
 
 class _FakeTransport implements AmapDataTransport {

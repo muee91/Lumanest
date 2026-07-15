@@ -11,30 +11,36 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 /// stage on B.
 ///
 /// Identity is stable across name-only changes: it is composed of the
-/// destination coordinates and the travel mode, not the destination name.
+/// destination coordinates, travel mode and an optional local route key, not
+/// the destination name. The local key distinguishes imported tracks that end
+/// at the same point and is never serialized to the Broker.
 class RouteIdentity {
   const RouteIdentity({
     required this.latitude,
     required this.longitude,
     required this.mode,
+    this.routeKey,
   });
 
   final double latitude;
   final double longitude;
   final ContextRouteMode mode;
+  final String? routeKey;
 
   @override
   bool operator ==(Object other) =>
       other is RouteIdentity &&
       other.latitude == latitude &&
       other.longitude == longitude &&
-      other.mode == mode;
+      other.mode == mode &&
+      other.routeKey == routeKey;
 
   @override
-  int get hashCode => Object.hash(latitude, longitude, mode);
+  int get hashCode => Object.hash(latitude, longitude, mode, routeKey);
 
   @override
-  String toString() => 'RouteIdentity($latitude, $longitude, ${mode.name})';
+  String toString() =>
+      'RouteIdentity($latitude, $longitude, ${mode.name}, $routeKey)';
 }
 
 /// Immutable route context state used by the environment snapshot pipeline.
@@ -201,6 +207,7 @@ class RouteContextStateController extends Notifier<RouteContextState> {
         latitude: _identity!.latitude,
         longitude: _identity!.longitude,
         mode: mode,
+        routeKey: _identity!.routeKey,
       );
     }
     state = state.withMode(mode);

@@ -190,6 +190,30 @@ void main() {
       expect(state().stage, ContextRouteStage.planned);
     });
 
+    test('local route key distinguishes tracks with the same destination', () {
+      controller().plan(
+        ContextRouteMode.hiking,
+        identity: const RouteIdentity(
+          latitude: 31,
+          longitude: 121,
+          mode: ContextRouteMode.hiking,
+          routeKey: 'track-a',
+        ),
+      );
+      controller().start();
+      controller().plan(
+        ContextRouteMode.hiking,
+        identity: const RouteIdentity(
+          latitude: 31,
+          longitude: 121,
+          mode: ContextRouteMode.hiking,
+          routeKey: 'track-b',
+        ),
+      );
+
+      expect(state(), RouteContextState.planned(ContextRouteMode.hiking));
+    });
+
     test('plan without identity keeps mode-only compatibility', () {
       controller().plan(
         ContextRouteMode.driving,

@@ -8,6 +8,10 @@ import 'package:luma_nest/src/features/profile/application/environment_privacy_s
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
 import 'package:luma_nest/src/features/profile/infrastructure/profile_preferences_store.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
 void main() {
   testWidgets('confirms before clearing environment data', (tester) async {
@@ -270,6 +274,46 @@ void main() {
     },
   );
 
+  testWidgets('shows imported GPX tracks as local profile data', (
+    tester,
+  ) async {
+    final track = ImportedRouteTrack(
+      id: 'profile-track',
+      name: '林间徒步线',
+      importedAt: DateTime.utc(2026, 7, 15),
+      points: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.1, longitude: 120.1),
+      ],
+      distanceMeters: 1000,
+      durationSeconds: 600,
+      durationEstimated: false,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(UserLibraryState(importedTracks: [track])),
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('林间徒步线'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+
+    expect(find.text('本地轨迹'), findsOneWidget);
+    expect(find.text('林间徒步线'), findsOneWidget);
+    expect(find.text('GPX · 仅保存在本机'), findsOneWidget);
+  });
+
   testWidgets('shows no environment diagnostic when fully operational', (
     tester,
   ) async {
@@ -528,4 +572,16 @@ class _FakeProfilePreferencesStore implements ProfilePreferencesStore {
     writeCount += 1;
     this.value = value;
   }
+}
+
+class _ProfileLibraryStore implements UserLibraryStore {
+  _ProfileLibraryStore(this.value);
+
+  UserLibraryState value;
+
+  @override
+  Future<UserLibraryState> read() async => value;
+
+  @override
+  Future<void> write(UserLibraryState state) async => value = state;
 }

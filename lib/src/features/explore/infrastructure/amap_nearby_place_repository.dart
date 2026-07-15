@@ -61,7 +61,9 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
     if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) {
       throw const NearbyPlaceFailure(NearbyPlaceFailureKind.configuration);
     }
-    final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(center);
+    final mapCenter = center.coordinateSystem == CoordinateSystem.wgs84
+        ? ChinaCoordinateConverter.wgs84ToGcj02(center)
+        : center;
     final body = await transport.get(
       '$brokerBaseUrl/v1/amap/nearby',
       query: {

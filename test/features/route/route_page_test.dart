@@ -5,7 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_event.dart' as context;
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/route/application/gpx_track_import_service.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/features/route/presentation/route_page.dart';
 
 DrivingRoute _drivingRoute() => DrivingRoute(
@@ -243,25 +248,96 @@ void main() {
     expect(find.textContaining('不替代专业测绘'), findsOneWidget);
   });
 
-  testWidgets(
-    'empty route page exposes explore and create actions but not track import',
-    (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(home: Scaffold(body: RoutePage())),
-        ),
-      );
-      await tester.pumpAndSettle();
+  testWidgets('empty route page exposes real track import', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(home: Scaffold(body: RoutePage())),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('去探索目的地'), findsOneWidget);
-      expect(find.text('创建路线'), findsOneWidget);
-      // The GPX/KML track import entry was a V1 dead button (only showed a
-      // "coming soon" SnackBar with no parsing pipeline). It must not ship,
-      // so the empty route page must not expose it.
-      expect(find.text('导入轨迹'), findsNothing);
-      expect(find.byIcon(Icons.file_upload_outlined), findsNothing);
-    },
-  );
+    expect(find.text('去探索目的地'), findsOneWidget);
+    expect(find.text('创建路线'), findsOneWidget);
+    expect(find.text('导入轨迹'), findsOneWidget);
+    expect(find.byIcon(Icons.file_upload_outlined), findsOneWidget);
+  });
+
+  testWidgets('imports, saves and opens a GPX track without route network', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final now = DateTime.utc(2026, 7, 15, 4);
+    final track = ImportedRouteTrack(
+      id: 'track-imported',
+      name: '山谷徒步线',
+      importedAt: now,
+      points: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.01, longitude: 120.01),
+      ],
+      distanceMeters: 1500,
+      durationSeconds: 1200,
+      durationEstimated: false,
+      ascentMeters: 90,
+      descentMeters: 30,
+    );
+    final store = _MemoryLibraryStore();
+    final container = ProviderContainer(
+      overrides: [
+        userLibraryStoreProvider.overrideWithValue(store),
+        gpxTrackImportServiceProvider.overrideWithValue(
+          _FakeGpxTrackImportService(track),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final snapshot = ContextSnapshot(
+      id: 'import-context',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.hiking,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      sunset: now.add(const Duration(hours: 8)),
+    );
+    final router = GoRouter(
+      initialLocation: '/route',
+      routes: [
+        GoRoute(
+          path: '/route',
+          builder: (context, state) => Scaffold(
+            body: RoutePage(
+              importedTrackId: state.uri.queryParameters['track'],
+              contextSnapshot: snapshot,
+              timelineNow: now,
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入轨迹'));
+    await tester.pumpAndSettle();
+
+    expect(store.value.importedTracks.single.id, 'track-imported');
+    expect(find.text('山谷徒步线'), findsOneWidget);
+    expect(find.text('本地导入轨迹'), findsOneWidget);
+    expect(find.text('记录用时'), findsOneWidget);
+    expect(find.text('90 m'), findsOneWidget);
+    expect(find.textContaining('不包含实时路况'), findsOneWidget);
+  });
 
   // Lifecycle coverage: the following tests verify the route context state
   // transitions that RoutePage drives through routeContextStateProvider. They
@@ -403,4 +479,23 @@ void main() {
       expect(state().stage, ContextRouteStage.planned);
     });
   });
+}
+
+class _FakeGpxTrackImportService implements GpxTrackImportService {
+  const _FakeGpxTrackImportService(this.track);
+
+  final ImportedRouteTrack track;
+
+  @override
+  Future<ImportedRouteTrack?> pickAndParse() async => track;
+}
+
+class _MemoryLibraryStore implements UserLibraryStore {
+  UserLibraryState value = const UserLibraryState();
+
+  @override
+  Future<UserLibraryState> read() async => value;
+
+  @override
+  Future<void> write(UserLibraryState state) async => value = state;
 }

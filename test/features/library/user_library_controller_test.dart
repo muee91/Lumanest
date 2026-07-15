@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
 void main() {
   test('restores, toggles and persists saved places', () async {
@@ -73,6 +75,35 @@ void main() {
 
     expect(store.value.recentRoute?.name, '雪山机位');
     expect(store.value.recentRoute?.travelMode, 'walking');
+  });
+
+  test('persists and deletes an imported GPX track', () async {
+    final store = _FakeStore(const UserLibraryState());
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    const points = [
+      GeoPoint(latitude: 30, longitude: 120),
+      GeoPoint(latitude: 30.1, longitude: 120.1),
+    ];
+    final track = ImportedRouteTrack(
+      id: 'track-1',
+      name: '导入徒步',
+      importedAt: DateTime.utc(2026, 7, 15),
+      points: points,
+      distanceMeters: 1000,
+      durationSeconds: 600,
+      durationEstimated: false,
+    );
+
+    await container.read(userLibraryProvider.notifier).saveImportedTrack(track);
+    expect(store.value.importedTracks.single.id, 'track-1');
+
+    await container
+        .read(userLibraryProvider.notifier)
+        .deleteImportedTrack('track-1');
+    expect(store.value.importedTracks, isEmpty);
   });
 }
 
