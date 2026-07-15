@@ -323,7 +323,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('去探索目的地'), findsOneWidget);
     expect(find.text('创建路线'), findsOneWidget);
     expect(find.text('导入轨迹'), findsOneWidget);
     expect(find.byIcon(Icons.file_upload_outlined), findsOneWidget);
@@ -645,7 +644,7 @@ void main() {
 
       expect(state(), RouteContextState.none);
       expect(find.text('取消规划'), findsNothing);
-      expect(find.text('去探索目的地'), findsOneWidget);
+      expect(find.text('创建路线'), findsOneWidget);
     });
 
     testWidgets(

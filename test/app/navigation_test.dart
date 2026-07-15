@@ -20,7 +20,7 @@ void main() {
     await tester.tap(find.text('路线'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('去探索目的地'), findsOneWidget);
+    expect(find.text('创建路线'), findsOneWidget);
 
     await tester.tap(find.text('灵感'));
     await tester.pump();

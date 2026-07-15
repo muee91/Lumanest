@@ -272,30 +272,86 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.route_outlined, size: LumaNestSpacing.xl),
-            const SizedBox(height: LumaNestSpacing.lg),
-            Text('路线', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: LumaNestSpacing.sm),
-            const Text('从探索页选择目的地生成路线，也可以导入已有 GPX 轨迹离线查看。'),
-            const SizedBox(height: LumaNestSpacing.lg),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            Row(
               children: [
-                FilledButton.icon(
-                  onPressed: () => context.go('/explore'),
-                  icon: const Icon(Icons.explore_outlined),
-                  label: const Text('去探索目的地'),
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: () => context.go('/explore'),
-                  icon: const Icon(Icons.add_road_outlined),
-                  label: const Text('创建路线'),
+                const SizedBox(width: LumaNestSpacing.sm),
+                Text('路线', style: Theme.of(context).textTheme.displaySmall),
+                const Spacer(),
+                Text(
+                  'JOURNEY',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    letterSpacing: 1.8,
+                  ),
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: _importing ? null : _importTrack,
-                  icon: const Icon(Icons.file_upload_outlined),
-                  label: Text(_importing ? '正在导入' : '导入轨迹'),
+              ],
+            ),
+            const SizedBox(height: LumaNestSpacing.lg),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(LumaNestSpacing.lg),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primaryContainer,
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: .2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.alt_route_rounded,
+                    size: 34,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: LumaNestSpacing.lg),
+                  Text(
+                    '下一段路，从一个目的地开始',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: LumaNestSpacing.xs),
+                  Text(
+                    '从探索页选择目的地生成路线，也可以导入已有 GPX 轨迹离线查看。',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: LumaNestSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => context.go('/explore'),
+                    icon: const Icon(Icons.add_road_outlined),
+                    label: const Text('创建路线'),
+                  ),
+                ),
+                const SizedBox(width: LumaNestSpacing.xs),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _importing ? null : _importTrack,
+                    icon: const Icon(Icons.file_upload_outlined),
+                    label: Text(_importing ? '正在导入' : '导入轨迹'),
+                  ),
                 ),
               ],
             ),
@@ -380,7 +436,12 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
                 savedRoutes.isEmpty &&
                 journeys.isEmpty &&
                 importedTracks.isEmpty)
-              const Text('还没有保存路线或导入轨迹'),
+              Text(
+                '还没有保存路线或导入轨迹',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
           ],
         ),
       ),
@@ -608,18 +669,49 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
             ?.value
             .containsSavedRoute(destination) ??
         false;
+    final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+      padding: const EdgeInsets.fromLTRB(
+        LumaNestSpacing.md,
+        LumaNestSpacing.md,
+        LumaNestSpacing.md,
+        LumaNestSpacing.xl,
+      ),
       children: [
-        Text('路线', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 6),
+        Row(
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: LumaNestSpacing.sm),
+            Text('路线', style: theme.textTheme.labelLarge),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                route.travelMode == RouteTravelMode.walking ? '徒步计划' : '自驾计划',
+                style: theme.textTheme.labelMedium,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: LumaNestSpacing.sm),
         Text(
           route.source == RouteSource.importedGpx
               ? route.destinationName
               : '前往 ${route.destinationName}',
-          style: Theme.of(context).textTheme.titleLarge,
+          style: theme.textTheme.headlineMedium,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: LumaNestSpacing.md),
         _RouteLifecycleBar(
           state: routeState,
           destination: _journeyDestination,
@@ -627,21 +719,31 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           returnReminderAt: hikingAssessment?.latestReturnDeparture,
         ),
         if (route.source != RouteSource.importedGpx) ...[
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => ref
-                .read(userLibraryProvider.notifier)
-                .toggleSavedRoute(destination),
-            icon: Icon(routeSaved ? Icons.bookmark : Icons.bookmark_outline),
-            label: Text(routeSaved ? '取消保存路线' : '保存路线'),
-          ),
-        ],
-        if (route.source != RouteSource.importedGpx && !route.isStale) ...[
-          const SizedBox(height: 10),
-          FilledButton.icon(
-            onPressed: _openAmapNavigation,
-            icon: const Icon(Icons.navigation_outlined),
-            label: const Text('交给高德导航'),
+          const SizedBox(height: LumaNestSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => ref
+                      .read(userLibraryProvider.notifier)
+                      .toggleSavedRoute(destination),
+                  icon: Icon(
+                    routeSaved ? Icons.bookmark : Icons.bookmark_outline,
+                  ),
+                  label: Text(routeSaved ? '取消保存路线' : '保存路线'),
+                ),
+              ),
+              if (!route.isStale) ...[
+                const SizedBox(width: LumaNestSpacing.xs),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _openAmapNavigation,
+                    icon: const Icon(Icons.navigation_outlined),
+                    label: const Text('交给高德导航'),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
         if (route.source == RouteSource.importedGpx) ...[
@@ -692,7 +794,15 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         const SizedBox(height: 20),
         DecoratedBox(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primaryContainer,
+                theme.colorScheme.surfaceContainerHighest,
+              ],
+            ),
+            border: Border.all(
+              color: theme.colorScheme.primary.withValues(alpha: .22),
+            ),
             borderRadius: BorderRadius.circular(24),
           ),
           child: Padding(
@@ -702,6 +812,12 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
                 Expanded(
                   child: _RouteMetric(label: '距离', value: distance),
                 ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: _RouteMetric(
                     label: route.source == RouteSource.importedGpx
@@ -712,6 +828,12 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
                     value: durationLabel,
                   ),
                 ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: theme.colorScheme.outlineVariant,
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: _RouteMetric(
                     label: route.travelMode == RouteTravelMode.walking
@@ -749,41 +871,87 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           const SizedBox(height: 4),
           const Text('补给时间按路线进度估算；拍摄窗口使用当前地点日月数据，未推断沿途未来天气和地形遮挡。'),
           const SizedBox(height: 10),
-          for (final entry in timeline)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(_timelineIcon(entry.kind)),
-              title: Text(entry.label),
-              subtitle: Text(entry.description),
-              trailing: Text(_timelineTime(entry)),
+          Material(
+            color: theme.colorScheme.surfaceContainerLow.withValues(alpha: .9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
             ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                children: [
+                  for (final entry in timeline)
+                    ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.secondaryContainer,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(_timelineIcon(entry.kind), size: 18),
+                      ),
+                      title: Text(entry.label),
+                      subtitle: Text(entry.description),
+                      trailing: Text(
+                        _timelineTime(entry),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ],
         const SizedBox(height: 22),
         Text('路线步骤', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        if (route.instructions.isEmpty)
-          Text(
-            route.source == RouteSource.importedGpx
-                ? 'GPX 仅包含轨迹线，不含道路转向说明。'
-                : '路线已生成，暂时没有详细道路说明。',
-          )
-        else
-          for (
-            var index = 0;
-            index < route.instructions.length && index < 8;
-            index++
-          )
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                radius: 14,
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-              title: Text(route.instructions[index]),
-            ),
+        Material(
+          color: theme.colorScheme.surfaceContainerLow.withValues(alpha: .82),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: route.instructions.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(LumaNestSpacing.md),
+                    child: Text(
+                      route.source == RouteSource.importedGpx
+                          ? 'GPX 仅包含轨迹线，不含道路转向说明。'
+                          : '路线已生成，暂时没有详细道路说明。',
+                    ),
+                  )
+                : Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < route.instructions.length && index < 8;
+                        index++
+                      )
+                        ListTile(
+                          leading: CircleAvatar(
+                            radius: 15,
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Text(
+                              '${index + 1}',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          title: Text(route.instructions[index]),
+                        ),
+                    ],
+                  ),
+          ),
+        ),
         const SizedBox(height: 18),
         FilledButton.tonalIcon(
           onPressed: _support?.isLoading == true ? null : _scanSupport,
@@ -1039,15 +1207,46 @@ class _RouteLifecycleBar extends ConsumerWidget {
     final isActive = state.isActive;
     final isPaused = state.stage == ContextRouteStage.paused;
     final isPlanned = state.isPlanned;
+    final theme = Theme.of(context);
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: .9),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('情境跟随', style: Theme.of(context).textTheme.labelMedium),
+            Row(
+              children: [
+                Icon(
+                  isActive
+                      ? Icons.near_me_rounded
+                      : isPaused
+                      ? Icons.pause_circle_outline
+                      : Icons.radio_button_checked,
+                  size: 18,
+                  color: isActive
+                      ? theme.colorScheme.secondary
+                      : theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text('情境跟随', style: theme.textTheme.labelLarge),
+                const Spacer(),
+                Text(
+                  isActive
+                      ? '进行中'
+                      : isPaused
+                      ? '已暂停'
+                      : '待出发',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 2),
             Text(
               '控制环境情境跟随路线，不提供逐向导航。',
