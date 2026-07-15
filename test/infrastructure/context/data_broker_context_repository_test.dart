@@ -70,6 +70,44 @@ void main() {
     expect(transport.body['route'], {'mode': 'none', 'stage': 'none'});
   });
 
+  test('parses a live quiet response when air quality is unavailable', () async {
+    final transport = _FakeTransport()
+      ..mutateResponse = (body) {
+        body['scene'] = 'village';
+        body['weather'] = {
+          ...(body['weather']! as Map),
+          'airQualityIndex': null,
+          'airQualityCategory': null,
+          'primaryPollutant': null,
+          'airQualityObservedAt': null,
+          'airQualityStale': true,
+        };
+        body['events'] = <Object?>[];
+        body['allowedActions'] = <Object?>[];
+        body['manifest'] = {
+          'layoutMode': 'quiet',
+          'primaryEventId': null,
+          'secondaryEventIds': <Object?>[],
+          'safetyEventIds': <Object?>[],
+        };
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    final result = await repository.fetchSnapshot(
+      location: _location(),
+      observedAt: DateTime.utc(2026, 7, 14, 2),
+    );
+
+    expect(result.primaryScene, SceneType.village);
+    expect(result.airQualityIndex, isNull);
+    expect(result.airQualityStale, isTrue);
+    expect(result.events, isEmpty);
+  });
+
   test('canonical request carries driving/planned route', () async {
     final transport = _FakeTransport();
     final repository = DataBrokerContextRepository(

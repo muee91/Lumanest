@@ -389,7 +389,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     if (layout == null) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
-    final primaryEventId = manifest['primaryEventId']! as String?;
+    final primaryEventId = manifest['primaryEventId'] as String?;
     final secondaryEventIds = (manifest['secondaryEventIds']! as List)
         .cast<String>();
     final safetyEventIds = (manifest['safetyEventIds']! as List).cast<String>();
