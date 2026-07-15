@@ -6,6 +6,9 @@ import 'package:luma_nest/src/core/context/context_event.dart' as context;
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/route/application/gpx_track_import_service.dart';
@@ -149,10 +152,68 @@ void main() {
     );
 
     expect(find.text('当前风力较强'), findsOneWidget);
+    expect(find.text('路线风险节点'), findsOneWidget);
     expect(find.text('行动时间轴'), findsOneWidget);
     expect(find.text('落日窗口'), findsOneWidget);
     expect(find.text('蓝调窗口'), findsOneWidget);
-    expect(find.textContaining('未包含沿途地形遮挡和未来天气变化'), findsOneWidget);
+    expect(find.textContaining('未推断沿途未来天气'), findsOneWidget);
+  });
+
+  testWidgets('automatically merges corridor support into the timeline', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final now = DateTime.utc(2026, 7, 15, 8);
+    final route = DrivingRoute(
+      destinationName: '湖岸营地',
+      distanceMeters: 8000,
+      durationSeconds: const Duration(hours: 1).inSeconds,
+      tollsYuan: 0,
+      polyline: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.1, longitude: 120.1),
+      ],
+    );
+    final snapshot = ContextSnapshot(
+      id: 'support-context',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.driving,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          nearbyPlaceRepositoryProvider.overrideWithValue(
+            _TimelineNearbyPlaceRepository(),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: RoutePage(
+              destinationName: '湖岸营地',
+              destinationLatitude: 30.1,
+              destinationLongitude: 120.1,
+              routeAsync: AsyncData(route),
+              contextSnapshot: snapshot,
+              timelineNow: now,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('行动时间轴'), findsOneWidget);
+    expect(find.text('沿途小店'), findsWidgets);
+    expect(find.textContaining('时间为进度估算'), findsOneWidget);
+    expect(find.text('重新扫描沿途服务点'), findsOneWidget);
   });
 
   testWidgets('walking route shows ascent honesty and return-light warning', (
@@ -205,7 +266,7 @@ void main() {
     expect(find.text('暂无高程'), findsOneWidget);
     expect(find.text('徒步返程参考'), findsOneWidget);
     expect(find.textContaining('可能晚于日落'), findsOneWidget);
-    expect(find.text('扫描沿途补给'), findsOneWidget);
+    expect(find.text('扫描沿途餐饮和补给'), findsOneWidget);
   });
 
   testWidgets('walking route displays sampled elevation with attribution', (
@@ -498,4 +559,25 @@ class _MemoryLibraryStore implements UserLibraryStore {
 
   @override
   Future<void> write(UserLibraryState state) async => value = state;
+}
+
+class _TimelineNearbyPlaceRepository implements NearbyPlaceRepository {
+  @override
+  Future<List<NearbyPlace>> fetchNearby({
+    required GeoPoint center,
+    required NearbyPlaceCategory category,
+    int radiusMeters = 5000,
+  }) async {
+    if (category != NearbyPlaceCategory.food) return const [];
+    return [
+      NearbyPlace(
+        id: 'timeline-food',
+        name: '沿途小店',
+        category: category,
+        point: center,
+        distanceMeters: 120,
+        address: '湖岸路',
+      ),
+    ];
+  }
 }

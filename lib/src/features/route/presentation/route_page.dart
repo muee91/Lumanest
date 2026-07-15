@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
@@ -19,6 +20,7 @@ import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/features/route/domain/route_timeline.dart';
 import 'package:luma_nest/src/features/route/domain/hiking_return_assessment.dart';
+import 'package:luma_nest/src/features/route/domain/route_support_stop.dart';
 import 'package:luma_nest/src/features/route/infrastructure/gpx_track_parser.dart';
 import 'package:luma_nest/src/features/route/presentation/route_map_preview.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -377,12 +379,13 @@ class _RouteContent extends ConsumerStatefulWidget {
 }
 
 class _RouteContentState extends ConsumerState<_RouteContent> {
-  AsyncValue<List<NearbyPlace>>? _support;
+  AsyncValue<List<RouteSupportStop>>? _support;
 
   @override
   void initState() {
     super.initState();
     _syncPlanned();
+    _scheduleAutomaticSupportScan();
   }
 
   @override
@@ -390,9 +393,20 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.travelMode != widget.travelMode ||
         oldWidget.destinationLatitude != widget.destinationLatitude ||
-        oldWidget.destinationLongitude != widget.destinationLongitude) {
+        oldWidget.destinationLongitude != widget.destinationLongitude ||
+        oldWidget.route.sourceId != widget.route.sourceId) {
+      _support = null;
       _syncPlanned();
+      _scheduleAutomaticSupportScan();
     }
+  }
+
+  void _scheduleAutomaticSupportScan() {
+    if (widget.route.polyline.length < 2 || widget.route.isStale) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _support != null) return;
+      unawaited(_scanSupport());
+    });
   }
 
   /// Marks the route as planned (with the current travel mode) once a route is
@@ -431,16 +445,10 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
   Widget build(BuildContext context) {
     final route = widget.route;
     final snapshot = widget.snapshot;
-    final safety = snapshot == null
-        ? const <ManifestItem>[]
-        : ManifestPolicy.build(snapshot, now: widget.departureAt).safety;
-    final timeline = snapshot == null
-        ? const <RouteTimelineEntry>[]
-        : RouteTimeline.build(
-            route: route,
-            snapshot: snapshot,
-            departureAt: widget.departureAt,
-          );
+    final manifest = snapshot == null
+        ? null
+        : ManifestPolicy.build(snapshot, now: widget.departureAt);
+    final safety = manifest?.safety ?? const <ManifestItem>[];
     final hikingAssessment = snapshot == null
         ? null
         : HikingReturnAssessment.build(
@@ -448,6 +456,31 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
             snapshot: snapshot,
             departureAt: widget.departureAt,
           );
+    final routeRiskIds = snapshot?.events
+        .where(
+          (event) =>
+              event.geoScope == ContextGeoScope.route &&
+              (event.channel == ContextEventChannel.safety ||
+                  event.channel == ContextEventChannel.wildlifeSafety) &&
+              !event.isExpiredAt(widget.departureAt),
+        )
+        .map((event) => event.id)
+        .toSet();
+    final timeline = RouteTimeline.build(
+      route: route,
+      snapshot: snapshot,
+      departureAt: widget.departureAt,
+      supportStops: _support?.asData?.value ?? const [],
+      routeRisks: routeRiskIds == null
+          ? const []
+          : safety
+                .where((item) => routeRiskIds.contains(item.id))
+                .map(
+                  (item) => RouteTimelineRisk(id: item.id, title: item.title),
+                )
+                .toList(growable: false),
+      hikingAssessment: hikingAssessment,
+    );
     final distance = route.distanceMeters >= 1000
         ? '${(route.distanceMeters / 1000).toStringAsFixed(1)} km'
         : '${route.distanceMeters} m';
@@ -572,7 +605,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           const SizedBox(height: 22),
           Text('行动时间轴', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
-          const Text('拍摄窗口按当前地点的日月时间计算，未包含沿途地形遮挡和未来天气变化。'),
+          const Text('补给时间按路线进度估算；拍摄窗口使用当前地点日月数据，未推断沿途未来天气和地形遮挡。'),
           const SizedBox(height: 10),
           for (final entry in timeline)
             ListTile(
@@ -620,17 +653,17 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           label: Text(
             _support == null
                 ? route.travelMode == RouteTravelMode.walking
-                      ? '扫描沿途补给'
-                      : '扫描沿途加油和补给'
-                : '重新扫描沿途补给',
+                      ? '扫描沿途餐饮和补给'
+                      : '扫描沿途加油、餐饮和补给'
+                : '重新扫描沿途服务点',
           ),
         ),
         if (_support case final support?) ...[
           const SizedBox(height: 14),
           support.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) => const Text('沿途补给数据暂时不可用'),
-            data: (items) => _SupportResults(items: items),
+            error: (_, _) => const Text('沿途服务点数据暂时不可用'),
+            data: (stops) => _SupportResults(stops: stops),
           ),
         ],
       ],
@@ -639,8 +672,13 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
 
   IconData _timelineIcon(RouteTimelineKind kind) => switch (kind) {
     RouteTimelineKind.departure => Icons.trip_origin,
+    RouteTimelineKind.safety => Icons.warning_amber_rounded,
+    RouteTimelineKind.support => Icons.storefront_outlined,
+    RouteTimelineKind.elevation => Icons.terrain_outlined,
     RouteTimelineKind.shooting => Icons.photo_camera_outlined,
     RouteTimelineKind.arrival => Icons.flag_outlined,
+    RouteTimelineKind.returnDeadline => Icons.timer_outlined,
+    RouteTimelineKind.estimatedReturn => Icons.keyboard_return,
   };
 
   String _timelineTime(RouteTimelineEntry entry) {
@@ -696,29 +734,31 @@ class _HikingReturnCard extends StatelessWidget {
 }
 
 class _SupportResults extends StatelessWidget {
-  const _SupportResults({required this.items});
+  const _SupportResults({required this.stops});
 
-  final List<NearbyPlace> items;
+  final List<RouteSupportStop> stops;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const Text('路线附近暂未找到可靠的加油站或超市。');
+    if (stops.isEmpty) return const Text('路线附近暂未找到可靠的加油、餐饮或补给点。');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('沿途补给', style: Theme.of(context).textTheme.titleMedium),
+        Text('沿途服务点', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 6),
-        for (final place in items.take(12))
+        for (final stop in stops)
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(
-              place.category == NearbyPlaceCategory.fuel
+              stop.place.category == NearbyPlaceCategory.fuel
                   ? Icons.local_gas_station_outlined
+                  : stop.place.category == NearbyPlaceCategory.food
+                  ? Icons.restaurant_outlined
                   : Icons.shopping_bag_outlined,
             ),
-            title: Text(place.name),
+            title: Text(stop.place.name),
             subtitle: Text(
-              '${place.category.label} · 距采样点约 ${place.distanceMeters} m',
+              '${stop.place.category.label} · 约在路线 ${(stop.routeProgress * 100).round()}% · 距采样点约 ${stop.place.distanceMeters} m',
             ),
           ),
       ],
