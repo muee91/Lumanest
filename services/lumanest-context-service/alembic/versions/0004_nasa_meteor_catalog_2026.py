@@ -1,5 +1,6 @@
 """Install the reviewed NASA 2026 meteor-shower windows."""
 
+from datetime import datetime
 from hashlib import sha256
 
 from alembic import op
@@ -13,32 +14,33 @@ depends_on = None
 
 
 source_id = "nasa-meteor-showers-2026"
+reviewed_at = datetime.fromisoformat("2026-07-16T00:00:00+00:00")
 events = (
     (
         "perseids-2026-window",
-        "2026-08-12T12:00:00+00:00",
-        "2026-08-13T12:00:00+00:00",
+        datetime.fromisoformat("2026-08-12T12:00:00+00:00"),
+        datetime.fromisoformat("2026-08-13T12:00:00+00:00"),
         "英仙座流星雨年度活跃窗口",
         "https://science.nasa.gov/solar-system/meteors-meteorites/perseids/",
     ),
     (
         "orionids-2026-window",
-        "2026-10-21T12:00:00+00:00",
-        "2026-10-22T12:00:00+00:00",
+        datetime.fromisoformat("2026-10-21T12:00:00+00:00"),
+        datetime.fromisoformat("2026-10-22T12:00:00+00:00"),
         "猎户座流星雨年度活跃窗口",
         "https://science.nasa.gov/solar-system/meteors-meteorites/orionids/",
     ),
     (
         "leonids-2026-window",
-        "2026-11-17T12:00:00+00:00",
-        "2026-11-18T12:00:00+00:00",
+        datetime.fromisoformat("2026-11-17T12:00:00+00:00"),
+        datetime.fromisoformat("2026-11-18T12:00:00+00:00"),
         "狮子座流星雨年度活跃窗口",
         "https://science.nasa.gov/solar-system/meteors-meteorites/leonids/",
     ),
     (
         "geminids-2026-window",
-        "2026-12-13T12:00:00+00:00",
-        "2026-12-14T12:00:00+00:00",
+        datetime.fromisoformat("2026-12-13T12:00:00+00:00"),
+        datetime.fromisoformat("2026-12-14T12:00:00+00:00"),
         "双子座流星雨年度活跃窗口",
         "https://science.nasa.gov/solar-system/meteors-meteorites/geminids/",
     ),
@@ -67,7 +69,7 @@ def upgrade() -> None:
         {
             "id": source_id,
             "attribution": "NASA Science meteor shower guides; reviewed by LumaNest 2026-07-16",
-            "updated_at": "2026-07-16T00:00:00+00:00",
+            "updated_at": reviewed_at,
         },
     )
     for external_id, starts_at, ends_at, title, source_url in events:
