@@ -3,6 +3,8 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 
 class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   @override
@@ -205,3 +207,31 @@ final userLibraryProvider =
     AsyncNotifierProvider<UserLibraryController, UserLibraryState>(
       UserLibraryController.new,
     );
+
+class JourneyRouteContextRestorer {
+  const JourneyRouteContextRestorer(this.ref);
+
+  final Ref ref;
+
+  Future<void> restore() async {
+    final active = (await ref.read(userLibraryProvider.future)).activeJourney;
+    if (active == null) return;
+    final mode = active.destination.travelMode == 'walking'
+        ? ContextRouteMode.hiking
+        : ContextRouteMode.driving;
+    final notifier = ref.read(routeContextStateProvider.notifier);
+    notifier.plan(
+      mode,
+      identity: RouteIdentity(
+        latitude: active.destination.latitude,
+        longitude: active.destination.longitude,
+        mode: mode,
+        routeKey: active.routeKey,
+      ),
+    );
+    notifier.start();
+  }
+}
+
+final journeyRouteContextRestorerProvider =
+    Provider<JourneyRouteContextRestorer>(JourneyRouteContextRestorer.new);

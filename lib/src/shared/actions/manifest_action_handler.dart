@@ -29,7 +29,14 @@ Future<void> handleManifestAction(
     return;
   }
   final panel = resolution.panel;
-  if (panel == null) return;
+  if (panel == null) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('这个动作已失效，请刷新情境后重试')));
+    }
+    return;
+  }
   await showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,

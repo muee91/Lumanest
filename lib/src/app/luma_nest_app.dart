@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/device/device_energy_providers.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_rendering_policy.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
@@ -46,6 +49,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(ref.read(journeyRouteContextRestorerProvider).restore());
     _router = createLumaNestRouter(initialContext: widget.initialContext);
     _router.routerDelegate.addListener(_handleRouterChange);
   }

@@ -7,6 +7,8 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 
 void main() {
   test('saved authority notes reject non-HTTPS action targets', () {
@@ -158,6 +160,36 @@ void main() {
     await controller.endJourney(first);
     expect(store.value.activeJourney, isNull);
     expect(store.value.journeys.single.endedAt, isNotNull);
+  });
+
+  test('cold-start restorer activates an unfinished walking journey', () async {
+    final store = _FakeStore(
+      UserLibraryState(
+        journeys: [
+          SavedJourney.start(
+            const SavedRouteDestination(
+              name: '山谷步道',
+              latitude: 30,
+              longitude: 120,
+              travelMode: 'walking',
+            ),
+            startedAt: DateTime.utc(2026, 7, 15, 8),
+            routeKey: 'track-1',
+          ),
+        ],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(journeyRouteContextRestorerProvider).restore();
+
+    expect(
+      container.read(routeContextStateProvider),
+      RouteContextState.active(ContextRouteMode.hiking),
+    );
   });
 
   test('persists and deletes an imported GPX track', () async {
