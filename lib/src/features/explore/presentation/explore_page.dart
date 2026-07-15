@@ -76,11 +76,22 @@ class _ConfigurationMissingView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.map_outlined, size: LumaNestSpacing.xl),
+            const _ExplorePageMark(),
+            const Spacer(),
+            Icon(
+              Icons.map_outlined,
+              size: 52,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             const SizedBox(height: LumaNestSpacing.lg),
-            Text('探索', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: LumaNestSpacing.sm),
-            const Text('地图尚未配置'),
+            Text('地图尚未配置', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: LumaNestSpacing.xs),
+            Text(
+              '完成高德地图配置后，附近机位、搜索与路线入口会在这里出现。',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
             const Spacer(),
           ],
         ),
@@ -102,18 +113,73 @@ class _ConsentPrompt extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.map_outlined, size: LumaNestSpacing.xl),
-            const SizedBox(height: LumaNestSpacing.lg),
-            Text('探索', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: LumaNestSpacing.sm),
-            const Text('开启地图前需要同意高德地图隐私政策。'),
+            const _ExplorePageMark(),
             const Spacer(),
-            FilledButton(onPressed: onAccept, child: const Text('同意并开启地图')),
+            Container(
+              width: 58,
+              height: 58,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.layers_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: LumaNestSpacing.lg),
+            Text('先确认地图隐私', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: LumaNestSpacing.xs),
+            Text(
+              '开启地图前需要同意高德地图隐私政策。栖光不会把你的精确位置历史保存到服务端。',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: LumaNestSpacing.xl),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onAccept,
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('同意并开启地图'),
+              ),
+            ),
+            const Spacer(),
           ],
         ),
       ),
     );
   }
+}
+
+class _ExplorePageMark extends StatelessWidget {
+  const _ExplorePageMark();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 9,
+        height: 9,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.secondary,
+          shape: BoxShape.circle,
+        ),
+      ),
+      const SizedBox(width: LumaNestSpacing.sm),
+      Text('探索', style: Theme.of(context).textTheme.displaySmall),
+      const Spacer(),
+      Text(
+        'EXPLORE',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          letterSpacing: 1.8,
+        ),
+      ),
+    ],
+  );
 }
 
 class _MapView extends ConsumerStatefulWidget {
@@ -480,11 +546,35 @@ class _FocusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.secondaryContainer,
-    borderRadius: BorderRadius.circular(16),
+    color: Theme.of(
+      context,
+    ).colorScheme.secondaryContainer.withValues(alpha: .9),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(
+        color: Theme.of(context).colorScheme.secondary.withValues(alpha: .24),
+      ),
+    ),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Text(focus.label, textAlign: TextAlign.center),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.filter_center_focus_rounded,
+            size: 17,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              focus.label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -496,12 +586,21 @@ class _CategoryBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(nearbyCategoryProvider);
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .92),
-      borderRadius: BorderRadius.circular(18),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: .12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: .72),
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
         child: Row(
           children: [
             for (final category in NearbyPlaceCategory.values)
@@ -539,13 +638,51 @@ class _NearbyResultPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
+    final category = ref.watch(nearbyCategoryProvider);
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-      borderRadius: BorderRadius.circular(20),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: .16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: .74),
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.near_me_outlined,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  '附近${category.label}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const Spacer(),
+                Text(
+                  '点击地点规划路线',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+            height: 1,
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           if (wildlifeActivity case final activity?) ...[
             _WildlifeActivitySummary(
               activity: activity,
@@ -582,75 +719,90 @@ class _NearbyResultPanel extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final place = items[index];
                     return SizedBox(
-                      width: 210,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
+                      width: 224,
+                      child: Material(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          side: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withValues(alpha: .65),
+                          ),
                         ),
-                        title: Text(
-                          place.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          _metadata(place),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: library?.containsPlace(place.id) == true
-                                  ? '取消收藏'
-                                  : '收藏',
-                              onPressed: () => ref
-                                  .read(userLibraryProvider.notifier)
-                                  .togglePlace(
-                                    SavedPlace(
-                                      id: place.id,
-                                      name: place.name,
-                                      category: place.category.name,
-                                      latitude: place.point.latitude,
-                                      longitude: place.point.longitude,
+                        clipBehavior: Clip.antiAlias,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                          ),
+                          title: Text(
+                            place.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            _metadata(place),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip:
+                                    library?.containsPlace(place.id) == true
+                                    ? '取消收藏'
+                                    : '收藏',
+                                onPressed: () => ref
+                                    .read(userLibraryProvider.notifier)
+                                    .togglePlace(
+                                      SavedPlace(
+                                        id: place.id,
+                                        name: place.name,
+                                        category: place.category.name,
+                                        latitude: place.point.latitude,
+                                        longitude: place.point.longitude,
+                                      ),
                                     ),
-                                  ),
-                              icon: Icon(
-                                library?.containsPlace(place.id) == true
-                                    ? Icons.bookmark
-                                    : Icons.bookmark_border,
-                              ),
-                            ),
-                            const Icon(Icons.arrow_outward, size: 18),
-                          ],
-                        ),
-                        onTap: () async {
-                          ref
-                              .read(exploreIntentProvider.notifier)
-                              .complete(
-                                category: ref.read(nearbyCategoryProvider),
-                              );
-                          await ref
-                              .read(userLibraryProvider.notifier)
-                              .saveRecentRoute(
-                                SavedRouteDestination(
-                                  name: place.name,
-                                  latitude: place.point.latitude,
-                                  longitude: place.point.longitude,
+                                icon: Icon(
+                                  library?.containsPlace(place.id) == true
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
                                 ),
-                              );
-                          if (!context.mounted) return;
-                          final target = Uri(
-                            path: '/route',
-                            queryParameters: {
-                              'name': place.name,
-                              'lat': '${place.point.latitude}',
-                              'lon': '${place.point.longitude}',
-                            },
-                          );
-                          context.go(target.toString());
-                        },
+                              ),
+                              const Icon(Icons.arrow_forward_rounded, size: 18),
+                            ],
+                          ),
+                          onTap: () async {
+                            ref
+                                .read(exploreIntentProvider.notifier)
+                                .complete(
+                                  category: ref.read(nearbyCategoryProvider),
+                                );
+                            await ref
+                                .read(userLibraryProvider.notifier)
+                                .saveRecentRoute(
+                                  SavedRouteDestination(
+                                    name: place.name,
+                                    latitude: place.point.latitude,
+                                    longitude: place.point.longitude,
+                                  ),
+                                );
+                            if (!context.mounted) return;
+                            final target = Uri(
+                              path: '/route',
+                              queryParameters: {
+                                'name': place.name,
+                                'lat': '${place.point.latitude}',
+                                'lon': '${place.point.longitude}',
+                              },
+                            );
+                            context.go(target.toString());
+                          },
+                        ),
                       ),
                     );
                   },
@@ -810,7 +962,12 @@ class _SearchField extends StatelessWidget {
       curve: Curves.easeInOut,
       child: expanded
           ? Material(
-              color: Colors.transparent,
+              color: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: .96),
+              elevation: 8,
+              shadowColor: Colors.black.withValues(alpha: .16),
+              borderRadius: BorderRadius.circular(24),
               child: TextField(
                 controller: controller,
                 focusNode: focusNode,
@@ -818,7 +975,7 @@ class _SearchField extends StatelessWidget {
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: '搜索地点',
-                  prefixIcon: const Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: controller,
                     builder: (_, value, _) => value.text.isEmpty
@@ -829,13 +986,9 @@ class _SearchField extends StatelessWidget {
                           ),
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  filled: true,
-                  fillColor: Theme.of(
-                    context,
-                  ).colorScheme.surface.withValues(alpha: .92),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18),
                 ),
               ),
             )
@@ -844,15 +997,37 @@ class _SearchField extends StatelessWidget {
               child: Material(
                 color: Theme.of(
                   context,
-                ).colorScheme.surface.withValues(alpha: .92),
-                borderRadius: BorderRadius.circular(18),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ).colorScheme.surface.withValues(alpha: .96),
+                elevation: 8,
+                shadowColor: Colors.black.withValues(alpha: .16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: .72),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 17,
+                    vertical: 14,
+                  ),
                   child: Row(
                     children: [
-                      Icon(Icons.search),
-                      SizedBox(width: 8),
-                      Text('搜索地点'),
+                      Icon(
+                        Icons.search_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      const Text('搜索地点'),
+                      const Spacer(),
+                      Text(
+                        '地点 / 机位 / 补给',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -871,17 +1046,30 @@ class _SearchResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-      borderRadius: BorderRadius.circular(20),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: .16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: .74),
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 10),
             child: Row(
               children: [
-                const Icon(Icons.search, size: 18),
+                Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text('搜索结果', style: Theme.of(context).textTheme.titleSmall),
               ],
@@ -913,24 +1101,41 @@ class _SearchResultPanel extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final item = items[index];
                     return SizedBox(
-                      width: 210,
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
+                      width: 224,
+                      child: Material(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          side: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withValues(alpha: .65),
+                          ),
                         ),
-                        title: Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        clipBehavior: Clip.antiAlias,
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          title: Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            _metadata(item),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 18,
+                          ),
+                          onTap: () => onSelect(item),
                         ),
-                        subtitle: Text(
-                          _metadata(item),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: const Icon(Icons.arrow_outward, size: 18),
-                        onTap: () => onSelect(item),
                       ),
                     );
                   },
