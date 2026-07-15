@@ -5,6 +5,8 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 
 void main() {
   test('restores, toggles and persists saved places', () async {
@@ -157,6 +159,43 @@ void main() {
     await controller.clearImportedTracks();
     expect(store.value.importedTracks, isEmpty);
   });
+
+  test(
+    'saves and removes a local inspiration note without source context',
+    () async {
+      final store = _FakeStore(const UserLibraryState());
+      final container = ProviderContainer(
+        overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      await container.read(userLibraryProvider.future);
+      const note = InspirationNote(
+        id: 'reflection',
+        label: '找倒影',
+        emoji: '🪞',
+        category: InspirationCategory.place,
+        action: ManifestAction.openExplore,
+        detail: '风正在变小，去湖岸找一段干净的水面。',
+        priority: 100,
+        ttl: Duration(minutes: 30),
+      );
+      final controller = container.read(userLibraryProvider.notifier);
+
+      await controller.saveInspirationNote(snapshotId: 'context-1', note: note);
+      await controller.saveInspirationNote(snapshotId: 'context-1', note: note);
+
+      expect(store.value.savedNotes, hasLength(1));
+      expect(store.value.savedNotes.single.displayLabel, '找倒影🪞');
+      expect(
+        store.value.savedNotes.single.action,
+        ManifestAction.openExplore.name,
+      );
+      expect(store.value.savedNotes.single.id, hasLength(64));
+
+      await controller.deleteSavedNote(store.value.savedNotes.single.id);
+      expect(store.value.savedNotes, isEmpty);
+    },
+  );
 }
 
 class _FakeStore implements UserLibraryStore {

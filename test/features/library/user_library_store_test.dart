@@ -7,6 +7,8 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
+import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -58,6 +60,22 @@ void main() {
           descentMeters: 20,
         ),
       ],
+      savedNotes: [
+        SavedInspirationNote.fromNote(
+          snapshotId: 'snapshot-1',
+          note: const InspirationNote(
+            id: 'reflection',
+            label: '找倒影',
+            emoji: '🪞',
+            category: InspirationCategory.place,
+            action: ManifestAction.openExplore,
+            detail: '去湖岸找一段干净的水面。',
+            priority: 100,
+            ttl: Duration(minutes: 30),
+          ),
+          savedAt: DateTime.utc(2026, 7, 15),
+        ),
+      ],
     );
 
     await store.write(state);
@@ -70,6 +88,11 @@ void main() {
     expect(restored.importedTracks.single.points.last.longitude, 121.1);
     expect(restored.importedTracks.single.segmentBreakIndexes, [2]);
     expect(restored.importedTracks.single.ascentMeters, 80);
+    expect(restored.savedNotes.single.displayLabel, '找倒影🪞');
+    expect(
+      restored.savedNotes.single.manifestAction,
+      ManifestAction.openExplore,
+    );
   });
 
   test('a write replaces removed places and clears a removed route', () async {

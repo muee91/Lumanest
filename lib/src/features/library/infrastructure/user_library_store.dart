@@ -25,7 +25,8 @@ class DriftUserLibraryStore implements UserLibraryStore {
     final persisted = await _readDatabase();
     if (persisted.savedPlaces.isNotEmpty ||
         persisted.recentRoute != null ||
-        persisted.importedTracks.isNotEmpty) {
+        persisted.importedTracks.isNotEmpty ||
+        persisted.savedNotes.isNotEmpty) {
       return persisted;
     }
 
@@ -53,6 +54,9 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final trackQuery = _database.select(_database.importedRouteTracks)
         ..orderBy([(row) => OrderingTerm.desc(row.importedAt)]);
       final tracks = await trackQuery.get();
+      final noteQuery = _database.select(_database.savedInspirationNotes)
+        ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
+      final notes = await noteQuery.get();
       return UserLibraryState(
         savedPlaces: places
             .map(
@@ -76,6 +80,19 @@ class DriftUserLibraryStore implements UserLibraryStore {
         importedTracks: tracks
             .map(_decodeTrack)
             .whereType<ImportedRouteTrack>()
+            .toList(growable: false),
+        savedNotes: notes
+            .map(
+              (row) => SavedInspirationNote(
+                id: row.id,
+                label: row.label,
+                emoji: row.emoji,
+                category: row.category,
+                action: row.actionName,
+                detail: row.detail,
+                savedAt: row.savedAt.toUtc(),
+              ),
+            )
             .toList(growable: false),
       );
     });
@@ -139,6 +156,23 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 durationEstimated: track.durationEstimated,
                 ascentMeters: Value(track.ascentMeters),
                 descentMeters: Value(track.descentMeters),
+              ),
+            );
+      }
+
+      await _database.delete(_database.savedInspirationNotes).go();
+      for (final note in state.savedNotes) {
+        await _database
+            .into(_database.savedInspirationNotes)
+            .insert(
+              SavedInspirationNotesCompanion.insert(
+                id: note.id,
+                label: note.label,
+                emoji: note.emoji,
+                category: note.category,
+                actionName: note.action,
+                detail: note.detail,
+                savedAt: note.savedAt.toUtc(),
               ),
             );
       }

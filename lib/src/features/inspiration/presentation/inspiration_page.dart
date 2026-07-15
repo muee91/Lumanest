@@ -9,6 +9,8 @@ import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
 class InspirationPage extends ConsumerWidget {
@@ -38,6 +40,15 @@ class InspirationPage extends ConsumerWidget {
       data: (snapshot) {
         final narrative = ref.watch(manifestNarrativeProvider(snapshot));
         final manifest = ref.watch(personalizedManifestProvider(snapshot));
+        final savedNoteIds =
+            ref
+                .watch(userLibraryProvider)
+                .asData
+                ?.value
+                .savedNotes
+                .map((note) => note.id)
+                .toSet() ??
+            const <String>{};
         return _BottleScaffold(
           notes: InspirationNotes.build(
             snapshot,
@@ -46,6 +57,15 @@ class InspirationPage extends ConsumerWidget {
           ),
           reduceMotion: reduceMotion,
           onAction: (note) => _performAction(context, note),
+          isSaved: (note) => savedNoteIds.contains(
+            SavedInspirationNote.idFor(
+              snapshotId: snapshot.id,
+              noteId: note.id,
+            ),
+          ),
+          onSave: (note) => ref
+              .read(userLibraryProvider.notifier)
+              .saveInspirationNote(snapshotId: snapshot.id, note: note),
         );
       },
     );
@@ -75,10 +95,14 @@ class _BottleScaffold extends StatefulWidget {
     required this.notes,
     required this.reduceMotion,
     required this.onAction,
+    this.onSave,
+    this.isSaved,
   });
   final List<InspirationNote> notes;
   final bool reduceMotion;
   final void Function(InspirationNote note) onAction;
+  final Future<void> Function(InspirationNote note)? onSave;
+  final bool Function(InspirationNote note)? isSaved;
 
   @override
   State<_BottleScaffold> createState() => _BottleScaffoldState();
@@ -258,6 +282,22 @@ class _BottleScaffoldState extends State<_BottleScaffold>
                 icon: const Icon(Icons.arrow_outward),
                 label: const Text('去看看'),
               ),
+              if (widget.onSave case final onSave?) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: widget.isSaved?.call(note) == true
+                      ? null
+                      : () => onSave(note),
+                  icon: Icon(
+                    widget.isSaved?.call(note) == true
+                        ? Icons.bookmark
+                        : Icons.bookmark_border,
+                  ),
+                  label: Text(
+                    widget.isSaved?.call(note) == true ? '已收藏' : '收藏这张纸条',
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: _draw,

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
+import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
 class UserLibraryController extends AsyncNotifier<UserLibraryState> {
@@ -57,6 +58,7 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
       UserLibraryState(
         savedPlaces: current.savedPlaces,
         importedTracks: current.importedTracks,
+        savedNotes: current.savedNotes,
       ),
     );
   }
@@ -64,6 +66,42 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   Future<void> clearImportedTracks() async {
     final current = await future;
     await _save(current.copyWith(importedTracks: const []));
+  }
+
+  Future<void> saveInspirationNote({
+    required String snapshotId,
+    required InspirationNote note,
+  }) async {
+    final current = await future;
+    final saved = SavedInspirationNote.fromNote(
+      snapshotId: snapshotId,
+      note: note,
+      savedAt: DateTime.now(),
+    );
+    await _save(
+      current.copyWith(
+        savedNotes: [
+          saved,
+          ...current.savedNotes.where((candidate) => candidate.id != saved.id),
+        ],
+      ),
+    );
+  }
+
+  Future<void> deleteSavedNote(String id) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        savedNotes: current.savedNotes
+            .where((note) => note.id != id)
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  Future<void> clearSavedNotes() async {
+    final current = await future;
+    await _save(current.copyWith(savedNotes: const []));
   }
 
   Future<void> _save(UserLibraryState value) async {

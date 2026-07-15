@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/features/inspiration/presentation/inspiration_page.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 
 void main() {
   testWidgets('bottle keeps a subtle idle ticker when motion is allowed', (
@@ -40,6 +42,36 @@ void main() {
     expect(find.text('找倒影🪞'), findsWidgets);
     expect(find.text('蓝调了🌆'), findsWidgets);
   });
+
+  testWidgets('saves only the selected creative note to the local library', (
+    tester,
+  ) async {
+    final store = _MemoryLibraryStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+        child: MaterialApp(
+          home: InspirationPage(
+            snapshotAsync: AsyncValue.data(ContextFixtures.lakeSunset()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final saveButton = find.text('收藏这张纸条');
+    await tester.dragUntilVisible(
+      saveButton,
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+    await tester.tap(saveButton);
+    await tester.pump();
+
+    expect(store.value.savedNotes, hasLength(1));
+    expect(store.value.savedNotes.single.displayLabel, '找倒影🪞');
+    expect(find.text('已收藏'), findsOneWidget);
+  });
 }
 
 Widget _app({required bool disableAnimations}) {
@@ -53,4 +85,14 @@ Widget _app({required bool disableAnimations}) {
       ),
     ),
   );
+}
+
+class _MemoryLibraryStore implements UserLibraryStore {
+  UserLibraryState value = const UserLibraryState();
+
+  @override
+  Future<UserLibraryState> read() async => value;
+
+  @override
+  Future<void> write(UserLibraryState state) async => value = state;
 }

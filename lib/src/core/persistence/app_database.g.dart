@@ -2458,6 +2458,466 @@ class BaseRegionsCompanion extends UpdateCompanion<BaseRegionRow> {
   }
 }
 
+class $SavedInspirationNotesTable extends SavedInspirationNotes
+    with TableInfo<$SavedInspirationNotesTable, SavedInspirationNoteRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SavedInspirationNotesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _emojiMeta = const VerificationMeta('emoji');
+  @override
+  late final GeneratedColumn<String> emoji = GeneratedColumn<String>(
+    'emoji',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _actionNameMeta = const VerificationMeta(
+    'actionName',
+  );
+  @override
+  late final GeneratedColumn<String> actionName = GeneratedColumn<String>(
+    'action_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detailMeta = const VerificationMeta('detail');
+  @override
+  late final GeneratedColumn<String> detail = GeneratedColumn<String>(
+    'detail',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _savedAtMeta = const VerificationMeta(
+    'savedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> savedAt = GeneratedColumn<DateTime>(
+    'saved_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    label,
+    emoji,
+    category,
+    actionName,
+    detail,
+    savedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'saved_inspiration_notes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SavedInspirationNoteRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('emoji')) {
+      context.handle(
+        _emojiMeta,
+        emoji.isAcceptableOrUnknown(data['emoji']!, _emojiMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_emojiMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('action_name')) {
+      context.handle(
+        _actionNameMeta,
+        actionName.isAcceptableOrUnknown(data['action_name']!, _actionNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_actionNameMeta);
+    }
+    if (data.containsKey('detail')) {
+      context.handle(
+        _detailMeta,
+        detail.isAcceptableOrUnknown(data['detail']!, _detailMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_detailMeta);
+    }
+    if (data.containsKey('saved_at')) {
+      context.handle(
+        _savedAtMeta,
+        savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SavedInspirationNoteRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SavedInspirationNoteRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+      emoji: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}emoji'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      actionName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}action_name'],
+      )!,
+      detail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}detail'],
+      )!,
+      savedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}saved_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SavedInspirationNotesTable createAlias(String alias) {
+    return $SavedInspirationNotesTable(attachedDatabase, alias);
+  }
+}
+
+class SavedInspirationNoteRow extends DataClass
+    implements Insertable<SavedInspirationNoteRow> {
+  final String id;
+  final String label;
+  final String emoji;
+  final String category;
+  final String actionName;
+  final String detail;
+  final DateTime savedAt;
+  const SavedInspirationNoteRow({
+    required this.id,
+    required this.label,
+    required this.emoji,
+    required this.category,
+    required this.actionName,
+    required this.detail,
+    required this.savedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['label'] = Variable<String>(label);
+    map['emoji'] = Variable<String>(emoji);
+    map['category'] = Variable<String>(category);
+    map['action_name'] = Variable<String>(actionName);
+    map['detail'] = Variable<String>(detail);
+    map['saved_at'] = Variable<DateTime>(savedAt);
+    return map;
+  }
+
+  SavedInspirationNotesCompanion toCompanion(bool nullToAbsent) {
+    return SavedInspirationNotesCompanion(
+      id: Value(id),
+      label: Value(label),
+      emoji: Value(emoji),
+      category: Value(category),
+      actionName: Value(actionName),
+      detail: Value(detail),
+      savedAt: Value(savedAt),
+    );
+  }
+
+  factory SavedInspirationNoteRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SavedInspirationNoteRow(
+      id: serializer.fromJson<String>(json['id']),
+      label: serializer.fromJson<String>(json['label']),
+      emoji: serializer.fromJson<String>(json['emoji']),
+      category: serializer.fromJson<String>(json['category']),
+      actionName: serializer.fromJson<String>(json['actionName']),
+      detail: serializer.fromJson<String>(json['detail']),
+      savedAt: serializer.fromJson<DateTime>(json['savedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'label': serializer.toJson<String>(label),
+      'emoji': serializer.toJson<String>(emoji),
+      'category': serializer.toJson<String>(category),
+      'actionName': serializer.toJson<String>(actionName),
+      'detail': serializer.toJson<String>(detail),
+      'savedAt': serializer.toJson<DateTime>(savedAt),
+    };
+  }
+
+  SavedInspirationNoteRow copyWith({
+    String? id,
+    String? label,
+    String? emoji,
+    String? category,
+    String? actionName,
+    String? detail,
+    DateTime? savedAt,
+  }) => SavedInspirationNoteRow(
+    id: id ?? this.id,
+    label: label ?? this.label,
+    emoji: emoji ?? this.emoji,
+    category: category ?? this.category,
+    actionName: actionName ?? this.actionName,
+    detail: detail ?? this.detail,
+    savedAt: savedAt ?? this.savedAt,
+  );
+  SavedInspirationNoteRow copyWithCompanion(
+    SavedInspirationNotesCompanion data,
+  ) {
+    return SavedInspirationNoteRow(
+      id: data.id.present ? data.id.value : this.id,
+      label: data.label.present ? data.label.value : this.label,
+      emoji: data.emoji.present ? data.emoji.value : this.emoji,
+      category: data.category.present ? data.category.value : this.category,
+      actionName: data.actionName.present
+          ? data.actionName.value
+          : this.actionName,
+      detail: data.detail.present ? data.detail.value : this.detail,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedInspirationNoteRow(')
+          ..write('id: $id, ')
+          ..write('label: $label, ')
+          ..write('emoji: $emoji, ')
+          ..write('category: $category, ')
+          ..write('actionName: $actionName, ')
+          ..write('detail: $detail, ')
+          ..write('savedAt: $savedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, label, emoji, category, actionName, detail, savedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SavedInspirationNoteRow &&
+          other.id == this.id &&
+          other.label == this.label &&
+          other.emoji == this.emoji &&
+          other.category == this.category &&
+          other.actionName == this.actionName &&
+          other.detail == this.detail &&
+          other.savedAt == this.savedAt);
+}
+
+class SavedInspirationNotesCompanion
+    extends UpdateCompanion<SavedInspirationNoteRow> {
+  final Value<String> id;
+  final Value<String> label;
+  final Value<String> emoji;
+  final Value<String> category;
+  final Value<String> actionName;
+  final Value<String> detail;
+  final Value<DateTime> savedAt;
+  final Value<int> rowid;
+  const SavedInspirationNotesCompanion({
+    this.id = const Value.absent(),
+    this.label = const Value.absent(),
+    this.emoji = const Value.absent(),
+    this.category = const Value.absent(),
+    this.actionName = const Value.absent(),
+    this.detail = const Value.absent(),
+    this.savedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SavedInspirationNotesCompanion.insert({
+    required String id,
+    required String label,
+    required String emoji,
+    required String category,
+    required String actionName,
+    required String detail,
+    required DateTime savedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       label = Value(label),
+       emoji = Value(emoji),
+       category = Value(category),
+       actionName = Value(actionName),
+       detail = Value(detail),
+       savedAt = Value(savedAt);
+  static Insertable<SavedInspirationNoteRow> custom({
+    Expression<String>? id,
+    Expression<String>? label,
+    Expression<String>? emoji,
+    Expression<String>? category,
+    Expression<String>? actionName,
+    Expression<String>? detail,
+    Expression<DateTime>? savedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (label != null) 'label': label,
+      if (emoji != null) 'emoji': emoji,
+      if (category != null) 'category': category,
+      if (actionName != null) 'action_name': actionName,
+      if (detail != null) 'detail': detail,
+      if (savedAt != null) 'saved_at': savedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SavedInspirationNotesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? label,
+    Value<String>? emoji,
+    Value<String>? category,
+    Value<String>? actionName,
+    Value<String>? detail,
+    Value<DateTime>? savedAt,
+    Value<int>? rowid,
+  }) {
+    return SavedInspirationNotesCompanion(
+      id: id ?? this.id,
+      label: label ?? this.label,
+      emoji: emoji ?? this.emoji,
+      category: category ?? this.category,
+      actionName: actionName ?? this.actionName,
+      detail: detail ?? this.detail,
+      savedAt: savedAt ?? this.savedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (emoji.present) {
+      map['emoji'] = Variable<String>(emoji.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (actionName.present) {
+      map['action_name'] = Variable<String>(actionName.value);
+    }
+    if (detail.present) {
+      map['detail'] = Variable<String>(detail.value);
+    }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<DateTime>(savedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedInspirationNotesCompanion(')
+          ..write('id: $id, ')
+          ..write('label: $label, ')
+          ..write('emoji: $emoji, ')
+          ..write('category: $category, ')
+          ..write('actionName: $actionName, ')
+          ..write('detail: $detail, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2469,6 +2929,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
       $ProfilePreferenceRecordsTable(this);
   late final $BaseRegionsTable baseRegions = $BaseRegionsTable(this);
+  late final $SavedInspirationNotesTable savedInspirationNotes =
+      $SavedInspirationNotesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2479,6 +2941,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     importedRouteTracks,
     profilePreferenceRecords,
     baseRegions,
+    savedInspirationNotes,
   ];
 }
 
@@ -3763,6 +4226,265 @@ typedef $$BaseRegionsTableProcessedTableManager =
       BaseRegionRow,
       PrefetchHooks Function()
     >;
+typedef $$SavedInspirationNotesTableCreateCompanionBuilder =
+    SavedInspirationNotesCompanion Function({
+      required String id,
+      required String label,
+      required String emoji,
+      required String category,
+      required String actionName,
+      required String detail,
+      required DateTime savedAt,
+      Value<int> rowid,
+    });
+typedef $$SavedInspirationNotesTableUpdateCompanionBuilder =
+    SavedInspirationNotesCompanion Function({
+      Value<String> id,
+      Value<String> label,
+      Value<String> emoji,
+      Value<String> category,
+      Value<String> actionName,
+      Value<String> detail,
+      Value<DateTime> savedAt,
+      Value<int> rowid,
+    });
+
+class $$SavedInspirationNotesTableFilterComposer
+    extends Composer<_$AppDatabase, $SavedInspirationNotesTable> {
+  $$SavedInspirationNotesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get emoji => $composableBuilder(
+    column: $table.emoji,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actionName => $composableBuilder(
+    column: $table.actionName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SavedInspirationNotesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SavedInspirationNotesTable> {
+  $$SavedInspirationNotesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get emoji => $composableBuilder(
+    column: $table.emoji,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actionName => $composableBuilder(
+    column: $table.actionName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SavedInspirationNotesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SavedInspirationNotesTable> {
+  $$SavedInspirationNotesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get emoji =>
+      $composableBuilder(column: $table.emoji, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get actionName => $composableBuilder(
+    column: $table.actionName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get detail =>
+      $composableBuilder(column: $table.detail, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
+}
+
+class $$SavedInspirationNotesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SavedInspirationNotesTable,
+          SavedInspirationNoteRow,
+          $$SavedInspirationNotesTableFilterComposer,
+          $$SavedInspirationNotesTableOrderingComposer,
+          $$SavedInspirationNotesTableAnnotationComposer,
+          $$SavedInspirationNotesTableCreateCompanionBuilder,
+          $$SavedInspirationNotesTableUpdateCompanionBuilder,
+          (
+            SavedInspirationNoteRow,
+            BaseReferences<
+              _$AppDatabase,
+              $SavedInspirationNotesTable,
+              SavedInspirationNoteRow
+            >,
+          ),
+          SavedInspirationNoteRow,
+          PrefetchHooks Function()
+        > {
+  $$SavedInspirationNotesTableTableManager(
+    _$AppDatabase db,
+    $SavedInspirationNotesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SavedInspirationNotesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SavedInspirationNotesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SavedInspirationNotesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> label = const Value.absent(),
+                Value<String> emoji = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<String> actionName = const Value.absent(),
+                Value<String> detail = const Value.absent(),
+                Value<DateTime> savedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SavedInspirationNotesCompanion(
+                id: id,
+                label: label,
+                emoji: emoji,
+                category: category,
+                actionName: actionName,
+                detail: detail,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String label,
+                required String emoji,
+                required String category,
+                required String actionName,
+                required String detail,
+                required DateTime savedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => SavedInspirationNotesCompanion.insert(
+                id: id,
+                label: label,
+                emoji: emoji,
+                category: category,
+                actionName: actionName,
+                detail: detail,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SavedInspirationNotesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SavedInspirationNotesTable,
+      SavedInspirationNoteRow,
+      $$SavedInspirationNotesTableFilterComposer,
+      $$SavedInspirationNotesTableOrderingComposer,
+      $$SavedInspirationNotesTableAnnotationComposer,
+      $$SavedInspirationNotesTableCreateCompanionBuilder,
+      $$SavedInspirationNotesTableUpdateCompanionBuilder,
+      (
+        SavedInspirationNoteRow,
+        BaseReferences<
+          _$AppDatabase,
+          $SavedInspirationNotesTable,
+          SavedInspirationNoteRow
+        >,
+      ),
+      SavedInspirationNoteRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3783,4 +4505,6 @@ class $AppDatabaseManager {
       );
   $$BaseRegionsTableTableManager get baseRegions =>
       $$BaseRegionsTableTableManager(_db, _db.baseRegions);
+  $$SavedInspirationNotesTableTableManager get savedInspirationNotes =>
+      $$SavedInspirationNotesTableTableManager(_db, _db.savedInspirationNotes);
 }

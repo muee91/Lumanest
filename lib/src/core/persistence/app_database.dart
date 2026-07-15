@@ -125,6 +125,30 @@ class BaseRegions extends Table {
   ];
 }
 
+@DataClassName('SavedInspirationNoteRow')
+class SavedInspirationNotes extends Table {
+  TextColumn get id => text()();
+  TextColumn get label => text()();
+  TextColumn get emoji => text()();
+  TextColumn get category => text()();
+  TextColumn get actionName => text()();
+  TextColumn get detail => text()();
+  DateTimeColumn get savedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) BETWEEN 1 AND 100)',
+    'CHECK (length(label) BETWEEN 1 AND 40)',
+    'CHECK (length(emoji) BETWEEN 1 AND 16)',
+    'CHECK (length(category) BETWEEN 1 AND 40)',
+    'CHECK (length(action_name) BETWEEN 1 AND 60)',
+    'CHECK (length(detail) BETWEEN 1 AND 500)',
+  ];
+}
+
 @DriftDatabase(
   tables: [
     SavedPlaces,
@@ -132,6 +156,7 @@ class BaseRegions extends Table {
     ImportedRouteTracks,
     ProfilePreferenceRecords,
     BaseRegions,
+    SavedInspirationNotes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -141,7 +166,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -154,6 +179,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 4) {
         await migrator.createTable(baseRegions);
+      }
+      if (from < 5) {
+        await migrator.createTable(savedInspirationNotes);
       }
     },
   );

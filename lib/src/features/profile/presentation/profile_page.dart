@@ -304,6 +304,31 @@ class ProfilePage extends ConsumerWidget {
                 ),
               ),
           ],
+          if (library?.savedNotes.isNotEmpty == true) ...[
+            const Divider(),
+            _LibrarySectionHeader(
+              title: '收藏纸条',
+              clearLabel: '清空纸条',
+              onClear: () => _confirmLibraryClear(
+                context,
+                ref,
+                type: _LibraryClearType.savedNotes,
+              ),
+            ),
+            for (final note in library!.savedNotes)
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline),
+                title: Text(note.displayLabel),
+                subtitle: Text(note.detail),
+                trailing: IconButton(
+                  tooltip: '删除纸条',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => ref
+                      .read(userLibraryProvider.notifier)
+                      .deleteSavedNote(note.id),
+                ),
+              ),
+          ],
           if (library?.savedPlaces.isNotEmpty == true) ...[
             const Divider(),
             _LibrarySectionHeader(
@@ -503,6 +528,11 @@ class ProfilePage extends ConsumerWidget {
         '将永久删除本机导入的 GPX 轨迹；不会删除收藏、路线或环境数据。',
         '清空轨迹',
       ),
+      _LibraryClearType.savedNotes => (
+        '清空收藏纸条？',
+        '将永久删除本机收藏的灵感纸条；不会删除收藏地点、路线、轨迹或环境数据。',
+        '清空纸条',
+      ),
     };
     final confirmed = await showDialog<bool>(
       context: context,
@@ -530,11 +560,13 @@ class ProfilePage extends ConsumerWidget {
         await controller.clearRecentRoute();
       case _LibraryClearType.importedTracks:
         await controller.clearImportedTracks();
+      case _LibraryClearType.savedNotes:
+        await controller.clearSavedNotes();
     }
   }
 }
 
-enum _LibraryClearType { savedPlaces, recentRoute, importedTracks }
+enum _LibraryClearType { savedPlaces, recentRoute, importedTracks, savedNotes }
 
 class _LibrarySectionHeader extends StatelessWidget {
   const _LibrarySectionHeader({

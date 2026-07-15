@@ -1,4 +1,53 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
+
+class SavedInspirationNote {
+  const SavedInspirationNote({
+    required this.id,
+    required this.label,
+    required this.emoji,
+    required this.category,
+    required this.action,
+    required this.detail,
+    required this.savedAt,
+  });
+
+  factory SavedInspirationNote.fromNote({
+    required String snapshotId,
+    required InspirationNote note,
+    required DateTime savedAt,
+  }) {
+    return SavedInspirationNote(
+      id: idFor(snapshotId: snapshotId, noteId: note.id),
+      label: note.label,
+      emoji: note.emoji,
+      category: note.category.name,
+      action: note.action.name,
+      detail: note.detail,
+      savedAt: savedAt.toUtc(),
+    );
+  }
+
+  static String idFor({required String snapshotId, required String noteId}) =>
+      sha256.convert(utf8.encode('$snapshotId\u0000$noteId')).toString();
+
+  final String id;
+  final String label;
+  final String emoji;
+  final String category;
+  final String action;
+  final String detail;
+  final DateTime savedAt;
+
+  String get displayLabel => '$label$emoji';
+
+  ManifestAction? get manifestAction =>
+      ManifestAction.values.where((value) => value.name == action).firstOrNull;
+}
 
 class SavedPlace {
   const SavedPlace({
@@ -88,11 +137,13 @@ class UserLibraryState {
     this.savedPlaces = const [],
     this.recentRoute,
     this.importedTracks = const [],
+    this.savedNotes = const [],
   });
 
   final List<SavedPlace> savedPlaces;
   final SavedRouteDestination? recentRoute;
   final List<ImportedRouteTrack> importedTracks;
+  final List<SavedInspirationNote> savedNotes;
 
   bool containsPlace(String id) => savedPlaces.any((place) => place.id == id);
 
@@ -103,9 +154,11 @@ class UserLibraryState {
     List<SavedPlace>? savedPlaces,
     SavedRouteDestination? recentRoute,
     List<ImportedRouteTrack>? importedTracks,
+    List<SavedInspirationNote>? savedNotes,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
     recentRoute: recentRoute ?? this.recentRoute,
     importedTracks: List.unmodifiable(importedTracks ?? this.importedTracks),
+    savedNotes: List.unmodifiable(savedNotes ?? this.savedNotes),
   );
 }
