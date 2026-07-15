@@ -163,7 +163,7 @@ backup_volume() {
   archive=$volume.tar.gz
   owner=$(id -u):$(id -g)
   docker run --rm --network none --read-only --cap-drop ALL \
-    --cap-add DAC_OVERRIDE --cap-add CHOWN \
+    --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add CHOWN \
     --security-opt no-new-privileges \
     -e ARCHIVE="$archive" -e OWNER="$owner" \
     -v "$volume:/source:ro" -v "$BACKUP_DIR/volumes:/backup" \

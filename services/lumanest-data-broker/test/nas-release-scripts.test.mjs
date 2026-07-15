@@ -24,8 +24,10 @@ test('NAS release scripts are POSIX-valid and never require host root volume acc
   }
   const deploy = await readFile(scripts[0], 'utf8');
   const rollback = await readFile(scripts[1], 'utf8');
-  assert.match(deploy, /--cap-add DAC_OVERRIDE --cap-add CHOWN/);
-  assert.match(deploy, /--cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add CHOWN/);
+  assert.equal(
+    deploy.match(/--cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add CHOWN/g)?.length,
+    2,
+  );
   assert.match(rollback, /--cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add CHOWN/);
 });
 
