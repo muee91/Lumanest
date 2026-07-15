@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
@@ -48,6 +50,7 @@ class EnvironmentLoader {
     this.locationTimeout = const Duration(seconds: 21),
     this.weatherTimeout = const Duration(seconds: 10),
     this.logger,
+    this.cacheWriteGuard,
     required this.now,
     required this.utcOffset,
   });
@@ -65,6 +68,7 @@ class EnvironmentLoader {
   final Duration locationTimeout;
   final Duration weatherTimeout;
   final AppLogger? logger;
+  final ContextCacheWriteGuard? cacheWriteGuard;
   final DateTime Function() now;
   final Duration Function() utcOffset;
 
@@ -75,6 +79,7 @@ class EnvironmentLoader {
   }
 
   Future<ContextSnapshot> _load() async {
+    final cacheWriteGeneration = cacheWriteGuard?.begin();
     final remoteRepository = remoteContextRepository;
     if (!qweatherConfigured && remoteRepository == null) {
       throw const EnvironmentLoadFailure(EnvironmentFailureKind.configMissing);
@@ -103,18 +108,26 @@ class EnvironmentLoader {
         if (wildlifeActivity?.hasActivity == true) {
           snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);
         }
-        await _writeCache(snapshot);
+        await _writeCache(snapshot, cacheWriteGeneration);
         return snapshot;
       } catch (error) {
-        remoteFailure = error is RemoteContextFailure
-            ? error
-            : const RemoteContextFailure(RemoteContextFailureKind.response);
+        remoteFailure = switch (error) {
+          RemoteContextFailure() => error,
+          TimeoutException() => const RemoteContextFailure(
+            RemoteContextFailureKind.network,
+          ),
+          _ => const RemoteContextFailure(RemoteContextFailureKind.response),
+        };
         logger?.warning(
           LogCategory.degradation,
           'broker.snapshot_failed',
           data: {LogDataKey.reason: remoteFailure.kind.name},
         );
       }
+    }
+
+    if (remoteFailure?.kind == RemoteContextFailureKind.network) {
+      return _cachedOrThrow(EnvironmentFailureKind.weather, remoteFailure!);
     }
 
     if (!qweatherConfigured) {
@@ -172,11 +185,20 @@ class EnvironmentLoader {
     if (wildlifeActivity?.hasActivity == true) {
       snapshot = snapshot.withWildlifeActivity(wildlifeActivity!);
     }
-    await _writeCache(snapshot);
+    await _writeCache(snapshot, cacheWriteGeneration);
     return snapshot;
   }
 
-  Future<void> _writeCache(ContextSnapshot snapshot) async {
+  Future<void> _writeCache(
+    ContextSnapshot snapshot,
+    int? cacheWriteGeneration,
+  ) async {
+    final guard = cacheWriteGuard;
+    if (guard != null &&
+        cacheWriteGeneration != null &&
+        !guard.allows(cacheWriteGeneration)) {
+      return;
+    }
     try {
       await cache.write(snapshot);
       logger?.debug(

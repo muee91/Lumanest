@@ -8,6 +8,20 @@ abstract interface class ContextCache {
   Future<void> clear();
 }
 
+/// Prevents a request that started before a privacy clear from writing its
+/// late result back into the environment cache.
+class ContextCacheWriteGuard {
+  int _generation = 0;
+
+  int get generation => _generation;
+
+  int begin() => _generation;
+
+  bool allows(int generation) => generation == _generation;
+
+  void invalidate() => _generation += 1;
+}
+
 /// Compares two snapshots to decide whether [candidate] may replace the
 /// [current] cached entry.
 ///

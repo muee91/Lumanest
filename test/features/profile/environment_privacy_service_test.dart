@@ -16,6 +16,7 @@ void main() {
     final consentStore = _FakeConsentStore(true);
     final mapConsentStore = FakeMapConsentStore(granted: true);
     final cache = InMemoryContextCache();
+    final cacheWriteGuard = ContextCacheWriteGuard();
     final gateway = FakeAmapInitializerGateway();
     final now = DateTime.utc(2026, 7, 13, 10);
     await cache.write(
@@ -33,6 +34,7 @@ void main() {
       overrides: [
         environmentConsentStoreProvider.overrideWithValue(consentStore),
         contextCacheProvider.overrideWithValue(cache),
+        contextCacheWriteGuardProvider.overrideWithValue(cacheWriteGuard),
         environmentConfigProvider.overrideWithValue(
           EnvironmentConfig(amapAndroidKey: 'test-key'),
         ),
@@ -50,6 +52,7 @@ void main() {
     expect(container.read(environmentConsentProvider), isFalse);
     expect(consentStore.granted, isFalse);
     expect(await cache.readLatest(), isNull);
+    expect(cacheWriteGuard.generation, 1);
     expect(
       container.read(mapConsentControllerProvider),
       isA<MapConsentAwaiting>(),

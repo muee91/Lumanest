@@ -16,6 +16,11 @@ class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
 
   @override
   Future<void> revokeAndClear() async {
+    // Close the cache to every request that started before this privacy clear.
+    // A late network response must never recreate data after the user removes
+    // it.
+    _ref.read(contextCacheWriteGuardProvider).invalidate();
+
     // Stop new environment work before removing any stored state.
     await _ref.read(environmentConsentProvider.notifier).revoke();
     await _ref.read(mapConsentControllerProvider.notifier).revokeConsent();

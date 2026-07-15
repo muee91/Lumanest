@@ -63,6 +63,7 @@ void main() {
     RouteContextState route = RouteContextState.none,
     AppLogger? logger,
     ContextCache? contextCache,
+    ContextCacheWriteGuard? cacheWriteGuard,
   }) {
     return EnvironmentLoader(
       qweatherConfigured: configured,
@@ -78,6 +79,7 @@ void main() {
       locationTimeout: locationTimeout,
       weatherTimeout: weatherTimeout,
       logger: logger,
+      cacheWriteGuard: cacheWriteGuard,
       now: () => now,
       utcOffset: () => const Duration(hours: 8),
     );
@@ -153,18 +155,65 @@ void main() {
     },
   );
 
-  test('does not retry the Broker after a network failure', () async {
+  test(
+    'network failure skips the Broker-dependent legacy weather path',
+    () async {
+      final remote = _FakeRemoteContextRepository(
+        snapshot: _remoteSnapshot(now, _location(now).point),
+        fetchError: const RemoteContextFailure(
+          RemoteContextFailureKind.network,
+        ),
+      );
+
+      await expectLater(
+        createLoader(remoteContextRepository: remote).load(),
+        throwsA(
+          isA<EnvironmentLoadFailure>()
+              .having(
+                (failure) => failure.kind,
+                'kind',
+                EnvironmentFailureKind.weather,
+              )
+              .having(
+                (failure) => failure.cause,
+                'cause',
+                isA<RemoteContextFailure>().having(
+                  (failure) => failure.kind,
+                  'remote kind',
+                  RemoteContextFailureKind.network,
+                ),
+              ),
+        ),
+      );
+
+      expect(remote.fetchCalls, 1);
+      expect(remote.enrichCalls, 0);
+      expect(weather.calls, 0);
+    },
+  );
+
+  test('remote timeout is treated as a network failure', () async {
     final remote = _FakeRemoteContextRepository(
       snapshot: _remoteSnapshot(now, _location(now).point),
-      fetchError: const RemoteContextFailure(RemoteContextFailureKind.network),
+      fetchError: TimeoutException('simulated timeout'),
     );
 
-    final snapshot = await createLoader(remoteContextRepository: remote).load();
+    await expectLater(
+      createLoader(remoteContextRepository: remote).load(),
+      throwsA(
+        isA<EnvironmentLoadFailure>().having(
+          (failure) => failure.cause,
+          'cause',
+          isA<RemoteContextFailure>().having(
+            (failure) => failure.kind,
+            'remote kind',
+            RemoteContextFailureKind.network,
+          ),
+        ),
+      ),
+    );
 
-    expect(snapshot.id, startsWith('live-'));
-    expect(remote.fetchCalls, 1);
-    expect(remote.enrichCalls, 0);
-    expect(weather.calls, 1);
+    expect(weather.calls, 0);
   });
 
   test('loader forwards the route context to the Broker as-is', () async {
@@ -194,6 +243,25 @@ void main() {
 
     await Future.wait([first, second]);
     expect(location.calls, 1);
+  });
+
+  test('cache clear invalidation blocks a late refresh write', () async {
+    final guard = ContextCacheWriteGuard();
+    final weatherRequest = Completer<WeatherObservation>();
+    weather.pending = weatherRequest.future;
+    final load = createLoader(cacheWriteGuard: guard).load();
+    for (var i = 0; i < 10 && weather.calls == 0; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(weather.calls, 1);
+
+    guard.invalidate();
+    await cache.clear();
+    weatherRequest.complete(_weather(now));
+    final result = await load;
+
+    expect(result.isStale, isFalse);
+    expect(await cache.readLatest(), isNull);
   });
 
   test(

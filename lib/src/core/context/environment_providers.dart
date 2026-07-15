@@ -137,6 +137,10 @@ final contextCacheProvider = Provider<ContextCache>((ref) {
   return PersistentContextCache(SharedPreferencesAsync());
 });
 
+final contextCacheWriteGuardProvider = Provider<ContextCacheWriteGuard>((ref) {
+  return ContextCacheWriteGuard();
+});
+
 final remoteContextRepositoryProvider = Provider<RemoteContextRepository?>((
   ref,
 ) {
@@ -171,6 +175,7 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
     remoteContextRepository: ref.watch(remoteContextRepositoryProvider),
     route: ref.watch(routeContextStateProvider),
     logger: ref.watch(appLoggerProvider),
+    cacheWriteGuard: ref.watch(contextCacheWriteGuardProvider),
     now: DateTime.now,
     utcOffset: () => DateTime.now().timeZoneOffset,
   );
