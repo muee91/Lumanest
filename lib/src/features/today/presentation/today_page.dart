@@ -13,6 +13,7 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
+import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
@@ -26,6 +27,7 @@ class TodayPage extends StatelessWidget {
     this.onManifestAction,
     this.narrativeAsync,
     this.manifest,
+    this.locationDisplay = const EnvironmentLocationDisplay.device(),
   });
 
   final AsyncValue<ContextSnapshot> snapshotAsync;
@@ -35,6 +37,7 @@ class TodayPage extends StatelessWidget {
   final ValueChanged<ManifestItem>? onManifestAction;
   final AsyncValue<ManifestNarrative>? narrativeAsync;
   final UiManifest? manifest;
+  final EnvironmentLocationDisplay locationDisplay;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +121,7 @@ class TodayPage extends StatelessWidget {
         ),
         children: [
           if (snapshot.isStale) _StaleLabel(),
-          _TodayMasthead(snapshot: snapshot),
+          _TodayMasthead(snapshot: snapshot, locationDisplay: locationDisplay),
           const SizedBox(height: LumaNestSpacing.lg),
           _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
           const SizedBox(height: LumaNestSpacing.md),
@@ -190,8 +193,9 @@ class TodayPage extends StatelessWidget {
 }
 
 class _TodayMasthead extends StatelessWidget {
-  const _TodayMasthead({required this.snapshot});
+  const _TodayMasthead({required this.snapshot, required this.locationDisplay});
   final ContextSnapshot snapshot;
+  final EnvironmentLocationDisplay locationDisplay;
 
   @override
   Widget build(BuildContext context) {
@@ -252,6 +256,34 @@ class _TodayMasthead extends StatelessWidget {
           ],
         ),
         const SizedBox(height: LumaNestSpacing.xxs),
+        Padding(
+          padding: const EdgeInsets.only(left: 23),
+          child: Row(
+            children: [
+              Icon(
+                locationDisplay.isReference
+                    ? Icons.location_on_outlined
+                    : Icons.my_location_outlined,
+                size: 15,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  locationDisplay.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: locationDisplay.isReference
+                        ? theme.colorScheme.secondary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
         Padding(
           padding: const EdgeInsets.only(left: 23),
           child: Text(
@@ -541,6 +573,7 @@ class LiveTodayPage extends ConsumerWidget {
           ? null
           : ref.watch(personalizedManifestProvider(snapshot.requireValue)),
       narrativeAsync: narrative,
+      locationDisplay: ref.watch(environmentLocationDisplayProvider),
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
       onOpenAppSettings: Geolocator.openAppSettings,
       onSelectManualLocation: () => showModalBottomSheet<void>(

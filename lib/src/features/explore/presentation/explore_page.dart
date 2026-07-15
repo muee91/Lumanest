@@ -19,6 +19,7 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:x_amap_base/x_amap_base.dart';
@@ -350,6 +351,7 @@ class _MapViewState extends ConsumerState<_MapView> {
   @override
   Widget build(BuildContext context) {
     final activeFocus = ref.watch(exploreIntentProvider).activeFocus;
+    final locationDisplay = ref.watch(environmentLocationDisplayProvider);
     if (widget.mapBuilder case final builder?) {
       return Stack(
         fit: StackFit.expand,
@@ -375,6 +377,10 @@ class _MapViewState extends ConsumerState<_MapView> {
                   ],
                   const SizedBox(height: 8),
                   const _CategoryBar(),
+                  if (locationDisplay.isReference) ...[
+                    const SizedBox(height: 8),
+                    _ReferenceLocationBanner(locationDisplay),
+                  ],
                 ],
               ),
             ),
@@ -455,7 +461,9 @@ class _MapViewState extends ConsumerState<_MapView> {
               ),
               compassEnabled: true,
               scaleEnabled: true,
-              myLocationStyleOptions: MyLocationStyleOptions(true),
+              myLocationStyleOptions: MyLocationStyleOptions(
+                !locationDisplay.isReference,
+              ),
               markers: _buildMarkers(places),
             ),
             Positioned(
@@ -478,6 +486,10 @@ class _MapViewState extends ConsumerState<_MapView> {
                       const SizedBox(height: 8),
                     ],
                     const _CategoryBar(),
+                    if (locationDisplay.isReference) ...[
+                      const SizedBox(height: 8),
+                      _ReferenceLocationBanner(locationDisplay),
+                    ],
                   ],
                 ),
               ),
@@ -583,6 +595,44 @@ class _FocusBanner extends StatelessWidget {
               focus.label,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.labelLarge,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _ReferenceLocationBanner extends StatelessWidget {
+  const _ReferenceLocationBanner(this.location);
+
+  final EnvironmentLocationDisplay location;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(
+      context,
+    ).colorScheme.tertiaryContainer.withValues(alpha: .94),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.location_on_outlined,
+            size: 17,
+            color: Theme.of(context).colorScheme.onTertiaryContainer,
+          ),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              location.description,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onTertiaryContainer,
+              ),
             ),
           ),
         ],

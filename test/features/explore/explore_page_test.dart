@@ -17,6 +17,7 @@ import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
+import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 
 import 'map_consent_test_harness.dart';
 
@@ -30,6 +31,7 @@ Widget wrapExplorePage({
   VoidCallback? onRetry,
   VoidCallback? onOpenAppSettings,
   VoidCallback? onSelectManualLocation,
+  EnvironmentLocationDisplay? locationDisplay,
 }) {
   return ProviderScope(
     overrides: [
@@ -43,6 +45,8 @@ Widget wrapExplorePage({
         locationSearchRepositoryProvider.overrideWithValue(
           locationSearchRepository,
         ),
+      if (locationDisplay != null)
+        environmentLocationDisplayProvider.overrideWithValue(locationDisplay),
     ],
     child: MaterialApp(
       home: ExplorePage(
@@ -198,6 +202,24 @@ void main() {
     await tester.pump();
 
     expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
+  });
+
+  testWidgets('manual location is visibly marked as non-live', (tester) async {
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        mapBuilder: fakeMapSurface,
+        locationDisplay: const EnvironmentLocationDisplay(
+          label: '海宁市',
+          source: EnvironmentLocationSource.manual,
+        ),
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('海宁市 · 手动地点 · 非实时'), findsOneWidget);
   });
 
   testWidgets('location failure offers retry and manual location recovery', (

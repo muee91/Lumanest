@@ -55,7 +55,7 @@ final effectiveLocationRepositoryProvider = Provider<LocationRepository>((ref) {
   // A base region is an explicit, local fallback. A one-off manual selection
   // still wins for the active session and neither source is sent as a profile.
   final baseRegion = ref.watch(baseRegionProvider).asData?.value;
-  final selectedLocation = manual ?? baseRegion?.location;
+  final selectedLocation = manual?.location ?? baseRegion?.location;
   return selectedLocation == null
       ? ref.watch(locationRepositoryProvider)
       : FixedLocationRepository(selectedLocation);

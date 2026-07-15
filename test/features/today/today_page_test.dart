@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
+import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
@@ -33,6 +34,22 @@ void main() {
     );
 
     expect(find.text(narrative.summary), findsOneWidget);
+  });
+
+  testWidgets('labels a manual reference place as non-live', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TodayPage(
+          snapshotAsync: AsyncData(ContextFixtures.quietCity()),
+          locationDisplay: const EnvironmentLocationDisplay(
+            label: '海宁市',
+            source: EnvironmentLocationSource.manual,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('海宁市 · 手动地点 · 非实时'), findsOneWidget);
   });
 
   group('TodayPage async states', () {

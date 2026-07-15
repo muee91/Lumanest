@@ -5,6 +5,7 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
+import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 
 void main() {
@@ -32,6 +33,21 @@ void main() {
 
     expect(automatic.calls, 0);
     expect(reading.accuracyMeters, 1000);
+    expect(
+      container.read(environmentLocationDisplayProvider).description,
+      '上海 · 手动地点 · 非实时',
+    );
+  });
+
+  test('automatic location is not labeled as a reference place', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final display = container.read(environmentLocationDisplayProvider);
+
+    expect(display, const TypeMatcher<EnvironmentLocationDisplay>());
+    expect(display.isReference, isFalse);
+    expect(display.description, '当前位置');
   });
 }
 

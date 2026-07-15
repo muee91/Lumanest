@@ -714,8 +714,10 @@ class ProfilePage extends ConsumerWidget {
     await ref.read(baseRegionProvider.notifier).clear();
     if (baseRegion != null &&
         manualLocation != null &&
-        manualLocation.point.latitude == baseRegion.location.point.latitude &&
-        manualLocation.point.longitude == baseRegion.location.point.longitude) {
+        manualLocation.location.point.latitude ==
+            baseRegion.location.point.latitude &&
+        manualLocation.location.point.longitude ==
+            baseRegion.location.point.longitude) {
       ref.read(manualLocationProvider.notifier).clear();
     }
     ref.invalidate(environmentSnapshotProvider);
