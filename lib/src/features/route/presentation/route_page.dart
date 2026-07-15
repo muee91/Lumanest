@@ -14,6 +14,7 @@ import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
+import 'package:luma_nest/src/features/route/application/amap_navigation_handoff.dart';
 import 'package:luma_nest/src/features/route/application/gpx_track_import_service.dart';
 import 'package:luma_nest/src/features/route/application/route_corridor_scanner.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
@@ -104,6 +105,7 @@ class RoutePage extends ConsumerWidget {
         travelMode: RouteTravelMode.walking,
         destinationLatitude: destination.latitude,
         destinationLongitude: destination.longitude,
+        destinationCoordinateSystem: destination.coordinateSystem,
       ),
     );
   }
@@ -182,6 +184,7 @@ class RoutePage extends ConsumerWidget {
                 travelMode: mode,
                 destinationLatitude: saved.latitude,
                 destinationLongitude: saved.longitude,
+                destinationCoordinateSystem: CoordinateSystem.gcj02,
               ),
             ),
           ),
@@ -364,6 +367,7 @@ class _RouteContent extends ConsumerStatefulWidget {
     required this.travelMode,
     required this.destinationLatitude,
     required this.destinationLongitude,
+    required this.destinationCoordinateSystem,
   });
 
   final DrivingRoute route;
@@ -373,6 +377,7 @@ class _RouteContent extends ConsumerStatefulWidget {
   final RouteTravelMode travelMode;
   final double destinationLatitude;
   final double destinationLongitude;
+  final CoordinateSystem destinationCoordinateSystem;
 
   @override
   ConsumerState<_RouteContent> createState() => _RouteContentState();
@@ -502,6 +507,14 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         ),
         const SizedBox(height: 10),
         _RouteLifecycleBar(state: routeState),
+        if (route.source != RouteSource.importedGpx && !route.isStale) ...[
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            onPressed: _openAmapNavigation,
+            icon: const Icon(Icons.navigation_outlined),
+            label: const Text('交给高德导航'),
+          ),
+        ],
         if (route.source == RouteSource.importedGpx) ...[
           const SizedBox(height: 12),
           Material(
@@ -667,6 +680,24 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           ),
         ],
       ],
+    );
+  }
+
+  Future<void> _openAmapNavigation() async {
+    final opened = await ref
+        .read(amapNavigationHandoffProvider)
+        .open(
+          destinationName: widget.route.destinationName,
+          destination: GeoPoint(
+            latitude: widget.destinationLatitude,
+            longitude: widget.destinationLongitude,
+            coordinateSystem: widget.destinationCoordinateSystem,
+          ),
+          mode: widget.travelMode,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(opened ? '已交给高德导航' : '无法打开高德导航，请确认已安装或稍后重试')),
     );
   }
 
