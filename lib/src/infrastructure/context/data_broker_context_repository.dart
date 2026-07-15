@@ -128,6 +128,12 @@ class DataBrokerContextRepository implements RemoteContextRepository {
           RemoteContextFailureKind.unsupportedContract,
         );
       }
+      if (error.response?.statusCode case final status?
+          when status == 502 || status == 503) {
+        throw const RemoteContextFailure(
+          RemoteContextFailureKind.serviceUnavailable,
+        );
+      }
       throw const RemoteContextFailure(RemoteContextFailureKind.network);
     } catch (_) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);

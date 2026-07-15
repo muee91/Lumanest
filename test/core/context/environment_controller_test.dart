@@ -216,6 +216,29 @@ void main() {
     expect(weather.calls, 0);
   });
 
+  test(
+    'context service failure falls back to local weather and rules',
+    () async {
+      final remote = _FakeRemoteContextRepository(
+        snapshot: _remoteSnapshot(now, _location(now).point),
+        fetchError: const RemoteContextFailure(
+          RemoteContextFailureKind.serviceUnavailable,
+        ),
+      );
+
+      final snapshot = await createLoader(
+        remoteContextRepository: remote,
+      ).load();
+
+      expect(snapshot.id, isNot('remote'));
+      expect(snapshot.isStale, isFalse);
+      expect(remote.fetchCalls, 1);
+      expect(remote.enrichCalls, 0);
+      expect(weather.calls, 1);
+      expect(solar.calls, 1);
+    },
+  );
+
   test('loader forwards the route context to the Broker as-is', () async {
     final remote = _FakeRemoteContextRepository(
       snapshot: _remoteSnapshot(now, _location(now).point),

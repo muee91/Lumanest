@@ -21,6 +21,7 @@ abstract interface class RemoteContextRepository {
 enum RemoteContextFailureKind {
   configuration,
   network,
+  serviceUnavailable,
   response,
   unsupportedContract,
 }

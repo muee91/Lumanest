@@ -258,6 +258,42 @@ void main() {
     },
   );
 
+  test(
+    'classifies Broker upstream failures separately from network loss',
+    () async {
+      final requestOptions = RequestOptions(
+        path: 'https://broker.example/v1/context/snapshot',
+      );
+      final transport = _FakeTransport()
+        ..error = DioException(
+          requestOptions: requestOptions,
+          response: Response<Object?>(
+            requestOptions: requestOptions,
+            statusCode: 502,
+          ),
+        );
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      await expectLater(
+        repository.fetchSnapshot(
+          location: _location(),
+          observedAt: DateTime.utc(2026, 7, 14, 2),
+        ),
+        throwsA(
+          isA<RemoteContextFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            RemoteContextFailureKind.serviceUnavailable,
+          ),
+        ),
+      );
+    },
+  );
+
   test('rejects non-finite values and unknown response fields', () async {
     final transport = _FakeTransport()
       ..mutateResponse = (body) {
