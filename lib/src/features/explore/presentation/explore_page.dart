@@ -15,13 +15,16 @@ import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
+import 'package:luma_nest/src/features/explore/application/wildlife_map_layer_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/domain/wildlife_map_layer.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
+import 'package:luma_nest/src/features/explore/presentation/wildlife_map_overlays.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class ExplorePage extends ConsumerWidget {
@@ -451,6 +454,16 @@ class _MapViewState extends ConsumerState<_MapView> {
         }
         final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(location);
         final places = ref.watch(nearbyPlacesProvider);
+        final AsyncValue<WildlifeMapLayer>? wildlifeLayer =
+            activeFocus == ExploreFocus.wildlife
+            ? ref.watch(
+                wildlifeMapLayerProvider((
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  radiusKilometers: 20,
+                )),
+              )
+            : null;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -465,6 +478,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                 !locationDisplay.isReference,
               ),
               markers: _buildMarkers(places),
+              polygons: buildWildlifeMapPolygons(wildlifeLayer?.asData?.value),
             ),
             Positioned(
               left: 12,
@@ -508,6 +522,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                     : _NearbyResultPanel(
                         places,
                         wildlifeActivity: value.wildlifeActivity,
+                        wildlifeLayer: wildlifeLayer,
                         focusWildlife: activeFocus == ExploreFocus.wildlife,
                       ),
               ),
@@ -690,11 +705,13 @@ class _NearbyResultPanel extends ConsumerWidget {
   const _NearbyResultPanel(
     this.places, {
     this.wildlifeActivity,
+    this.wildlifeLayer,
     this.focusWildlife = false,
   });
 
   final AsyncValue<List<NearbyPlace>> places;
   final RegionalWildlifeActivity? wildlifeActivity;
+  final AsyncValue<WildlifeMapLayer>? wildlifeLayer;
   final bool focusWildlife;
 
   @override
@@ -755,6 +772,14 @@ class _NearbyResultPanel extends ConsumerWidget {
               color: Theme.of(context).colorScheme.outlineVariant,
             ),
           ],
+          if (focusWildlife)
+            if (wildlifeLayer case final layer?) ...[
+              _WildlifeLayerStatus(layer),
+              Divider(
+                height: 1,
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ],
           places.when(
             loading: () => const SizedBox(
               height: 88,
@@ -946,6 +971,44 @@ class _WildlifeActivitySummary extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WildlifeLayerStatus extends StatelessWidget {
+  const _WildlifeLayerStatus(this.layer);
+
+  final AsyncValue<WildlifeMapLayer> layer;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 10, 14, 9),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Icon(Icons.layers_outlined, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: layer.when(
+            loading: () => const Text('正在读取已审核历史观察区域'),
+            error: (_, _) => const Text('审核区域图层暂不可用；GBIF 区域摘要仍可参考'),
+            data: (value) {
+              if (value.areas.isEmpty) {
+                return const Text('附近暂无已审核的历史观察区域图层');
+              }
+              final sources = value.attributions.take(2).join(' · ');
+              return Text(
+                '已覆盖 ${value.areas.length} 个审核区域 · 非实时位置 · $sources',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _LocationConsentView extends StatelessWidget {
