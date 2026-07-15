@@ -3,6 +3,7 @@ import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 void main() {
   test('creative opportunities become short inspiration notes', () {
@@ -69,5 +70,34 @@ void main() {
       notes.singleWhere((note) => note.id == 'regional-wildlife').detail,
       contains('GBIF'),
     );
+  });
+
+  test('reviewed astronomy note retains its authority action URL', () {
+    final authority = Uri.parse('https://science.nasa.gov/eclipse');
+    final notes = InspirationNotes.build(
+      ContextSnapshot(
+        id: 'astronomy',
+        observedAt: DateTime.utc(2026, 7, 15),
+        expiresAt: DateTime.utc(2026, 7, 15, 1),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.night,
+        weather: WeatherType.clear,
+        activeRoute: false,
+      ),
+      manifest: UiManifest(
+        layoutMode: LayoutMode.opportunity,
+        summary: '有经过审核的天象目录。',
+        primary: ManifestItem(
+          id: 'astronomy-catalog:eclipse',
+          title: '月食目录',
+          action: ManifestAction.openAuthority,
+          authorityUri: authority,
+        ),
+        inspirationPreview: '看天象✨',
+      ),
+    );
+
+    expect(notes.single.action, ManifestAction.openAuthority);
+    expect(notes.single.authorityUri, authority);
   });
 }

@@ -16,6 +16,7 @@ import '../../location/application/base_region_controller.dart';
 import '../../location/application/manual_location_providers.dart';
 import '../../location/presentation/manual_location_sheet.dart';
 import '../../notifications/application/route_reminder_service.dart';
+import '../../../shared/actions/manifest_action_handler.dart';
 import 'environment_diagnostics.dart';
 
 /// Local profile settings surface.
@@ -411,17 +412,36 @@ class ProfilePage extends ConsumerWidget {
               ),
             ),
             for (final note in library!.savedNotes)
-              ListTile(
-                leading: const Icon(Icons.bookmark_outline),
-                title: Text(note.displayLabel),
-                subtitle: Text(note.detail),
-                trailing: IconButton(
-                  tooltip: '删除纸条',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => ref
-                      .read(userLibraryProvider.notifier)
-                      .deleteSavedNote(note.id),
-                ),
+              Builder(
+                builder: (context) {
+                  final actionItem = note.manifestItem;
+                  return ListTile(
+                    leading: const Icon(Icons.bookmark_outline),
+                    title: Text(note.displayLabel),
+                    subtitle: Text(note.detail),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: '删除纸条',
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => ref
+                              .read(userLibraryProvider.notifier)
+                              .deleteSavedNote(note.id),
+                        ),
+                        if (actionItem != null)
+                          const Icon(Icons.arrow_outward, size: 18),
+                      ],
+                    ),
+                    onTap: actionItem == null
+                        ? null
+                        : () => handleManifestAction(
+                            context,
+                            actionItem,
+                            detailOverride: note.detail,
+                          ),
+                  );
+                },
               ),
           ],
           if (library?.savedPlaces.isNotEmpty == true) ...[

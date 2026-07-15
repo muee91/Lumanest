@@ -9,6 +9,27 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 
 void main() {
+  test('saved authority notes reject non-HTTPS action targets', () {
+    final saved = SavedInspirationNote.fromNote(
+      snapshotId: 'unsafe',
+      note: InspirationNote(
+        id: 'astronomy-catalog:unsafe',
+        label: '看天象',
+        emoji: '✨',
+        category: InspirationCategory.light,
+        action: ManifestAction.openAuthority,
+        detail: '不应打开非 HTTPS 地址。',
+        priority: 100,
+        ttl: const Duration(minutes: 30),
+        authorityUri: Uri.parse('http://example.com/event'),
+      ),
+      savedAt: DateTime.utc(2026, 7, 15),
+    );
+
+    expect(saved.authorityUri, isNull);
+    expect(saved.manifestItem, isNull);
+  });
+
   test('restores, toggles and persists saved places', () async {
     final store = _FakeStore(
       const UserLibraryState(
@@ -277,6 +298,7 @@ void main() {
 
       expect(store.value.savedNotes, hasLength(1));
       expect(store.value.savedNotes.single.displayLabel, '找倒影🪞');
+      expect(store.value.savedNotes.single.sourceNoteId, 'reflection');
       expect(
         store.value.savedNotes.single.action,
         ManifestAction.openExplore.name,

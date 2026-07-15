@@ -85,15 +85,16 @@ void main() {
       savedNotes: [
         SavedInspirationNote.fromNote(
           snapshotId: 'snapshot-1',
-          note: const InspirationNote(
-            id: 'reflection',
-            label: '找倒影',
-            emoji: '🪞',
-            category: InspirationCategory.place,
-            action: ManifestAction.openExplore,
-            detail: '去湖岸找一段干净的水面。',
+          note: InspirationNote(
+            id: 'astronomy-catalog:event-1',
+            label: '看天象',
+            emoji: '✨',
+            category: InspirationCategory.light,
+            action: ManifestAction.openAuthority,
+            detail: '查看经过审核的权威天象目录。',
             priority: 100,
-            ttl: Duration(minutes: 30),
+            ttl: const Duration(minutes: 30),
+            authorityUri: Uri.parse('https://science.nasa.gov/event-1'),
           ),
           savedAt: DateTime.utc(2026, 7, 15),
         ),
@@ -115,10 +116,18 @@ void main() {
     expect(restored.importedTracks.single.points.last.longitude, 121.1);
     expect(restored.importedTracks.single.segmentBreakIndexes, [2]);
     expect(restored.importedTracks.single.ascentMeters, 80);
-    expect(restored.savedNotes.single.displayLabel, '找倒影🪞');
+    expect(restored.savedNotes.single.displayLabel, '看天象✨');
+    expect(
+      restored.savedNotes.single.sourceNoteId,
+      'astronomy-catalog:event-1',
+    );
+    expect(
+      restored.savedNotes.single.authorityUri,
+      Uri.parse('https://science.nasa.gov/event-1'),
+    );
     expect(
       restored.savedNotes.single.manifestAction,
-      ManifestAction.openExplore,
+      ManifestAction.openAuthority,
     );
   });
 

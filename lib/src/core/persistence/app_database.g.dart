@@ -3397,6 +3397,18 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sourceNoteIdMeta = const VerificationMeta(
+    'sourceNoteId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceNoteId = GeneratedColumn<String>(
+    'source_note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('saved-note'),
+  );
   static const VerificationMeta _labelMeta = const VerificationMeta('label');
   @override
   late final GeneratedColumn<String> label = GeneratedColumn<String>(
@@ -3446,6 +3458,17 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _authorityUrlMeta = const VerificationMeta(
+    'authorityUrl',
+  );
+  @override
+  late final GeneratedColumn<String> authorityUrl = GeneratedColumn<String>(
+    'authority_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _savedAtMeta = const VerificationMeta(
     'savedAt',
   );
@@ -3460,11 +3483,13 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    sourceNoteId,
     label,
     emoji,
     category,
     actionName,
     detail,
+    authorityUrl,
     savedAt,
   ];
   @override
@@ -3483,6 +3508,15 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('source_note_id')) {
+      context.handle(
+        _sourceNoteIdMeta,
+        sourceNoteId.isAcceptableOrUnknown(
+          data['source_note_id']!,
+          _sourceNoteIdMeta,
+        ),
+      );
     }
     if (data.containsKey('label')) {
       context.handle(
@@ -3524,6 +3558,15 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
     } else if (isInserting) {
       context.missing(_detailMeta);
     }
+    if (data.containsKey('authority_url')) {
+      context.handle(
+        _authorityUrlMeta,
+        authorityUrl.isAcceptableOrUnknown(
+          data['authority_url']!,
+          _authorityUrlMeta,
+        ),
+      );
+    }
     if (data.containsKey('saved_at')) {
       context.handle(
         _savedAtMeta,
@@ -3548,6 +3591,10 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      sourceNoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_note_id'],
+      )!,
       label: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}label'],
@@ -3568,6 +3615,10 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
         DriftSqlType.string,
         data['${effectivePrefix}detail'],
       )!,
+      authorityUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}authority_url'],
+      ),
       savedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}saved_at'],
@@ -3584,30 +3635,38 @@ class $SavedInspirationNotesTable extends SavedInspirationNotes
 class SavedInspirationNoteRow extends DataClass
     implements Insertable<SavedInspirationNoteRow> {
   final String id;
+  final String sourceNoteId;
   final String label;
   final String emoji;
   final String category;
   final String actionName;
   final String detail;
+  final String? authorityUrl;
   final DateTime savedAt;
   const SavedInspirationNoteRow({
     required this.id,
+    required this.sourceNoteId,
     required this.label,
     required this.emoji,
     required this.category,
     required this.actionName,
     required this.detail,
+    this.authorityUrl,
     required this.savedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['source_note_id'] = Variable<String>(sourceNoteId);
     map['label'] = Variable<String>(label);
     map['emoji'] = Variable<String>(emoji);
     map['category'] = Variable<String>(category);
     map['action_name'] = Variable<String>(actionName);
     map['detail'] = Variable<String>(detail);
+    if (!nullToAbsent || authorityUrl != null) {
+      map['authority_url'] = Variable<String>(authorityUrl);
+    }
     map['saved_at'] = Variable<DateTime>(savedAt);
     return map;
   }
@@ -3615,11 +3674,15 @@ class SavedInspirationNoteRow extends DataClass
   SavedInspirationNotesCompanion toCompanion(bool nullToAbsent) {
     return SavedInspirationNotesCompanion(
       id: Value(id),
+      sourceNoteId: Value(sourceNoteId),
       label: Value(label),
       emoji: Value(emoji),
       category: Value(category),
       actionName: Value(actionName),
       detail: Value(detail),
+      authorityUrl: authorityUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(authorityUrl),
       savedAt: Value(savedAt),
     );
   }
@@ -3631,11 +3694,13 @@ class SavedInspirationNoteRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return SavedInspirationNoteRow(
       id: serializer.fromJson<String>(json['id']),
+      sourceNoteId: serializer.fromJson<String>(json['sourceNoteId']),
       label: serializer.fromJson<String>(json['label']),
       emoji: serializer.fromJson<String>(json['emoji']),
       category: serializer.fromJson<String>(json['category']),
       actionName: serializer.fromJson<String>(json['actionName']),
       detail: serializer.fromJson<String>(json['detail']),
+      authorityUrl: serializer.fromJson<String?>(json['authorityUrl']),
       savedAt: serializer.fromJson<DateTime>(json['savedAt']),
     );
   }
@@ -3644,30 +3709,36 @@ class SavedInspirationNoteRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'sourceNoteId': serializer.toJson<String>(sourceNoteId),
       'label': serializer.toJson<String>(label),
       'emoji': serializer.toJson<String>(emoji),
       'category': serializer.toJson<String>(category),
       'actionName': serializer.toJson<String>(actionName),
       'detail': serializer.toJson<String>(detail),
+      'authorityUrl': serializer.toJson<String?>(authorityUrl),
       'savedAt': serializer.toJson<DateTime>(savedAt),
     };
   }
 
   SavedInspirationNoteRow copyWith({
     String? id,
+    String? sourceNoteId,
     String? label,
     String? emoji,
     String? category,
     String? actionName,
     String? detail,
+    Value<String?> authorityUrl = const Value.absent(),
     DateTime? savedAt,
   }) => SavedInspirationNoteRow(
     id: id ?? this.id,
+    sourceNoteId: sourceNoteId ?? this.sourceNoteId,
     label: label ?? this.label,
     emoji: emoji ?? this.emoji,
     category: category ?? this.category,
     actionName: actionName ?? this.actionName,
     detail: detail ?? this.detail,
+    authorityUrl: authorityUrl.present ? authorityUrl.value : this.authorityUrl,
     savedAt: savedAt ?? this.savedAt,
   );
   SavedInspirationNoteRow copyWithCompanion(
@@ -3675,6 +3746,9 @@ class SavedInspirationNoteRow extends DataClass
   ) {
     return SavedInspirationNoteRow(
       id: data.id.present ? data.id.value : this.id,
+      sourceNoteId: data.sourceNoteId.present
+          ? data.sourceNoteId.value
+          : this.sourceNoteId,
       label: data.label.present ? data.label.value : this.label,
       emoji: data.emoji.present ? data.emoji.value : this.emoji,
       category: data.category.present ? data.category.value : this.category,
@@ -3682,6 +3756,9 @@ class SavedInspirationNoteRow extends DataClass
           ? data.actionName.value
           : this.actionName,
       detail: data.detail.present ? data.detail.value : this.detail,
+      authorityUrl: data.authorityUrl.present
+          ? data.authorityUrl.value
+          : this.authorityUrl,
       savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
     );
   }
@@ -3690,59 +3767,78 @@ class SavedInspirationNoteRow extends DataClass
   String toString() {
     return (StringBuffer('SavedInspirationNoteRow(')
           ..write('id: $id, ')
+          ..write('sourceNoteId: $sourceNoteId, ')
           ..write('label: $label, ')
           ..write('emoji: $emoji, ')
           ..write('category: $category, ')
           ..write('actionName: $actionName, ')
           ..write('detail: $detail, ')
+          ..write('authorityUrl: $authorityUrl, ')
           ..write('savedAt: $savedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, label, emoji, category, actionName, detail, savedAt);
+  int get hashCode => Object.hash(
+    id,
+    sourceNoteId,
+    label,
+    emoji,
+    category,
+    actionName,
+    detail,
+    authorityUrl,
+    savedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is SavedInspirationNoteRow &&
           other.id == this.id &&
+          other.sourceNoteId == this.sourceNoteId &&
           other.label == this.label &&
           other.emoji == this.emoji &&
           other.category == this.category &&
           other.actionName == this.actionName &&
           other.detail == this.detail &&
+          other.authorityUrl == this.authorityUrl &&
           other.savedAt == this.savedAt);
 }
 
 class SavedInspirationNotesCompanion
     extends UpdateCompanion<SavedInspirationNoteRow> {
   final Value<String> id;
+  final Value<String> sourceNoteId;
   final Value<String> label;
   final Value<String> emoji;
   final Value<String> category;
   final Value<String> actionName;
   final Value<String> detail;
+  final Value<String?> authorityUrl;
   final Value<DateTime> savedAt;
   final Value<int> rowid;
   const SavedInspirationNotesCompanion({
     this.id = const Value.absent(),
+    this.sourceNoteId = const Value.absent(),
     this.label = const Value.absent(),
     this.emoji = const Value.absent(),
     this.category = const Value.absent(),
     this.actionName = const Value.absent(),
     this.detail = const Value.absent(),
+    this.authorityUrl = const Value.absent(),
     this.savedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SavedInspirationNotesCompanion.insert({
     required String id,
+    this.sourceNoteId = const Value.absent(),
     required String label,
     required String emoji,
     required String category,
     required String actionName,
     required String detail,
+    this.authorityUrl = const Value.absent(),
     required DateTime savedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -3754,21 +3850,25 @@ class SavedInspirationNotesCompanion
        savedAt = Value(savedAt);
   static Insertable<SavedInspirationNoteRow> custom({
     Expression<String>? id,
+    Expression<String>? sourceNoteId,
     Expression<String>? label,
     Expression<String>? emoji,
     Expression<String>? category,
     Expression<String>? actionName,
     Expression<String>? detail,
+    Expression<String>? authorityUrl,
     Expression<DateTime>? savedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (sourceNoteId != null) 'source_note_id': sourceNoteId,
       if (label != null) 'label': label,
       if (emoji != null) 'emoji': emoji,
       if (category != null) 'category': category,
       if (actionName != null) 'action_name': actionName,
       if (detail != null) 'detail': detail,
+      if (authorityUrl != null) 'authority_url': authorityUrl,
       if (savedAt != null) 'saved_at': savedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -3776,21 +3876,25 @@ class SavedInspirationNotesCompanion
 
   SavedInspirationNotesCompanion copyWith({
     Value<String>? id,
+    Value<String>? sourceNoteId,
     Value<String>? label,
     Value<String>? emoji,
     Value<String>? category,
     Value<String>? actionName,
     Value<String>? detail,
+    Value<String?>? authorityUrl,
     Value<DateTime>? savedAt,
     Value<int>? rowid,
   }) {
     return SavedInspirationNotesCompanion(
       id: id ?? this.id,
+      sourceNoteId: sourceNoteId ?? this.sourceNoteId,
       label: label ?? this.label,
       emoji: emoji ?? this.emoji,
       category: category ?? this.category,
       actionName: actionName ?? this.actionName,
       detail: detail ?? this.detail,
+      authorityUrl: authorityUrl ?? this.authorityUrl,
       savedAt: savedAt ?? this.savedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -3801,6 +3905,9 @@ class SavedInspirationNotesCompanion
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (sourceNoteId.present) {
+      map['source_note_id'] = Variable<String>(sourceNoteId.value);
     }
     if (label.present) {
       map['label'] = Variable<String>(label.value);
@@ -3817,6 +3924,9 @@ class SavedInspirationNotesCompanion
     if (detail.present) {
       map['detail'] = Variable<String>(detail.value);
     }
+    if (authorityUrl.present) {
+      map['authority_url'] = Variable<String>(authorityUrl.value);
+    }
     if (savedAt.present) {
       map['saved_at'] = Variable<DateTime>(savedAt.value);
     }
@@ -3830,11 +3940,13 @@ class SavedInspirationNotesCompanion
   String toString() {
     return (StringBuffer('SavedInspirationNotesCompanion(')
           ..write('id: $id, ')
+          ..write('sourceNoteId: $sourceNoteId, ')
           ..write('label: $label, ')
           ..write('emoji: $emoji, ')
           ..write('category: $category, ')
           ..write('actionName: $actionName, ')
           ..write('detail: $detail, ')
+          ..write('authorityUrl: $authorityUrl, ')
           ..write('savedAt: $savedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -5637,22 +5749,26 @@ typedef $$BaseRegionsTableProcessedTableManager =
 typedef $$SavedInspirationNotesTableCreateCompanionBuilder =
     SavedInspirationNotesCompanion Function({
       required String id,
+      Value<String> sourceNoteId,
       required String label,
       required String emoji,
       required String category,
       required String actionName,
       required String detail,
+      Value<String?> authorityUrl,
       required DateTime savedAt,
       Value<int> rowid,
     });
 typedef $$SavedInspirationNotesTableUpdateCompanionBuilder =
     SavedInspirationNotesCompanion Function({
       Value<String> id,
+      Value<String> sourceNoteId,
       Value<String> label,
       Value<String> emoji,
       Value<String> category,
       Value<String> actionName,
       Value<String> detail,
+      Value<String?> authorityUrl,
       Value<DateTime> savedAt,
       Value<int> rowid,
     });
@@ -5668,6 +5784,11 @@ class $$SavedInspirationNotesTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceNoteId => $composableBuilder(
+    column: $table.sourceNoteId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5696,6 +5817,11 @@ class $$SavedInspirationNotesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get authorityUrl => $composableBuilder(
+    column: $table.authorityUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get savedAt => $composableBuilder(
     column: $table.savedAt,
     builder: (column) => ColumnFilters(column),
@@ -5713,6 +5839,11 @@ class $$SavedInspirationNotesTableOrderingComposer
   });
   ColumnOrderings<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceNoteId => $composableBuilder(
+    column: $table.sourceNoteId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -5741,6 +5872,11 @@ class $$SavedInspirationNotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get authorityUrl => $composableBuilder(
+    column: $table.authorityUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get savedAt => $composableBuilder(
     column: $table.savedAt,
     builder: (column) => ColumnOrderings(column),
@@ -5759,6 +5895,11 @@ class $$SavedInspirationNotesTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
+  GeneratedColumn<String> get sourceNoteId => $composableBuilder(
+    column: $table.sourceNoteId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get label =>
       $composableBuilder(column: $table.label, builder: (column) => column);
 
@@ -5775,6 +5916,11 @@ class $$SavedInspirationNotesTableAnnotationComposer
 
   GeneratedColumn<String> get detail =>
       $composableBuilder(column: $table.detail, builder: (column) => column);
+
+  GeneratedColumn<String> get authorityUrl => $composableBuilder(
+    column: $table.authorityUrl,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get savedAt =>
       $composableBuilder(column: $table.savedAt, builder: (column) => column);
@@ -5827,40 +5973,48 @@ class $$SavedInspirationNotesTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String> sourceNoteId = const Value.absent(),
                 Value<String> label = const Value.absent(),
                 Value<String> emoji = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String> actionName = const Value.absent(),
                 Value<String> detail = const Value.absent(),
+                Value<String?> authorityUrl = const Value.absent(),
                 Value<DateTime> savedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SavedInspirationNotesCompanion(
                 id: id,
+                sourceNoteId: sourceNoteId,
                 label: label,
                 emoji: emoji,
                 category: category,
                 actionName: actionName,
                 detail: detail,
+                authorityUrl: authorityUrl,
                 savedAt: savedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String id,
+                Value<String> sourceNoteId = const Value.absent(),
                 required String label,
                 required String emoji,
                 required String category,
                 required String actionName,
                 required String detail,
+                Value<String?> authorityUrl = const Value.absent(),
                 required DateTime savedAt,
                 Value<int> rowid = const Value.absent(),
               }) => SavedInspirationNotesCompanion.insert(
                 id: id,
+                sourceNoteId: sourceNoteId,
                 label: label,
                 emoji: emoji,
                 category: category,
                 actionName: actionName,
                 detail: detail,
+                authorityUrl: authorityUrl,
                 savedAt: savedAt,
                 rowid: rowid,
               ),

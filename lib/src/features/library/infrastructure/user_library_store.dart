@@ -123,12 +123,14 @@ class DriftUserLibraryStore implements UserLibraryStore {
             .map(
               (row) => SavedInspirationNote(
                 id: row.id,
+                sourceNoteId: row.sourceNoteId,
                 label: row.label,
                 emoji: row.emoji,
                 category: row.category,
                 action: row.actionName,
                 detail: row.detail,
                 savedAt: row.savedAt.toUtc(),
+                authorityUri: _validAuthorityUri(row.authorityUrl),
               ),
             )
             .toList(growable: false),
@@ -241,11 +243,15 @@ class DriftUserLibraryStore implements UserLibraryStore {
             .insert(
               SavedInspirationNotesCompanion.insert(
                 id: note.id,
+                sourceNoteId: Value(note.sourceNoteId),
                 label: note.label,
                 emoji: note.emoji,
                 category: note.category,
                 actionName: note.action,
                 detail: note.detail,
+                authorityUrl: Value(
+                  _validAuthorityUri(note.authorityUri?.toString())?.toString(),
+                ),
                 savedAt: note.savedAt.toUtc(),
               ),
             );
@@ -296,6 +302,13 @@ class DriftUserLibraryStore implements UserLibraryStore {
     } on Object {
       return null;
     }
+  }
+
+  static Uri? _validAuthorityUri(String? value) {
+    final uri = value == null ? null : Uri.tryParse(value);
+    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty
+        ? uri
+        : null;
   }
 
   UserLibraryState? _decodeLegacy(String raw) {

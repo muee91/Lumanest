@@ -176,11 +176,14 @@ class BaseRegions extends Table {
 @DataClassName('SavedInspirationNoteRow')
 class SavedInspirationNotes extends Table {
   TextColumn get id => text()();
+  TextColumn get sourceNoteId =>
+      text().withDefault(const Constant('saved-note'))();
   TextColumn get label => text()();
   TextColumn get emoji => text()();
   TextColumn get category => text()();
   TextColumn get actionName => text()();
   TextColumn get detail => text()();
+  TextColumn get authorityUrl => text().nullable()();
   DateTimeColumn get savedAt => dateTime()();
 
   @override
@@ -189,11 +192,13 @@ class SavedInspirationNotes extends Table {
   @override
   List<String> get customConstraints => const [
     'CHECK (length(id) BETWEEN 1 AND 100)',
+    'CHECK (length(source_note_id) BETWEEN 1 AND 160)',
     'CHECK (length(label) BETWEEN 1 AND 40)',
     'CHECK (length(emoji) BETWEEN 1 AND 16)',
     'CHECK (length(category) BETWEEN 1 AND 40)',
     'CHECK (length(action_name) BETWEEN 1 AND 60)',
     'CHECK (length(detail) BETWEEN 1 AND 500)',
+    'CHECK (authority_url IS NULL OR length(authority_url) BETWEEN 1 AND 500)',
   ];
 }
 
@@ -216,7 +221,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -238,6 +243,16 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7) {
         await migrator.createTable(savedJourneys);
+      }
+      if (from >= 5 && from < 8) {
+        await migrator.addColumn(
+          savedInspirationNotes,
+          savedInspirationNotes.sourceNoteId,
+        );
+        await migrator.addColumn(
+          savedInspirationNotes,
+          savedInspirationNotes.authorityUrl,
+        );
       }
     },
   );

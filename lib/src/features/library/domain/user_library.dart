@@ -8,12 +8,14 @@ import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 class SavedInspirationNote {
   const SavedInspirationNote({
     required this.id,
+    required this.sourceNoteId,
     required this.label,
     required this.emoji,
     required this.category,
     required this.action,
     required this.detail,
     required this.savedAt,
+    this.authorityUri,
   });
 
   factory SavedInspirationNote.fromNote({
@@ -23,12 +25,14 @@ class SavedInspirationNote {
   }) {
     return SavedInspirationNote(
       id: idFor(snapshotId: snapshotId, noteId: note.id),
+      sourceNoteId: note.id,
       label: note.label,
       emoji: note.emoji,
       category: note.category.name,
       action: note.action.name,
       detail: note.detail,
       savedAt: savedAt.toUtc(),
+      authorityUri: _validAuthorityUri(note.authorityUri),
     );
   }
 
@@ -36,17 +40,42 @@ class SavedInspirationNote {
       sha256.convert(utf8.encode('$snapshotId\u0000$noteId')).toString();
 
   final String id;
+  final String sourceNoteId;
   final String label;
   final String emoji;
   final String category;
   final String action;
   final String detail;
   final DateTime savedAt;
+  final Uri? authorityUri;
 
   String get displayLabel => '$label$emoji';
 
   ManifestAction? get manifestAction =>
       ManifestAction.values.where((value) => value.name == action).firstOrNull;
+
+  ManifestItem? get manifestItem {
+    final resolvedAction = manifestAction;
+    final safeAuthorityUri = _validAuthorityUri(authorityUri);
+    if (resolvedAction == null ||
+        resolvedAction == ManifestAction.openAuthority &&
+            safeAuthorityUri == null) {
+      return null;
+    }
+    return ManifestItem(
+      id: sourceNoteId,
+      title: displayLabel,
+      action: resolvedAction,
+      authorityUri: resolvedAction == ManifestAction.openAuthority
+          ? safeAuthorityUri
+          : null,
+    );
+  }
+
+  static Uri? _validAuthorityUri(Uri? value) =>
+      value != null && value.scheme == 'https' && value.host.isNotEmpty
+      ? value
+      : null;
 }
 
 class SavedPlace {

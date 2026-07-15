@@ -182,7 +182,7 @@ void main() {
     );
   });
 
-  test('schema 1 migrates to 7 without losing library data', () async {
+  test('schema 1 migrates to 8 without losing library data', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-migration-',
@@ -254,7 +254,7 @@ void main() {
     expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
   });
 
-  test('schema 2 migrates to 7 and preserves existing preferences', () async {
+  test('schema 2 migrates to 8 and preserves existing preferences', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-v2-migration-',
@@ -358,4 +358,49 @@ void main() {
     expect(rows.single.name, '黄山');
     expect(rows.single.address, '安徽');
   });
+
+  test(
+    'schema 7 adds saved-note action context without losing notes',
+    () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'lumanest-drift-v7-migration-',
+      );
+      final file = File('${directory.path}/lumanest.sqlite');
+      addTearDown(() async {
+        if (await file.exists()) await file.delete();
+        if (await directory.exists()) await directory.delete();
+      });
+
+      final legacy = sqlite.sqlite3.open(file.path);
+      legacy.execute('''
+      CREATE TABLE saved_inspiration_notes (
+        id TEXT NOT NULL PRIMARY KEY,
+        label TEXT NOT NULL,
+        emoji TEXT NOT NULL,
+        category TEXT NOT NULL,
+        action_name TEXT NOT NULL,
+        detail TEXT NOT NULL,
+        saved_at INTEGER NOT NULL
+      )
+    ''');
+      legacy.execute('''
+      INSERT INTO saved_inspiration_notes VALUES (
+        'legacy-note', '旧纸条', '✨', 'light', 'openExplore', '旧内容', 1784080800
+      )
+    ''');
+      legacy.execute('PRAGMA user_version = 7');
+      legacy.close();
+
+      final migrated = AppDatabase(NativeDatabase(file));
+      addTearDown(migrated.close);
+      final note = await migrated
+          .select(migrated.savedInspirationNotes)
+          .getSingle();
+
+      expect(note.label, '旧纸条');
+      expect(note.sourceNoteId, 'saved-note');
+    expect(note.authorityUrl, null);
+    },
+  );
 }

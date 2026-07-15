@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/features/profile/presentation/environment_diagnostics.dart';
 import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
@@ -13,6 +14,8 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/features/notifications/application/route_reminder_service.dart';
+import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 
 void main() {
   testWidgets('confirms before clearing environment data', (tester) async {
@@ -429,6 +432,61 @@ void main() {
     expect(find.text('清晨徒步'), findsOneWidget);
     expect(find.textContaining('徒步 ·'), findsOneWidget);
     expect(find.byTooltip('删除行程记录'), findsOneWidget);
+  });
+
+  testWidgets('saved creative notes can repeat their whitelisted action', (
+    tester,
+  ) async {
+    final note = SavedInspirationNote.fromNote(
+      snapshotId: 'saved-context',
+      note: const InspirationNote(
+        id: 'reflection',
+        label: '找倒影',
+        emoji: '🪞',
+        category: InspirationCategory.place,
+        action: ManifestAction.openExplore,
+        detail: '去湖岸找一段干净的水面。',
+        priority: 100,
+        ttl: Duration(minutes: 30),
+      ),
+      savedAt: DateTime.utc(2026, 7, 15),
+    );
+    final router = GoRouter(
+      initialLocation: '/profile',
+      routes: [
+        GoRoute(path: '/profile', builder: (_, _) => const ProfilePage()),
+        GoRoute(
+          path: '/explore',
+          builder: (_, state) =>
+              Text('explore:${state.uri.queryParameters['focus']}'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(UserLibraryState(savedNotes: [note])),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('找倒影🪞'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+
+    await tester.tap(find.text('找倒影🪞'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('explore:water'), findsOneWidget);
   });
 
   testWidgets('shows no environment diagnostic when fully operational', (

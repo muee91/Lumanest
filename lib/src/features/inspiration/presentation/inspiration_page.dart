@@ -93,7 +93,12 @@ class InspirationPage extends ConsumerWidget {
   void _performAction(BuildContext context, InspirationNote note) {
     handleManifestAction(
       context,
-      ManifestItem(id: note.id, title: note.displayLabel, action: note.action),
+      ManifestItem(
+        id: note.id,
+        title: note.displayLabel,
+        action: note.action,
+        authorityUri: note.authorityUri,
+      ),
       detailOverride: note.detail,
     );
   }

@@ -17,6 +17,7 @@ class InspirationNote {
     required this.detail,
     required this.priority,
     required this.ttl,
+    this.authorityUri,
   });
 
   final String id;
@@ -27,6 +28,7 @@ class InspirationNote {
   final String detail;
   final int priority;
   final Duration ttl;
+  final Uri? authorityUri;
 
   String get displayLabel => '$label$emoji';
 }
@@ -136,6 +138,7 @@ abstract final class InspirationNotes {
         detail: item.title,
         priority: 80,
         ttl: const Duration(minutes: 30),
+        authorityUri: item.authorityUri,
       ),
     };
     if (labelOverride == null || labelOverride.isEmpty) return note;
@@ -148,6 +151,7 @@ abstract final class InspirationNotes {
       detail: note.detail,
       priority: note.priority,
       ttl: note.ttl,
+      authorityUri: note.authorityUri,
     );
   }
 }
