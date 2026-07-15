@@ -45,6 +45,14 @@ class ProfilePage extends ConsumerWidget {
     final baseRegion = ref.watch(baseRegionProvider).asData?.value;
     final cacheStatus = ref.watch(environmentCacheStatusProvider);
     final routeReminderEnabled = ref.watch(routeReminderEnabledProvider);
+    final hasLibraryContent =
+        library != null &&
+        (library.recentRoute != null ||
+            library.savedRoutes.isNotEmpty ||
+            library.journeys.isNotEmpty ||
+            library.importedTracks.isNotEmpty ||
+            library.savedNotes.isNotEmpty ||
+            library.savedPlaces.isNotEmpty);
 
     final liveActions = EnvironmentDiagnosticsActions(
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
@@ -58,232 +66,292 @@ class ProfilePage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
+          const _ProfileHero(),
+          const SizedBox(height: 18),
           EnvironmentDiagnostics(
             status: diagnosticStatus,
             actions: effectiveActions,
           ),
-          SwitchListTile(
-            title: const Text('动态背景'),
-            value: preferences.ambientBackgroundEnabled,
-            onChanged: (_) => controller.toggleAmbientBackground(),
+          const _ProfileSectionTitle(
+            icon: Icons.tune_rounded,
+            title: '体验与个性',
+            subtitle: '只影响本机呈现与推荐顺序',
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: SegmentedButton<AmbientMotionMode>(
-              segments: const [
-                ButtonSegment(value: AmbientMotionMode.full, label: Text('完整')),
-                ButtonSegment(
-                  value: AmbientMotionMode.energySaver,
-                  label: Text('节能'),
+          _ProfileSurface(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('动态背景'),
+                  value: preferences.ambientBackgroundEnabled,
+                  onChanged: (_) => controller.toggleAmbientBackground(),
                 ),
-                ButtonSegment(
-                  value: AmbientMotionMode.staticColor,
-                  label: Text('静态'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: SegmentedButton<AmbientMotionMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: AmbientMotionMode.full,
+                        label: Text('完整'),
+                      ),
+                      ButtonSegment(
+                        value: AmbientMotionMode.energySaver,
+                        label: Text('节能'),
+                      ),
+                      ButtonSegment(
+                        value: AmbientMotionMode.staticColor,
+                        label: Text('静态'),
+                      ),
+                    ],
+                    selected: {preferences.ambientMotionMode},
+                    onSelectionChanged: preferences.ambientBackgroundEnabled
+                        ? (selection) =>
+                              controller.setAmbientMotionMode(selection.single)
+                        : null,
+                  ),
+                ),
+                SwitchListTile(
+                  title: const Text('减少动效'),
+                  value: preferences.reduceMotion,
+                  onChanged: (_) => controller.toggleReduceMotion(),
+                ),
+                SwitchListTile(
+                  title: const Text('减少闪烁'),
+                  value: preferences.reduceFlashing,
+                  onChanged: (_) => controller.toggleReduceFlashing(),
+                ),
+                SwitchListTile(
+                  title: const Text('高对比度'),
+                  subtitle: const Text('增强文字、按钮和背景之间的区分'),
+                  value: preferences.highContrast,
+                  onChanged: (_) => controller.toggleHighContrast(),
+                ),
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                  child: Text(
+                    '摄影偏好',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final option in _photographyOptions)
+                        FilterChip(
+                          label: Text(option),
+                          selected: preferences.photographyPreferences.contains(
+                            option,
+                          ),
+                          onSelected: (_) =>
+                              controller.togglePhotographyPreference(option),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                  child: Text(
+                    '活动偏好',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final option in _activityOptions)
+                        FilterChip(
+                          label: Text(option),
+                          selected: preferences.activityPreferences.contains(
+                            option,
+                          ),
+                          onSelected: (_) =>
+                              controller.toggleActivityPreference(option),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                  child: Text(
+                    '设备',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _EquipmentField(
+                    initialValue: preferences.equipmentList,
+                    onChanged: controller.setEquipmentList,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                  child: Text(
+                    'AI 语气',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SegmentedButton<AiTone>(
+                    segments: const [
+                      ButtonSegment(value: AiTone.concise, label: Text('简洁')),
+                      ButtonSegment(value: AiTone.balanced, label: Text('均衡')),
+                      ButtonSegment(value: AiTone.detailed, label: Text('详细')),
+                    ],
+                    selected: {preferences.aiTone},
+                    onSelectionChanged: (selection) =>
+                        controller.setAiTone(selection.single),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Row(
+                    children: [
+                      Text(
+                        '推荐强度',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Slider(
+                    value: preferences.recommendationIntensity,
+                    min: 0,
+                    max: 1,
+                    divisions: 10,
+                    label:
+                        '${(preferences.recommendationIntensity * 100).round()}%',
+                    onChanged: controller.setRecommendationIntensity,
+                  ),
                 ),
               ],
-              selected: {preferences.ambientMotionMode},
-              onSelectionChanged: preferences.ambientBackgroundEnabled
-                  ? (selection) =>
-                        controller.setAmbientMotionMode(selection.single)
-                  : null,
             ),
           ),
-          SwitchListTile(
-            title: const Text('减少动效'),
-            value: preferences.reduceMotion,
-            onChanged: (_) => controller.toggleReduceMotion(),
+          const SizedBox(height: 20),
+          const _ProfileSectionTitle(
+            icon: Icons.lock_outline_rounded,
+            title: '本机与隐私',
+            subtitle: '位置、缓存与记录由你控制',
           ),
-          SwitchListTile(
-            title: const Text('减少闪烁'),
-            value: preferences.reduceFlashing,
-            onChanged: (_) => controller.toggleReduceFlashing(),
-          ),
-          SwitchListTile(
-            title: const Text('高对比度'),
-            subtitle: const Text('增强文字、按钮和背景之间的区分'),
-            value: preferences.highContrast,
-            onChanged: (_) => controller.toggleHighContrast(),
-          ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text('摄影偏好', style: Theme.of(context).textTheme.titleMedium),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
+          _ProfileSurface(
+            child: Column(
               children: [
-                for (final option in _photographyOptions)
-                  FilterChip(
-                    label: Text(option),
-                    selected: preferences.photographyPreferences.contains(
-                      option,
+                ListTile(
+                  leading: const Icon(Icons.home_outlined),
+                  title: const Text('常驻地区'),
+                  subtitle: Text(
+                    baseRegion == null
+                        ? '未设置'
+                        : [
+                            baseRegion.name,
+                            baseRegion.address,
+                          ].whereType<String>().join(' · '),
+                  ),
+                  trailing: baseRegion == null
+                      ? const Icon(Icons.chevron_right)
+                      : TextButton(
+                          onPressed: () =>
+                              _confirmBaseRegionRemoval(context, ref),
+                          child: const Text('清除'),
+                        ),
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    builder: (_) =>
+                        const ManualLocationSheet(saveAsBaseRegion: true),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.offline_bolt_outlined),
+                  title: const Text('离线环境数据'),
+                  subtitle: Text(_cacheSubtitle(cacheStatus)),
+                  trailing: TextButton(
+                    onPressed: cacheStatus.isLoading
+                        ? null
+                        : () => _confirmCacheClear(context, ref),
+                    child: const Text('清除缓存'),
+                  ),
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_active_outlined),
+                  title: const Text('徒步返程提醒'),
+                  subtitle: Text(
+                    routeReminderEnabled.when(
+                      data: (enabled) => enabled
+                          ? '开始徒步行程后，按最晚返程时间安排本地通知'
+                          : '关闭；不会在后台持续获取位置或天气',
+                      loading: () => '正在读取本机设置',
+                      error: (_, _) => '暂时无法读取通知设置',
                     ),
-                    onSelected: (_) =>
-                        controller.togglePhotographyPreference(option),
                   ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text('活动偏好', style: Theme.of(context).textTheme.titleMedium),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Wrap(
-              spacing: 8,
-              children: [
-                for (final option in _activityOptions)
-                  FilterChip(
-                    label: Text(option),
-                    selected: preferences.activityPreferences.contains(option),
-                    onSelected: (_) =>
-                        controller.toggleActivityPreference(option),
+                  value: routeReminderEnabled.asData?.value ?? false,
+                  onChanged: routeReminderEnabled.isLoading
+                      ? null
+                      : (value) async {
+                          try {
+                            final enabled = await ref
+                                .read(routeReminderEnabledProvider.notifier)
+                                .setEnabled(value);
+                            if (!value || enabled || !context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('未获得系统通知权限，返程提醒保持关闭'),
+                              ),
+                            );
+                          } on Object {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('通知设置未能更新，请稍后重试')),
+                            );
+                          }
+                        },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('环境数据与定位'),
+                  subtitle: Text(
+                    environmentConsentGranted ? '已启用当前位置、天气与场景分析' : '未启用环境数据',
                   ),
+                  trailing: environmentConsentGranted
+                      ? TextButton(
+                          onPressed: () =>
+                              _confirmEnvironmentDataRemoval(context, ref),
+                          child: const Text('停止并清除'),
+                        )
+                      : null,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.dataset_outlined),
+                  title: const Text('数据来源与使用说明'),
+                  subtitle: const Text('天气、地图、高程和野生动物数据'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showDataSources(context),
+                ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text('设备', style: Theme.of(context).textTheme.titleMedium),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _EquipmentField(
-              initialValue: preferences.equipmentList,
-              onChanged: controller.setEquipmentList,
+          if (hasLibraryContent) ...[
+            const SizedBox(height: 20),
+            const _ProfileSectionTitle(
+              icon: Icons.inventory_2_outlined,
+              title: '本机收藏',
+              subtitle: '路线、行程、纸条与地点',
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text(
-              'AI 语气',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<AiTone>(
-              segments: const [
-                ButtonSegment(value: AiTone.concise, label: Text('简洁')),
-                ButtonSegment(value: AiTone.balanced, label: Text('均衡')),
-                ButtonSegment(value: AiTone.detailed, label: Text('详细')),
-              ],
-              selected: {preferences.aiTone},
-              onSelectionChanged: (selection) =>
-                  controller.setAiTone(selection.single),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Text('推荐强度', style: Theme.of(context).textTheme.titleMedium),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Slider(
-              value: preferences.recommendationIntensity,
-              min: 0,
-              max: 1,
-              divisions: 10,
-              label: '${(preferences.recommendationIntensity * 100).round()}%',
-              onChanged: controller.setRecommendationIntensity,
-            ),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.home_outlined),
-            title: const Text('常驻地区'),
-            subtitle: Text(
-              baseRegion == null
-                  ? '未设置'
-                  : [
-                      baseRegion.name,
-                      baseRegion.address,
-                    ].whereType<String>().join(' · '),
-            ),
-            trailing: baseRegion == null
-                ? const Icon(Icons.chevron_right)
-                : TextButton(
-                    onPressed: () => _confirmBaseRegionRemoval(context, ref),
-                    child: const Text('清除'),
-                  ),
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              showDragHandle: true,
-              builder: (_) => const ManualLocationSheet(saveAsBaseRegion: true),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.offline_bolt_outlined),
-            title: const Text('离线环境数据'),
-            subtitle: Text(_cacheSubtitle(cacheStatus)),
-            trailing: TextButton(
-              onPressed: cacheStatus.isLoading
-                  ? null
-                  : () => _confirmCacheClear(context, ref),
-              child: const Text('清除缓存'),
-            ),
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('徒步返程提醒'),
-            subtitle: Text(
-              routeReminderEnabled.when(
-                data: (enabled) =>
-                    enabled ? '开始徒步行程后，按最晚返程时间安排本地通知' : '关闭；不会在后台持续获取位置或天气',
-                loading: () => '正在读取本机设置',
-                error: (_, _) => '暂时无法读取通知设置',
-              ),
-            ),
-            value: routeReminderEnabled.asData?.value ?? false,
-            onChanged: routeReminderEnabled.isLoading
-                ? null
-                : (value) async {
-                    try {
-                      final enabled = await ref
-                          .read(routeReminderEnabledProvider.notifier)
-                          .setEnabled(value);
-                      if (!value || enabled || !context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('未获得系统通知权限，返程提醒保持关闭')),
-                      );
-                    } on Object {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('通知设置未能更新，请稍后重试')),
-                      );
-                    }
-                  },
-          ),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip_outlined),
-            title: const Text('环境数据与定位'),
-            subtitle: Text(
-              environmentConsentGranted ? '已启用当前位置、天气与场景分析' : '未启用环境数据',
-            ),
-            trailing: environmentConsentGranted
-                ? TextButton(
-                    onPressed: () =>
-                        _confirmEnvironmentDataRemoval(context, ref),
-                    child: const Text('停止并清除'),
-                  )
-                : null,
-          ),
-          ListTile(
-            leading: const Icon(Icons.dataset_outlined),
-            title: const Text('数据来源与使用说明'),
-            subtitle: const Text('天气、地图、高程和野生动物数据'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _showDataSources(context),
-          ),
+          ],
           if (library?.recentRoute case final recent?) ...[
             const Divider(),
             ListTile(
@@ -734,6 +802,130 @@ class ProfilePage extends ConsumerWidget {
         await controller.clearSavedNotes();
     }
   }
+}
+
+class _ProfileHero extends StatelessWidget {
+  const _ProfileHero();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.secondaryContainer.withValues(alpha: .92),
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: .84),
+          ],
+        ),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withValues(alpha: .22),
+        ),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondary.withValues(alpha: .14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.camera_outlined,
+              color: theme.colorScheme.secondary,
+              size: 25,
+            ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('只属于你的栖光', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Text(
+                  '无账号，偏好与创作记录优先留在本机。',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: .74),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text('本机', style: theme.textTheme.labelSmall),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSectionTitle extends StatelessWidget {
+  const _ProfileSectionTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 4, 4, 9),
+    child: Row(
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProfileSurface extends StatelessWidget {
+  const _ProfileSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(
+      context,
+    ).colorScheme.surfaceContainerLow.withValues(alpha: .88),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: child,
+  );
 }
 
 enum _LibraryClearType {

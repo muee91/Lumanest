@@ -138,18 +138,19 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.dragUntilVisible(
-      find.text('徒步返程提醒'),
-      find.byType(Scrollable).first,
-      const Offset(0, -100),
+    final reminderTile = find.ancestor(
+      of: find.text('徒步返程提醒'),
+      matching: find.byType(SwitchListTile),
     );
+    await tester.scrollUntilVisible(
+      reminderTile,
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
+    await tester.pump();
 
-    await tester.tap(
-      find.ancestor(
-        of: find.text('徒步返程提醒'),
-        matching: find.byType(SwitchListTile),
-      ),
-    );
+    await tester.tap(reminderTile);
     await tester.pumpAndSettle();
 
     expect(service.permissionRequests, 1);
@@ -175,47 +176,30 @@ void main() {
       await tester.pump();
 
       final scrollable = find.byType(Scrollable).first;
+      Future<void> reveal(Finder finder) async {
+        await tester.scrollUntilVisible(finder, 180, scrollable: scrollable);
+        await tester.ensureVisible(finder);
+        await tester.pump();
+      }
 
-      await tester.dragUntilVisible(
-        find.text('风光'),
-        scrollable,
-        const Offset(0, -100),
-      );
+      await reveal(find.text('风光'));
       await tester.tap(find.text('风光'));
       await tester.pump();
 
-      await tester.dragUntilVisible(
-        find.text('自驾'),
-        scrollable,
-        const Offset(0, -100),
-      );
+      await reveal(find.text('自驾'));
       await tester.tap(find.text('自驾'));
       await tester.pump();
 
-      await tester.dragUntilVisible(
-        find.byType(TextField),
-        scrollable,
-        const Offset(0, -100),
-      );
+      await reveal(find.byType(TextField));
       await tester.enterText(find.byType(TextField), '相机、35mm、三脚架');
       await tester.pump();
 
       final detailedTone = find.text('详细');
-      await tester.dragUntilVisible(
-        detailedTone,
-        scrollable,
-        const Offset(0, -100),
-      );
-      await tester.ensureVisible(detailedTone);
-      await tester.pumpAndSettle();
+      await reveal(detailedTone);
       await tester.tap(detailedTone);
       await tester.pump();
 
-      await tester.dragUntilVisible(
-        find.byType(Slider),
-        scrollable,
-        const Offset(0, -100),
-      );
+      await reveal(find.byType(Slider));
       final slider = find.byType(Slider);
       final sliderCenter = tester.getCenter(slider);
       final sliderWidth = tester.getSize(slider).width;

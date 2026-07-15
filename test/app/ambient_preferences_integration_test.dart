@@ -78,7 +78,12 @@ void main() {
       of: find.text('高对比度'),
       matching: find.byType(SwitchListTile),
     );
-    await tester.ensureVisible(highContrastTile);
+    await Scrollable.ensureVisible(
+      tester.element(highContrastTile),
+      alignment: .5,
+      duration: Duration.zero,
+    );
+    await tester.pump();
     await tester.tap(highContrastTile);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
