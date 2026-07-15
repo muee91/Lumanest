@@ -75,8 +75,7 @@ class ProfilePreferences {
       ambientMotionMode: ambientMotionMode ?? this.ambientMotionMode,
       photographyPreferences:
           photographyPreferences ?? this.photographyPreferences,
-      activityPreferences:
-          activityPreferences ?? this.activityPreferences,
+      activityPreferences: activityPreferences ?? this.activityPreferences,
       equipmentList: equipmentList ?? this.equipmentList,
       aiTone: aiTone ?? this.aiTone,
       recommendationIntensity:

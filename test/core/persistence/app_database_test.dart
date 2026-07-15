@@ -400,7 +400,7 @@ void main() {
 
       expect(note.label, '旧纸条');
       expect(note.sourceNoteId, 'saved-note');
-    expect(note.authorityUrl, null);
+      expect(note.authorityUrl, null);
     },
   );
 }
