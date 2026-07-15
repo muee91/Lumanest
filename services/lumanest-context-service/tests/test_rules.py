@@ -61,6 +61,27 @@ def test_stale_weather_keeps_safety_but_drops_creative_events():
     assert result.allowed_actions == ["openSafety"]
 
 
+def test_reviewed_wildlife_opportunity_is_creative_but_never_created_from_stale_weather():
+    fresh = evaluate(request_for(evidence={"wildlifeOpportunity": True}))
+    event = next(event for event in fresh.events if event.id == "regional-wildlife")
+    assert event.channel == "wildlifeOpportunity"
+    assert event.source == "wildlifeHistorical"
+    assert event.geo_scope == "regional"
+    assert fresh.manifest.primary_event_id == "regional-wildlife"
+
+    stale = evaluate(request_for(evidence={"wildlifeOpportunity": True}, stale=True))
+    assert all(event.id != "regional-wildlife" for event in stale.events)
+
+
+def test_official_wildlife_risk_remains_a_safety_event_when_weather_is_stale():
+    result = evaluate(request_for(evidence={"wildlifeSafety": True}, stale=True))
+    event = next(event for event in result.events if event.id == "wildlife-area-risk")
+    assert event.channel == "wildlifeSafety"
+    assert event.source == "official"
+    assert event.allowed_action == "openSafety"
+    assert event.confidence == 1
+
+
 def test_fingerprint_uses_a_grid_instead_of_exposing_coordinates():
     result = evaluate(request_for(evidence={"urban": True}, day_phase="blueHour"))
     assert "120.15" not in result.fingerprint

@@ -50,9 +50,12 @@ class ContextStore:
         if self.engine is None:
             return SceneEvidence()
         query = text("""
-            SELECT kind
+            SELECT spatial_features.kind, spatial_features.evidence_class, source_registry.category
             FROM spatial_features
+            JOIN source_registry ON source_registry.id = spatial_features.source_id
             WHERE enabled = TRUE
+              AND source_registry.enabled = TRUE
+              AND source_registry.license_status = 'approved'
               AND ST_Intersects(
                 geometry,
                 ST_Transform(ST_SetSRID(ST_Point(:longitude, :latitude), 4326), ST_SRID(geometry))
@@ -66,13 +69,16 @@ class ContextStore:
                 )).scalars().all()
         except Exception:
             return SceneEvidence()
-        kinds = set(rows)
+        kinds = {row[0] for row in rows}
+        evidence = {(row[1], row[2]) for row in rows}
         return SceneEvidence(
             urban="urban" in kinds,
             waterBody="water" in kinds,
             mountainous="mountain" in kinds,
             aridLand="arid" in kinds,
             settlement="settlement" in kinds,
+            wildlifeOpportunity=("wildlifeOpportunity", "wildlifeHistorical") in evidence,
+            wildlifeSafety=("wildlifeSafety", "officialRisk") in evidence,
         )
 
     async def cached_snapshot(self, fingerprint: str) -> dict | None:
@@ -102,9 +108,9 @@ class ContextStore:
                 await connection.execute(
                     text("""
                         INSERT INTO source_registry (
-                            id, dataset_type, enabled, license_status, attribution, version, updated_at
+                            id, dataset_type, enabled, license_status, attribution, version, category, updated_at
                         ) VALUES (
-                            :id, :dataset_type, :enabled, :license_status, :attribution, :version, :updated_at
+                            :id, :dataset_type, :enabled, :license_status, :attribution, :version, :category, :updated_at
                         )
                         ON CONFLICT (id) DO UPDATE SET
                             dataset_type = EXCLUDED.dataset_type,
@@ -112,6 +118,7 @@ class ContextStore:
                             license_status = EXCLUDED.license_status,
                             attribution = EXCLUDED.attribution,
                             version = EXCLUDED.version,
+                            category = EXCLUDED.category,
                             updated_at = EXCLUDED.updated_at
                     """),
                     {
@@ -121,6 +128,7 @@ class ContextStore:
                         "license_status": body.source.license_status,
                         "attribution": body.source.attribution,
                         "version": body.source.version,
+                        "category": body.source.category,
                         "updated_at": datetime.now(timezone.utc),
                     },
                 )
@@ -155,10 +163,10 @@ class ContextStore:
                         await connection.execute(
                             text("""
                                 INSERT INTO spatial_features (
-                                    id, external_id, source_id, kind, name, sensitivity, enabled,
+                                    id, external_id, source_id, kind, name, sensitivity, evidence_class, enabled,
                                     geometry
                                 ) VALUES (
-                                    :id, :external_id, :source_id, :kind, :name, :sensitivity, :enabled,
+                                    :id, :external_id, :source_id, :kind, :name, :sensitivity, :evidence_class, :enabled,
                                     ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326)
                                 )
                             """),
@@ -169,6 +177,7 @@ class ContextStore:
                                 "kind": feature.properties.kind,
                                 "name": feature.properties.name,
                                 "sensitivity": feature.properties.sensitivity,
+                                "evidence_class": feature.properties.evidence_class,
                                 "enabled": body.source.enabled,
                                 "geometry": geometry,
                             },

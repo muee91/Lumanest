@@ -209,6 +209,34 @@ def test_import_rejects_unlicensed_enabled_source_and_sensitive_point(monkeypatc
         assert client.post("/internal/v1/imports", json=too_precise, headers=headers).status_code == 422
 
 
+def test_import_requires_reviewed_source_categories_for_wildlife_evidence(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    headers = {"X-Internal-Service-Token": "internal-test-token"}
+    opportunity = spatial_import_payload()
+    opportunity["featureCollection"]["features"][0]["properties"] = {
+        "kind": "protected", "name": "Reviewed observation area", "sensitivity": "sensitive",
+        "evidenceClass": "wildlifeOpportunity",
+    }
+    opportunity["featureCollection"]["features"][0]["geometry"] = {
+        "type": "Polygon",
+        "coordinates": [[[120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]]],
+    }
+    async def fake_import(_store, body):
+        return ContextImportResult.model_validate({
+            "sourceId": body.source.id,
+            "datasetType": body.dataset_type,
+            "importedCount": len(body.feature_collection.features),
+            "enabled": body.source.enabled,
+            "cacheInvalidated": True,
+        })
+
+    monkeypatch.setattr(ContextStore, "import_dataset", fake_import)
+    with TestClient(app) as client:
+        assert client.post("/internal/v1/imports", json=opportunity, headers=headers).status_code == 422
+        opportunity["source"]["category"] = "wildlifeHistorical"
+        assert client.post("/internal/v1/imports", json=opportunity, headers=headers).status_code == 201
+
+
 @pytest.fixture
 def internal_headers(monkeypatch):
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")

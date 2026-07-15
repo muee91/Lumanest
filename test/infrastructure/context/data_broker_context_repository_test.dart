@@ -123,7 +123,11 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['route'] = {'mode': 'driving', 'stage': 'active', 'active': true};
+          body['route'] = {
+            'mode': 'driving',
+            'stage': 'active',
+            'active': true,
+          };
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -302,6 +306,48 @@ void main() {
       expect(result.safetyEventIds, contains(wildlifeEvent.id));
       expect(result.wildlifeEventIds, contains(wildlifeEvent.id));
       expect(wildlifeEvent.allowedAction, ContextAction.openSafety);
+    },
+  );
+
+  test(
+    'remote wildlifeOpportunity is accepted as a creative manifest event',
+    () async {
+      final transport = _FakeTransport()
+        ..mutateResponse = (body) {
+          body['events'] = [
+            {
+              'id': 'regional-wildlife',
+              'channel': 'wildlifeOpportunity',
+              'source': 'wildlifeHistorical',
+              'observedAt': '2026-07-14T02:00:00Z',
+              'expiresAt': '2026-07-14T02:15:00Z',
+              'confidence': 0.5,
+              'geoScope': 'regional',
+              'severity': 'info',
+              'allowedAction': 'openExplore',
+            },
+          ];
+          body['manifest'] = {
+            'layoutMode': 'opportunity',
+            'primaryEventId': 'regional-wildlife',
+            'secondaryEventIds': <String>[],
+            'safetyEventIds': <String>[],
+          };
+        };
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      final result = await repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      );
+
+      expect(result.opportunityIds, ['regional-wildlife']);
+      expect(result.wildlifeEventIds, ['regional-wildlife']);
+      expect(result.serverManifest!.primaryEventId, 'regional-wildlife');
     },
   );
 

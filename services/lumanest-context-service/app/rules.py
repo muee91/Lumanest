@@ -48,7 +48,10 @@ def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = No
     return SceneType.UNKNOWN
 
 
-def context_fingerprint(request: SnapshotRequest, scene: SceneType) -> str:
+def context_fingerprint(
+    request: SnapshotRequest, scene: SceneType, evidence: SceneEvidence | None = None
+) -> str:
+    facts = evidence or request.evidence
     solar = request.solar or solar_state(request.coordinate, request.observed_at)
     warning_ids = ",".join(sorted(warning.id for warning in request.official_warnings))
     forecast_state = ":".join((
@@ -68,6 +71,8 @@ def context_fingerprint(request: SnapshotRequest, scene: SceneType) -> str:
         request.route.mode,
         request.route.stage,
         request.intent,
+        str(facts.wildlife_opportunity),
+        str(facts.wildlife_safety),
     ))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
@@ -76,7 +81,8 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
     generated_at = request.observed_at.astimezone(timezone.utc)
     expires_at = generated_at + timedelta(minutes=15)
     scene = classify_scene(request, evidence)
-    fingerprint = context_fingerprint(request, scene)
+    facts = evidence or request.evidence
+    fingerprint = context_fingerprint(request, scene, facts)
     moon_phase, moon_illumination = moon_state(generated_at)
     solar = request.solar or solar_state(request.coordinate, generated_at)
     events: list[ContextEvent] = []
@@ -110,6 +116,8 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
         add("strong-wind", "safety", "weather", 0.9, "openSafety", "warning", "regional")
     if request.weather.precipitation_mm >= 10:
         add("heavy-rain", "safety", "weather", 0.9, "openSafety", "warning", "regional")
+    if facts.wildlife_safety:
+        add("wildlife-area-risk", "wildlifeSafety", "official", 1, "openSafety", "warning", "regional")
 
     for warning in request.official_warnings:
         if warning.expires_at <= generated_at:
@@ -127,6 +135,8 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
         )
 
     if not request.weather.stale:
+        if facts.wildlife_opportunity:
+            add("regional-wildlife", "wildlifeOpportunity", "wildlifeHistorical", 0.5, "openExplore", "info", "regional")
         if request.forecast.thunder_next_three_hours:
             add("thunderstorm-forecast", "safety", "weather", 0.9, "openSafety", "warning")
         if request.forecast.next_three_hours_max_wind_speed_mps is not None and \
@@ -151,7 +161,7 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
         if scene is SceneType.HIKING:
             add("hiking-return-check", "safety", "rule", 0.8, "openRoute", "caution", "route")
 
-    creative = [event.id for event in events if event.channel == "opportunity"]
+    creative = [event.id for event in events if event.channel in ("opportunity", "wildlifeOpportunity")]
     safety = [event.id for event in events if event.channel in ("safety", "wildlifeSafety")]
     allowed_actions = list(dict.fromkeys(event.allowed_action for event in events))
     layout = "safety" if safety else "opportunity" if creative else "quiet"

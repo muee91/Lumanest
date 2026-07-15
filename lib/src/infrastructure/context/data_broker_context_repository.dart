@@ -389,7 +389,11 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       weather: weatherType,
       activeRoute: route['active']! as bool,
       opportunityIds: events
-          .where((event) => event.channel == ContextEventChannel.opportunity)
+          .where(
+            (event) =>
+                event.channel == ContextEventChannel.opportunity ||
+                event.channel == ContextEventChannel.wildlifeOpportunity,
+          )
           .map((event) => event.id)
           .toList(growable: false),
       safetyEventIds: events
@@ -444,7 +448,9 @@ class DataBrokerContextRepository implements RemoteContextRepository {
   }) {
     bool isOpportunity(String id) {
       final event = eventById[id];
-      return event != null && event.channel == ContextEventChannel.opportunity;
+      return event != null &&
+          (event.channel == ContextEventChannel.opportunity ||
+              event.channel == ContextEventChannel.wildlifeOpportunity);
     }
 
     bool isSafety(String id) {

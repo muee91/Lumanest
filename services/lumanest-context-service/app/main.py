@@ -61,7 +61,7 @@ async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotR
             body.coordinate.latitude, body.coordinate.longitude
         )
     scene = classify_scene(body, evidence)
-    fingerprint = context_fingerprint(body, scene)
+    fingerprint = context_fingerprint(body, scene, evidence)
     cached = await request.app.state.store.cached_snapshot(fingerprint)
     if cached is not None:
         return SnapshotResponse.model_validate(cached)

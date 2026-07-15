@@ -35,6 +35,8 @@ class SceneEvidence(ApiModel):
     mountainous: bool = False
     arid_land: bool = Field(False, alias="aridLand")
     settlement: bool = False
+    wildlife_opportunity: bool = Field(False, alias="wildlifeOpportunity")
+    wildlife_safety: bool = Field(False, alias="wildlifeSafety")
 
 
 class WeatherInput(ApiModel):
@@ -239,6 +241,7 @@ class ImportSource(ApiModel):
     license_status: Literal["approved", "pending", "disabled"] = Field(alias="licenseStatus")
     attribution: str = Field(min_length=1, max_length=500)
     version: str = Field(min_length=1, max_length=100)
+    category: Literal["spatial", "wildlifeHistorical", "officialRisk"] = "spatial"
 
     @field_validator("attribution", "version")
     @classmethod
@@ -259,6 +262,9 @@ class SpatialFeatureProperties(ApiModel):
     kind: Literal["urban", "water", "mountain", "arid", "settlement", "protected", "risk"]
     name: str = Field(min_length=1, max_length=200)
     sensitivity: Literal["public", "sensitive"] = "public"
+    evidence_class: Literal["scene", "wildlifeOpportunity", "wildlifeSafety"] = Field(
+        "scene", alias="evidenceClass"
+    )
 
 
 class GeoJsonGeometry(ApiModel):
@@ -350,6 +356,24 @@ class SpatialFeaturesImport(ApiModel):
     dataset_type: Literal["spatialFeatures"] = Field(alias="datasetType")
     source: ImportSource
     feature_collection: GeoJsonFeatureCollection = Field(alias="featureCollection")
+
+    @model_validator(mode="after")
+    def require_traceable_wildlife_sources(self) -> "SpatialFeaturesImport":
+        for feature in self.feature_collection.features:
+            evidence = feature.properties.evidence_class
+            if evidence == "scene" and self.source.category != "spatial":
+                raise ValueError("scene features require a spatial source")
+            if evidence == "wildlifeOpportunity":
+                if self.source.category != "wildlifeHistorical":
+                    raise ValueError("wildlife opportunities require a historical wildlife source")
+                if feature.properties.kind != "protected":
+                    raise ValueError("wildlife opportunities require a reviewed observation area")
+            if evidence == "wildlifeSafety":
+                if self.source.category != "officialRisk":
+                    raise ValueError("wildlife safety requires an official risk source")
+                if feature.properties.kind != "risk":
+                    raise ValueError("wildlife safety requires a risk area")
+        return self
 
 
 class AstronomyEventImport(ApiModel):
