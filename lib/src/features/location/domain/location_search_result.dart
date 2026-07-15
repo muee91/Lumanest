@@ -6,12 +6,16 @@ class LocationSearchResult {
     required this.name,
     required this.point,
     this.address,
+    this.cachedAt,
   });
 
   final String id;
   final String name;
   final GeoPoint point;
   final String? address;
+  final DateTime? cachedAt;
+
+  bool get isOfflineCache => cachedAt != null;
 }
 
 abstract interface class LocationSearchRepository {

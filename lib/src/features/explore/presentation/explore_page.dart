@@ -538,7 +538,7 @@ class _NearbyResultPanel extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          '${_MapViewState._distanceLabel(place.distanceMeters)}${place.address == null ? '' : ' · ${place.address}'}',
+                          _metadata(place),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -606,6 +606,12 @@ class _NearbyResultPanel extends ConsumerWidget {
       ),
     );
   }
+
+  static String _metadata(NearbyPlace place) => [
+    _MapViewState._distanceLabel(place.distanceMeters),
+    if (place.address case final address? when address.isNotEmpty) address,
+    if (place.isOfflineCache) '离线缓存',
+  ].join(' · ');
 }
 
 class _WildlifeActivitySummary extends StatelessWidget {
@@ -852,7 +858,7 @@ class _SearchResultPanel extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          item.address ?? '',
+                          _metadata(item),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -869,4 +875,9 @@ class _SearchResultPanel extends StatelessWidget {
       ),
     );
   }
+
+  static String _metadata(LocationSearchResult item) => [
+    if (item.address case final address? when address.isNotEmpty) address,
+    if (item.isOfflineCache) '离线缓存',
+  ].join(' · ');
 }

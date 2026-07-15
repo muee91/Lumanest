@@ -3,6 +3,7 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
@@ -31,6 +32,8 @@ class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
     await _ref.read(contextCacheProvider).clear();
     await _ref.read(drivingRouteCacheProvider).clear();
     await _ref.read(routeSupportCacheProvider).clear();
+    await _ref.read(locationSearchCacheProvider).clear();
+    await _ref.read(nearbyPlaceCacheProvider).clear();
 
     // Drop in-memory snapshots and generated wording. These providers stay
     // dormant while consent is false and rebuild only after a new opt-in.

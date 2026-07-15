@@ -48,6 +48,7 @@ class NearbyPlace {
     required this.point,
     required this.distanceMeters,
     this.address,
+    this.cachedAt,
   });
 
   final String id;
@@ -56,4 +57,7 @@ class NearbyPlace {
   final GeoPoint point;
   final int distanceMeters;
   final String? address;
+  final DateTime? cachedAt;
+
+  bool get isOfflineCache => cachedAt != null;
 }

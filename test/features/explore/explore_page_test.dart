@@ -351,6 +351,43 @@ void main() {
     expect(find.text('旧结果'), findsNothing);
   });
 
+  testWidgets('cached search results are identified as offline data', (
+    tester,
+  ) async {
+    final repository = _DeferredLocationSearchRepository();
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        mapBuilder: fakeMapSurface,
+        locationSearchRepository: repository,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.tap(find.text('搜索地点'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '西湖');
+    await tester.pump(const Duration(milliseconds: 500));
+
+    repository.complete('西湖', [
+      LocationSearchResult(
+        id: 'cached-west-lake',
+        name: '西湖风景名胜区',
+        point: const GeoPoint(
+          latitude: 30.231,
+          longitude: 120.132,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+        address: '杭州市西湖区',
+        cachedAt: DateTime.utc(2026, 7, 15, 8),
+      ),
+    ]);
+    await tester.pump();
+
+    expect(find.text('西湖风景名胜区'), findsOneWidget);
+    expect(find.text('杭州市西湖区 · 离线缓存'), findsOneWidget);
+  });
+
   testWidgets('clearing search invalidates an in-flight response', (
     tester,
   ) async {

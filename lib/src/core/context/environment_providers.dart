@@ -29,6 +29,8 @@ import 'package:luma_nest/src/features/location/application/manual_location_prov
 import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/location/infrastructure/amap_location_search_repository.dart';
+import 'package:luma_nest/src/features/location/infrastructure/location_search_cache.dart';
+import 'package:luma_nest/src/features/location/infrastructure/resilient_location_search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final environmentConfigProvider = Provider<EnvironmentConfig>((ref) {
@@ -82,11 +84,15 @@ final solarServiceProvider = Provider<SolarService>((ref) {
   return NrelSolarService();
 });
 
+final locationSearchCacheProvider = Provider<LocationSearchCache>((ref) {
+  return PersistentLocationSearchCache(SharedPreferencesAsync());
+});
+
 final locationSearchRepositoryProvider = Provider<LocationSearchRepository>((
   ref,
 ) {
   final config = ref.watch(environmentConfigProvider);
-  return AmapLocationSearchRepository(
+  final primary = AmapLocationSearchRepository(
     brokerBaseUrl: config.dataBrokerBaseUrl,
     serviceToken: config.lumaNestServiceToken,
     transport: DioLocationSearchTransport(
@@ -98,6 +104,10 @@ final locationSearchRepositoryProvider = Provider<LocationSearchRepository>((
         ),
       ),
     ),
+  );
+  return ResilientLocationSearchRepository(
+    primary: primary,
+    cache: ref.watch(locationSearchCacheProvider),
   );
 });
 
