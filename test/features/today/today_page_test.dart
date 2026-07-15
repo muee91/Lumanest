@@ -315,6 +315,11 @@ void main() {
 
       expect(find.byKey(const Key('safety-region')), findsOneWidget);
       expect(find.text('雷暴正在接近'), findsOneWidget);
+      expect(find.textContaining('天气数据'), findsOneWidget);
+      expect(find.textContaining('警告'), findsOneWidget);
+      expect(find.textContaining('当前地点'), findsOneWidget);
+      expect(find.textContaining('更新'), findsOneWidget);
+      expect(find.textContaining('前有效'), findsOneWidget);
 
       expect(find.byKey(const Key('inspiration-preview')), findsNothing);
     });

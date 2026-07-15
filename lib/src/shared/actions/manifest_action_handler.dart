@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/manifest/manifest_action_resolver.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/shared/widgets/manifest_event_metadata.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 Future<void> handleManifestAction(
@@ -40,22 +41,29 @@ Future<void> handleManifestAction(
   await showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    builder: (context) => Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 34),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 12),
-          Text(detailOverride ?? _detailFor(item.id, panel)),
-          if (item.confidence case final confidence?) ...[
+    builder: (context) {
+      final metadata = manifestEventMetadata(item);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 34),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 12),
-            Text('当前置信度 ${(confidence * 100).round()}%'),
+            Text(detailOverride ?? _detailFor(item.id, panel)),
+            if (metadata.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(metadata.join(' · ')),
+            ],
+            if (item.confidence case final confidence?) ...[
+              const SizedBox(height: 8),
+              Text('当前置信度 ${(confidence * 100).round()}%'),
+            ],
           ],
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 }
 

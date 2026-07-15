@@ -16,6 +16,7 @@ import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
+import 'package:luma_nest/src/shared/widgets/manifest_event_metadata.dart';
 
 class TodayPage extends StatelessWidget {
   const TodayPage({
@@ -698,6 +699,12 @@ class _SafetyRegion extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   title: Text(item.title),
+                  subtitle: switch (manifestEventMetadata(item)) {
+                    final metadata when metadata.isNotEmpty => Text(
+                      metadata.join(' · '),
+                    ),
+                    _ => null,
+                  },
                   trailing: const Icon(Icons.arrow_forward_rounded, size: 18),
                   onTap: () => onAction(item),
                 ),

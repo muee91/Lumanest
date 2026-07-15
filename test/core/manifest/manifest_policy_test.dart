@@ -353,6 +353,10 @@ void main() {
         (item) => item.id == 'official-landslide-alert',
       );
       expect(item.title, '官方安全预警');
+      expect(item.source, ContextEventSource.official);
+      expect(item.observedAt, now);
+      expect(item.expiresAt, now.add(const Duration(minutes: 30)));
+      expect(item.safetyLevel, ContextSafetyLevel.warning);
     });
 
     test('reviewed astronomy event keeps catalog title and authority URL', () {

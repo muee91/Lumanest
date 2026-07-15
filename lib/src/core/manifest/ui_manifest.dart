@@ -46,8 +46,11 @@ class ManifestItem {
     required this.title,
     required this.action,
     this.source,
+    this.observedAt,
     this.confidence,
     this.expiresAt,
+    this.geoScope,
+    this.safetyLevel,
     this.authorityUri,
   });
 
@@ -55,8 +58,11 @@ class ManifestItem {
   final String title;
   final ManifestAction action;
   final ContextEventSource? source;
+  final DateTime? observedAt;
   final double? confidence;
   final DateTime? expiresAt;
+  final ContextGeoScope? geoScope;
+  final ContextSafetyLevel? safetyLevel;
   final Uri? authorityUri;
 
   /// Enriches this item with metadata from a structured [ContextEvent].
@@ -72,8 +78,11 @@ class ManifestItem {
           ? ManifestAction.fromContextAction(event.allowedAction!)
           : action,
       source: event.source,
+      observedAt: event.observedAt,
       confidence: event.confidence,
       expiresAt: event.expiresAt,
+      geoScope: event.geoScope,
+      safetyLevel: event.safetyLevel,
       authorityUri: event.sourceUri,
     );
   }
