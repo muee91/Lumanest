@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -82,6 +83,47 @@ def test_unknown_fields_are_rejected(monkeypatch):
             headers={"X-Internal-Service-Token": "internal-test-token"},
         )
         assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_cached_snapshot_reads_redis_value_after_astronomy_store_extension():
+    class FakeRedis:
+        async def get(self, key):
+            assert key == "context:v2:fingerprint"
+            return '{"contextId":"cached"}'
+
+    store = ContextStore(None, None)
+    store.redis = FakeRedis()
+
+    assert await store.cached_snapshot("fingerprint") == {"contextId": "cached"}
+
+
+def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+
+    async def astronomy_events(_store, _moment):
+        return [{
+            "external_id": "meteor-2026",
+            "event_type": "meteorShower",
+            "title": "英仙座流星雨极大期",
+            "source_url": "https://science.nasa.gov/meteor-showers/",
+            "starts_at": datetime(2026, 7, 14, 1, tzinfo=timezone.utc),
+            "ends_at": datetime(2026, 7, 14, 4, tzinfo=timezone.utc),
+        }]
+
+    monkeypatch.setattr(ContextStore, "active_astronomy_events", astronomy_events)
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=payload(),
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+
+    assert response.status_code == 200
+    event = next(item for item in response.json()["events"] if item["source"] == "astronomyCatalog")
+    assert event["title"] == "英仙座流星雨极大期"
+    assert event["sourceUrl"].startswith("https://")
+    assert event["allowedAction"] == "openAuthority"
 
 
 def test_source_status_exposes_enabled_weather_sources_and_disabled_air_quality(monkeypatch):

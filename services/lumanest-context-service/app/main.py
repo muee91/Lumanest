@@ -61,11 +61,12 @@ async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotR
             body.coordinate.latitude, body.coordinate.longitude
         )
     scene = classify_scene(body, evidence)
-    fingerprint = context_fingerprint(body, scene, evidence)
+    astronomy_events = await request.app.state.store.active_astronomy_events(body.observed_at)
+    fingerprint = context_fingerprint(body, scene, evidence, astronomy_events)
     cached = await request.app.state.store.cached_snapshot(fingerprint)
     if cached is not None:
         return SnapshotResponse.model_validate(cached)
-    snapshot = evaluate(body, evidence)
+    snapshot = evaluate(body, evidence, astronomy_events)
     await request.app.state.store.cache_snapshot(
         snapshot.fingerprint, snapshot.model_dump(mode="json", by_alias=True)
     )

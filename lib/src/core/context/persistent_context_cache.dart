@@ -184,6 +184,8 @@ class PersistentContextCache implements ContextCache {
     'geoScope': event.geoScope?.name,
     'safetyLevel': event.safetyLevel?.name,
     'allowedAction': event.allowedAction?.name,
+    'title': event.title,
+    'sourceUrl': event.sourceUri?.toString(),
   };
 
   ContextEvent? _decodeEvent(Object? raw) {
@@ -194,6 +196,12 @@ class PersistentContextCache implements ContextCache {
     final observedAt = _date(raw['observedAt']);
     final expiresAt = _date(raw['expiresAt']);
     final confidence = _double(raw['confidence']);
+    final action = _enumByName(ContextAction.values, raw['allowedAction']);
+    final rawTitle = raw['title'];
+    final rawSourceUrl = raw['sourceUrl'];
+    final sourceUri = rawSourceUrl is String
+        ? Uri.tryParse(rawSourceUrl)
+        : null;
     if (id is! String ||
         channel == null ||
         source == null ||
@@ -201,7 +209,20 @@ class PersistentContextCache implements ContextCache {
         expiresAt == null ||
         confidence == null ||
         confidence < 0 ||
-        confidence > 1) {
+        confidence > 1 ||
+        (rawTitle != null &&
+            (rawTitle is! String ||
+                rawTitle.trim().isEmpty ||
+                rawTitle.runes.length > 80)) ||
+        (rawSourceUrl != null &&
+            (sourceUri == null ||
+                sourceUri.scheme != 'https' ||
+                sourceUri.host.isEmpty)) ||
+        (action == ContextAction.openAuthority &&
+            (source != ContextEventSource.astronomyCatalog ||
+                rawTitle is! String ||
+                sourceUri == null)) ||
+        (action != ContextAction.openAuthority && rawSourceUrl != null)) {
       return null;
     }
     return ContextEvent(
@@ -213,7 +234,9 @@ class PersistentContextCache implements ContextCache {
       confidence: confidence,
       geoScope: _enumByName(ContextGeoScope.values, raw['geoScope']),
       safetyLevel: _enumByName(ContextSafetyLevel.values, raw['safetyLevel']),
-      allowedAction: _enumByName(ContextAction.values, raw['allowedAction']),
+      allowedAction: action,
+      title: raw['title'] is String ? raw['title'] as String : null,
+      sourceUri: sourceUri,
     );
   }
 

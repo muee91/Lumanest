@@ -41,6 +41,19 @@ void main() {
             safetyLevel: ContextSafetyLevel.info,
             allowedAction: ContextAction.openExplore,
           ),
+          ContextEvent(
+            id: 'astronomy-123456789abc',
+            channel: ContextEventChannel.opportunity,
+            source: ContextEventSource.astronomyCatalog,
+            observedAt: now,
+            expiresAt: now.add(const Duration(hours: 2)),
+            confidence: 1,
+            geoScope: ContextGeoScope.regional,
+            safetyLevel: ContextSafetyLevel.info,
+            allowedAction: ContextAction.openAuthority,
+            title: '英仙座流星雨极大期',
+            sourceUri: Uri.parse('https://science.nasa.gov/meteor-showers/'),
+          ),
         ],
         wildlifeActivity: RegionalWildlifeActivity(
           radiusKilometers: 20,
@@ -71,7 +84,10 @@ void main() {
         moonIllumination: .2,
         routeMode: ContextRouteMode.none,
         routeStage: ContextRouteStage.none,
-        allowedActions: const [ContextAction.openExplore],
+        allowedActions: const [
+          ContextAction.openExplore,
+          ContextAction.openAuthority,
+        ],
       );
 
       await first.write(snapshot);
@@ -82,12 +98,15 @@ void main() {
 
       expect(restored?.id, snapshot.id);
       expect(restored?.primaryScene, SceneType.lake);
-      expect(restored?.events.single.confidence, .82);
+      expect(restored?.events.first.confidence, .82);
       expect(restored?.wildlifeActivity?.taxa.single.commonName, '水獭');
       expect(restored?.location?.coordinateSystem, CoordinateSystem.wgs84);
       expect(restored?.sunset, snapshot.sunset);
       expect(restored?.moonPhase, MoonPhase.waxingCrescent);
-      expect(restored?.events.single.allowedAction, ContextAction.openExplore);
+      expect(restored?.events.first.allowedAction, ContextAction.openExplore);
+      expect(restored?.events.last.title, '英仙座流星雨极大期');
+      expect(restored?.events.last.allowedAction, ContextAction.openAuthority);
+      expect(restored?.events.last.sourceUri?.scheme, 'https');
     },
   );
 

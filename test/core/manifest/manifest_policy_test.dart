@@ -337,6 +337,46 @@ void main() {
       expect(item.title, '官方安全预警');
     });
 
+    test('reviewed astronomy event keeps catalog title and authority URL', () {
+      final authority = Uri.parse('https://science.nasa.gov/meteor-showers/');
+      final snapshot = ContextSnapshot(
+        id: 'server-astronomy',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 30)),
+        primaryScene: SceneType.unknown,
+        dayPhase: DayPhase.night,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        events: [
+          ContextEvent(
+            id: 'astronomy-123456789abc',
+            channel: ContextEventChannel.opportunity,
+            source: ContextEventSource.astronomyCatalog,
+            observedAt: now.subtract(const Duration(hours: 1)),
+            expiresAt: now.add(const Duration(hours: 2)),
+            confidence: 1,
+            geoScope: ContextGeoScope.regional,
+            safetyLevel: ContextSafetyLevel.info,
+            allowedAction: ContextAction.openAuthority,
+            title: '英仙座流星雨极大期',
+            sourceUri: authority,
+          ),
+        ],
+        serverManifest: ServerManifest(
+          layout: ServerManifestLayout.opportunity,
+          primaryEventId: 'astronomy-123456789abc',
+        ),
+      );
+
+      final manifest = ManifestPolicy.build(snapshot, now: now);
+
+      expect(manifest.primary?.title, '英仙座流星雨极大期');
+      expect(manifest.primary?.action, ManifestAction.openAuthority);
+      expect(manifest.primary?.authorityUri, authority);
+      expect(manifest.summary, contains('实际可见性'));
+      expect(manifest.inspirationPreview, '看天象✨');
+    });
+
     test('unknown non-official safety event gets generic title', () {
       final snapshot = ContextSnapshot(
         id: 'server-unknown-env-safety',

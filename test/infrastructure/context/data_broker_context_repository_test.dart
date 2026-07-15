@@ -351,6 +351,54 @@ void main() {
     },
   );
 
+  test(
+    'remote astronomy event preserves title and HTTPS authority action',
+    () async {
+      final transport = _FakeTransport()
+        ..mutateResponse = (body) {
+          body['events'] = [
+            {
+              'id': 'astronomy-123456789abc',
+              'channel': 'opportunity',
+              'source': 'astronomyCatalog',
+              'observedAt': '2026-07-14T01:00:00Z',
+              'expiresAt': '2026-07-14T04:00:00Z',
+              'confidence': 1.0,
+              'geoScope': 'regional',
+              'severity': 'info',
+              'allowedAction': 'openAuthority',
+              'title': '英仙座流星雨极大期',
+              'sourceUrl': 'https://science.nasa.gov/meteor-showers/',
+            },
+          ];
+          body['allowedActions'] = ['openAuthority'];
+          body['manifest'] = {
+            'layoutMode': 'opportunity',
+            'primaryEventId': 'astronomy-123456789abc',
+            'secondaryEventIds': <String>[],
+            'safetyEventIds': <String>[],
+          };
+        };
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      final result = await repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      );
+      final event = result.events.single;
+
+      expect(event.title, '英仙座流星雨极大期');
+      expect(event.source, ContextEventSource.astronomyCatalog);
+      expect(event.allowedAction, ContextAction.openAuthority);
+      expect(event.sourceUri?.scheme, 'https');
+      expect(result.allowedActions, [ContextAction.openAuthority]);
+    },
+  );
+
   group('server manifest', () {
     DataBrokerContextRepository repositoryWithManifest({
       required void Function(Map<String, Object?> body) mutate,

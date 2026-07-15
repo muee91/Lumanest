@@ -23,6 +23,12 @@ rejected. Astronomy records require timezone-aware intervals and HTTPS source
 URLs. The endpoint is available only through the internal service token and is
 forwarded to LAN administrators by the Node Broker.
 
+At evaluation time, only currently active astronomy records from enabled,
+`approved` sources become creative events. Their bounded catalog title and
+HTTPS authority URL are carried through the Broker as an `openAuthority`
+action. The catalog proves that an event is scheduled; it does not claim local
+visibility, which still depends on weather and the observer's horizon.
+
 ## Local verification
 
 ```bash

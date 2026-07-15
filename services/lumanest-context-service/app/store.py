@@ -84,6 +84,11 @@ class ContextStore:
     async def cached_snapshot(self, fingerprint: str) -> dict | None:
         if self.redis is None:
             return None
+        try:
+            raw = await self.redis.get(f"context:v2:{fingerprint}")
+            return json.loads(raw) if raw else None
+        except Exception:
+            return None
 
     async def active_astronomy_events(self, moment: datetime) -> list[dict]:
         """Return only currently active events from approved, enabled sources."""
@@ -93,7 +98,8 @@ class ContextStore:
             async with self.engine.connect() as connection:
                 rows = (await connection.execute(text("""
                     SELECT astronomy_events.external_id, astronomy_events.event_type,
-                           astronomy_events.title, astronomy_events.source_url
+                           astronomy_events.title, astronomy_events.source_url,
+                           astronomy_events.starts_at, astronomy_events.ends_at
                     FROM astronomy_events
                     JOIN source_registry ON source_registry.id = astronomy_events.source_id
                     WHERE astronomy_events.enabled = TRUE
@@ -107,11 +113,6 @@ class ContextStore:
             return [dict(row) for row in rows]
         except Exception:
             return []
-        try:
-            raw = await self.redis.get(f"context:v2:{fingerprint}")
-            return json.loads(raw) if raw else None
-        except Exception:
-            return None
 
     async def cache_snapshot(self, fingerprint: str, body: dict) -> None:
         if self.redis is None:

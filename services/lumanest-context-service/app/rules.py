@@ -49,7 +49,10 @@ def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = No
 
 
 def context_fingerprint(
-    request: SnapshotRequest, scene: SceneType, evidence: SceneEvidence | None = None
+    request: SnapshotRequest,
+    scene: SceneType,
+    evidence: SceneEvidence | None = None,
+    astronomy_events: list[dict] | None = None,
 ) -> str:
     facts = evidence or request.evidence
     solar = request.solar or solar_state(request.coordinate, request.observed_at)
@@ -73,16 +76,21 @@ def context_fingerprint(
         request.intent,
         str(facts.wildlife_opportunity),
         str(facts.wildlife_safety),
+        ",".join(sorted(str(event.get("external_id", "")) for event in (astronomy_events or []))),
     ))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
-def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) -> SnapshotResponse:
+def evaluate(
+    request: SnapshotRequest,
+    evidence: SceneEvidence | None = None,
+    astronomy_events: list[dict] | None = None,
+) -> SnapshotResponse:
     generated_at = request.observed_at.astimezone(timezone.utc)
     expires_at = generated_at + timedelta(minutes=15)
     scene = classify_scene(request, evidence)
     facts = evidence or request.evidence
-    fingerprint = context_fingerprint(request, scene, facts)
+    fingerprint = context_fingerprint(request, scene, facts, astronomy_events)
     moon_phase, moon_illumination = moon_state(generated_at)
     solar = request.solar or solar_state(request.coordinate, generated_at)
     events: list[ContextEvent] = []
@@ -97,6 +105,8 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
         geo_scope: str = "regional",
         observed_at: datetime | None = None,
         event_expires_at: datetime | None = None,
+        title: str | None = None,
+        source_url: str | None = None,
     ) -> None:
         events.append(ContextEvent.model_validate({
             "id": event_id,
@@ -108,7 +118,26 @@ def evaluate(request: SnapshotRequest, evidence: SceneEvidence | None = None) ->
             "geoScope": geo_scope,
             "severity": severity,
             "allowedAction": action,
+            "title": title,
+            "sourceUrl": source_url,
         }))
+
+    for catalog_event in astronomy_events or []:
+        external_id = str(catalog_event.get("external_id", ""))
+        event_hash = hashlib.sha256(external_id.encode("utf-8")).hexdigest()[:12]
+        add(
+            f"astronomy-{event_hash}",
+            "opportunity",
+            "astronomyCatalog",
+            1,
+            "openAuthority",
+            "info",
+            "regional",
+            catalog_event["starts_at"],
+            catalog_event["ends_at"],
+            str(catalog_event["title"]),
+            str(catalog_event["source_url"]),
+        )
 
     if request.weather.thunder:
         add("thunderstorm", "safety", "weather", 1, "openSafety", "critical", "regional")

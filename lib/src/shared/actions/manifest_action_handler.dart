@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/manifest/manifest_action_resolver.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 Future<void> handleManifestAction(
   BuildContext context,
@@ -11,6 +12,20 @@ Future<void> handleManifestAction(
   final resolution = ManifestActionResolver.resolve(item);
   if (resolution.route case final route?) {
     context.go(route);
+    return;
+  }
+  if (resolution.externalUri case final uri?) {
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on Object {
+      opened = false;
+    }
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法打开权威来源，请稍后重试')));
+    }
     return;
   }
   final panel = resolution.panel;

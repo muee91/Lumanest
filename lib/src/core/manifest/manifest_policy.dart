@@ -330,7 +330,7 @@ abstract final class ManifestPolicy {
   static ManifestItem _unknownCreativeItem(String id, ContextEvent event) {
     return ManifestItem(
       id: id,
-      title: '拍摄机会',
+      title: event.title ?? '拍摄机会',
       action: event.allowedAction != null
           ? ManifestAction.fromContextAction(event.allowedAction!)
           : ManifestAction.openExplore,
@@ -350,6 +350,9 @@ abstract final class ManifestPolicy {
       _ => null,
     };
     if (opportunitySummary != null) return opportunitySummary;
+    if (primary?.action == ManifestAction.openAuthority) {
+      return '已审核天象目录显示：${primary!.title}。实际可见性仍取决于本地天气与视野。';
+    }
 
     return switch (snapshot.primaryScene) {
       SceneType.unknown => '环境数据已更新，暂时没有明确拍摄窗口。',
@@ -373,7 +376,7 @@ abstract final class ManifestPolicy {
       'dust-light' => '风沙光🏜️',
       'humanity-light' => '进巷子🏮',
       'route-light-window' => '沿途光🚗',
-      _ => '',
+      _ => primary?.action == ManifestAction.openAuthority ? '看天象✨' : '',
     };
   }
 }

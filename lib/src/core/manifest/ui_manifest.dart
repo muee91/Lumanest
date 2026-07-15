@@ -25,7 +25,8 @@ enum ManifestAction {
   openShootingWindow,
   openWeather,
   openSafety,
-  openRoute;
+  openRoute,
+  openAuthority;
 
   /// Maps a structured [ContextAction] to its UI [ManifestAction].
   static ManifestAction fromContextAction(ContextAction action) =>
@@ -35,6 +36,7 @@ enum ManifestAction {
         ContextAction.openWeather => ManifestAction.openWeather,
         ContextAction.openSafety => ManifestAction.openSafety,
         ContextAction.openRoute => ManifestAction.openRoute,
+        ContextAction.openAuthority => ManifestAction.openAuthority,
       };
 }
 
@@ -46,6 +48,7 @@ class ManifestItem {
     this.source,
     this.confidence,
     this.expiresAt,
+    this.authorityUri,
   });
 
   final String id;
@@ -54,6 +57,7 @@ class ManifestItem {
   final ContextEventSource? source;
   final double? confidence;
   final DateTime? expiresAt;
+  final Uri? authorityUri;
 
   /// Enriches this item with metadata from a structured [ContextEvent].
   ///
@@ -63,13 +67,14 @@ class ManifestItem {
     if (event == null) return this;
     return ManifestItem(
       id: id,
-      title: title,
+      title: event.title ?? title,
       action: event.allowedAction != null
           ? ManifestAction.fromContextAction(event.allowedAction!)
           : action,
       source: event.source,
       confidence: event.confidence,
       expiresAt: event.expiresAt,
+      authorityUri: event.sourceUri,
     );
   }
 }

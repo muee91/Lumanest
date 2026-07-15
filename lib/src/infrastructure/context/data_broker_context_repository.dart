@@ -493,17 +493,38 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     final action = ContextAction.values
         .where((item) => item.name == value['allowedAction'])
         .firstOrNull;
-    if (!_hasExactKeys(value, const {
-          'id',
-          'channel',
-          'source',
-          'observedAt',
-          'expiresAt',
-          'confidence',
-          'geoScope',
-          'severity',
-          'allowedAction',
-        }) ||
+    final title = value['title'];
+    final sourceUrl = value['sourceUrl'];
+    final sourceUri = sourceUrl is String ? Uri.tryParse(sourceUrl) : null;
+    final validTitle =
+        title == null ||
+        (title is String &&
+            title.trim().isNotEmpty &&
+            title.runes.length <= 80 &&
+            !title.contains(RegExp(r'[\r\n]')));
+    final validAuthority = action == ContextAction.openAuthority
+        ? source == ContextEventSource.astronomyCatalog &&
+              title is String &&
+              sourceUrl is String &&
+              sourceUri != null &&
+              sourceUri.scheme == 'https' &&
+              sourceUri.host.isNotEmpty &&
+              sourceUrl.length <= 500
+        : sourceUrl == null;
+    const requiredKeys = {
+      'id',
+      'channel',
+      'source',
+      'observedAt',
+      'expiresAt',
+      'confidence',
+      'geoScope',
+      'severity',
+      'allowedAction',
+    };
+    const allowedKeys = {...requiredKeys, 'title', 'sourceUrl'};
+    if (!requiredKeys.every(value.containsKey) ||
+        value.keys.any((key) => !allowedKeys.contains(key)) ||
         value['id'] is! String ||
         !RegExp(r'^[a-z0-9_-]{1,64}$').hasMatch(value['id']! as String) ||
         channel == null ||
@@ -514,7 +535,9 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         !_finiteIn(confidence, 0, 1) ||
         geoScope == null ||
         safetyLevel == null ||
-        action == null) {
+        action == null ||
+        !validTitle ||
+        !validAuthority) {
       throw const FormatException('Invalid context event');
     }
     return ContextEvent(
@@ -527,6 +550,8 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       geoScope: geoScope,
       safetyLevel: safetyLevel,
       allowedAction: action,
+      title: title as String?,
+      sourceUri: sourceUri,
     );
   }
 }

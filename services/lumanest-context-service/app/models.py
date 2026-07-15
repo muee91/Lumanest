@@ -136,15 +136,29 @@ class SnapshotRequest(ApiModel):
 class ContextEvent(ApiModel):
     id: str = Field(pattern=r"^[a-z0-9_-]{1,64}$")
     channel: Literal["opportunity", "safety", "wildlifeOpportunity", "wildlifeSafety"]
-    source: Literal["weather", "solar", "rule", "official", "wildlifeHistorical"]
+    source: Literal[
+        "weather", "solar", "rule", "official", "wildlifeHistorical", "astronomyCatalog"
+    ]
     observed_at: datetime = Field(alias="observedAt")
     expires_at: datetime = Field(alias="expiresAt")
     confidence: float = Field(ge=0, le=1)
     geo_scope: Literal["point", "regional", "route"] = Field(alias="geoScope")
     severity: Literal["info", "caution", "warning", "critical"] = "info"
     allowed_action: Literal[
-        "openExplore", "openShootingWindow", "openWeather", "openSafety", "openRoute"
+        "openExplore", "openShootingWindow", "openWeather", "openSafety", "openRoute",
+        "openAuthority",
     ] = Field(alias="allowedAction")
+    title: str | None = Field(None, min_length=1, max_length=80)
+    source_url: HttpUrl | None = Field(None, alias="sourceUrl", max_length=500)
+
+    @model_validator(mode="after")
+    def require_authority_metadata_only_for_authority_action(self) -> "ContextEvent":
+        if self.allowed_action == "openAuthority":
+            if self.source != "astronomyCatalog" or self.title is None or self.source_url is None:
+                raise ValueError("authority actions require catalog title and URL")
+        elif self.source_url is not None:
+            raise ValueError("sourceUrl is only allowed for authority actions")
+        return self
 
 
 class Manifest(ApiModel):
@@ -218,7 +232,10 @@ class SnapshotResponse(ApiModel):
     route: RouteState
     events: list[ContextEvent]
     allowed_actions: list[
-        Literal["openExplore", "openShootingWindow", "openWeather", "openSafety", "openRoute"]
+        Literal[
+            "openExplore", "openShootingWindow", "openWeather", "openSafety", "openRoute",
+            "openAuthority",
+        ]
     ] = Field(alias="allowedActions")
     manifest: Manifest
 

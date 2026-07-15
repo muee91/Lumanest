@@ -78,6 +78,38 @@ test('context snapshot rejects a response where active disagrees with stage', as
   });
   assert.equal(ok.ok, true);
 
+  const astronomyEvent = {
+    id: 'astronomy-123456789abc', channel: 'opportunity', source: 'astronomyCatalog',
+    observedAt: '2026-07-14T01:00:00Z', expiresAt: '2026-07-14T04:00:00Z',
+    confidence: 1, geoScope: 'regional', severity: 'info', allowedAction: 'openAuthority',
+    title: '英仙座流星雨极大期', sourceUrl: 'https://science.nasa.gov/meteor-showers/',
+  };
+  const astronomy = {
+    ...base,
+    events: [astronomyEvent],
+    allowedActions: ['openAuthority'],
+    manifest: {
+      layoutMode: 'opportunity', primaryEventId: astronomyEvent.id,
+      secondaryEventIds: [], safetyEventIds: [],
+    },
+  };
+  const acceptedAstronomy = await forwardContextSnapshot({
+    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
+    fetcher: async () => new Response(JSON.stringify(astronomy), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }),
+  });
+  assert.equal(acceptedAstronomy.ok, true);
+
+  const rejectedHttpAuthority = await forwardContextSnapshot({
+    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
+    fetcher: async () => new Response(JSON.stringify({
+      ...astronomy,
+      events: [{ ...astronomyEvent, sourceUrl: 'http://example.test/catalog' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+  });
+  assert.deepEqual(rejectedHttpAuthority, { ok: false, error: 'upstream_unavailable' });
+
   const bad = await forwardContextSnapshot({
     body: {},
     serviceUrl: 'http://context-service:8000',

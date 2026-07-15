@@ -88,6 +88,29 @@ def test_fingerprint_uses_a_grid_instead_of_exposing_coordinates():
     assert result.context_id.startswith("ctx_")
 
 
+def test_active_reviewed_astronomy_event_preserves_title_and_https_authority():
+    starts_at = datetime(2026, 7, 14, 1, tzinfo=timezone.utc)
+    ends_at = datetime(2026, 7, 14, 4, tzinfo=timezone.utc)
+    result = evaluate(request_for(), astronomy_events=[{
+        "external_id": "meteor-2026",
+        "event_type": "meteorShower",
+        "title": "英仙座流星雨极大期",
+        "source_url": "https://science.nasa.gov/meteor-showers/",
+        "starts_at": starts_at,
+        "ends_at": ends_at,
+    }])
+
+    event = next(event for event in result.events if event.source == "astronomyCatalog")
+    assert event.id.startswith("astronomy-")
+    assert event.title == "英仙座流星雨极大期"
+    assert str(event.source_url) == "https://science.nasa.gov/meteor-showers/"
+    assert event.allowed_action == "openAuthority"
+    assert event.observed_at == starts_at
+    assert event.expires_at == ends_at
+    assert result.manifest.primary_event_id == event.id
+    assert "openAuthority" in result.allowed_actions
+
+
 def test_astronomy_catalog_requires_traceable_https_source_and_ordered_times():
     valid = {
         "datasetType": "astronomyEvents",

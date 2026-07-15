@@ -68,4 +68,29 @@ void main() {
       ManifestPanel.safety,
     );
   });
+
+  test('authority action resolves only the validated event URL', () {
+    final uri = Uri.parse('https://science.nasa.gov/meteor-showers/');
+    expect(
+      ManifestActionResolver.resolve(
+        ManifestItem(
+          id: 'astronomy-event',
+          title: '流星雨',
+          action: ManifestAction.openAuthority,
+          authorityUri: uri,
+        ),
+      ).externalUri,
+      uri,
+    );
+    expect(
+      ManifestActionResolver.resolve(
+        const ManifestItem(
+          id: 'missing-authority',
+          title: '缺少来源',
+          action: ManifestAction.openAuthority,
+        ),
+      ).externalUri,
+      isNull,
+    );
+  });
 }

@@ -5,7 +5,14 @@ enum ContextEventChannel {
   wildlifeSafety,
 }
 
-enum ContextEventSource { weather, solar, rule, wildlifeHistorical, official }
+enum ContextEventSource {
+  weather,
+  solar,
+  rule,
+  wildlifeHistorical,
+  official,
+  astronomyCatalog,
+}
 
 enum ContextGeoScope { point, regional, route }
 
@@ -17,6 +24,7 @@ enum ContextAction {
   openWeather,
   openSafety,
   openRoute,
+  openAuthority,
 }
 
 class ContextEvent {
@@ -30,6 +38,8 @@ class ContextEvent {
     this.geoScope,
     this.safetyLevel,
     this.allowedAction,
+    this.title,
+    this.sourceUri,
   }) : assert(confidence >= 0 && confidence <= 1);
 
   final String id;
@@ -41,6 +51,8 @@ class ContextEvent {
   final ContextGeoScope? geoScope;
   final ContextSafetyLevel? safetyLevel;
   final ContextAction? allowedAction;
+  final String? title;
+  final Uri? sourceUri;
 
   bool isExpiredAt(DateTime moment) => !expiresAt.isAfter(moment);
 }

@@ -3,11 +3,23 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 enum ManifestPanel { weather, safety }
 
 class ManifestActionResolution {
-  const ManifestActionResolution.route(this.route) : panel = null;
-  const ManifestActionResolution.panel(this.panel) : route = null;
+  const ManifestActionResolution.route(this.route)
+    : panel = null,
+      externalUri = null;
+  const ManifestActionResolution.panel(this.panel)
+    : route = null,
+      externalUri = null;
+  const ManifestActionResolution.external(this.externalUri)
+    : route = null,
+      panel = null;
+  const ManifestActionResolution.none()
+    : route = null,
+      panel = null,
+      externalUri = null;
 
   final String? route;
   final ManifestPanel? panel;
+  final Uri? externalUri;
 }
 
 abstract final class ManifestActionResolver {
@@ -28,6 +40,10 @@ abstract final class ManifestActionResolver {
       ManifestAction.openRoute => const ManifestActionResolution.route(
         '/route',
       ),
+      ManifestAction.openAuthority =>
+        item.authorityUri == null
+            ? const ManifestActionResolution.none()
+            : ManifestActionResolution.external(item.authorityUri),
     };
   }
 

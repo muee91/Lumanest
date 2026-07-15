@@ -75,23 +75,41 @@ export function isLegacyContextRequest(body) {
   return object(body) && ['evidence', 'weather', 'solar'].some((key) => Object.hasOwn(body, key));
 }
 
-const actions = new Set(['openExplore', 'openShootingWindow', 'openWeather', 'openSafety', 'openRoute']);
+const actions = new Set([
+  'openExplore', 'openShootingWindow', 'openWeather', 'openSafety', 'openRoute',
+  'openAuthority',
+]);
 const moonPhases = new Set([
   'newMoon', 'waxingCrescent', 'firstQuarter', 'waxingGibbous',
   'fullMoon', 'waningGibbous', 'lastQuarter', 'waningCrescent',
 ]);
 
 function validEvent(value) {
-  return exactKeys(value, new Set([
+  if (!exactKeys(value, new Set([
     'id', 'channel', 'source', 'observedAt', 'expiresAt', 'confidence',
-    'geoScope', 'severity', 'allowedAction',
-  ])) && typeof value.id === 'string' && /^[a-z0-9_-]{1,64}$/.test(value.id) &&
-    ['opportunity', 'safety', 'wildlifeOpportunity', 'wildlifeSafety'].includes(value.channel) &&
-    ['weather', 'solar', 'rule', 'official', 'wildlifeHistorical'].includes(value.source) &&
-    typeof value.observedAt === 'string' && Number.isFinite(Date.parse(value.observedAt)) &&
-    typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt)) &&
-    finiteIn(value.confidence, 0, 1) && ['point', 'regional', 'route'].includes(value.geoScope) &&
-    ['info', 'caution', 'warning', 'critical'].includes(value.severity) && actions.has(value.allowedAction);
+    'geoScope', 'severity', 'allowedAction', 'title', 'sourceUrl',
+  ])) || typeof value.id !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(value.id) ||
+    !['opportunity', 'safety', 'wildlifeOpportunity', 'wildlifeSafety'].includes(value.channel) ||
+    !['weather', 'solar', 'rule', 'official', 'wildlifeHistorical', 'astronomyCatalog'].includes(value.source) ||
+    typeof value.observedAt !== 'string' || !Number.isFinite(Date.parse(value.observedAt)) ||
+    typeof value.expiresAt !== 'string' || !Number.isFinite(Date.parse(value.expiresAt)) ||
+    !finiteIn(value.confidence, 0, 1) || !['point', 'regional', 'route'].includes(value.geoScope) ||
+    !['info', 'caution', 'warning', 'critical'].includes(value.severity) || !actions.has(value.allowedAction)) {
+    return false;
+  }
+  if (value.allowedAction === 'openAuthority') {
+    if (value.source !== 'astronomyCatalog' || typeof value.title !== 'string' ||
+        [...value.title.trim()].length < 1 || [...value.title.trim()].length > 80 ||
+        typeof value.sourceUrl !== 'string' || value.sourceUrl.length > 500) return false;
+    try {
+      return new URL(value.sourceUrl).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+  return value.sourceUrl == null && (value.title == null ||
+    (typeof value.title === 'string' && [...value.title.trim()].length >= 1 &&
+      [...value.title.trim()].length <= 80));
 }
 
 function validContextResponse(body) {
