@@ -133,7 +133,7 @@ void main() {
 
       expect(find.text('数据已过期'), findsNothing);
       expect(find.textContaining('光线平静'), findsOneWidget);
-      expect(find.text('天气数据：和风天气'), findsOneWidget);
+      expect(find.text('天气数据：和风天气'), findsNothing);
     });
 
     testWidgets('quiet context renders no opportunity placeholder', (
@@ -148,6 +148,52 @@ void main() {
       expect(find.byKey(const Key('primary-opportunity')), findsNothing);
       expect(find.byKey(const Key('secondary-opportunities')), findsNothing);
       expect(find.text('探索附近'), findsOneWidget);
+    });
+
+    testWidgets('missing environment metrics reserve no placeholder strip', (
+      tester,
+    ) async {
+      final now = DateTime.utc(2026, 7, 15, 8);
+      final snapshot = ContextSnapshot(
+        id: 'no-metrics',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
+      );
+
+      expect(find.text('天气数据：和风天气'), findsNothing);
+      expect(find.textContaining('--'), findsNothing);
+    });
+
+    testWidgets('available metrics render without reserving missing peers', (
+      tester,
+    ) async {
+      final now = DateTime.utc(2026, 7, 15, 8);
+      final snapshot = ContextSnapshot(
+        id: 'partial-metrics',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        temperatureCelsius: 21.4,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
+      );
+
+      expect(find.text('21°'), findsOneWidget);
+      expect(find.text('天气数据：和风天气'), findsOneWidget);
+      expect(find.textContaining('--'), findsNothing);
     });
 
     testWidgets('lake sunset renders one primary opportunity', (tester) async {

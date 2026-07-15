@@ -255,25 +255,14 @@ class _EnvironmentStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = <(IconData, String)>[
-      (
-        Icons.device_thermostat_outlined,
-        snapshot.temperatureCelsius == null
-            ? '温度 --'
-            : '${snapshot.temperatureCelsius!.round()}°',
-      ),
-      (
-        Icons.air_outlined,
-        snapshot.windSpeedMetersPerSecond == null
-            ? '风力 --'
-            : '${snapshot.windSpeedMetersPerSecond!.toStringAsFixed(1)} m/s',
-      ),
-      (
-        Icons.visibility_outlined,
-        snapshot.visibilityKilometers == null
-            ? '能见度 --'
-            : '${snapshot.visibilityKilometers!.round()} km',
-      ),
+      if (snapshot.temperatureCelsius case final value?)
+        (Icons.device_thermostat_outlined, '${value.round()}°'),
+      if (snapshot.windSpeedMetersPerSecond case final value?)
+        (Icons.air_outlined, '${value.toStringAsFixed(1)} m/s'),
+      if (snapshot.visibilityKilometers case final value?)
+        (Icons.visibility_outlined, '${value.round()} km'),
     ];
+    if (entries.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
