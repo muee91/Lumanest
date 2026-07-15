@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
@@ -180,8 +181,122 @@ void main() {
     );
     await tester.tap(find.text('同意并开启地图'));
     await tester.pump();
+    await tester.pump();
 
     expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
+  });
+
+  testWidgets('temporary focus expires and clears the router query', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        environmentConfigProvider.overrideWithValue(
+          EnvironmentConfig(amapAndroidKey: 'test-key'),
+        ),
+        amapInitializerGatewayProvider.overrideWithValue(
+          FakeAmapInitializerGateway(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final router = GoRouter(
+      initialLocation: '/explore?focus=water',
+      routes: [
+        GoRoute(
+          path: '/explore',
+          builder: (_, state) => Scaffold(
+            body: ExplorePage(
+              mapBuilder: fakeMapSurface,
+              focus: ExploreFocus.fromQuery(state.uri.queryParameters['focus']),
+              intentTimeout: const Duration(milliseconds: 100),
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pumpAndSettle();
+
+    expect(find.text('正在寻找湖岸与水面线索'), findsNothing);
+    expect(
+      container.read(exploreIntentProvider).category,
+      NearbyPlaceCategory.viewpoint,
+    );
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/explore',
+    );
+  });
+
+  testWidgets('manual category choice completes a temporary intent', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        environmentConfigProvider.overrideWithValue(
+          EnvironmentConfig(amapAndroidKey: 'test-key'),
+        ),
+        amapInitializerGatewayProvider.overrideWithValue(
+          FakeAmapInitializerGateway(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final router = GoRouter(
+      initialLocation: '/explore?focus=water',
+      routes: [
+        GoRoute(
+          path: '/explore',
+          builder: (_, state) => Scaffold(
+            body: ExplorePage(
+              mapBuilder: fakeMapSurface,
+              focus: ExploreFocus.fromQuery(state.uri.queryParameters['focus']),
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
+
+    await tester.tap(find.text('吃饭'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('正在寻找湖岸与水面线索'), findsNothing);
+    expect(container.read(exploreIntentProvider).activeFocus, isNull);
+    expect(
+      container.read(exploreIntentProvider).category,
+      NearbyPlaceCategory.food,
+    );
+    expect(
+      router.routerDelegate.currentConfiguration.uri.toString(),
+      '/explore',
+    );
   });
 
   testWidgets('latest search wins when responses complete out of order', (

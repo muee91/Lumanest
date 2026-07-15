@@ -4,18 +4,11 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_nearby_place_repository.dart';
+import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 
-class NearbyCategoryController extends Notifier<NearbyPlaceCategory> {
-  @override
-  NearbyPlaceCategory build() => NearbyPlaceCategory.viewpoint;
-
-  void select(NearbyPlaceCategory category) => state = category;
-}
-
-final nearbyCategoryProvider =
-    NotifierProvider<NearbyCategoryController, NearbyPlaceCategory>(
-      NearbyCategoryController.new,
-    );
+final nearbyCategoryProvider = Provider<NearbyPlaceCategory>((ref) {
+  return ref.watch(exploreIntentProvider).category;
+});
 
 final nearbyPlaceRepositoryProvider = Provider<NearbyPlaceRepository>((ref) {
   final config = ref.watch(environmentConfigProvider);

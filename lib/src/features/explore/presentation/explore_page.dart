@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
+import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
@@ -23,10 +24,12 @@ class ExplorePage extends ConsumerWidget {
     super.key,
     this.mapBuilder,
     this.focus = ExploreFocus.photography,
+    this.intentTimeout = const Duration(minutes: 8),
   });
 
   final MapSurfaceBuilder? mapBuilder;
   final ExploreFocus focus;
+  final Duration intentTimeout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +45,7 @@ class ExplorePage extends ConsumerWidget {
       MapConsentReady() => _MapView(
         mapBuilder: mapBuilder,
         focus: focus,
+        intentTimeout: intentTimeout,
         onInit: (context) {
           ref
               .read(mapConsentControllerProvider.notifier)
@@ -105,11 +109,13 @@ class _MapView extends ConsumerStatefulWidget {
   const _MapView({
     required this.mapBuilder,
     required this.focus,
+    required this.intentTimeout,
     required this.onInit,
   });
 
   final MapSurfaceBuilder? mapBuilder;
   final ExploreFocus focus;
+  final Duration intentTimeout;
   final void Function(BuildContext context) onInit;
 
   @override
@@ -120,6 +126,7 @@ class _MapViewState extends ConsumerState<_MapView> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
+  Timer? _intentTimer;
   AsyncValue<List<LocationSearchResult>>? _searchResults;
   bool _mapInitialized = false;
   bool _searchFocused = false;
@@ -128,7 +135,7 @@ class _MapViewState extends ConsumerState<_MapView> {
   @override
   void initState() {
     super.initState();
-    _applyFocus();
+    _applyRequestedFocus();
     _searchController.addListener(_onSearchChanged);
     _searchFocusNode.addListener(_onFocusChanged);
   }
@@ -146,6 +153,7 @@ class _MapViewState extends ConsumerState<_MapView> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     _debounce?.cancel();
+    _intentTimer?.cancel();
     super.dispose();
   }
 
@@ -206,6 +214,9 @@ class _MapViewState extends ConsumerState<_MapView> {
       persisted = false;
     }
     if (!mounted) return;
+    ref
+        .read(exploreIntentProvider.notifier)
+        .complete(category: ref.read(nearbyCategoryProvider));
     if (!persisted) {
       ScaffoldMessenger.of(
         context,
@@ -226,18 +237,28 @@ class _MapViewState extends ConsumerState<_MapView> {
   @override
   void didUpdateWidget(covariant _MapView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.focus != widget.focus) _applyFocus();
+    if (oldWidget.focus != widget.focus) _applyRequestedFocus();
   }
 
-  void _applyFocus() {
+  void _applyRequestedFocus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(nearbyCategoryProvider.notifier).select(widget.focus.category);
+      ref.read(exploreIntentProvider.notifier).activate(widget.focus);
+      _intentTimer?.cancel();
+      if (widget.focus == ExploreFocus.photography) return;
+      _intentTimer = Timer(widget.intentTimeout, _expireIntent);
     });
+  }
+
+  void _expireIntent() {
+    if (!mounted) return;
+    final expired = ref.read(exploreIntentProvider.notifier).expire();
+    if (expired) GoRouter.maybeOf(context)?.go('/explore');
   }
 
   @override
   Widget build(BuildContext context) {
+    final activeFocus = ref.watch(exploreIntentProvider).activeFocus;
     if (widget.mapBuilder case final builder?) {
       return Stack(
         fit: StackFit.expand,
@@ -257,10 +278,12 @@ class _MapViewState extends ConsumerState<_MapView> {
                     expanded: _searchFocused,
                     onExpand: _expandSearch,
                   ),
-                  if (widget.focus != ExploreFocus.photography) ...[
+                  if (activeFocus case final focus?) ...[
                     const SizedBox(height: 8),
-                    _FocusBanner(focus: widget.focus),
+                    _FocusBanner(focus: focus),
                   ],
+                  const SizedBox(height: 8),
+                  const _CategoryBar(),
                 ],
               ),
             ),
@@ -333,8 +356,8 @@ class _MapViewState extends ConsumerState<_MapView> {
                       onExpand: _expandSearch,
                     ),
                     const SizedBox(height: 8),
-                    if (widget.focus != ExploreFocus.photography) ...[
-                      _FocusBanner(focus: widget.focus),
+                    if (activeFocus case final focus?) ...[
+                      _FocusBanner(focus: focus),
                       const SizedBox(height: 8),
                     ],
                     const _CategoryBar(),
@@ -356,7 +379,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                     : _NearbyResultPanel(
                         places,
                         wildlifeActivity: value.wildlifeActivity,
-                        focusWildlife: widget.focus == ExploreFocus.wildlife,
+                        focusWildlife: activeFocus == ExploreFocus.wildlife,
                       ),
               ),
             ),
@@ -431,9 +454,12 @@ class _CategoryBar extends ConsumerWidget {
                 child: ChoiceChip(
                   label: Text(category.label),
                   selected: category == selected,
-                  onSelected: (_) => ref
-                      .read(nearbyCategoryProvider.notifier)
-                      .select(category),
+                  onSelected: (_) {
+                    ref
+                        .read(exploreIntentProvider.notifier)
+                        .complete(category: category);
+                    GoRouter.maybeOf(context)?.go('/explore');
+                  },
                 ),
               ),
           ],
@@ -544,6 +570,11 @@ class _NearbyResultPanel extends ConsumerWidget {
                           ],
                         ),
                         onTap: () async {
+                          ref
+                              .read(exploreIntentProvider.notifier)
+                              .complete(
+                                category: ref.read(nearbyCategoryProvider),
+                              );
                           await ref
                               .read(userLibraryProvider.notifier)
                               .saveRecentRoute(
