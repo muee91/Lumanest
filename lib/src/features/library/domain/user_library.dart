@@ -249,6 +249,12 @@ class ActiveJourneyConflict implements Exception {
   final SavedJourney activeJourney;
 }
 
+class ActiveImportedTrackConflict implements Exception {
+  const ActiveImportedTrackConflict(this.activeJourney);
+
+  final SavedJourney activeJourney;
+}
+
 class UserLibraryState {
   const UserLibraryState({
     this.savedPlaces = const [],

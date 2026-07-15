@@ -117,6 +117,10 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
 
   Future<void> deleteImportedTrack(String id) async {
     final current = await future;
+    final active = current.activeJourney;
+    if (active?.routeKey == id) {
+      throw ActiveImportedTrackConflict(active!);
+    }
     await _save(
       current.copyWith(
         importedTracks: current.importedTracks
@@ -158,6 +162,10 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
 
   Future<void> clearImportedTracks() async {
     final current = await future;
+    final active = current.activeJourney;
+    if (active?.routeKey != null) {
+      throw ActiveImportedTrackConflict(active!);
+    }
     await _save(current.copyWith(importedTracks: const []));
   }
 

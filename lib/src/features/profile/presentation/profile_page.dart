@@ -442,23 +442,39 @@ class ProfilePage extends ConsumerWidget {
             _LibrarySectionHeader(
               title: '本地轨迹',
               clearLabel: '清空轨迹',
-              onClear: () => _confirmLibraryClear(
-                context,
-                ref,
-                type: _LibraryClearType.importedTracks,
-              ),
+              onClear: library?.activeJourney?.routeKey == null
+                  ? () => _confirmLibraryClear(
+                      context,
+                      ref,
+                      type: _LibraryClearType.importedTracks,
+                    )
+                  : () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('请先结束正在进行的本地轨迹行程')),
+                    ),
             ),
             for (final track in library!.importedTracks)
               ListTile(
                 leading: const Icon(Icons.hiking_outlined),
                 title: Text(track.name),
-                subtitle: const Text('GPX · 仅保存在本机'),
+                subtitle: Text(
+                  library.activeJourney?.routeKey == track.id
+                      ? 'GPX · 进行中行程正在使用'
+                      : 'GPX · 仅保存在本机',
+                ),
                 trailing: IconButton(
-                  tooltip: '删除轨迹',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => ref
-                      .read(userLibraryProvider.notifier)
-                      .deleteImportedTrack(track.id),
+                  tooltip: library.activeJourney?.routeKey == track.id
+                      ? '进行中行程正在使用'
+                      : '删除轨迹',
+                  icon: Icon(
+                    library.activeJourney?.routeKey == track.id
+                        ? Icons.lock_outline
+                        : Icons.delete_outline,
+                  ),
+                  onPressed: library.activeJourney?.routeKey == track.id
+                      ? null
+                      : () => ref
+                            .read(userLibraryProvider.notifier)
+                            .deleteImportedTrack(track.id),
                 ),
                 onTap: () => context.go(
                   Uri(

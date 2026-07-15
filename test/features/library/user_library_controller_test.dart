@@ -221,6 +221,54 @@ void main() {
     expect(store.value.importedTracks, isEmpty);
   });
 
+  test('keeps an imported track while its journey is active', () async {
+    final track = ImportedRouteTrack(
+      id: 'active-track',
+      name: '进行中徒步',
+      importedAt: DateTime.utc(2026, 7, 15),
+      points: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.1, longitude: 120.1),
+      ],
+      distanceMeters: 1000,
+      durationSeconds: 600,
+      durationEstimated: false,
+    );
+    final destination = SavedRouteDestination(
+      name: track.name,
+      latitude: track.destination.latitude,
+      longitude: track.destination.longitude,
+      travelMode: 'walking',
+    );
+    final store = _FakeStore(
+      UserLibraryState(
+        importedTracks: [track],
+        journeys: [
+          SavedJourney.start(
+            destination,
+            startedAt: DateTime.utc(2026, 7, 15, 8),
+            routeKey: track.id,
+          ),
+        ],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(userLibraryProvider.notifier);
+
+    await expectLater(
+      controller.deleteImportedTrack(track.id),
+      throwsA(isA<ActiveImportedTrackConflict>()),
+    );
+    await expectLater(
+      controller.clearImportedTracks(),
+      throwsA(isA<ActiveImportedTrackConflict>()),
+    );
+    expect(store.value.importedTracks.single.id, track.id);
+  });
+
   test('clears only the selected local library category', () async {
     final track = ImportedRouteTrack(
       id: 'track-1',

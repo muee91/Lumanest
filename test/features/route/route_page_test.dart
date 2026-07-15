@@ -435,6 +435,48 @@ void main() {
     );
   });
 
+  testWidgets('missing active track can be ended without a dead end', (
+    tester,
+  ) async {
+    const destination = SavedRouteDestination(
+      name: '已删除轨迹',
+      latitude: 30,
+      longitude: 120,
+      travelMode: 'walking',
+    );
+    final journey = SavedJourney.start(
+      destination,
+      startedAt: DateTime.utc(2026, 7, 15, 8),
+      routeKey: 'missing-track',
+    );
+    final store = _MemoryLibraryStore()
+      ..value = UserLibraryState(journeys: [journey]);
+    final reminderService = _FakeRouteReminderService();
+    final container = ProviderContainer(
+      overrides: [
+        userLibraryStoreProvider.overrideWithValue(store),
+        routeReminderServiceProvider.overrideWithValue(reminderService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: RoutePage())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('进行中的本地轨迹已不存在'), findsOneWidget);
+    await tester.tap(find.text('结束行程并返回'));
+    await tester.pumpAndSettle();
+
+    expect(reminderService.cancelled, contains(journey.id));
+    expect(store.value.activeJourney, isNull);
+    expect(find.text('创建路线'), findsOneWidget);
+  });
+
   testWidgets('imports, saves and opens a GPX track without route network', (
     tester,
   ) async {

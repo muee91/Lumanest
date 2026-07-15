@@ -84,7 +84,7 @@ class RoutePage extends ConsumerWidget {
               if (routeKey != null && routeKey.isNotEmpty) {
                 final track = library.importedTrack(routeKey);
                 if (track == null) {
-                  return const _ImportedTrackUnavailableView();
+                  return _ActiveTrackUnavailableView(active);
                 }
                 return _buildImportedTrack(ref, track);
               }
@@ -1165,6 +1165,53 @@ class _ImportedTrackUnavailableView extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _ActiveTrackUnavailableView extends ConsumerWidget {
+  const _ActiveTrackUnavailableView(this.journey);
+
+  final SavedJourney journey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.broken_image_outlined, size: 44),
+          const SizedBox(height: 12),
+          const Text('进行中的本地轨迹已不存在'),
+          const SizedBox(height: 8),
+          const Text('结束当前行程后，可以重新导入 GPX 轨迹。'),
+          const SizedBox(height: 16),
+          FilledButton.tonal(
+            onPressed: () => _endUnavailableJourney(context, ref),
+            child: const Text('结束行程并返回'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> _endUnavailableJourney(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    try {
+      await ref.read(routeReminderServiceProvider).cancel(journey.id);
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('系统返程提醒未能取消，行程仍保留')));
+      return;
+    }
+    await ref
+        .read(userLibraryProvider.notifier)
+        .endJourney(journey.destination, routeKey: journey.routeKey);
+    ref.read(routeContextStateProvider.notifier).end();
+  }
 }
 
 /// Maps the route feature travel mode to the core context route mode.

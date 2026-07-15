@@ -342,6 +342,67 @@ void main() {
     expect(find.text('GPX · 仅保存在本机'), findsOneWidget);
   });
 
+  testWidgets('active GPX track cannot be deleted before ending its journey', (
+    tester,
+  ) async {
+    final track = ImportedRouteTrack(
+      id: 'active-track',
+      name: '进行中徒步',
+      importedAt: DateTime.utc(2026, 7, 15),
+      points: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.1, longitude: 120.1),
+      ],
+      distanceMeters: 1000,
+      durationSeconds: 600,
+      durationEstimated: false,
+    );
+    final destination = SavedRouteDestination(
+      name: track.name,
+      latitude: track.destination.latitude,
+      longitude: track.destination.longitude,
+      travelMode: 'walking',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(
+              UserLibraryState(
+                importedTracks: [track],
+                journeys: [
+                  SavedJourney.start(
+                    destination,
+                    startedAt: DateTime.utc(2026, 7, 15, 8),
+                    routeKey: track.id,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('进行中徒步'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('GPX · 进行中行程正在使用'), findsOneWidget);
+    expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    await tester.ensureVisible(find.text('清空轨迹'));
+    await tester.tap(find.text('清空轨迹'));
+    await tester.pump();
+    expect(find.text('请先结束正在进行的本地轨迹行程'), findsOneWidget);
+  });
+
   testWidgets('shows explicitly saved routes as manageable local data', (
     tester,
   ) async {
