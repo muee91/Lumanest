@@ -4,6 +4,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
+import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
 
 abstract interface class EnvironmentPrivacyService {
   Future<void> revokeAndClear();
@@ -25,6 +26,7 @@ class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
     await _ref.read(environmentConsentProvider.notifier).revoke();
     await _ref.read(mapConsentControllerProvider.notifier).revokeConsent();
     _ref.read(manualLocationProvider.notifier).clear();
+    await _ref.read(baseRegionProvider.notifier).clear();
     await _ref.read(contextCacheProvider).clear();
 
     // Drop in-memory snapshots and generated wording. These providers stay

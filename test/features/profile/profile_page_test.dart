@@ -159,12 +159,15 @@ void main() {
       await tester.enterText(find.byType(TextField), '相机、35mm、三脚架');
       await tester.pump();
 
+      final detailedTone = find.text('详细');
       await tester.dragUntilVisible(
-        find.text('详细'),
+        detailedTone,
         scrollable,
         const Offset(0, -100),
       );
-      await tester.tap(find.text('详细'));
+      await tester.ensureVisible(detailedTone);
+      await tester.pumpAndSettle();
+      await tester.tap(detailedTone);
       await tester.pump();
 
       await tester.dragUntilVisible(

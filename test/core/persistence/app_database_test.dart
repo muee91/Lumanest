@@ -123,7 +123,7 @@ void main() {
     );
   });
 
-  test('schema 1 migrates to 3 without losing library data', () async {
+  test('schema 1 migrates to 4 without losing library data', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-migration-',
@@ -186,9 +186,10 @@ void main() {
       isEmpty,
     );
     expect(await migrated.select(migrated.importedRouteTracks).get(), isEmpty);
+    expect(await migrated.select(migrated.baseRegions).get(), isEmpty);
   });
 
-  test('schema 2 migrates to 3 and preserves existing preferences', () async {
+  test('schema 2 migrates to 4 and preserves existing preferences', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-drift-v2-migration-',
@@ -252,5 +253,38 @@ void main() {
       'energySaver',
     );
     expect(await migrated.select(migrated.importedRouteTracks).get(), isEmpty);
+    expect(await migrated.select(migrated.baseRegions).get(), isEmpty);
+  });
+
+  test('base region is a replaceable local singleton', () async {
+    await database
+        .into(database.baseRegions)
+        .insert(
+          BaseRegionsCompanion.insert(
+            id: const Value(1),
+            name: '杭州',
+            latitude: 30.2741,
+            longitude: 120.1551,
+            selectedAt: DateTime.utc(2026, 7, 15),
+          ),
+        );
+    await database
+        .into(database.baseRegions)
+        .insertOnConflictUpdate(
+          BaseRegionsCompanion.insert(
+            id: const Value(1),
+            name: '黄山',
+            address: const Value('安徽'),
+            latitude: 30.133,
+            longitude: 118.167,
+            selectedAt: DateTime.utc(2026, 7, 16),
+          ),
+        );
+
+    final rows = await database.select(database.baseRegions).get();
+
+    expect(rows, hasLength(1));
+    expect(rows.single.name, '黄山');
+    expect(rows.single.address, '安徽');
   });
 }

@@ -101,12 +101,37 @@ class ProfilePreferenceRecords extends Table {
   ];
 }
 
+/// The user's explicitly selected local base region. This is intentionally
+/// separate from appearance/preferences so location-derived data has a clear,
+/// independently deletable owner.
+@DataClassName('BaseRegionRow')
+class BaseRegions extends Table {
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  TextColumn get name => text()();
+  TextColumn get address => text().nullable()();
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+  DateTimeColumn get selectedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (id = 1)',
+    'CHECK (length(name) BETWEEN 1 AND 160)',
+    'CHECK (latitude BETWEEN -90 AND 90)',
+    'CHECK (longitude BETWEEN -180 AND 180)',
+  ];
+}
+
 @DriftDatabase(
   tables: [
     SavedPlaces,
     RecentRouteDestinations,
     ImportedRouteTracks,
     ProfilePreferenceRecords,
+    BaseRegions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -116,7 +141,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -126,6 +151,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await migrator.createTable(importedRouteTracks);
+      }
+      if (from < 4) {
+        await migrator.createTable(baseRegions);
       }
     },
   );

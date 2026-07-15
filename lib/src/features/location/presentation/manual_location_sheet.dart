@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
+import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 
 class ManualLocationSheet extends ConsumerStatefulWidget {
-  const ManualLocationSheet({super.key});
+  const ManualLocationSheet({super.key, this.saveAsBaseRegion = false});
+
+  final bool saveAsBaseRegion;
 
   @override
   ConsumerState<ManualLocationSheet> createState() =>
@@ -43,10 +46,13 @@ class _ManualLocationSheetState extends ConsumerState<ManualLocationSheet> {
     }
   }
 
-  void _select(LocationSearchResult result) {
+  Future<void> _select(LocationSearchResult result) async {
+    if (widget.saveAsBaseRegion) {
+      await ref.read(baseRegionProvider.notifier).select(result);
+    }
     ref.read(manualLocationProvider.notifier).select(result);
     ref.read(environmentSnapshotProvider.notifier).refresh();
-    Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -63,9 +69,16 @@ class _ManualLocationSheetState extends ConsumerState<ManualLocationSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('手动选择地点', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              widget.saveAsBaseRegion ? '设置常驻地区' : '手动选择地点',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 6),
-            const Text('用于天气和光线判断；不会伪装成你的实时位置。'),
+            Text(
+              widget.saveAsBaseRegion
+                  ? '仅保存在本机，用作默认的环境分析地点。'
+                  : '用于天气和光线判断；不会伪装成你的实时位置。',
+            ),
             const SizedBox(height: 14),
             TextField(
               controller: _controller,

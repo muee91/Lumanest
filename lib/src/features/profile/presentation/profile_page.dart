@@ -7,9 +7,13 @@ import '../../../core/context/environment_consent.dart';
 import '../../../core/context/environment_providers.dart';
 import '../application/profile_preferences_controller.dart';
 import '../application/environment_privacy_service.dart';
+import '../application/environment_cache_maintenance_service.dart';
 import '../domain/profile_preferences.dart';
 import '../../library/application/user_library_controller.dart';
 import '../../library/domain/user_library.dart';
+import '../../location/application/base_region_controller.dart';
+import '../../location/application/manual_location_providers.dart';
+import '../../location/presentation/manual_location_sheet.dart';
 import 'environment_diagnostics.dart';
 
 /// Local profile settings surface.
@@ -35,6 +39,8 @@ class ProfilePage extends ConsumerWidget {
     final diagnosticStatus = ref.watch(environmentDiagnosticStatusProvider);
     final library = ref.watch(userLibraryProvider).asData?.value;
     final environmentConsentGranted = ref.watch(environmentConsentProvider);
+    final baseRegion = ref.watch(baseRegionProvider).asData?.value;
+    final cacheStatus = ref.watch(environmentCacheStatusProvider);
 
     final liveActions = EnvironmentDiagnosticsActions(
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
@@ -188,6 +194,41 @@ class ProfilePage extends ConsumerWidget {
           ),
           const Divider(),
           ListTile(
+            leading: const Icon(Icons.home_outlined),
+            title: const Text('常驻地区'),
+            subtitle: Text(
+              baseRegion == null
+                  ? '未设置'
+                  : [
+                      baseRegion.name,
+                      baseRegion.address,
+                    ].whereType<String>().join(' · '),
+            ),
+            trailing: baseRegion == null
+                ? const Icon(Icons.chevron_right)
+                : TextButton(
+                    onPressed: () => _confirmBaseRegionRemoval(context, ref),
+                    child: const Text('清除'),
+                  ),
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              showDragHandle: true,
+              builder: (_) => const ManualLocationSheet(saveAsBaseRegion: true),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.offline_bolt_outlined),
+            title: const Text('离线环境数据'),
+            subtitle: Text(_cacheSubtitle(cacheStatus)),
+            trailing: TextButton(
+              onPressed: cacheStatus.isLoading
+                  ? null
+                  : () => _confirmCacheClear(context, ref),
+              child: const Text('清除缓存'),
+            ),
+          ),
+          ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('环境数据与定位'),
             subtitle: Text(
@@ -329,6 +370,98 @@ class ProfilePage extends ConsumerWidget {
         context,
       ).showSnackBar(const SnackBar(content: Text('清除失败，请重试')));
     }
+  }
+
+  static String _cacheSubtitle(AsyncValue<EnvironmentCacheStatus> status) {
+    return status.when(
+      loading: () => '正在读取本机缓存',
+      error: (_, _) => '暂时无法读取缓存状态',
+      data: (value) => switch (value.availability) {
+        EnvironmentCacheAvailability.absent => '本机没有可用的环境缓存',
+        EnvironmentCacheAvailability.current =>
+          '${value.snapshot!.primaryScene.name} · 可离线使用至 ${_time(value.snapshot!.expiresAt)}',
+        EnvironmentCacheAvailability.stale =>
+          '${value.snapshot!.primaryScene.name} · 已过期（${_time(value.snapshot!.observedAt)}）',
+      },
+    );
+  }
+
+  static String _time(DateTime value) {
+    final local = value.toLocal();
+    return '${local.month}月${local.day}日 ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  static Future<void> _confirmCacheClear(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('清除离线环境数据？'),
+        content: const Text('只会清除本机缓存的天气、场景和路线环境快照；不会删除常驻地区、收藏、路线或系统权限。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('清除缓存'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(environmentCacheMaintenanceServiceProvider).clear();
+      ref.invalidate(environmentCacheStatusProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('离线环境缓存已清除')));
+      }
+    } on Object {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('清除失败，请重试')));
+      }
+    }
+  }
+
+  static Future<void> _confirmBaseRegionRemoval(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('清除常驻地区？'),
+        content: const Text('将恢复使用设备当前位置；不会清除离线环境缓存、收藏或路线。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final baseRegion = ref.read(baseRegionProvider).asData?.value;
+    final manualLocation = ref.read(manualLocationProvider);
+    await ref.read(baseRegionProvider.notifier).clear();
+    if (baseRegion != null &&
+        manualLocation != null &&
+        manualLocation.point.latitude == baseRegion.location.point.latitude &&
+        manualLocation.point.longitude == baseRegion.location.point.longitude) {
+      ref.read(manualLocationProvider.notifier).clear();
+    }
+    ref.invalidate(environmentSnapshotProvider);
   }
 }
 

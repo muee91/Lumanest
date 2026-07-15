@@ -2060,6 +2060,404 @@ class ProfilePreferenceRecordsCompanion
   }
 }
 
+class $BaseRegionsTable extends BaseRegions
+    with TableInfo<$BaseRegionsTable, BaseRegionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BaseRegionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _addressMeta = const VerificationMeta(
+    'address',
+  );
+  @override
+  late final GeneratedColumn<String> address = GeneratedColumn<String>(
+    'address',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _selectedAtMeta = const VerificationMeta(
+    'selectedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> selectedAt = GeneratedColumn<DateTime>(
+    'selected_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    address,
+    latitude,
+    longitude,
+    selectedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'base_regions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BaseRegionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('address')) {
+      context.handle(
+        _addressMeta,
+        address.isAcceptableOrUnknown(data['address']!, _addressMeta),
+      );
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('selected_at')) {
+      context.handle(
+        _selectedAtMeta,
+        selectedAt.isAcceptableOrUnknown(data['selected_at']!, _selectedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_selectedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BaseRegionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BaseRegionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      address: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}address'],
+      ),
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      selectedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}selected_at'],
+      )!,
+    );
+  }
+
+  @override
+  $BaseRegionsTable createAlias(String alias) {
+    return $BaseRegionsTable(attachedDatabase, alias);
+  }
+}
+
+class BaseRegionRow extends DataClass implements Insertable<BaseRegionRow> {
+  final int id;
+  final String name;
+  final String? address;
+  final double latitude;
+  final double longitude;
+  final DateTime selectedAt;
+  const BaseRegionRow({
+    required this.id,
+    required this.name,
+    this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.selectedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || address != null) {
+      map['address'] = Variable<String>(address);
+    }
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    map['selected_at'] = Variable<DateTime>(selectedAt);
+    return map;
+  }
+
+  BaseRegionsCompanion toCompanion(bool nullToAbsent) {
+    return BaseRegionsCompanion(
+      id: Value(id),
+      name: Value(name),
+      address: address == null && nullToAbsent
+          ? const Value.absent()
+          : Value(address),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      selectedAt: Value(selectedAt),
+    );
+  }
+
+  factory BaseRegionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BaseRegionRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      address: serializer.fromJson<String?>(json['address']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      selectedAt: serializer.fromJson<DateTime>(json['selectedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'address': serializer.toJson<String?>(address),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'selectedAt': serializer.toJson<DateTime>(selectedAt),
+    };
+  }
+
+  BaseRegionRow copyWith({
+    int? id,
+    String? name,
+    Value<String?> address = const Value.absent(),
+    double? latitude,
+    double? longitude,
+    DateTime? selectedAt,
+  }) => BaseRegionRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    address: address.present ? address.value : this.address,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    selectedAt: selectedAt ?? this.selectedAt,
+  );
+  BaseRegionRow copyWithCompanion(BaseRegionsCompanion data) {
+    return BaseRegionRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      address: data.address.present ? data.address.value : this.address,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      selectedAt: data.selectedAt.present
+          ? data.selectedAt.value
+          : this.selectedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BaseRegionRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('address: $address, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('selectedAt: $selectedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, address, latitude, longitude, selectedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BaseRegionRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.address == this.address &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.selectedAt == this.selectedAt);
+}
+
+class BaseRegionsCompanion extends UpdateCompanion<BaseRegionRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String?> address;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<DateTime> selectedAt;
+  const BaseRegionsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.address = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.selectedAt = const Value.absent(),
+  });
+  BaseRegionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.address = const Value.absent(),
+    required double latitude,
+    required double longitude,
+    required DateTime selectedAt,
+  }) : name = Value(name),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       selectedAt = Value(selectedAt);
+  static Insertable<BaseRegionRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? address,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<DateTime>? selectedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (address != null) 'address': address,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (selectedAt != null) 'selected_at': selectedAt,
+    });
+  }
+
+  BaseRegionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String?>? address,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<DateTime>? selectedAt,
+  }) {
+    return BaseRegionsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      selectedAt: selectedAt ?? this.selectedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (address.present) {
+      map['address'] = Variable<String>(address.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (selectedAt.present) {
+      map['selected_at'] = Variable<DateTime>(selectedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BaseRegionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('address: $address, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('selectedAt: $selectedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2070,6 +2468,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ImportedRouteTracksTable(this);
   late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
       $ProfilePreferenceRecordsTable(this);
+  late final $BaseRegionsTable baseRegions = $BaseRegionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2079,6 +2478,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     recentRouteDestinations,
     importedRouteTracks,
     profilePreferenceRecords,
+    baseRegions,
   ];
 }
 
@@ -3148,6 +3548,221 @@ typedef $$ProfilePreferenceRecordsTableProcessedTableManager =
       ProfilePreferenceRow,
       PrefetchHooks Function()
     >;
+typedef $$BaseRegionsTableCreateCompanionBuilder =
+    BaseRegionsCompanion Function({
+      Value<int> id,
+      required String name,
+      Value<String?> address,
+      required double latitude,
+      required double longitude,
+      required DateTime selectedAt,
+    });
+typedef $$BaseRegionsTableUpdateCompanionBuilder =
+    BaseRegionsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String?> address,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<DateTime> selectedAt,
+    });
+
+class $$BaseRegionsTableFilterComposer
+    extends Composer<_$AppDatabase, $BaseRegionsTable> {
+  $$BaseRegionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get address => $composableBuilder(
+    column: $table.address,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get selectedAt => $composableBuilder(
+    column: $table.selectedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BaseRegionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BaseRegionsTable> {
+  $$BaseRegionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get address => $composableBuilder(
+    column: $table.address,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get selectedAt => $composableBuilder(
+    column: $table.selectedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BaseRegionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BaseRegionsTable> {
+  $$BaseRegionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get address =>
+      $composableBuilder(column: $table.address, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get selectedAt => $composableBuilder(
+    column: $table.selectedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$BaseRegionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BaseRegionsTable,
+          BaseRegionRow,
+          $$BaseRegionsTableFilterComposer,
+          $$BaseRegionsTableOrderingComposer,
+          $$BaseRegionsTableAnnotationComposer,
+          $$BaseRegionsTableCreateCompanionBuilder,
+          $$BaseRegionsTableUpdateCompanionBuilder,
+          (
+            BaseRegionRow,
+            BaseReferences<_$AppDatabase, $BaseRegionsTable, BaseRegionRow>,
+          ),
+          BaseRegionRow,
+          PrefetchHooks Function()
+        > {
+  $$BaseRegionsTableTableManager(_$AppDatabase db, $BaseRegionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BaseRegionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BaseRegionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BaseRegionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> address = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<DateTime> selectedAt = const Value.absent(),
+              }) => BaseRegionsCompanion(
+                id: id,
+                name: name,
+                address: address,
+                latitude: latitude,
+                longitude: longitude,
+                selectedAt: selectedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<String?> address = const Value.absent(),
+                required double latitude,
+                required double longitude,
+                required DateTime selectedAt,
+              }) => BaseRegionsCompanion.insert(
+                id: id,
+                name: name,
+                address: address,
+                latitude: latitude,
+                longitude: longitude,
+                selectedAt: selectedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BaseRegionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BaseRegionsTable,
+      BaseRegionRow,
+      $$BaseRegionsTableFilterComposer,
+      $$BaseRegionsTableOrderingComposer,
+      $$BaseRegionsTableAnnotationComposer,
+      $$BaseRegionsTableCreateCompanionBuilder,
+      $$BaseRegionsTableUpdateCompanionBuilder,
+      (
+        BaseRegionRow,
+        BaseReferences<_$AppDatabase, $BaseRegionsTable, BaseRegionRow>,
+      ),
+      BaseRegionRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3166,4 +3781,6 @@ class $AppDatabaseManager {
         _db,
         _db.profilePreferenceRecords,
       );
+  $$BaseRegionsTableTableManager get baseRegions =>
+      $$BaseRegionsTableTableManager(_db, _db.baseRegions);
 }

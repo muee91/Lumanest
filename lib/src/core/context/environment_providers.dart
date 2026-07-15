@@ -26,6 +26,7 @@ import 'package:luma_nest/src/infrastructure/weather/qweather_client.dart';
 import 'package:luma_nest/src/infrastructure/weather/qweather_repository.dart';
 import 'package:luma_nest/src/infrastructure/wildlife/data_broker_wildlife_repository.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
+import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/location/infrastructure/amap_location_search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,9 +50,13 @@ final locationRepositoryProvider = Provider<LocationRepository>((ref) {
 
 final effectiveLocationRepositoryProvider = Provider<LocationRepository>((ref) {
   final manual = ref.watch(manualLocationProvider);
-  return manual == null
+  // A base region is an explicit, local fallback. A one-off manual selection
+  // still wins for the active session and neither source is sent as a profile.
+  final baseRegion = ref.watch(baseRegionProvider).asData?.value;
+  final selectedLocation = manual ?? baseRegion?.location;
+  return selectedLocation == null
       ? ref.watch(locationRepositoryProvider)
-      : FixedLocationRepository(manual);
+      : FixedLocationRepository(selectedLocation);
 });
 
 final weatherRepositoryProvider = Provider<WeatherRepository>((ref) {

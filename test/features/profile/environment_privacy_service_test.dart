@@ -6,6 +6,8 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
+import 'package:luma_nest/src/features/location/domain/base_region.dart';
+import 'package:luma_nest/src/features/location/infrastructure/base_region_store.dart';
 import 'package:luma_nest/src/features/profile/application/environment_privacy_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,6 +19,7 @@ void main() {
     final mapConsentStore = FakeMapConsentStore(granted: true);
     final cache = InMemoryContextCache();
     final cacheWriteGuard = ContextCacheWriteGuard();
+    final baseRegionStore = _FakeBaseRegionStore();
     final gateway = FakeAmapInitializerGateway();
     final now = DateTime.utc(2026, 7, 13, 10);
     await cache.write(
@@ -40,6 +43,7 @@ void main() {
         ),
         amapInitializerGatewayProvider.overrideWithValue(gateway),
         mapConsentStoreProvider.overrideWithValue(mapConsentStore),
+        baseRegionStoreProvider.overrideWithValue(baseRegionStore),
       ],
     );
     addTearDown(container.dispose);
@@ -59,7 +63,21 @@ void main() {
     );
     expect(gateway.lastStatement?.hasAgree, isFalse);
     expect(mapConsentStore.granted, isFalse);
+    expect(baseRegionStore.cleared, isTrue);
   });
+}
+
+class _FakeBaseRegionStore implements BaseRegionStore {
+  bool cleared = false;
+
+  @override
+  Future<void> clear() async => cleared = true;
+
+  @override
+  Future<BaseRegion?> read() async => null;
+
+  @override
+  Future<void> write(BaseRegion value) async {}
 }
 
 class _FakeConsentStore implements EnvironmentConsentStore {
