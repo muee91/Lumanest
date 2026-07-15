@@ -7,6 +7,30 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 
 void main() {
+  testWidgets('error state exposes retry and manual location recovery', (
+    tester,
+  ) async {
+    var retries = 0;
+    var manualSelections = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: InspirationPage(
+            snapshotAsync: AsyncError(StateError('offline'), StackTrace.empty),
+            onRetry: () => retries++,
+            onSelectManualLocation: () => manualSelections++,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('暂时无法读取此刻的创作线索'), findsOneWidget);
+    await tester.tap(find.text('重试'));
+    await tester.tap(find.text('手动选择地点'));
+    expect(retries, 1);
+    expect(manualSelections, 1);
+  });
+
   testWidgets('bottle keeps a subtle idle ticker when motion is allowed', (
     tester,
   ) async {

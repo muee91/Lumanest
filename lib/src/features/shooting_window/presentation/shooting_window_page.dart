@@ -3,11 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/shooting_window/domain/shooting_window_timeline.dart';
+import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 
 class ShootingWindowPage extends ConsumerWidget {
-  const ShootingWindowPage({super.key, this.snapshotAsync});
+  const ShootingWindowPage({
+    super.key,
+    this.snapshotAsync,
+    this.onRetry,
+    this.onSelectManualLocation,
+  });
 
   final AsyncValue<ContextSnapshot>? snapshotAsync;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,11 +25,61 @@ class ShootingWindowPage extends ConsumerWidget {
       appBar: AppBar(title: const Text('拍摄窗口')),
       body: snapshot.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => const Center(child: Text('暂时无法读取拍摄窗口')),
+        error: (_, _) => _WindowErrorView(
+          onRetry:
+              onRetry ??
+              (snapshotAsync == null
+                  ? () =>
+                        ref.read(environmentSnapshotProvider.notifier).refresh()
+                  : null),
+          onSelectManualLocation:
+              onSelectManualLocation ??
+              (snapshotAsync == null
+                  ? () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      builder: (_) => const ManualLocationSheet(),
+                    )
+                  : null),
+        ),
         data: (value) => _Timeline(snapshot: value),
       ),
     );
   }
+}
+
+class _WindowErrorView extends StatelessWidget {
+  const _WindowErrorView({this.onRetry, this.onSelectManualLocation});
+
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.location_off_outlined, size: 44),
+        const SizedBox(height: 12),
+        const Text('暂时无法读取拍摄窗口'),
+        if (onRetry != null || onSelectManualLocation != null) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              if (onRetry case final action?)
+                FilledButton.tonal(onPressed: action, child: const Text('重试')),
+              if (onSelectManualLocation case final action?)
+                OutlinedButton(onPressed: action, child: const Text('手动选择地点')),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _Timeline extends StatelessWidget {

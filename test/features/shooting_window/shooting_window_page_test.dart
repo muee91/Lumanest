@@ -5,6 +5,30 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/shooting_window/presentation/shooting_window_page.dart';
 
 void main() {
+  testWidgets('error state exposes retry and manual location recovery', (
+    tester,
+  ) async {
+    var retries = 0;
+    var manualSelections = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: ShootingWindowPage(
+            snapshotAsync: AsyncError(StateError('offline'), StackTrace.empty),
+            onRetry: () => retries++,
+            onSelectManualLocation: () => manualSelections++,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('暂时无法读取拍摄窗口'), findsOneWidget);
+    await tester.tap(find.text('重试'));
+    await tester.tap(find.text('手动选择地点'));
+    expect(retries, 1);
+    expect(manualSelections, 1);
+  });
+
   testWidgets('renders calculated windows and the terrain limitation', (
     tester,
   ) async {

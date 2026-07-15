@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
@@ -23,6 +24,9 @@ Widget wrapExplorePage({
   MapSurfaceBuilder? mapBuilder,
   ExploreFocus focus = ExploreFocus.photography,
   LocationSearchRepository? locationSearchRepository,
+  AsyncValue<ContextSnapshot>? snapshotAsync,
+  VoidCallback? onRetry,
+  VoidCallback? onSelectManualLocation,
 }) {
   return ProviderScope(
     overrides: [
@@ -38,7 +42,13 @@ Widget wrapExplorePage({
         ),
     ],
     child: MaterialApp(
-      home: ExplorePage(mapBuilder: mapBuilder, focus: focus),
+      home: ExplorePage(
+        mapBuilder: mapBuilder,
+        focus: focus,
+        snapshotAsync: snapshotAsync,
+        onRetry: onRetry,
+        onSelectManualLocation: onSelectManualLocation,
+      ),
     ),
   );
 }
@@ -184,6 +194,34 @@ void main() {
     await tester.pump();
 
     expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
+  });
+
+  testWidgets('location failure offers retry and manual location recovery', (
+    tester,
+  ) async {
+    var retries = 0;
+    var manualSelections = 0;
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        snapshotAsync: AsyncError(StateError('offline'), StackTrace.empty),
+        onRetry: () => retries++,
+        onSelectManualLocation: () => manualSelections++,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.tap(find.text('同意并获取位置'));
+    await tester.pump();
+
+    expect(find.text('暂时无法获取当前位置'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+    expect(find.text('手动选择地点'), findsOneWidget);
+
+    await tester.tap(find.text('重试'));
+    await tester.tap(find.text('手动选择地点'));
+    expect(retries, 1);
+    expect(manualSelections, 1);
   });
 
   testWidgets('temporary focus expires and clears the router query', (

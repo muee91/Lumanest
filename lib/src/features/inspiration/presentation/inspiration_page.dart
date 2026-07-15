@@ -11,13 +11,21 @@ import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart'
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
 class InspirationPage extends ConsumerWidget {
-  const InspirationPage({super.key, this.snapshotAsync});
+  const InspirationPage({
+    super.key,
+    this.snapshotAsync,
+    this.onRetry,
+    this.onSelectManualLocation,
+  });
 
   /// Allows deterministic widget tests without starting the live environment.
   final AsyncValue<ContextSnapshot>? snapshotAsync;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,15 +35,26 @@ class InspirationPage extends ConsumerWidget {
     final reduceMotion =
         preferences.reduceMotion || MediaQuery.disableAnimationsOf(context);
     return snapshotAsync.when(
-      loading: () => _BottleScaffold(
-        notes: InspirationNotes.build(_fallbackSnapshot()),
-        reduceMotion: reduceMotion,
-        onAction: (note) => _performAction(context, note),
+      loading: () => const Scaffold(
+        appBar: _InspirationAppBar(),
+        body: Center(child: CircularProgressIndicator()),
       ),
-      error: (_, _) => _BottleScaffold(
-        notes: InspirationNotes.build(_fallbackSnapshot()),
-        reduceMotion: reduceMotion,
-        onAction: (note) => _performAction(context, note),
+      error: (_, _) => _InspirationErrorView(
+        onRetry:
+            onRetry ??
+            (this.snapshotAsync == null
+                ? () => ref.read(environmentSnapshotProvider.notifier).refresh()
+                : null),
+        onSelectManualLocation:
+            onSelectManualLocation ??
+            (this.snapshotAsync == null
+                ? () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    builder: (_) => const ManualLocationSheet(),
+                  )
+                : null),
       ),
       data: (snapshot) {
         final narrative = ref.watch(manifestNarrativeProvider(snapshot));
@@ -71,16 +90,6 @@ class InspirationPage extends ConsumerWidget {
     );
   }
 
-  ContextSnapshot _fallbackSnapshot() => ContextSnapshot(
-    id: 'inspiration-fallback',
-    observedAt: DateTime.now(),
-    expiresAt: DateTime.now().add(const Duration(minutes: 15)),
-    primaryScene: SceneType.unknown,
-    dayPhase: DayPhase.day,
-    weather: WeatherType.clear,
-    activeRoute: false,
-  );
-
   void _performAction(BuildContext context, InspirationNote note) {
     handleManifestAction(
       context,
@@ -88,6 +97,62 @@ class InspirationPage extends ConsumerWidget {
       detailOverride: note.detail,
     );
   }
+}
+
+class _InspirationAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const _InspirationAppBar();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) => AppBar(title: const Text('灵感瓶'));
+}
+
+class _InspirationErrorView extends StatelessWidget {
+  const _InspirationErrorView({this.onRetry, this.onSelectManualLocation});
+
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: const _InspirationAppBar(),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.location_off_outlined, size: 44),
+            const SizedBox(height: 12),
+            const Text('暂时无法读取此刻的创作线索'),
+            if (onRetry != null || onSelectManualLocation != null) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  if (onRetry case final action?)
+                    FilledButton.tonal(
+                      onPressed: action,
+                      child: const Text('重试'),
+                    ),
+                  if (onSelectManualLocation case final action?)
+                    OutlinedButton(
+                      onPressed: action,
+                      child: const Text('手动选择地点'),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _BottleScaffold extends StatefulWidget {

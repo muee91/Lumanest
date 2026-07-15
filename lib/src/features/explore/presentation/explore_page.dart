@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
@@ -17,6 +18,7 @@ import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.d
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
+import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class ExplorePage extends ConsumerWidget {
@@ -25,11 +27,17 @@ class ExplorePage extends ConsumerWidget {
     this.mapBuilder,
     this.focus = ExploreFocus.photography,
     this.intentTimeout = const Duration(minutes: 8),
+    this.snapshotAsync,
+    this.onRetry,
+    this.onSelectManualLocation,
   });
 
   final MapSurfaceBuilder? mapBuilder;
   final ExploreFocus focus;
   final Duration intentTimeout;
+  final AsyncValue<ContextSnapshot>? snapshotAsync;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,6 +54,9 @@ class ExplorePage extends ConsumerWidget {
         mapBuilder: mapBuilder,
         focus: focus,
         intentTimeout: intentTimeout,
+        snapshotAsync: snapshotAsync,
+        onRetry: onRetry,
+        onSelectManualLocation: onSelectManualLocation,
         onInit: (context) {
           ref
               .read(mapConsentControllerProvider.notifier)
@@ -110,12 +121,18 @@ class _MapView extends ConsumerStatefulWidget {
     required this.mapBuilder,
     required this.focus,
     required this.intentTimeout,
+    this.snapshotAsync,
+    this.onRetry,
+    this.onSelectManualLocation,
     required this.onInit,
   });
 
   final MapSurfaceBuilder? mapBuilder;
   final ExploreFocus focus;
   final Duration intentTimeout;
+  final AsyncValue<ContextSnapshot>? snapshotAsync;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
   final void Function(BuildContext context) onInit;
 
   @override
@@ -312,18 +329,38 @@ class _MapViewState extends ConsumerState<_MapView> {
       );
     }
 
-    final snapshot = ref.watch(environmentSnapshotProvider);
+    final AsyncValue<ContextSnapshot> snapshot =
+        widget.snapshotAsync ?? ref.watch(environmentSnapshotProvider)!;
     return snapshot.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (_, _) => _ExploreErrorView(
-        onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
+        onRetry:
+            widget.onRetry ??
+            (widget.snapshotAsync == null
+                ? () => ref.read(environmentSnapshotProvider.notifier).refresh()
+                : null),
+        onSelectManualLocation:
+            widget.onSelectManualLocation ??
+            (widget.snapshotAsync == null
+                ? () => _showManualLocation(context)
+                : null),
       ),
       data: (value) {
         final location = value.location;
         if (location == null) {
           return _ExploreErrorView(
-            onRetry: () =>
-                ref.read(environmentSnapshotProvider.notifier).refresh(),
+            onRetry:
+                widget.onRetry ??
+                (widget.snapshotAsync == null
+                    ? () => ref
+                          .read(environmentSnapshotProvider.notifier)
+                          .refresh()
+                    : null),
+            onSelectManualLocation:
+                widget.onSelectManualLocation ??
+                (widget.snapshotAsync == null
+                    ? () => _showManualLocation(context)
+                    : null),
           );
         }
         final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(location);
@@ -416,6 +453,14 @@ class _MapViewState extends ConsumerState<_MapView> {
 
   static String _distanceLabel(int meters) =>
       meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)} km' : '$meters m';
+
+  Future<void> _showManualLocation(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => const ManualLocationSheet(),
+      );
 }
 
 class _FocusBanner extends StatelessWidget {
@@ -702,9 +747,10 @@ class _LocationConsentView extends StatelessWidget {
 }
 
 class _ExploreErrorView extends StatelessWidget {
-  const _ExploreErrorView({required this.onRetry});
+  const _ExploreErrorView({this.onRetry, this.onSelectManualLocation});
 
-  final VoidCallback onRetry;
+  final VoidCallback? onRetry;
+  final VoidCallback? onSelectManualLocation;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -716,7 +762,17 @@ class _ExploreErrorView extends StatelessWidget {
           const SizedBox(height: 12),
           const Text('暂时无法获取当前位置'),
           const SizedBox(height: 12),
-          FilledButton.tonal(onPressed: onRetry, child: const Text('重试')),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              if (onRetry case final action?)
+                FilledButton.tonal(onPressed: action, child: const Text('重试')),
+              if (onSelectManualLocation case final action?)
+                OutlinedButton(onPressed: action, child: const Text('手动选择地点')),
+            ],
+          ),
         ],
       ),
     ),
