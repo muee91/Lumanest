@@ -328,6 +328,113 @@ void main() {
     expect(find.byIcon(Icons.file_upload_outlined), findsOneWidget);
   });
 
+  testWidgets('route tab automatically resumes an active local journey', (
+    tester,
+  ) async {
+    final store = _MemoryLibraryStore()
+      ..value = UserLibraryState(
+        journeys: [
+          SavedJourney.start(
+            const SavedRouteDestination(
+              name: '湖岸机位',
+              latitude: 31,
+              longitude: 121,
+            ),
+            startedAt: DateTime.utc(2026, 7, 15, 8),
+          ),
+        ],
+      );
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: RoutePage(routeAsync: AsyncData(_drivingRoute())),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('创建路线'), findsNothing);
+    expect(find.text('前往 湖岸机位'), findsOneWidget);
+    expect(find.text('暂停'), findsOneWidget);
+    expect(
+      container.read(routeContextStateProvider),
+      RouteContextState.active(ContextRouteMode.driving),
+    );
+  });
+
+  testWidgets('route tab automatically resumes an active imported track', (
+    tester,
+  ) async {
+    final now = DateTime.utc(2026, 7, 15, 8);
+    final track = ImportedRouteTrack(
+      id: 'active-track',
+      name: '山谷徒步线',
+      importedAt: now,
+      points: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.01, longitude: 120.01),
+      ],
+      distanceMeters: 1500,
+      durationSeconds: 1200,
+      durationEstimated: false,
+    );
+    final destination = SavedRouteDestination(
+      name: track.name,
+      latitude: track.destination.latitude,
+      longitude: track.destination.longitude,
+      travelMode: RouteTravelMode.walking.name,
+    );
+    final store = _MemoryLibraryStore()
+      ..value = UserLibraryState(
+        journeys: [
+          SavedJourney.start(destination, startedAt: now, routeKey: track.id),
+        ],
+        importedTracks: [track],
+      );
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: RoutePage(
+              contextSnapshot: ContextSnapshot(
+                id: 'active-track-context',
+                observedAt: now,
+                expiresAt: now.add(const Duration(minutes: 15)),
+                primaryScene: SceneType.hiking,
+                dayPhase: DayPhase.day,
+                weather: WeatherType.clear,
+                activeRoute: true,
+              ),
+              timelineNow: now,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('本地导入轨迹'), findsOneWidget);
+    expect(find.text('暂停'), findsOneWidget);
+    expect(
+      container.read(routeContextStateProvider),
+      RouteContextState.active(ContextRouteMode.hiking),
+    );
+  });
+
   testWidgets('imports, saves and opens a GPX track without route network', (
     tester,
   ) async {

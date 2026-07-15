@@ -70,15 +70,30 @@ class RoutePage extends ConsumerWidget {
     if (destinationName == null ||
         destinationLatitude == null ||
         destinationLongitude == null) {
-      return _RouteNoneSync(
-        child: ref
-            .watch(userLibraryProvider)
-            .when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => const _EmptyRouteView(),
-              data: (_) => const _EmptyRouteView(),
-            ),
-      );
+      return ref
+          .watch(userLibraryProvider)
+          .when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => const _RouteNoneSync(child: _EmptyRouteView()),
+            data: (library) {
+              final active = library.activeJourney;
+              if (active == null) {
+                return const _RouteNoneSync(child: _EmptyRouteView());
+              }
+              final routeKey = active.routeKey;
+              if (routeKey != null && routeKey.isNotEmpty) {
+                final track = library.importedTrack(routeKey);
+                if (track == null) {
+                  return const _ImportedTrackUnavailableView();
+                }
+                return _buildImportedTrack(ref, track);
+              }
+              final mode = active.destination.travelMode == 'walking'
+                  ? RouteTravelMode.walking
+                  : RouteTravelMode.driving;
+              return _buildRoute(context, ref, active.destination, mode: mode);
+            },
+          );
     }
     return _buildRoute(
       context,
