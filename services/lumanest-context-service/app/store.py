@@ -84,6 +84,29 @@ class ContextStore:
     async def cached_snapshot(self, fingerprint: str) -> dict | None:
         if self.redis is None:
             return None
+
+    async def active_astronomy_events(self, moment: datetime) -> list[dict]:
+        """Return only currently active events from approved, enabled sources."""
+        if self.engine is None:
+            return []
+        try:
+            async with self.engine.connect() as connection:
+                rows = (await connection.execute(text("""
+                    SELECT astronomy_events.external_id, astronomy_events.event_type,
+                           astronomy_events.title, astronomy_events.source_url
+                    FROM astronomy_events
+                    JOIN source_registry ON source_registry.id = astronomy_events.source_id
+                    WHERE astronomy_events.enabled = TRUE
+                      AND source_registry.enabled = TRUE
+                      AND source_registry.license_status = 'approved'
+                      AND astronomy_events.starts_at <= :moment
+                      AND astronomy_events.ends_at > :moment
+                    ORDER BY astronomy_events.starts_at ASC
+                    LIMIT 3
+                """), {"moment": moment})).mappings().all()
+            return [dict(row) for row in rows]
+        except Exception:
+            return []
         try:
             raw = await self.redis.get(f"context:v2:{fingerprint}")
             return json.loads(raw) if raw else None
