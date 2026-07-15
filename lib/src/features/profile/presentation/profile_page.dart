@@ -255,17 +255,33 @@ class ProfilePage extends ConsumerWidget {
               leading: const Icon(Icons.history),
               title: const Text('最近路线'),
               subtitle: Text(recent.name),
-              trailing: const Icon(Icons.arrow_outward),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: '清除最近路线',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _confirmLibraryClear(
+                      context,
+                      ref,
+                      type: _LibraryClearType.recentRoute,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_outward),
+                ],
+              ),
               onTap: () => context.go(_routeUri(recent).toString()),
             ),
           ],
           if (library?.importedTracks.isNotEmpty == true) ...[
             const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-              child: Text(
-                '本地轨迹',
-                style: Theme.of(context).textTheme.titleMedium,
+            _LibrarySectionHeader(
+              title: '本地轨迹',
+              clearLabel: '清空轨迹',
+              onClear: () => _confirmLibraryClear(
+                context,
+                ref,
+                type: _LibraryClearType.importedTracks,
               ),
             ),
             for (final track in library!.importedTracks)
@@ -290,11 +306,13 @@ class ProfilePage extends ConsumerWidget {
           ],
           if (library?.savedPlaces.isNotEmpty == true) ...[
             const Divider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-              child: Text(
-                '我的收藏',
-                style: Theme.of(context).textTheme.titleMedium,
+            _LibrarySectionHeader(
+              title: '我的收藏',
+              clearLabel: '清空收藏',
+              onClear: () => _confirmLibraryClear(
+                context,
+                ref,
+                type: _LibraryClearType.savedPlaces,
               ),
             ),
             for (final place in library!.savedPlaces)
@@ -462,6 +480,86 @@ class ProfilePage extends ConsumerWidget {
       ref.read(manualLocationProvider.notifier).clear();
     }
     ref.invalidate(environmentSnapshotProvider);
+  }
+
+  static Future<void> _confirmLibraryClear(
+    BuildContext context,
+    WidgetRef ref, {
+    required _LibraryClearType type,
+  }) async {
+    final (title, content, action) = switch (type) {
+      _LibraryClearType.savedPlaces => (
+        '清空收藏？',
+        '将永久删除本机收藏的地点；不会删除路线、轨迹或环境数据。',
+        '清空收藏',
+      ),
+      _LibraryClearType.recentRoute => (
+        '清除最近路线？',
+        '将删除本机保存的最近路线；不会删除收藏、导入轨迹或环境数据。',
+        '清除',
+      ),
+      _LibraryClearType.importedTracks => (
+        '清空本地轨迹？',
+        '将永久删除本机导入的 GPX 轨迹；不会删除收藏、路线或环境数据。',
+        '清空轨迹',
+      ),
+    };
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final controller = ref.read(userLibraryProvider.notifier);
+    switch (type) {
+      case _LibraryClearType.savedPlaces:
+        await controller.clearSavedPlaces();
+      case _LibraryClearType.recentRoute:
+        await controller.clearRecentRoute();
+      case _LibraryClearType.importedTracks:
+        await controller.clearImportedTracks();
+    }
+  }
+}
+
+enum _LibraryClearType { savedPlaces, recentRoute, importedTracks }
+
+class _LibrarySectionHeader extends StatelessWidget {
+  const _LibrarySectionHeader({
+    required this.title,
+    required this.clearLabel,
+    required this.onClear,
+  });
+
+  final String title;
+  final String clearLabel;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 8, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+          ),
+          TextButton(onPressed: onClear, child: Text(clearLabel)),
+        ],
+      ),
+    );
   }
 }
 

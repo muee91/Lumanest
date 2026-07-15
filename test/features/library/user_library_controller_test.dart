@@ -105,6 +105,58 @@ void main() {
         .deleteImportedTrack('track-1');
     expect(store.value.importedTracks, isEmpty);
   });
+
+  test('clears only the selected local library category', () async {
+    final track = ImportedRouteTrack(
+      id: 'track-1',
+      name: '导入徒步',
+      importedAt: DateTime.utc(2026, 7, 15),
+      points: const [
+        GeoPoint(latitude: 30, longitude: 120),
+        GeoPoint(latitude: 30.1, longitude: 120.1),
+      ],
+      distanceMeters: 1000,
+      durationSeconds: 600,
+      durationEstimated: false,
+    );
+    final store = _FakeStore(
+      UserLibraryState(
+        savedPlaces: const [
+          SavedPlace(
+            id: 'place-1',
+            name: '湖岸机位',
+            category: 'viewpoint',
+            latitude: 30,
+            longitude: 120,
+          ),
+        ],
+        recentRoute: const SavedRouteDestination(
+          name: '山路',
+          latitude: 31,
+          longitude: 121,
+        ),
+        importedTracks: [track],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    await container.read(userLibraryProvider.future);
+    final controller = container.read(userLibraryProvider.notifier);
+
+    await controller.clearSavedPlaces();
+    expect(store.value.savedPlaces, isEmpty);
+    expect(store.value.recentRoute, isNotNull);
+    expect(store.value.importedTracks, hasLength(1));
+
+    await controller.clearRecentRoute();
+    expect(store.value.recentRoute, isNull);
+    expect(store.value.importedTracks, hasLength(1));
+
+    await controller.clearImportedTracks();
+    expect(store.value.importedTracks, isEmpty);
+  });
 }
 
 class _FakeStore implements UserLibraryStore {

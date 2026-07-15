@@ -44,6 +44,28 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     );
   }
 
+  /// Each category is independently removable so clearing saved places never
+  /// erases a user's route history or imported GPX tracks.
+  Future<void> clearSavedPlaces() async {
+    final current = await future;
+    await _save(current.copyWith(savedPlaces: const []));
+  }
+
+  Future<void> clearRecentRoute() async {
+    final current = await future;
+    await _save(
+      UserLibraryState(
+        savedPlaces: current.savedPlaces,
+        importedTracks: current.importedTracks,
+      ),
+    );
+  }
+
+  Future<void> clearImportedTracks() async {
+    final current = await future;
+    await _save(current.copyWith(importedTracks: const []));
+  }
+
   Future<void> _save(UserLibraryState value) async {
     state = AsyncData(value);
     await ref.read(userLibraryStoreProvider).write(value);
