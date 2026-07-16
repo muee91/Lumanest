@@ -24,6 +24,15 @@ abstract final class LumaNestColors {
   static const Color accentLight = Color(0xFF356C88); // distant water
   static const Color accentDark = Color(0xFF82C5E7);
 
+  // ── 山野胶片材质 ──
+  static const Color paperLight = Color(0xFFF3E9D9);
+  static const Color paperDark = Color(0xFF29251F);
+  static const Color filmOrange = Color(0xFFD77A45);
+  static const Color ridgeLight = Color(0xFF24574F);
+  static const Color ridgeDark = Color(0xFF9AC7B4);
+  static const Color skyWash = Color(0xFFAED1DE);
+  static const Color rockGrey = Color(0xFF66716D);
+
   // ── Editorial support ──
   static const Color tertiaryLight = Color(0xFF5C6965);
   static const Color tertiaryDark = Color(0xFFB8C7C2);

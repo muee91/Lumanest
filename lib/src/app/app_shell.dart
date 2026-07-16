@@ -35,9 +35,11 @@ class AppShell extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.surface.withValues(alpha: .78),
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.surface.withValues(alpha: .84)
+                      : const Color(0xFFF3E9D9).withValues(alpha: .84),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: Theme.of(

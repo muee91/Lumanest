@@ -1091,6 +1091,7 @@ class _ProfileHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return LumaNestSurface(
+      tone: LumaNestSurfaceTone.paper,
       padding: const EdgeInsets.all(16),
       child: LayoutBuilder(
         builder: (context, constraints) {

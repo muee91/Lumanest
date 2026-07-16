@@ -57,26 +57,31 @@ abstract final class LumaNestTheme {
         : Typography.material2021().black;
     final textTheme = typography.copyWith(
       displayLarge: typography.displayLarge?.copyWith(
+        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -1.6,
         height: 1.05,
       ),
       displayMedium: typography.displayMedium?.copyWith(
+        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -1.2,
         height: 1.08,
       ),
       displaySmall: typography.displaySmall?.copyWith(
+        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -0.8,
         height: 1.12,
       ),
       headlineLarge: typography.headlineLarge?.copyWith(
+        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -0.6,
         height: 1.16,
       ),
       headlineMedium: typography.headlineMedium?.copyWith(
+        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -0.4,
         height: 1.2,

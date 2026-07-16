@@ -2,9 +2,11 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'luma_nest_brand_mark.dart';
+
 /// Shared semantic surfaces. Content chooses a role rather than inventing its
 /// own opacity, border and corner treatment on every page.
-enum LumaNestSurfaceTone { mist, solid, mapOverlay, safety }
+enum LumaNestSurfaceTone { mist, paper, solid, mapOverlay, safety }
 
 class LumaNestSurface extends StatelessWidget {
   const LumaNestSurface({
@@ -30,6 +32,15 @@ class LumaNestSurface extends StatelessWidget {
         scheme.surface.withValues(alpha: .72),
         scheme.outlineVariant.withValues(alpha: .52),
         true,
+      ),
+      LumaNestSurfaceTone.paper => (
+        Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF29251F).withValues(alpha: .94)
+            : const Color(0xFFF3E9D9).withValues(alpha: .94),
+        Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFFE2C9A8).withValues(alpha: .24)
+            : const Color(0xFF806C55).withValues(alpha: .28),
+        false,
       ),
       LumaNestSurfaceTone.mapOverlay => (
         scheme.surface.withValues(alpha: .88),
@@ -91,14 +102,7 @@ class LumaNestEyebrow extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.secondary,
-            shape: BoxShape.circle,
-          ),
-        ),
+        const LumaNestBrandMark(size: 16),
         const SizedBox(width: 8),
         Text(
           label,

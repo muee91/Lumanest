@@ -110,6 +110,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
                     ambientRendering.reduceMotion || systemDisablesAnimations,
                 reduceFlashing: ambientRendering.reduceFlashing,
                 showWeatherTexture: ambientRendering.showWeatherTexture,
+                renderer: ambientRendering.renderer,
                 intensity: ambientRendering.intensity,
                 interactionSuppressed: _interactionSuppressed,
               ),

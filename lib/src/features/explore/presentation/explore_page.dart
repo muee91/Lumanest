@@ -91,6 +91,7 @@ class _ConfigurationMissingView extends StatelessWidget {
             Expanded(
               child: Center(
                 child: LumaNestSurface(
+                  tone: LumaNestSurfaceTone.paper,
                   padding: const EdgeInsets.all(LumaNestSpacing.lg),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -142,6 +143,7 @@ class _ConsentPrompt extends StatelessWidget {
             Expanded(
               child: Center(
                 child: LumaNestSurface(
+                  tone: LumaNestSurfaceTone.paper,
                   padding: const EdgeInsets.all(LumaNestSpacing.lg),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

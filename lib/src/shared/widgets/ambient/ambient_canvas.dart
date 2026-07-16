@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_colors.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_rendering_policy.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_shader_surface.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
 
 /// A static, non-interactive environment color layer.
@@ -24,6 +26,7 @@ class AmbientCanvas extends StatefulWidget {
     this.reduceMotion = false,
     this.reduceFlashing = false,
     this.showWeatherTexture = true,
+    this.renderer = AmbientRenderer.fragment,
     this.intensity = 1.0,
     this.interactionSuppressed,
   });
@@ -33,6 +36,7 @@ class AmbientCanvas extends StatefulWidget {
   final bool reduceMotion;
   final bool reduceFlashing;
   final bool showWeatherTexture;
+  final AmbientRenderer renderer;
 
   /// Page-level ambient strength (0.0 = static, 1.0 = full). May exceed 1.0
   /// for pages that want an enhanced reflective look (design §9.2).
@@ -56,6 +60,10 @@ class _AmbientCanvasState extends State<AmbientCanvas>
   AnimationController? _gustController;
   Timer? _gustTimer;
   late final math.Random _gustRandom;
+
+  AnimationController? _thunderController;
+  Timer? _thunderTimer;
+  late final math.Random _thunderRandom;
 
   bool get _shouldAnimate => !widget.reduceMotion && widget.intensity > 0;
 
@@ -132,6 +140,47 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     _gustController = null;
   }
 
+  bool get _shouldThunder =>
+      _shouldAnimate &&
+      !widget.reduceFlashing &&
+      widget.visualState?.thunderstorm == true;
+
+  void _ensureThunder() {
+    if (!_shouldThunder) {
+      _stopThunder();
+      return;
+    }
+    _thunderController ??= AnimationController(
+      duration: const Duration(milliseconds: 160),
+      vsync: this,
+    );
+    _scheduleThunder();
+  }
+
+  void _scheduleThunder() {
+    _thunderTimer?.cancel();
+    final seconds = 8 + _thunderRandom.nextInt(25);
+    _thunderTimer = Timer(Duration(seconds: seconds), () async {
+      if (!mounted || !_shouldThunder) return;
+      await _thunderController?.forward(from: 0);
+      if (mounted && _thunderRandom.nextBool()) {
+        await Future<void>.delayed(const Duration(milliseconds: 70));
+        if (mounted && _shouldThunder) {
+          await _thunderController?.forward(from: 0);
+        }
+      }
+      if (mounted) _scheduleThunder();
+    });
+  }
+
+  void _stopThunder() {
+    _thunderTimer?.cancel();
+    _thunderTimer = null;
+    _thunderController?.stop();
+    _thunderController?.dispose();
+    _thunderController = null;
+  }
+
   void _handleSuppression() {
     if (mounted) setState(() {});
   }
@@ -140,9 +189,11 @@ class _AmbientCanvasState extends State<AmbientCanvas>
   void initState() {
     super.initState();
     _gustRandom = math.Random();
+    _thunderRandom = math.Random();
     widget.interactionSuppressed?.addListener(_handleSuppression);
     _syncAnimation();
     _ensureGust();
+    _ensureThunder();
   }
 
   @override
@@ -163,6 +214,11 @@ class _AmbientCanvasState extends State<AmbientCanvas>
         widget.intensity != oldWidget.intensity) {
       _ensureGust();
     }
+    if (motionChanged ||
+        widget.visualState != oldWidget.visualState ||
+        widget.reduceFlashing != oldWidget.reduceFlashing) {
+      _ensureThunder();
+    }
   }
 
   @override
@@ -170,6 +226,7 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     widget.interactionSuppressed?.removeListener(_handleSuppression);
     _stopAnimation();
     _stopGust();
+    _stopThunder();
     super.dispose();
   }
 
@@ -232,13 +289,20 @@ class _AmbientCanvasState extends State<AmbientCanvas>
           final gustOffset = suppressed
               ? 0.0
               : gustPulse * gustFactor * intensity * 0.3;
-          return _gradient(
+          final fallback = _gradient(
             topColor,
             bottomColor,
             direction,
             motionOffset: baseOffset + gustOffset,
           );
+          return _withShader(fallback, visualState: visualState, time: t);
         },
+      );
+    } else {
+      gradientLayer = _withShader(
+        gradientLayer,
+        visualState: visualState,
+        time: 0,
       );
     }
 
@@ -265,17 +329,38 @@ class _AmbientCanvasState extends State<AmbientCanvas>
                 painter: _PrecipitationTexturePainter(
                   intensity: precipIntensity,
                   directionDegrees: visualState!.flowDirection,
-                  isSnow: false,
+                  isSnow:
+                      visualState.precipitation == AmbientPrecipitation.snow,
+                  phase: _curvedAnimation?.value ?? 0,
                 ),
               ),
             if (widget.showWeatherTexture &&
                 visualState?.thunderstorm == true &&
                 !widget.reduceFlashing &&
                 intensity > 0)
-              _ThunderPulse(animation: _curvedAnimation, intensity: intensity),
+              _ThunderPulse(
+                animation: _thunderController,
+                intensity: intensity,
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _withShader(
+    Widget fallback, {
+    required AmbientVisualState? visualState,
+    required double time,
+  }) {
+    if (visualState == null || widget.renderer == AmbientRenderer.staticField) {
+      return fallback;
+    }
+    return AmbientShaderSurface(
+      visualState: visualState,
+      time: widget.reduceMotion ? 0 : time * 20,
+      lowQuality: widget.renderer == AmbientRenderer.reducedFragment,
+      child: fallback,
     );
   }
 
@@ -316,11 +401,13 @@ class _PrecipitationTexturePainter extends CustomPainter {
     required this.intensity,
     required this.directionDegrees,
     required this.isSnow,
+    required this.phase,
   });
 
   final double intensity;
   final double directionDegrees;
   final bool isSnow;
+  final double phase;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -329,11 +416,20 @@ class _PrecipitationTexturePainter extends CustomPainter {
       ..strokeWidth = isSnow ? 2 : 1;
     final radians = directionDegrees * math.pi / 180;
     final slant = math.sin(radians) * (8 + intensity * 22);
-    final length = 12 + intensity * 34;
+    final length = isSnow ? 3 + intensity * 6 : 12 + intensity * 34;
     final spacing = (42 - intensity * 24).clamp(16, 42);
+    final fall = (phase * (isSnow ? 18 : 90)) % spacing;
     for (var x = -length; x < size.width + length; x += spacing) {
       for (var y = 0.0; y < size.height; y += spacing * 1.6) {
-        canvas.drawLine(Offset(x, y), Offset(x + slant, y + length), paint);
+        final start = Offset(
+          x + (isSnow ? math.sin(y + phase * 8) * 4 : 0),
+          y + fall,
+        );
+        if (isSnow) {
+          canvas.drawCircle(start, 1.2 + intensity * .9, paint);
+        } else {
+          canvas.drawLine(start, start + Offset(slant, length), paint);
+        }
       }
     }
   }
@@ -342,7 +438,8 @@ class _PrecipitationTexturePainter extends CustomPainter {
   bool shouldRepaint(covariant _PrecipitationTexturePainter oldDelegate) =>
       oldDelegate.intensity != intensity ||
       oldDelegate.directionDegrees != directionDegrees ||
-      oldDelegate.isSnow != isSnow;
+      oldDelegate.isSnow != isSnow ||
+      oldDelegate.phase != phase;
 }
 
 class _ThunderPulse extends StatelessWidget {
@@ -357,10 +454,10 @@ class _ThunderPulse extends StatelessWidget {
     return AnimatedBuilder(
       animation: animation!,
       builder: (_, _) {
-        final nearPeak = (animation!.value - .92).abs() < .018;
+        final pulse = Curves.easeOut.transform(animation!.value);
         return ColoredBox(
           color: Colors.white.withValues(
-            alpha: nearPeak ? (0.06 * intensity).clamp(0.0, 0.08) : 0,
+            alpha: (pulse * (1 - pulse) * .38 * intensity).clamp(0.0, 0.12),
           ),
         );
       },

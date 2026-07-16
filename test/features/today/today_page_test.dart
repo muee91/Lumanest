@@ -244,7 +244,7 @@ void main() {
       expect(find.textContaining('--'), findsNothing);
     });
 
-    testWidgets('available metrics render without reserving missing peers', (
+    testWidgets('unrelated metrics do not compete with the main conclusion', (
       tester,
     ) async {
       final now = DateTime.utc(2026, 7, 15, 8);
@@ -263,12 +263,12 @@ void main() {
         MaterialApp(home: TodayPage(snapshotAsync: AsyncData(snapshot))),
       );
 
-      expect(find.text('21°'), findsOneWidget);
-      expect(find.text('天气数据：和风天气'), findsOneWidget);
+      expect(find.text('21°'), findsNothing);
+      expect(find.text('天气数据：和风天气'), findsNothing);
       expect(find.textContaining('--'), findsNothing);
     });
 
-    testWidgets('fresh AQI appears while stale AQI keeps no placeholder', (
+    testWidgets('AQI without an active decision keeps no visual slot', (
       tester,
     ) async {
       final now = DateTime.utc(2026, 7, 15, 8);
@@ -291,8 +291,8 @@ void main() {
           home: TodayPage(snapshotAsync: AsyncData(snapshot(stale: false))),
         ),
       );
-      expect(find.text('168'), findsOneWidget);
-      expect(find.text('AQI · 中度污染'), findsOneWidget);
+      expect(find.text('168'), findsNothing);
+      expect(find.text('AQI · 中度污染'), findsNothing);
 
       await tester.pumpWidget(
         MaterialApp(

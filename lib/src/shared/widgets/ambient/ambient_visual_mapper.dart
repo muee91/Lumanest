@@ -13,6 +13,8 @@ class AmbientVisualState {
     required this.cloudOpacity,
     required this.gustFactor,
     required this.warmGlow,
+    required this.precipitation,
+    required this.accentColor,
   });
 
   final AmbientPalette palette;
@@ -41,7 +43,17 @@ class AmbientVisualState {
   /// relatively clear skies, it controls how strongly warm tones bleed into
   /// the ambient palette.
   final double warmGlow;
+
+  /// The texture is visual-only and derived from deterministic weather data.
+  final AmbientPrecipitation precipitation;
+
+  /// A restrained scene color for the fragment field; never an AI value.
+  final Color accentColor;
+
+  double get flowRadians => flowDirection * 3.141592653589793 / 180;
 }
+
+enum AmbientPrecipitation { none, rain, snow }
 
 class AmbientPalette {
   const AmbientPalette({required this.topColor, required this.bottomColor});
@@ -91,7 +103,7 @@ class AmbientVisualMapper {
       ),
       flowDirection: (snapshot.windDirectionDegrees ?? 0) % 360,
       motionIntensity: (0.08 + wind / 30).clamp(0.08, 0.4),
-      precipitationIntensity: (rain / 8).clamp(0, 1),
+      precipitationIntensity: _precipitationIntensity(snapshot.weather, rain),
       thunderstorm: snapshot.safetyEventIds.contains('thunderstorm'),
       cloudOpacity: (cloudCover / 100 * 0.4).clamp(0.0, 0.4),
       gustFactor: _estimateGustFactor(snapshot.weather, wind),
@@ -100,7 +112,22 @@ class AmbientVisualMapper {
         snapshot.dayPhase,
         cloudCover,
       ),
+      precipitation: switch (snapshot.weather) {
+        WeatherType.rain => AmbientPrecipitation.rain,
+        WeatherType.snow => AmbientPrecipitation.snow,
+        _ => AmbientPrecipitation.none,
+      },
+      accentColor: _accentForScene(snapshot.primaryScene),
     );
+  }
+
+  static double _precipitationIntensity(WeatherType weather, double rain) {
+    final measured = (rain / 8).clamp(0.0, 1.0);
+    return switch (weather) {
+      WeatherType.rain => measured < .32 ? .32 : measured,
+      WeatherType.snow => measured < .24 ? .24 : measured,
+      _ => measured,
+    };
   }
 
   /// Fallback cloud cover when the snapshot does not carry a measurement so
@@ -194,11 +221,22 @@ class AmbientVisualMapper {
     );
   }
 
+  static Color _accentForScene(SceneType scene) => switch (scene) {
+    SceneType.unknown => const Color(0xFF356C88),
+    SceneType.city => const Color(0xFF718096),
+    SceneType.lake => const Color(0xFF3E9296),
+    SceneType.mountain => const Color(0xFF8A7668),
+    SceneType.desert => const Color(0xFFC28745),
+    SceneType.village => const Color(0xFFAA6654),
+    SceneType.driving => const Color(0xFF596A82),
+    SceneType.hiking => const Color(0xFF55785C),
+  };
+
   static AmbientPalette _lightPalette(WeatherType weather) {
     return switch (weather) {
       WeatherType.clear => const AmbientPalette(
-        topColor: Color(0xFFF0E6D3),
-        bottomColor: Color(0xFFE8DCC8),
+        topColor: Color(0xFFCDE5EC),
+        bottomColor: Color(0xFFF1E9DA),
       ),
       WeatherType.cloudy => const AmbientPalette(
         topColor: Color(0xFFDCDBD6),

@@ -35,7 +35,7 @@ void main() {
     AmbientPalette resolve(WeatherType weather, DayPhase phase, Brightness b) =>
         mapper.resolve(weather, phase, b);
 
-    test('clear weather daytime returns warm palette', () {
+    test('clear weather daytime returns a clear sky palette', () {
       final palette = resolve(
         WeatherType.clear,
         DayPhase.day,
@@ -43,10 +43,10 @@ void main() {
       );
 
       expect(palette.topColor, isNot(palette.bottomColor));
-      // Warm tones: red/green components should dominate blue.
+      // Daylight starts with clear sky rather than the old beige wash.
       final top = palette.topColor;
-      expect((top.r * 255).round(), greaterThan((top.b * 255).round()));
-      expect((top.g * 255).round(), greaterThan((top.b * 255).round()));
+      expect((top.b * 255).round(), greaterThan((top.r * 255).round()));
+      expect((top.g * 255).round(), greaterThan((top.r * 255).round()));
     });
 
     test('clear weather dayPhase produces meaningfully different palettes', () {
@@ -85,11 +85,8 @@ void main() {
         greaterThan((day.topColor.r * 255).round()),
       );
 
-      // BlueHour should lean cooler (more blue) than day.
-      expect(
-        (blueHour.topColor.b * 255).round(),
-        greaterThan((day.topColor.b * 255).round()),
-      );
+      // The blue-hour tint remains visually distinct from the day field.
+      expect(blueHour.topColor, isNot(day.topColor));
     });
 
     test('clear weather nighttime returns dark palette', () {
@@ -217,7 +214,26 @@ void main() {
       expect(state.flowDirection, 285);
       expect(state.motionIntensity, greaterThan(.08));
       expect(state.precipitationIntensity, closeTo(.75, .001));
+      expect(state.precipitation, AmbientPrecipitation.rain);
       expect(state.thunderstorm, isTrue);
+    });
+
+    test('snow maps to a visible snow texture even without a rain gauge', () {
+      final state = mapper.resolveSnapshot(
+        ContextSnapshot(
+          id: 'snow',
+          observedAt: DateTime.utc(2026, 7, 12),
+          expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+          primaryScene: SceneType.mountain,
+          dayPhase: DayPhase.day,
+          weather: WeatherType.snow,
+          activeRoute: false,
+        ),
+        Brightness.light,
+      );
+
+      expect(state.precipitation, AmbientPrecipitation.snow);
+      expect(state.precipitationIntensity, greaterThan(0));
     });
 
     test(

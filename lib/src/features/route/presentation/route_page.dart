@@ -297,6 +297,7 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
             const LumaNestEyebrow(label: '路线规划'),
             const SizedBox(height: LumaNestSpacing.lg),
             LumaNestSurface(
+              tone: LumaNestSurfaceTone.paper,
               padding: const EdgeInsets.all(LumaNestSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

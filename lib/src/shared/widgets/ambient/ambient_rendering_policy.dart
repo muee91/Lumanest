@@ -1,16 +1,20 @@
 import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
 
+enum AmbientRenderer { fragment, reducedFragment, staticField }
+
 class AmbientRendering {
   const AmbientRendering({
     required this.reduceMotion,
     required this.reduceFlashing,
     required this.showWeatherTexture,
+    required this.renderer,
     this.intensity = 1.0,
   });
 
   final bool reduceMotion;
   final bool reduceFlashing;
   final bool showWeatherTexture;
+  final AmbientRenderer renderer;
 
   /// Page-level ambient strength (0.0 = static, 1.0 = full). The inspiration
   /// page may exceed 1.0 to render an enhanced reflective look per design
@@ -30,24 +34,30 @@ abstract final class AmbientRenderingPolicy {
         reduceMotion: true,
         reduceFlashing: true,
         showWeatherTexture: true,
+        renderer: AmbientRenderer.reducedFragment,
         intensity: intensity,
       ),
       AmbientMotionMode.full => AmbientRendering(
         reduceMotion: preferences.reduceMotion,
         reduceFlashing: preferences.reduceFlashing,
         showWeatherTexture: true,
+        renderer: preferences.reduceMotion
+            ? AmbientRenderer.reducedFragment
+            : AmbientRenderer.fragment,
         intensity: intensity,
       ),
       AmbientMotionMode.energySaver => AmbientRendering(
         reduceMotion: true,
         reduceFlashing: true,
         showWeatherTexture: true,
+        renderer: AmbientRenderer.reducedFragment,
         intensity: intensity,
       ),
       AmbientMotionMode.staticColor => AmbientRendering(
         reduceMotion: true,
         reduceFlashing: true,
         showWeatherTexture: false,
+        renderer: AmbientRenderer.staticField,
         intensity: intensity,
       ),
     };

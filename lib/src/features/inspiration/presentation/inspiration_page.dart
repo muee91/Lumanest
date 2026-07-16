@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,17 +5,20 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/device/device_energy_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:luma_nest/src/shared/widgets/responsive_action_group.dart';
 import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
+import 'package:luma_nest/src/features/inspiration/presentation/widgets/inspiration_bottle.dart';
 
 class InspirationPage extends ConsumerWidget {
   const InspirationPage({
@@ -43,6 +44,9 @@ class InspirationPage extends ConsumerWidget {
     final preferences = ref.watch(profilePreferencesProvider);
     final reduceMotion =
         preferences.reduceMotion || MediaQuery.disableAnimationsOf(context);
+    final conserveDeviceEnergy =
+        ref.watch(deviceEnergyProvider).asData?.value.shouldConserveEnergy ??
+        false;
     return snapshotAsync.when(
       loading: () => const Scaffold(
         appBar: _InspirationAppBar(),
@@ -87,7 +91,12 @@ class InspirationPage extends ConsumerWidget {
             narrative: narrative.asData?.value,
             manifest: manifest,
           ),
+          snapshotId: snapshot.id,
           reduceMotion: reduceMotion,
+          enableShake:
+              preferences.ambientMotionMode == AmbientMotionMode.full &&
+              !preferences.highContrast &&
+              !conserveDeviceEnergy,
           onExplore: onExplore ?? () => context.go('/explore'),
           onAction: (note) => _performAction(context, note),
           isSaved: (note) => savedNoteIds.contains(
@@ -193,14 +202,18 @@ class _InspirationErrorView extends StatelessWidget {
 class _BottleScaffold extends StatefulWidget {
   const _BottleScaffold({
     required this.notes,
+    required this.snapshotId,
     required this.reduceMotion,
+    required this.enableShake,
     required this.onExplore,
     required this.onAction,
     this.onSave,
     this.isSaved,
   });
   final List<InspirationNote> notes;
+  final String snapshotId;
   final bool reduceMotion;
+  final bool enableShake;
   final VoidCallback onExplore;
   final void Function(InspirationNote note) onAction;
   final Future<void> Function(InspirationNote note)? onSave;
@@ -210,25 +223,8 @@ class _BottleScaffold extends StatefulWidget {
   State<_BottleScaffold> createState() => _BottleScaffoldState();
 }
 
-class _BottleScaffoldState extends State<_BottleScaffold>
-    with TickerProviderStateMixin {
-  late final AnimationController _idleController;
-  late final AnimationController _drawController;
+class _BottleScaffoldState extends State<_BottleScaffold> {
   var _selectedIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _idleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 4200),
-    );
-    _drawController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 620),
-    );
-    if (!widget.reduceMotion) _idleController.repeat();
-  }
 
   @override
   void didUpdateWidget(_BottleScaffold oldWidget) {
@@ -238,28 +234,16 @@ class _BottleScaffoldState extends State<_BottleScaffold>
     } else if (_selectedIndex >= widget.notes.length) {
       _selectedIndex = 0;
     }
-    if (oldWidget.reduceMotion == widget.reduceMotion) return;
-    if (widget.reduceMotion) {
-      _idleController.stop();
-      _drawController.stop();
-      _idleController.value = 0;
-      _drawController.value = 0;
-    } else {
-      _idleController.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _idleController.dispose();
-    _drawController.dispose();
-    super.dispose();
   }
 
   void _draw() {
     if (widget.notes.length < 2) return;
     setState(() => _selectedIndex = (_selectedIndex + 1) % widget.notes.length);
-    if (!widget.reduceMotion) _drawController.forward(from: 0);
+  }
+
+  void _select(InspirationNote note) {
+    final index = widget.notes.indexWhere((item) => item.id == note.id);
+    if (index >= 0) setState(() => _selectedIndex = index);
   }
 
   @override
@@ -343,9 +327,20 @@ class _BottleScaffoldState extends State<_BottleScaffold>
               ),
             ),
             const SizedBox(height: 14),
-            Center(child: _buildBottle(context, notes, note)),
+            Center(
+              child: InspirationBottle(
+                snapshotId: widget.snapshotId,
+                notes: notes,
+                selectedId: note.id,
+                reduceMotion: widget.reduceMotion,
+                enableShake: widget.enableShake,
+                onDraw: _draw,
+                onSelect: _select,
+              ),
+            ),
             const SizedBox(height: 18),
             LumaNestSurface(
+              tone: LumaNestSurfaceTone.paper,
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
@@ -412,198 +407,36 @@ class _BottleScaffoldState extends State<_BottleScaffold>
       ),
     );
   }
-
-  Widget _buildBottle(
-    BuildContext context,
-    List<InspirationNote> notes,
-    InspirationNote selected,
-  ) {
-    final theme = Theme.of(context);
-    return Semantics(
-      button: true,
-      label: '抽一张灵感纸条',
-      child: GestureDetector(
-        key: const Key('inspiration-bottle'),
-        onTap: _draw,
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_idleController, _drawController]),
-          builder: (_, _) => Transform.rotate(
-            angle: widget.reduceMotion
-                ? 0
-                : _bottleRotation(_drawController.value),
-            child: SizedBox(
-              width: 276,
-              height: 350,
-              child: Stack(
-                alignment: Alignment.topCenter,
-                children: [
-                  Positioned(
-                    top: 0,
-                    child: Container(
-                      width: 88,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest
-                            .withValues(alpha: .62),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 2,
-                        ),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(13),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 18,
-                    child: Container(
-                      width: 102,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: .68),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 52,
-                    child: Container(
-                      width: 250,
-                      height: 292,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(48),
-                          bottom: Radius.circular(76),
-                        ),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            theme.colorScheme.primaryContainer.withValues(
-                              alpha: .72,
-                            ),
-                            theme.colorScheme.surfaceContainerHighest
-                                .withValues(alpha: .5),
-                          ],
-                        ),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 2,
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            left: 18,
-                            top: 24,
-                            bottom: 38,
-                            child: Container(
-                              width: 10,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: .24),
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                            ),
-                          ),
-                          for (var i = 0; i < notes.length; i++)
-                            Positioned(
-                              left: 32 + (i % 2) * 66.0,
-                              top: 64 + (i ~/ 2) * 58.0 + _paperLift(i),
-                              child: Transform.translate(
-                                offset: Offset(_paperDrift(i), 0),
-                                child: Transform.rotate(
-                                  angle: _paperRotation(i),
-                                  child: _Paper(
-                                    key: Key('bottle-paper-${notes[i].id}'),
-                                    text: notes[i].displayLabel,
-                                    faded: notes[i] != selected,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  double _bottleRotation(double progress) {
-    if (progress == 0 || progress == 1) return 0;
-    return math.sin(progress * math.pi * 4) * .035 * (1 - progress);
-  }
-
-  double _paperDrift(int index) {
-    if (widget.reduceMotion) return 0;
-    final idle = math.sin((_idleController.value + index * .19) * math.pi * 2);
-    final draw =
-        math.sin(_drawController.value * math.pi * 3 + index) *
-        math.sin(_drawController.value * math.pi) *
-        9;
-    return idle * 2.5 + draw;
-  }
-
-  double _paperLift(int index) {
-    if (widget.reduceMotion) return 0;
-    final idle = math.cos((_idleController.value + index * .13) * math.pi * 2);
-    final draw =
-        math.sin(_drawController.value * math.pi) *
-        (index == _selectedIndex ? -24 : -8);
-    return idle * 2 + draw;
-  }
-
-  double _paperRotation(int index) {
-    final base = (index - 2) * .08;
-    if (widget.reduceMotion) return base;
-    return base + _paperDrift(index) * .004;
-  }
 }
 
 class _Paper extends StatelessWidget {
-  const _Paper({
-    super.key,
-    required this.text,
-    this.faded = false,
-    this.large = false,
-  });
+  const _Paper({super.key, required this.text, this.large = false});
   final String text;
-  final bool faded;
   final bool large;
   @override
-  Widget build(BuildContext context) => Opacity(
-    opacity: faded ? .55 : 1,
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .9),
-        borderRadius: BorderRadius.circular(6),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x22000000),
-            blurRadius: 8,
-            offset: Offset(1, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: large ? 26 : 12,
-          vertical: large ? 18 : 9,
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .9),
+      borderRadius: BorderRadius.circular(6),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x22000000),
+          blurRadius: 8,
+          offset: Offset(1, 4),
         ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: large ? 24 : 13,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF2B2924),
-          ),
+      ],
+    ),
+    child: Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: large ? 26 : 12,
+        vertical: large ? 18 : 9,
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: large ? 24 : 13,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF2B2924),
         ),
       ),
     ),

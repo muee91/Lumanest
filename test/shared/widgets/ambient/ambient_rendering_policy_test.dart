@@ -12,6 +12,7 @@ void main() {
     expect(rendering.reduceMotion, isTrue);
     expect(rendering.reduceFlashing, isTrue);
     expect(rendering.showWeatherTexture, isTrue);
+    expect(rendering.renderer, AmbientRenderer.reducedFragment);
   });
 
   test('device energy does not override a user-selected static mode', () {
@@ -25,6 +26,7 @@ void main() {
     expect(rendering.reduceMotion, isTrue);
     expect(rendering.reduceFlashing, isTrue);
     expect(rendering.showWeatherTexture, isFalse);
+    expect(rendering.renderer, AmbientRenderer.staticField);
   });
 
   test('unknown device energy preserves the full user preferences', () {
@@ -36,6 +38,7 @@ void main() {
     expect(rendering.reduceMotion, isFalse);
     expect(rendering.reduceFlashing, isTrue);
     expect(rendering.showWeatherTexture, isTrue);
+    expect(rendering.renderer, AmbientRenderer.fragment);
   });
 
   test('route intensity follows the page hierarchy', () {

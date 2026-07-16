@@ -21,6 +21,7 @@ import 'package:luma_nest/src/features/location/application/environment_location
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
+import 'package:luma_nest/src/shared/widgets/luma_nest_brand_mark.dart';
 import 'package:luma_nest/src/shared/widgets/manifest_event_metadata.dart';
 
 class TodayPage extends StatelessWidget {
@@ -106,6 +107,7 @@ class TodayPage extends StatelessWidget {
 
   Widget _buildContent(BuildContext context, ContextSnapshot snapshot) {
     final effectiveManifest = manifest ?? ManifestPolicy.build(snapshot);
+    final primary = effectiveManifest.primary;
     final summary =
         narrativeAsync?.asData?.value.summary ?? effectiveManifest.summary;
     void performAction(ManifestItem item) {
@@ -130,8 +132,10 @@ class TodayPage extends StatelessWidget {
           _TodayMasthead(snapshot: snapshot, locationDisplay: locationDisplay),
           const SizedBox(height: LumaNestSpacing.lg),
           _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
-          const SizedBox(height: LumaNestSpacing.md),
-          _EnvironmentStrip(snapshot: snapshot),
+          if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
+            const SizedBox(height: LumaNestSpacing.md),
+            _EnvironmentStrip(snapshot: snapshot),
+          ],
           const SizedBox(height: LumaNestSpacing.lg),
           if (effectiveManifest.safety.isNotEmpty) ...[
             _SafetyRegion(
@@ -140,7 +144,7 @@ class TodayPage extends StatelessWidget {
             ),
             const SizedBox(height: LumaNestSpacing.lg),
           ],
-          if (effectiveManifest.primary case final primary?) ...[
+          if (primary case final primary?) ...[
             _OpportunityCard(
               key: const Key('primary-opportunity'),
               item: primary,
@@ -172,19 +176,32 @@ class TodayPage extends StatelessWidget {
               onTap: () => context.go('/inspiration'),
             ),
           ],
-          const SizedBox(height: LumaNestSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => context.go('/explore'),
-              icon: const Icon(Icons.explore_outlined),
-              label: const Text('探索附近'),
+          if (primary == null) ...[
+            const SizedBox(height: LumaNestSpacing.md),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.go('/explore'),
+                icon: const Icon(Icons.explore_outlined),
+                label: const Text('探索附近'),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
+
+  static bool _shouldShowEnvironmentContext(
+    ContextSnapshot snapshot,
+    ManifestItem? primary,
+  ) => switch (primary?.id) {
+    'reflection' => snapshot.windSpeedMetersPerSecond != null,
+    'mist' => snapshot.visibilityKilometers != null,
+    'dust-light' => snapshot.windSpeedMetersPerSecond != null,
+    'alpenglow' || 'blue-hour' => snapshot.visibilityKilometers != null,
+    _ => false,
+  };
 
   static String _errorMessage(Object error) {
     if (error is EnvironmentLoadFailure) {
@@ -222,21 +239,7 @@ class _TodayMasthead extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 11,
-              height: 11,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.primary.withValues(alpha: .28),
-                    blurRadius: 12,
-                    spreadRadius: 3,
-                  ),
-                ],
-              ),
-            ),
+            const LumaNestBrandMark(size: 28),
             const SizedBox(width: LumaNestSpacing.sm),
             Expanded(child: Text('栖光', style: theme.textTheme.displaySmall)),
             DecoratedBox(
@@ -324,6 +327,7 @@ class _DecisionHero extends StatelessWidget {
       container: true,
       label: '$label，$summary',
       child: LumaNestSurface(
+        tone: LumaNestSurfaceTone.paper,
         padding: const EdgeInsets.all(LumaNestSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
