@@ -91,6 +91,7 @@ abstract final class LumaNestTheme {
         height: 1.28,
       ),
       titleLarge: typography.titleLarge?.copyWith(
+        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w600,
         height: 1.3,
       ),

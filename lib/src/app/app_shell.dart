@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -24,7 +25,20 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: navigationShell,
+      extendBody: true,
+      body: Stack(
+        children: [
+          Positioned.fill(child: navigationShell),
+          // Reserve only the interactive island; the page itself remains
+          // visible beneath the blurred margins and rounded corners.
+          const IgnorePointer(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(height: 72),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
@@ -57,11 +71,14 @@ class AppShell extends StatelessWidget {
                           child: _NavigationButton(
                             item: _destinations[index],
                             selected: index == navigationShell.currentIndex,
-                            onTap: () => navigationShell.goBranch(
-                              index,
-                              initialLocation:
-                                  index == navigationShell.currentIndex,
-                            ),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              navigationShell.goBranch(
+                                index,
+                                initialLocation:
+                                    index == navigationShell.currentIndex,
+                              );
+                            },
                           ),
                         ),
                     ],
@@ -110,10 +127,18 @@ class _NavigationButton extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                selected ? item.selectedIcon : item.icon,
-                color: color,
-                size: 22,
+              AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                offset: selected ? const Offset(0, -.06) : Offset.zero,
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 180),
+                  scale: selected ? 1.09 : 1,
+                  child: Icon(
+                    selected ? item.selectedIcon : item.icon,
+                    color: color,
+                    size: selected ? 24 : 22,
+                  ),
+                ),
               ),
               Text(
                 item.label,

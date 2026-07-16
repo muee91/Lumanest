@@ -416,7 +416,11 @@ class _Paper extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: .9),
+      color:
+          (Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFF3E9D9)
+                  : Colors.white)
+              .withValues(alpha: .86),
       borderRadius: BorderRadius.circular(6),
       boxShadow: const [
         BoxShadow(

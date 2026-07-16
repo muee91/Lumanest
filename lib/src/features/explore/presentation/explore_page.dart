@@ -53,12 +53,11 @@ class ExplorePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(mapConsentControllerProvider);
 
-    return switch (state) {
+    final child = switch (state) {
       MapConsentConfigurationMissing() => _ConfigurationMissingView(),
       MapConsentAwaiting() => _ConsentPrompt(
-        onAccept: () {
-          ref.read(mapConsentControllerProvider.notifier).grantConsent();
-        },
+        onAccept: () =>
+            ref.read(mapConsentControllerProvider.notifier).grantConsent(),
       ),
       MapConsentReady() => _MapView(
         mapBuilder: mapBuilder,
@@ -68,13 +67,15 @@ class ExplorePage extends ConsumerWidget {
         onRetry: onRetry,
         onOpenAppSettings: onOpenAppSettings,
         onSelectManualLocation: onSelectManualLocation,
-        onInit: (context) {
-          ref
-              .read(mapConsentControllerProvider.notifier)
-              .ensureInitialized(context);
-        },
+        onInit: (context) => ref
+            .read(mapConsentControllerProvider.notifier)
+            .ensureInitialized(context),
       ),
     };
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      child: child,
+    );
   }
 }
 
