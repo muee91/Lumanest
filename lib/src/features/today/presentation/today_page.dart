@@ -18,6 +18,7 @@ import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
+import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
@@ -32,6 +33,7 @@ class TodayPage extends StatelessWidget {
     this.onRefresh,
     this.onOpenAppSettings,
     this.onSelectManualLocation,
+    this.onClearManualLocation,
     this.onManifestAction,
     this.narrativeAsync,
     this.manifest,
@@ -47,6 +49,7 @@ class TodayPage extends StatelessWidget {
   final Future<void> Function()? onRefresh;
   final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
+  final VoidCallback? onClearManualLocation;
   final ValueChanged<ManifestItem>? onManifestAction;
   final AsyncValue<ManifestNarrative>? narrativeAsync;
   final UiManifest? manifest;
@@ -137,7 +140,12 @@ class TodayPage extends StatelessWidget {
       ),
       children: [
         if (snapshot.isStale) _StaleLabel(),
-        _TodayMasthead(snapshot: snapshot, locationDisplay: locationDisplay),
+        _TodayMasthead(
+          snapshot: snapshot,
+          locationDisplay: locationDisplay,
+          onSelectManualLocation: onSelectManualLocation,
+          onClearManualLocation: onClearManualLocation,
+        ),
         const SizedBox(height: LumaNestSpacing.lg),
         _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
         if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
@@ -236,9 +244,16 @@ class TodayPage extends StatelessWidget {
 }
 
 class _TodayMasthead extends StatelessWidget {
-  const _TodayMasthead({required this.snapshot, required this.locationDisplay});
+  const _TodayMasthead({
+    required this.snapshot,
+    required this.locationDisplay,
+    this.onSelectManualLocation,
+    this.onClearManualLocation,
+  });
   final ContextSnapshot snapshot;
   final EnvironmentLocationDisplay locationDisplay;
+  final VoidCallback? onSelectManualLocation;
+  final VoidCallback? onClearManualLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +324,20 @@ class _TodayMasthead extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onSelectManualLocation != null)
+                TextButton.icon(
+                  key: const Key('today-manual-location'),
+                  onPressed: locationDisplay.isReference
+                      ? onClearManualLocation
+                      : onSelectManualLocation,
+                  icon: Icon(
+                    locationDisplay.isReference
+                        ? Icons.my_location_outlined
+                        : Icons.edit_location_alt_outlined,
+                    size: 16,
+                  ),
+                  label: Text(locationDisplay.isReference ? '当前位置' : '手动地点'),
+                ),
             ],
           ),
         ),
@@ -618,6 +647,10 @@ class LiveTodayPage extends ConsumerWidget {
         showDragHandle: true,
         builder: (_) => const ManualLocationSheet(),
       ),
+      onClearManualLocation: () {
+        ref.read(manualLocationProvider.notifier).clear();
+        unawaited(ref.read(environmentSnapshotProvider.notifier).refresh());
+      },
       onManifestAction: snapshot.asData == null
           ? null
           : (item) => unawaited(

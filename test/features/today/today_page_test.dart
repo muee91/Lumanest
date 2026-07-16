@@ -75,6 +75,23 @@ void main() {
     expect(find.text('海宁市 · 手动地点 · 非实时'), findsOneWidget);
   });
 
+  testWidgets('always exposes a manual location entry from Today', (
+    tester,
+  ) async {
+    var opened = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TodayPage(
+          snapshotAsync: AsyncData(ContextFixtures.quietCity()),
+          onSelectManualLocation: () => opened = true,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('today-manual-location')));
+    expect(opened, isTrue);
+  });
+
   group('TodayPage async states', () {
     testWidgets(
       'pulling Today down exposes an environment refresh affordance',
