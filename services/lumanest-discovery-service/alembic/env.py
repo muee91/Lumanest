@@ -39,9 +39,12 @@ def run_migrations_offline() -> None:
 def do_run_migrations(connection) -> None:
     # Alembic creates its version table before running revision 0001. Bootstrap
     # the isolated namespace first, so it never falls back to context's table.
-    connection.execute(text("CREATE SCHEMA IF NOT EXISTS discovery"))
-    configure_context(connection=connection)
-    with context.begin_transaction():
+    # The async SQLAlchemy connection otherwise closes with its implicit
+    # transaction uncommitted, making a seemingly successful first upgrade
+    # disappear after the process exits.
+    with connection.begin():
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS discovery"))
+        configure_context(connection=connection)
         context.run_migrations()
 
 
