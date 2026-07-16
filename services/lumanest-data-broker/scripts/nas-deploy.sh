@@ -8,6 +8,7 @@ LIVE_DIR_INPUT=${LIVE_DIR:-$LUMANEST_ROOT_INPUT/qweather-token-broker}
 PROJECT_NAME=${PROJECT_NAME:-qweather-token-broker}
 BROKER_DOCKERFILE=${BROKER_DOCKERFILE:-Dockerfile}
 CONTEXT_DOCKERFILE=${CONTEXT_DOCKERFILE:-Dockerfile}
+DISCOVERY_DOCKERFILE=${DISCOVERY_DOCKERFILE:-Dockerfile}
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine}
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
@@ -82,7 +83,7 @@ backup_application_images() {
   broker_backed_up=0
   : > "$images_tmp"
 
-  for service in qweather-token-broker context-service; do
+  for service in qweather-token-broker context-service discovery-api discovery-worker; do
     if ! printf '%s\n' "$services" | grep -qx "$service"; then
       continue
     fi
@@ -256,6 +257,22 @@ verify_previous_context() {
   fi
 }
 
+verify_previous_discovery() {
+  services=$(compose_previous config --services) || return 1
+  if printf '%s\n' "$services" | grep -qx 'discovery-api'; then
+    compose_previous exec -T discovery-api python -c \
+      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
+  fi
+}
+
+verify_previous_discovery_worker() {
+  services=$(compose_previous config --services) || return 1
+  if printf '%s\n' "$services" | grep -qx 'discovery-worker'; then
+    compose_previous exec -T discovery-worker python -c \
+      "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'" >/dev/null
+  fi
+}
+
 restore_old_stack() {
   restore_backup_images || return 1
   compose_previous up -d --no-build --remove-orphans
@@ -283,7 +300,7 @@ deployment_failed() {
     if ! restore_old_stack; then
       echo "Recovery failed: the previous stack could not be started." >&2
       recovery_status=1
-    elif ! verify_http_boundary "" || ! verify_previous_context; then
+    elif ! verify_http_boundary "" || ! verify_previous_context || ! verify_previous_discovery || ! verify_previous_discovery_worker; then
       echo "Recovery failed: the previous stack did not pass health checks." >&2
       recovery_status=1
     fi
@@ -318,7 +335,11 @@ if ! valid_identifier "$CONTEXT_DOCKERFILE"; then
   echo "Unsafe Context Dockerfile name: $CONTEXT_DOCKERFILE" >&2
   exit 1
 fi
-export BROKER_DOCKERFILE CONTEXT_DOCKERFILE
+if ! valid_identifier "$DISCOVERY_DOCKERFILE"; then
+  echo "Unsafe Discovery Dockerfile name: $DISCOVERY_DOCKERFILE" >&2
+  exit 1
+fi
+export BROKER_DOCKERFILE CONTEXT_DOCKERFILE DISCOVERY_DOCKERFILE
 case "$HEALTHCHECK_ATTEMPTS" in
   ''|0|*[!0-9]*) echo "HEALTHCHECK_ATTEMPTS must be a positive integer." >&2; exit 1 ;;
 esac
@@ -357,6 +378,12 @@ BACKUP_DIR=$LUMANEST_ROOT/backups/$TIMESTAMP
 require_file "$COMPOSE_FILE"
 require_file "$RELEASE_DIR/$BROKER_DOCKERFILE"
 require_file "$RELEASE_DIR/../lumanest-context-service/$CONTEXT_DOCKERFILE"
+# Older release fixtures have no Discovery service. A real release with the
+# Discovery compose stanza is still validated by `compose config` below before
+# the previous stack is stopped.
+if [ -d "$RELEASE_DIR/../lumanest-discovery-service" ]; then
+  require_file "$RELEASE_DIR/../lumanest-discovery-service/$DISCOVERY_DOCKERFILE"
+fi
 require_file "$PREVIOUS_RELEASE/compose.yaml"
 require_file "$PREVIOUS_RELEASE/qweather-token-broker.env"
 
@@ -429,6 +456,10 @@ compose_release up -d --build --remove-orphans
 verify_http_boundary '<title>栖光 · 管理台</title>'
 compose_release exec -T context-service python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" >/dev/null
+compose_release exec -T discovery-api python -c \
+  "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
+compose_release exec -T discovery-worker python -c \
+  "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'" >/dev/null
 
 # last-backup is written first; current-release is the final commit marker.
 atomic_write "$LUMANEST_ROOT/last-backup" "$BACKUP_DIR"

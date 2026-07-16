@@ -1,0 +1,12 @@
+ARG DISCOVERY_BASE_IMAGE=qweather-token-broker-discovery-api:latest
+FROM ${DISCOVERY_BASE_IMAGE}
+
+USER root
+WORKDIR /app
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+
+USER nobody
+EXPOSE 8001
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
