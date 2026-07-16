@@ -264,11 +264,25 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
   }
 
   Future<void> refresh() async {
+    // A manual refresh is a content update, not a navigation state change.
+    // Keep the last safe snapshot visible while RefreshIndicator describes the
+    // in-flight request; replacing it with AsyncLoading makes the whole Today
+    // page flash to a spinner and hides safety guidance unnecessarily.
+    final previous = state.asData?.value;
+    if (previous != null) {
+      try {
+        state = AsyncData(
+          await _load(ref.read(environmentLoaderProvider), trigger: 'manual'),
+        );
+      } on Object {
+        // `_load` records a sanitized category. The existing snapshot remains
+        // the truthful, usable fallback until a later refresh succeeds.
+      }
+      return;
+    }
+
     state = const AsyncLoading();
     state = await AsyncValue.guard(
-      // `environmentLoaderProvider` already watches the effective location
-      // source. A refresh is an imperative action: resolve its current value
-      // now instead of adding a dependency from this notifier method.
       () => _load(ref.read(environmentLoaderProvider), trigger: 'manual'),
     );
   }
