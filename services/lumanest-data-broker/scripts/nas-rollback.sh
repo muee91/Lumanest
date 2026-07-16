@@ -220,6 +220,22 @@ verify_live_context() {
   fi
 }
 
+verify_live_discovery() {
+  services=$(compose_live config --services) || return 1
+  if printf '%s\n' "$services" | grep -qx 'discovery-api'; then
+    compose_live exec -T discovery-api python -c \
+      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
+  fi
+}
+
+verify_live_discovery_worker() {
+  services=$(compose_live config --services) || return 1
+  if printf '%s\n' "$services" | grep -qx 'discovery-worker'; then
+    compose_live exec -T discovery-worker python -c \
+      "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'" >/dev/null
+  fi
+}
+
 rollback_failed() {
   status=$?
   trap - EXIT INT TERM
@@ -384,6 +400,8 @@ fi
 ROLLBACK_PHASE=verifying-previous
 verify_http_boundary
 verify_live_context
+verify_live_discovery
+verify_live_discovery_worker
 
 atomic_write "$LUMANEST_ROOT/current-release" "$LIVE_DIR"
 trap - EXIT INT TERM

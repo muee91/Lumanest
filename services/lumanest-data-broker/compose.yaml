@@ -24,6 +24,8 @@ services:
       AI_MODEL: ${AI_MODEL:-}
       CONTEXT_SERVICE_URL: http://context-service:8000
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
+      DISCOVERY_SERVICE_URL: http://discovery-api:8001
+      DISCOVERY_INTERNAL_TOKEN: ${DISCOVERY_INTERNAL_TOKEN:?Set DISCOVERY_INTERNAL_TOKEN}
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8787:8787"
@@ -69,6 +71,60 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  discovery-api:
+    build:
+      context: ../lumanest-discovery-service
+      dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
+    container_name: lumanest-discovery-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lumanest:${LUMANEST_DATABASE_PASSWORD:?Set LUMANEST_DATABASE_PASSWORD}@postgres/lumanest
+      REDIS_URL: redis://redis:6379/0
+      DISCOVERY_INTERNAL_TOKEN: ${DISCOVERY_INTERNAL_TOKEN:?Set DISCOVERY_INTERNAL_TOKEN}
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  discovery-worker:
+    build:
+      context: ../lumanest-discovery-service
+      dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
+    container_name: lumanest-discovery-worker
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    command: ["python", "-m", "app.worker"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      discovery-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'"]
       interval: 30s
       timeout: 5s
       retries: 3
