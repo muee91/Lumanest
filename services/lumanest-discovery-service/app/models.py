@@ -58,3 +58,41 @@ class DiscoveryResponse(StrictModel):
     expires_at: datetime | None = Field(alias="expiresAt")
     retry_after_seconds: int | None = Field(alias="retryAfterSeconds", ge=1, le=3600)
     items: list[DiscoveryItem] = Field(max_length=40)
+
+
+# The following contracts are deliberately internal.  They are the narrow
+# hand-off between the discovery worker and the Broker.  Keeping them here
+# means an upstream provider or model cannot silently add a field which the
+# worker then starts trusting or storing.
+class BrokerSearchResult(StrictModel):
+    source_id: str = Field(alias="sourceId", min_length=1, max_length=80)
+    publisher: str = Field(min_length=1, max_length=80)
+    license: str = Field(min_length=1, max_length=160)
+    source_version: str = Field(alias="version", min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=300)
+    snippet: str = Field(default="", max_length=1200)
+    url: HttpUrl
+    published_at: datetime | None = Field(default=None, alias="publishedAt")
+
+
+class BrokerSearchResponse(StrictModel):
+    results: list[BrokerSearchResult] = Field(max_length=24)
+
+
+class ExtractionCoordinate(StrictModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class ExtractedCandidate(StrictModel):
+    kind: Literal["candidate_viewpoint", "attraction", "event"]
+    title: str = Field(min_length=1, max_length=120)
+    summary: str | None = Field(default=None, max_length=280)
+    coordinate: ExtractionCoordinate | None = None
+    starts_at: datetime | None = Field(default=None, alias="startsAt")
+    ends_at: datetime | None = Field(default=None, alias="endsAt")
+    source_indexes: list[int] = Field(alias="sourceIndexes", min_length=1, max_length=4)
+
+
+class BrokerExtractionResponse(StrictModel):
+    candidates: list[ExtractedCandidate] = Field(max_length=20)
