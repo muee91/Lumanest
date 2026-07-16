@@ -23,6 +23,7 @@ import {
   listContextSources,
   validContextRequest,
 } from './context/proxy.mjs';
+import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
 import { authoritativeWeather } from './context/qweather.mjs';
 import { fetchAmapSceneEvidence } from './context/amap-evidence.mjs';
 import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
@@ -117,6 +118,7 @@ const ratePolicies = [
   { path: '/v1/elevation/profile', limit: 20, windowMs: 60 * 1_000, key: 'elevation' },
   { path: '/v1/context/snapshot', limit: 30, windowMs: 60 * 1_000, key: 'context' },
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
+  { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
 ];
 
 function ratePolicy(pathname) {
@@ -645,6 +647,8 @@ export function createTokenBrokerServer({
   runtimeConfig,
   contextServiceUrl = '',
   contextInternalToken = '',
+  discoveryServiceUrl = '',
+  discoveryInternalToken = '',
   qweatherApiHost = '',
   weatherCache = new MemoryWeatherCache(),
   requestRateLimiter = new MemoryRequestRateLimiter(),
@@ -661,6 +665,8 @@ export function createTokenBrokerServer({
     llmRouting: Object.freeze({ ...llmRouting }),
     contextServiceUrl,
     contextInternalToken,
+    discoveryServiceUrl,
+    discoveryInternalToken,
     qweatherApiHost,
     settings: validateRuntimeSettings(settings ?? {}),
   });
@@ -985,6 +991,29 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/explore/discover') {
+      const body = await readJsonBody(request, 1024);
+      if (body == null || !validDiscoveryRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_discovery_request' });
+        return;
+      }
+      const result = await forwardDiscovery({
+        body,
+        serviceUrl: configuration.discoveryServiceUrl,
+        internalToken: configuration.discoveryInternalToken,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
+          error: result.error === 'not_configured' ? 'discovery_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      writeJson(response, result.body.status === 'pending' ? 202 : 200, result.body);
+      return;
+    }
+
     if (request.method !== 'POST' || requestUrl.pathname !== '/v1/qweather/token') {
       writeJson(response, 404, { error: 'not_found' });
       return;
@@ -1027,6 +1056,8 @@ export function configurationFromEnvironment(environment = process.env) {
     aiModel: environment.AI_MODEL?.trim() ?? '',
     contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
+    discoveryServiceUrl: environment.DISCOVERY_SERVICE_URL?.trim() ?? '',
+    discoveryInternalToken: environment.DISCOVERY_INTERNAL_TOKEN?.trim() ?? '',
     qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };

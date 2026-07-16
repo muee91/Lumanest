@@ -24,6 +24,8 @@ async function withServer(run, {
   runtimeConfig,
   contextServiceUrl = '',
   contextInternalToken = '',
+  discoveryServiceUrl = '',
+  discoveryInternalToken = '',
   qweatherApiHost = 'https://project.qweatherapi.com',
   weatherCache,
   requestRateLimiter,
@@ -52,6 +54,8 @@ async function withServer(run, {
     runtimeConfig,
     contextServiceUrl,
     contextInternalToken,
+    discoveryServiceUrl,
+    discoveryInternalToken,
     qweatherApiHost,
     weatherCache,
     requestRateLimiter,
@@ -218,6 +222,123 @@ test('context snapshot rejects identity fields without contacting the context se
     },
   });
   assert.equal(calls, 0);
+});
+
+test('discovery endpoint authenticates and only forwards the bounded contract', async () => {
+  let upstreamRequest;
+  const requestBody = {
+    contractVersion: 1,
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+    locale: 'zh-CN',
+    focus: 'photography',
+  };
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/explore/discover`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).status, 'ready');
+    const rejected = await fetch(`${baseUrl}/v1/explore/discover`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...requestBody, preferences: ['forbidden'] }),
+    });
+    assert.equal(rejected.status, 400);
+    assert.deepEqual(await rejected.json(), { error: 'invalid_discovery_request' });
+  }, {
+    discoveryServiceUrl: 'http://discovery-api:8001',
+    discoveryInternalToken: 'internal-discovery-token',
+    fetcher: async (url, options) => {
+      upstreamRequest = { url, options };
+      return new Response(JSON.stringify({
+        contractVersion: 1,
+        status: 'ready',
+        generatedAt: '2026-07-20T02:00:00Z',
+        expiresAt: '2026-07-20T08:00:00Z',
+        retryAfterSeconds: null,
+        items: [{
+          id: 'west-lake-viewpoint', kind: 'candidate_viewpoint', title: '湖畔观景点',
+          subtitle: null, placeStatus: 'candidate',
+          coordinate: { latitude: 30.249, longitude: 120.151, system: 'wgs84' },
+          distanceMeters: 180, address: null, startsAt: null, endsAt: null,
+          evidence: [{
+            publisher: '审核目录', title: '西湖周边地点',
+            url: 'https://example.test/places/west-lake', observedAt: '2026-07-20T01:00:00Z',
+          }],
+        }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  assert.equal(upstreamRequest.url.pathname, '/internal/v1/discover');
+  assert.equal(upstreamRequest.options.headers['X-Internal-Service-Token'], 'internal-discovery-token');
+  assert.deepEqual(JSON.parse(upstreamRequest.options.body), requestBody);
+});
+
+test('discovery pending response becomes 202 without leaking upstream failure details', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/explore/discover`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contractVersion: 1,
+        coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+        locale: 'zh-CN', focus: 'water',
+      }),
+    });
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), {
+      contractVersion: 1, status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
+      expiresAt: null, retryAfterSeconds: 30, items: [],
+    });
+  }, {
+    discoveryServiceUrl: 'http://discovery-api:8001',
+    discoveryInternalToken: 'internal-discovery-token',
+    fetcher: async () => new Response(JSON.stringify({
+      contractVersion: 1, status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
+      expiresAt: null, retryAfterSeconds: 30, items: [],
+    }), { status: 202, headers: { 'Content-Type': 'application/json' } }),
+  });
+});
+
+test('discovery uses its own bounded rate-limit policy', async () => {
+  await withServer(async (baseUrl) => {
+    const options = {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contractVersion: 1,
+        coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+        locale: 'zh-CN', focus: 'humanity',
+      }),
+    };
+    for (let index = 0; index < 6; index += 1) {
+      assert.equal((await fetch(`${baseUrl}/v1/explore/discover`, options)).status, 202);
+    }
+    const limited = await fetch(`${baseUrl}/v1/explore/discover`, options);
+    assert.equal(limited.status, 429);
+    assert.deepEqual(await limited.json(), { error: 'rate_limited' });
+  }, {
+    discoveryServiceUrl: 'http://discovery-api:8001',
+    discoveryInternalToken: 'internal-discovery-token',
+    fetcher: async () => new Response(JSON.stringify({
+      contractVersion: 1, status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
+      expiresAt: null, retryAfterSeconds: 30, items: [],
+    }), { status: 202, headers: { 'Content-Type': 'application/json' } }),
+  });
 });
 
 test('safety detail is protected, bounded, and expires with its context', async () => {
