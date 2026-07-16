@@ -177,7 +177,7 @@ def test_output_contract_caps_items_and_broker_text_limits():
 
 
 @pytest.mark.asyncio
-async def test_refresh_stream_uses_only_a_fingerprint_not_coordinate_data():
+async def test_refresh_stream_uses_only_a_ttl_bound_coarse_region_not_client_coordinate_data():
     calls = []
 
     class FakeRedis:
@@ -190,8 +190,15 @@ async def test_refresh_stream_uses_only_a_fingerprint_not_coordinate_data():
 
     store = DiscoveryStore(None, None)
     store.redis = FakeRedis()
-    fingerprint = store.fingerprint(DiscoveryRequest.model_validate(payload()))
+    request = DiscoveryRequest.model_validate(payload())
 
-    assert await store.schedule_refresh(fingerprint) is True
-    assert calls[1] == ("xadd", REFRESH_STREAM, {"fingerprint": fingerprint}, 10_000, True)
-    assert "120.15" not in str(calls[1])
+    assert await store.schedule_refresh(request) is True
+    values = calls[1][2]
+    assert calls[1][0] == "xadd"
+    assert calls[1][1] == REFRESH_STREAM
+    assert values["regionId"].startswith("g")
+    assert values["latitude"] == "30.275"
+    assert values["longitude"] == "120.175"
+    assert "30.25" not in str(values)
+    assert "120.15" not in str(values)
+    assert int(values["expiresAt"]) > 0
