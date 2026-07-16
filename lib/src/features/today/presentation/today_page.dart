@@ -29,6 +29,7 @@ class TodayPage extends StatelessWidget {
     super.key,
     required this.snapshotAsync,
     this.onRetry,
+    this.onRefresh,
     this.onOpenAppSettings,
     this.onSelectManualLocation,
     this.onManifestAction,
@@ -39,6 +40,11 @@ class TodayPage extends StatelessWidget {
 
   final AsyncValue<ContextSnapshot> snapshotAsync;
   final VoidCallback? onRetry;
+
+  /// Completes only after the latest environment snapshot has been resolved.
+  /// Keeping this separate from [onRetry] preserves the compact error actions
+  /// while letting pull-to-refresh hold its progress affordance on screen.
+  final Future<void> Function()? onRefresh;
   final VoidCallback? onOpenAppSettings;
   final VoidCallback? onSelectManualLocation;
   final ValueChanged<ManifestItem>? onManifestAction;
@@ -119,76 +125,90 @@ class TodayPage extends StatelessWidget {
       }
     }
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          LumaNestSpacing.md,
-          LumaNestSpacing.md,
-          LumaNestSpacing.md,
-          LumaNestSpacing.xl,
-        ),
-        children: [
-          if (snapshot.isStale) _StaleLabel(),
-          _TodayMasthead(snapshot: snapshot, locationDisplay: locationDisplay),
-          const SizedBox(height: LumaNestSpacing.lg),
-          _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
-          if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
-            const SizedBox(height: LumaNestSpacing.md),
-            _EnvironmentStrip(snapshot: snapshot),
-          ],
-          const SizedBox(height: LumaNestSpacing.lg),
-          if (effectiveManifest.safety.isNotEmpty) ...[
-            _SafetyRegion(
-              items: effectiveManifest.safety,
-              onAction: performAction,
-            ),
-            const SizedBox(height: LumaNestSpacing.lg),
-          ],
-          if (primary case final primary?) ...[
-            _OpportunityCard(
-              key: const Key('primary-opportunity'),
-              item: primary,
-              onTap: () => performAction(primary),
-            ),
-            const SizedBox(height: LumaNestSpacing.sm),
-          ],
-          if (effectiveManifest.secondary.isNotEmpty) ...[
-            const SizedBox(height: LumaNestSpacing.sm),
-            Column(
-              key: const Key('secondary-opportunities'),
-              children: [
-                for (final item in effectiveManifest.secondary)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: LumaNestSpacing.xs),
-                    child: _OpportunityCard(
-                      item: item,
-                      compact: true,
-                      onTap: () => performAction(item),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          if (effectiveManifest.inspirationPreview.isNotEmpty) ...[
-            const SizedBox(height: LumaNestSpacing.md),
-            _InspirationTeaser(
-              note: effectiveManifest.inspirationPreview,
-              onTap: () => context.go('/inspiration'),
-            ),
-          ],
-          if (primary == null) ...[
-            const SizedBox(height: LumaNestSpacing.md),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => context.go('/explore'),
-                icon: const Icon(Icons.explore_outlined),
-                label: const Text('探索附近'),
-              ),
-            ),
-          ],
-        ],
+    final refresh = onRefresh;
+    final list = ListView(
+      key: const Key('today-scroll-view'),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        LumaNestSpacing.md,
+        LumaNestSpacing.md,
+        LumaNestSpacing.md,
+        LumaNestSpacing.xl,
       ),
+      children: [
+        if (snapshot.isStale) _StaleLabel(),
+        _TodayMasthead(snapshot: snapshot, locationDisplay: locationDisplay),
+        const SizedBox(height: LumaNestSpacing.lg),
+        _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
+        if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
+          const SizedBox(height: LumaNestSpacing.md),
+          _EnvironmentStrip(snapshot: snapshot),
+        ],
+        const SizedBox(height: LumaNestSpacing.lg),
+        if (effectiveManifest.safety.isNotEmpty) ...[
+          _SafetyRegion(
+            items: effectiveManifest.safety,
+            onAction: performAction,
+          ),
+          const SizedBox(height: LumaNestSpacing.lg),
+        ],
+        if (primary case final primary?) ...[
+          _OpportunityCard(
+            key: const Key('primary-opportunity'),
+            item: primary,
+            onTap: () => performAction(primary),
+          ),
+          const SizedBox(height: LumaNestSpacing.sm),
+        ],
+        if (effectiveManifest.secondary.isNotEmpty) ...[
+          const SizedBox(height: LumaNestSpacing.sm),
+          Column(
+            key: const Key('secondary-opportunities'),
+            children: [
+              for (final item in effectiveManifest.secondary)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: LumaNestSpacing.xs),
+                  child: _OpportunityCard(
+                    item: item,
+                    compact: true,
+                    onTap: () => performAction(item),
+                  ),
+                ),
+            ],
+          ),
+        ],
+        if (effectiveManifest.inspirationPreview.isNotEmpty) ...[
+          const SizedBox(height: LumaNestSpacing.md),
+          _InspirationTeaser(
+            note: effectiveManifest.inspirationPreview,
+            onTap: () => context.go('/inspiration'),
+          ),
+        ],
+        if (primary == null) ...[
+          const SizedBox(height: LumaNestSpacing.md),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => context.go('/explore'),
+              icon: const Icon(Icons.explore_outlined),
+              label: const Text('探索附近'),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    return SafeArea(
+      child: refresh == null
+          ? list
+          : RefreshIndicator(
+              key: const Key('today-environment-refresh'),
+              color: Theme.of(context).colorScheme.secondary,
+              displacement: 56,
+              semanticsLabel: '正在刷新环境数据',
+              onRefresh: refresh,
+              child: list,
+            ),
     );
   }
 
@@ -590,6 +610,7 @@ class LiveTodayPage extends ConsumerWidget {
       narrativeAsync: narrative,
       locationDisplay: ref.watch(environmentLocationDisplayProvider),
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
+      onRefresh: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
       onOpenAppSettings: Geolocator.openAppSettings,
       onSelectManualLocation: () => showModalBottomSheet<void>(
         context: context,

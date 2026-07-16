@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -74,6 +76,36 @@ void main() {
   });
 
   group('TodayPage async states', () {
+    testWidgets(
+      'pulling Today down exposes an environment refresh affordance',
+      (tester) async {
+        final refresh = Completer<void>();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: TodayPage(
+              snapshotAsync: AsyncData(ContextFixtures.quietCity()),
+              onRefresh: () => refresh.future,
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('today-environment-refresh')),
+          findsOneWidget,
+        );
+        await tester.fling(
+          find.byKey(const Key('today-scroll-view')),
+          const Offset(0, 480),
+          1000,
+        );
+        await tester.pump();
+
+        expect(find.byType(RefreshProgressIndicator), findsOneWidget);
+        refresh.complete();
+        await tester.pumpAndSettle();
+      },
+    );
+
     testWidgets('loading state shows a loading indicator', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: TodayPage(snapshotAsync: AsyncLoading())),
