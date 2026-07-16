@@ -26,6 +26,8 @@ async function withServer(run, {
   contextInternalToken = '',
   discoveryServiceUrl = '',
   discoveryInternalToken = '',
+  discoveryWorkerToken = '',
+  discoverySearchProfile,
   qweatherApiHost = 'https://project.qweatherapi.com',
   weatherCache,
   requestRateLimiter,
@@ -56,6 +58,8 @@ async function withServer(run, {
     contextInternalToken,
     discoveryServiceUrl,
     discoveryInternalToken,
+    discoveryWorkerToken,
+    discoverySearchProfile,
     qweatherApiHost,
     weatherCache,
     requestRateLimiter,
@@ -76,6 +80,88 @@ test('health check never requires a service token', async () => {
     const response = await fetch(`${baseUrl}/healthz`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: 'ok' });
+  });
+});
+
+test('discovery worker endpoints require their own token, use reviewed sources and hide provider failures', async () => {
+  const sourcePolicies = [{
+    id: 'culture', domain: 'culture.example.gov.cn', attribution: '文化发布',
+    license: 'CC BY 4.0', version: '2026-07', enabled: true,
+  }];
+  let searchBody;
+  await withServer(async (baseUrl) => {
+    const unauthorized = await fetch(`${baseUrl}/internal/v1/discovery/search`, {
+      method: 'POST', headers: {
+        Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '海宁 摄影 展览', locale: 'zh-CN', freshnessDays: 7, domains: [] }),
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const response = await fetch(`${baseUrl}/internal/v1/discovery/search`, {
+      method: 'POST', headers: {
+        'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '海宁 摄影 展览', locale: 'zh-CN', freshnessDays: 7, domains: [] }),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(searchBody.include_domains, ['culture.example.gov.cn']);
+    assert.deepEqual(await response.json(), { results: [{
+      title: '摄影展公告', snippet: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events',
+      sourceId: 'culture', publisher: '文化发布', license: 'CC BY 4.0', version: '2026-07',
+    }] });
+
+    const rejected = await fetch(`${baseUrl}/internal/v1/discovery/search`, {
+      method: 'POST', headers: {
+        'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '海宁', locale: 'zh-CN', freshnessDays: 7, domains: ['unreviewed.example'] }),
+    });
+    assert.equal(rejected.status, 400);
+  }, {
+    discoveryWorkerToken: 'worker-secret',
+    discoverySearchProfile: {
+      baseUrl: 'https://api.tavily.com', apiKey: 'tavily-super-secret', enabled: true,
+      timeoutMs: 8_000, sourcePolicies,
+    },
+    fetcher: async (url, options) => {
+      assert.equal(url.toString(), 'https://api.tavily.com/search');
+      searchBody = JSON.parse(options.body);
+      assert.equal(searchBody.api_key, 'tavily-super-secret');
+      return new Response(JSON.stringify({ results: [
+        { title: '摄影展公告', content: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events?tracking=1' },
+        { title: '未审核', content: '不可用', url: 'https://elsewhere.example/x' },
+      ] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+});
+
+test('discovery extract rejects unsafe schema abuse and never falls back to arbitrary model output', async () => {
+  const evidence = [{
+    title: '摄影展公告', snippet: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events',
+    sourceId: 'culture', publisher: '文化发布', license: 'CC BY 4.0', version: '2026-07',
+  }];
+  await withServer(async (baseUrl) => {
+    const unsafe = await fetch(`${baseUrl}/internal/v1/discovery/extract`, {
+      method: 'POST', headers: {
+        'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ focus: '风险区域', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
+    });
+    assert.equal(unsafe.status, 400);
+    const response = await fetch(`${baseUrl}/internal/v1/discovery/extract`, {
+      method: 'POST', headers: {
+        'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ focus: '近期摄影活动', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
+    });
+    assert.equal(response.status, 502);
+    assert.deepEqual(await response.json(), { error: 'upstream_unavailable' });
+  }, {
+    aiApiKey: 'model-secret', discoveryWorkerToken: 'worker-secret',
+    fetcher: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      candidates: [{ title: '安全提示', kind: 'event', summary: '风险', sourceIndexes: [0] }],
+    }) } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
   });
 });
 

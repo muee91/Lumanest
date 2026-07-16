@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { isLanAddress } from './lan-address.mjs';
 import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
+import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
 
 const maximumBodyBytes = 16 * 1024;
 const maximumImportBodyBytes = 2 * 1024 * 1024;
@@ -89,6 +90,16 @@ function safeLLMProfile(profile) {
   };
 }
 
+function safeDiscoverySearchProfile(profile) {
+  return {
+    baseUrl: profile?.baseUrl ?? 'https://api.tavily.com',
+    apiKey: maskedSecret(profile?.apiKey),
+    enabled: profile?.enabled ?? false,
+    timeoutMs: profile?.timeoutMs ?? 8_000,
+    sourcePolicies: profile?.sourcePolicies ?? [],
+  };
+}
+
 function safeConfiguration(snapshot) {
   return {
     revision: snapshot.revision,
@@ -104,6 +115,7 @@ function safeConfiguration(snapshot) {
       primaryProfileId: snapshot.llmRouting?.primaryProfileId ?? null,
       fallbackEnabled: snapshot.llmRouting?.fallbackEnabled ?? false,
     },
+    discoverySearch: safeDiscoverySearchProfile(snapshot.discoverySearchProfile),
     settings: snapshot.settings,
   };
 }
@@ -166,6 +178,31 @@ export function createAdminServer({
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/llm/providers') {
       return json(response, 200, { providers: publicProviderCatalog() });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/discovery/search-profile') {
+      return json(response, 200, {
+        profile: safeDiscoverySearchProfile(runtimeConfig.snapshot().discoverySearchProfile),
+      });
+    }
+    if (request.method === 'PUT' && url.pathname === '/admin-api/discovery/search-profile') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      try {
+        const current = runtimeConfig.snapshot().discoverySearchProfile;
+        const profile = validateDiscoverySearchProfile(parsed.value, { existing: current });
+        const snapshot = await runtimeConfig.replace({ discoverySearchProfile: profile });
+        auditLog.record({
+          remoteAddress,
+          operation: 'update_discovery_search_profile',
+          fields: Object.keys(parsed.value).filter((field) => field !== 'apiKey'),
+          result: 'ok',
+        });
+        return json(response, 200, { profile: safeDiscoverySearchProfile(snapshot.discoverySearchProfile) });
+      } catch {
+        auditLog.record({ remoteAddress, operation: 'update_discovery_search_profile', result: 'rejected' });
+        return json(response, 400, { error: 'invalid_search_profile' });
+      }
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/context/sources') {
       const result = await listContextSources();

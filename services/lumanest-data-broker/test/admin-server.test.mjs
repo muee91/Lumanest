@@ -225,3 +225,32 @@ test('lists models for a draft with no model selected and never returns its key'
     assert.deepEqual(JSON.parse(text), { models: ['openai-model'] });
   });
 });
+
+test('manages an encrypted reviewed-source search profile without exposing its key', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const headers = {
+      Cookie: credentials.cookie, 'X-CSRF-Token': credentials.csrf, 'Content-Type': 'application/json',
+    };
+    const profile = {
+      baseUrl: 'https://api.tavily.com', apiKey: 'tavily-secret-9876', enabled: true, timeoutMs: 8_000,
+      sourcePolicies: [{
+        id: 'haining-culture', domain: 'culture.example.gov.cn', attribution: '海宁文化发布',
+        license: 'CC BY 4.0', version: '2026-07', enabled: true,
+      }],
+    };
+    const saved = await fetch(`${baseUrl}/admin-api/discovery/search-profile`, {
+      method: 'PUT', headers, body: JSON.stringify(profile),
+    });
+    assert.equal(saved.status, 200);
+    const text = await saved.text();
+    assert.equal(text.includes('tavily-secret-9876'), false);
+    const body = JSON.parse(text);
+    assert.equal(body.profile.apiKey.lastFour, '9876');
+    assert.equal(body.profile.sourcePolicies[0].version, '2026-07');
+    const read = await fetch(`${baseUrl}/admin-api/discovery/search-profile`, {
+      headers: { Cookie: credentials.cookie },
+    });
+    assert.equal((await read.text()).includes('tavily-secret-9876'), false);
+  });
+});

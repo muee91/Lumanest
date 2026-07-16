@@ -24,6 +24,14 @@ import {
   validContextRequest,
 } from './context/proxy.mjs';
 import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
+import {
+  extractDiscoveryCandidates,
+  normalizedDiscoverySearchRequest,
+  searchTavily,
+  validDiscoveryExtractRequest,
+  validDiscoverySearchRequest,
+} from './discovery/ingestion.mjs';
+import { defaultDiscoverySearchProfile } from './discovery/search-profile.mjs';
 import { authoritativeWeather } from './context/qweather.mjs';
 import { fetchAmapSceneEvidence } from './context/amap-evidence.mjs';
 import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
@@ -52,6 +60,13 @@ function hasValidAuthorization(header, serviceToken) {
   if (typeof header !== 'string') return false;
   const actual = Buffer.from(header);
   const expected = Buffer.from(`Bearer ${serviceToken}`);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function hasValidWorkerToken(header, workerToken) {
+  if (typeof header !== 'string' || typeof workerToken !== 'string' || workerToken.length === 0) return false;
+  const actual = Buffer.from(header);
+  const expected = Buffer.from(workerToken);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
@@ -649,6 +664,8 @@ export function createTokenBrokerServer({
   contextInternalToken = '',
   discoveryServiceUrl = '',
   discoveryInternalToken = '',
+  discoveryWorkerToken = '',
+  discoverySearchProfile = defaultDiscoverySearchProfile(),
   qweatherApiHost = '',
   weatherCache = new MemoryWeatherCache(),
   requestRateLimiter = new MemoryRequestRateLimiter(),
@@ -667,6 +684,8 @@ export function createTokenBrokerServer({
     contextInternalToken,
     discoveryServiceUrl,
     discoveryInternalToken,
+    discoveryWorkerToken,
+    discoverySearchProfile,
     qweatherApiHost,
     settings: validateRuntimeSettings(settings ?? {}),
   });
@@ -685,6 +704,56 @@ export function createTokenBrokerServer({
     if (requestUrl.pathname === '/admin' || requestUrl.pathname === '/admin/' ||
         requestUrl.pathname.startsWith('/admin-assets/')) {
       writeJson(response, 404, { error: 'not_found' });
+      return;
+    }
+
+    // Discovery workers share this listener only to keep the Broker's outbound
+    // credentials in one process. They never authenticate with the App token.
+    // Compose places workers on the private network; the separate token is a
+    // second boundary and is intentionally absent from all responses and logs.
+    if (requestUrl.pathname === '/internal/v1/discovery/search' ||
+        requestUrl.pathname === '/internal/v1/discovery/extract') {
+      if (request.method !== 'POST' || !hasValidWorkerToken(
+        request.headers['x-discovery-worker-token'], configuration.discoveryWorkerToken,
+      )) {
+        writeJson(response, 401, { error: 'unauthorized' });
+        return;
+      }
+      const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') ? 4_096 : 16 * 1_024);
+      if (requestUrl.pathname.endsWith('/search')) {
+        if (body == null || !validDiscoverySearchRequest(
+          body, configuration.discoverySearchProfile.sourcePolicies,
+        )) {
+          writeJson(response, 400, { error: 'invalid_discovery_search_request' });
+          return;
+        }
+        const result = await searchTavily({
+          request: normalizedDiscoverySearchRequest(body, configuration.discoverySearchProfile.sourcePolicies),
+          profile: configuration.discoverySearchProfile,
+          fetcher,
+        });
+        if (!result.ok) {
+          writeJson(response, result.error === 'search_unconfigured' ? 503 : 502, { error: result.error });
+          return;
+        }
+        writeJson(response, 200, { results: result.results });
+        return;
+      }
+      if (body == null || !validDiscoveryExtractRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_discovery_extract_request' });
+        return;
+      }
+      const result = await extractDiscoveryCandidates({
+        body,
+        profiles: configuration.llmProfiles,
+        routing: configuration.llmRouting,
+        fetcher,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'ai_unconfigured' ? 503 : 502, { error: result.error });
+        return;
+      }
+      writeJson(response, 200, { candidates: result.candidates });
       return;
     }
 
@@ -1058,6 +1127,7 @@ export function configurationFromEnvironment(environment = process.env) {
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
     discoveryServiceUrl: environment.DISCOVERY_SERVICE_URL?.trim() ?? '',
     discoveryInternalToken: environment.DISCOVERY_INTERNAL_TOKEN?.trim() ?? '',
+    discoveryWorkerToken: environment.DISCOVERY_WORKER_TOKEN?.trim() ?? '',
     qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };

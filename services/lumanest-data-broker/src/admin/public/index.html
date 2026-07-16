@@ -61,6 +61,15 @@
             <p class="warning wide">更换 App 服务令牌后，现有 APK 将无法访问服务，需要同步更新 App 配置并重新构建。</p>
             <div class="actions wide"><button type="button" id="test-services" class="secondary">测试连接</button><button type="submit">保存修改</button></div>
           </form>
+          <form id="discovery-search-form" class="form-grid">
+            <div class="section-note"><h3>探索资料搜索</h3><p>仅检索审核通过的来源。来源政策会随每条证据保存署名与许可；未配置或停用时不会向搜索服务发送请求。</p></div>
+            <label class="wide">Tavily 服务端点<input name="baseUrl" type="url" maxlength="500" value="https://api.tavily.com" required></label>
+            <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small id="discovery-search-key-mask"></small></label>
+            <label>请求超时（毫秒）<input name="timeoutMs" type="number" min="2000" max="30000" value="8000" required></label>
+            <label class="toggle wide"><input name="enabled" type="checkbox"><span>启用审核来源搜索</span></label>
+            <label class="wide">审核来源政策（JSON 数组）<textarea name="sourcePolicies" rows="6" spellcheck="false" placeholder='[{"id":"local-culture","domain":"example.gov.cn","attribution":"发布机构","license":"许可说明","version":"2026-07","enabled":true}]' required></textarea><small>每项须含 id、domain、attribution、license、version、enabled；只允许启用的域名被检索。</small></label>
+            <div class="actions wide"><button type="submit">保存搜索配置</button></div>
+          </form>
         </section>
 
         <section class="page" data-panel="llm" hidden>

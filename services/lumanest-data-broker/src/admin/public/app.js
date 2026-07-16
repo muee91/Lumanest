@@ -30,6 +30,8 @@ function renderConfig(config){
     const control=$('#runtime-form').elements[name];if(!control)continue;
     if(control.type==='checkbox')control.checked=value;else control.value=String(value);
   }
+  const discovery=config.discoverySearch;
+  if(discovery){const form=$('#discovery-search-form');form.elements.baseUrl.value=discovery.baseUrl;form.elements.apiKey.value='';form.elements.timeoutMs.value=String(discovery.timeoutMs);form.elements.enabled.checked=discovery.enabled;form.elements.sourcePolicies.value=JSON.stringify(discovery.sourcePolicies||[],null,2);$('#discovery-search-key-mask').textContent=maskText(discovery.apiKey);}
 }
 
 async function loadConfig(){renderConfig(await api('config'));}
@@ -81,6 +83,7 @@ $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{method:'POST'});}finally{showLogin();}});
 
 $('#services-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const patch={};for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken']){const value=form.elements[name].value.trim();if(value)patch[name]=value;}try{status('正在加密并应用…');renderConfig(await api('config',{method:'PUT',body:patch}));for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken'])form.elements[name].value='';status('密钥与服务配置已生效');}catch{status('保存失败，请检查输入范围与格式');}});
+$('#discovery-search-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;let sourcePolicies;try{sourcePolicies=JSON.parse(form.elements.sourcePolicies.value);}catch{status('来源政策必须是有效 JSON 数组');return;}const profile={baseUrl:form.elements.baseUrl.value.trim(),enabled:form.elements.enabled.checked,timeoutMs:Number(form.elements.timeoutMs.value),sourcePolicies};const apiKey=form.elements.apiKey.value.trim();if(apiKey)profile.apiKey=apiKey;try{const result=await api('discovery/search-profile',{method:'PUT',body:profile});form.elements.apiKey.value='';$('#discovery-search-key-mask').textContent=maskText(result.profile.apiKey);status('探索搜索配置已加密保存');await loadConfig();}catch{status('搜索配置保存失败，请检查来源许可、域名和字段');}});
 
 $('#add-llm-profile').addEventListener('click',()=>$('#provider-dialog').showModal());
 $('#add-llm-profile-empty').addEventListener('click',()=>$('#provider-dialog').showModal());
