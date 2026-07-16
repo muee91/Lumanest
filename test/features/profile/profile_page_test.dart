@@ -527,6 +527,8 @@ void main() {
       find.byType(Scrollable).first,
       const Offset(0, -100),
     );
+    await tester.ensureVisible(find.text('找倒影🪞'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('找倒影🪞'));
     await tester.pumpAndSettle();

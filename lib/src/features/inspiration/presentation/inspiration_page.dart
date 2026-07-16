@@ -16,6 +16,7 @@ import 'package:luma_nest/src/features/library/application/user_library_controll
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
+import 'package:luma_nest/src/shared/widgets/responsive_action_group.dart';
 
 class InspirationPage extends ConsumerWidget {
   const InspirationPage({
@@ -268,7 +269,7 @@ class _BottleScaffoldState extends State<_BottleScaffold>
         appBar: AppBar(title: const Text('灵感瓶')),
         body: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
               Material(
                 color: Theme.of(
@@ -342,15 +343,18 @@ class _BottleScaffoldState extends State<_BottleScaffold>
       appBar: AppBar(title: const Text('灵感瓶')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   '此时此地的创作线索',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 11,
@@ -413,30 +417,25 @@ class _BottleScaffoldState extends State<_BottleScaffold>
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => widget.onAction(note),
-                    icon: const Icon(Icons.arrow_outward),
-                    label: const Text('去看看'),
-                  ),
+            ResponsiveActionGroup(
+              actions: [
+                FilledButton.icon(
+                  onPressed: () => widget.onAction(note),
+                  icon: const Icon(Icons.arrow_outward),
+                  label: const Text('去看看'),
                 ),
                 if (widget.onSave case final onSave?) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: widget.isSaved?.call(note) == true
-                          ? null
-                          : () => onSave(note),
-                      icon: Icon(
-                        widget.isSaved?.call(note) == true
-                            ? Icons.bookmark
-                            : Icons.bookmark_border,
-                      ),
-                      label: Text(
-                        widget.isSaved?.call(note) == true ? '已收藏' : '收藏这张纸条',
-                      ),
+                  OutlinedButton.icon(
+                    onPressed: widget.isSaved?.call(note) == true
+                        ? null
+                        : () => onSave(note),
+                    icon: Icon(
+                      widget.isSaved?.call(note) == true
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                    ),
+                    label: Text(
+                      widget.isSaved?.call(note) == true ? '已收藏' : '收藏这张纸条',
                     ),
                   ),
                 ],

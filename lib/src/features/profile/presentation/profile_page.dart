@@ -218,6 +218,33 @@ class ProfilePage extends ConsumerWidget {
                         '推荐强度',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      const Spacer(),
+                      Semantics(
+                        label:
+                            '当前推荐强度 ${(preferences.recommendationIntensity * 100).round()}%',
+                        excludeSemantics: true,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            '${(preferences.recommendationIntensity * 100).round()}%',
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -844,9 +871,11 @@ class _ProfileHero extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(28),
       ),
-      child: Row(
-        children: [
-          Container(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+          final compact = textScale >= 1.3 || constraints.maxWidth < 320;
+          final icon = Container(
             width: 52,
             height: 52,
             alignment: Alignment.center,
@@ -859,32 +888,49 @@ class _ProfileHero extends StatelessWidget {
               color: theme.colorScheme.secondary,
               size: 25,
             ),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('只属于你的栖光', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 4),
-                Text(
-                  '无账号，偏好与创作记录优先留在本机。',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+          );
+          final copy = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('只属于你的栖光', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(
+                '无账号，偏好与创作记录优先留在本机。',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer.withValues(
+                    alpha: .82,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Container(
+              ),
+            ],
+          );
+          final badge = Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
               color: theme.colorScheme.surface.withValues(alpha: .74),
               borderRadius: BorderRadius.circular(99),
             ),
             child: Text('本机', style: theme.textTheme.labelSmall),
-          ),
-        ],
+          );
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [icon, const Spacer(), badge]),
+                const SizedBox(height: 14),
+                copy,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              icon,
+              const SizedBox(width: 15),
+              Expanded(child: copy),
+              badge,
+            ],
+          );
+        },
       ),
     );
   }

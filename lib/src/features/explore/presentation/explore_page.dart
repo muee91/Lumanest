@@ -81,7 +81,7 @@ class _ConfigurationMissingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(LumaNestSpacing.lg),
+        padding: const EdgeInsets.all(LumaNestSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -118,7 +118,7 @@ class _ConsentPrompt extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(LumaNestSpacing.lg),
+        padding: const EdgeInsets.all(LumaNestSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -122,13 +122,108 @@ void main() {
     await _scrollThrough(tester, passes: 8);
     _expectNoLayoutException(tester);
   });
+
+  testWidgets('五页在 1.5 倍字号保持可读顺序且不溢出', (tester) async {
+    _useCompactView(tester, textScaleFactor: 1.5);
+
+    final todaySnapshot = ContextFixtures.desertDusk();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: LumaNestTheme.light,
+        home: TodayPage(
+          snapshotAsync: AsyncData(todaySnapshot),
+          manifest: ManifestPolicy.build(
+            todaySnapshot,
+            now: todaySnapshot.observedAt,
+          ),
+        ),
+      ),
+    );
+    await _scrollThrough(tester);
+    _expectNoLayoutException(tester);
+    expect(
+      tester.getTopLeft(find.text('能见度')).dy,
+      greaterThan(tester.getTopLeft(find.text('气温')).dy),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('large-explore'),
+        overrides: [
+          environmentConfigProvider.overrideWithValue(EnvironmentConfig()),
+        ],
+        child: MaterialApp(
+          theme: LumaNestTheme.light,
+          home: const Scaffold(body: ExplorePage()),
+        ),
+      ),
+    );
+    await tester.pump();
+    _expectNoLayoutException(tester);
+    await _unmount(tester);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('large-route'),
+        child: MaterialApp(
+          theme: LumaNestTheme.light,
+          home: const Scaffold(body: RoutePage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    _expectNoLayoutException(tester);
+    expect(
+      tester.getTopLeft(find.text('导入轨迹')).dy,
+      greaterThan(tester.getTopLeft(find.text('去探索选目的地')).dy),
+    );
+    await _unmount(tester);
+
+    final inspirationSnapshot = ContextFixtures.lakeSunset(
+      observedAt: DateTime.now(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('large-inspiration'),
+        child: MaterialApp(
+          theme: LumaNestTheme.light,
+          home: InspirationPage(snapshotAsync: AsyncData(inspirationSnapshot)),
+        ),
+      ),
+    );
+    await tester.pump();
+    await _scrollThrough(tester);
+    _expectNoLayoutException(tester);
+    await _unmount(tester);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        key: const ValueKey('large-profile'),
+        child: MaterialApp(
+          theme: LumaNestTheme.light,
+          home: const ProfilePage(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('50%'), findsOneWidget);
+    await _scrollThrough(tester, passes: 10);
+    _expectNoLayoutException(tester);
+  });
 }
 
-void _useCompactView(WidgetTester tester) {
+Future<void> _unmount(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pumpAndSettle();
+}
+
+void _useCompactView(WidgetTester tester, {double textScaleFactor = 1}) {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
+  tester.platformDispatcher.textScaleFactorTestValue = textScaleFactor;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 }
 
 Future<void> _scrollThrough(WidgetTester tester, {int passes = 5}) async {

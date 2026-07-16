@@ -9,6 +9,7 @@ import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
+import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/today/presentation/today_page.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
@@ -34,6 +35,26 @@ void main() {
     );
 
     expect(find.text(narrative.summary), findsOneWidget);
+  });
+
+  testWidgets('decision hero uses its container foreground color', (
+    tester,
+  ) async {
+    final snapshot = ContextFixtures.quietCity();
+    final theme = LumaNestTheme.light;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: theme,
+        home: TodayPage(snapshotAsync: AsyncData(snapshot)),
+      ),
+    );
+
+    final label = tester.widget<Text>(
+      find.byWidgetPredicate(
+        (widget) => widget is Text && widget.data?.endsWith('判断') == true,
+      ),
+    );
+    expect(label.style?.color, theme.colorScheme.onPrimaryContainer);
   });
 
   testWidgets('labels a manual reference place as non-live', (tester) async {

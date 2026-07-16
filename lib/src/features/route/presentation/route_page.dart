@@ -27,6 +27,7 @@ import 'package:luma_nest/src/features/route/presentation/route_map_preview.dart
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/notifications/application/route_reminder_service.dart';
+import 'package:luma_nest/src/shared/widgets/responsive_action_group.dart';
 
 class RoutePage extends ConsumerWidget {
   const RoutePage({
@@ -283,7 +284,12 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
     final importedTracks = library?.importedTracks ?? const [];
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(LumaNestSpacing.lg),
+        padding: const EdgeInsets.fromLTRB(
+          LumaNestSpacing.md,
+          LumaNestSpacing.md,
+          LumaNestSpacing.md,
+          LumaNestSpacing.xl,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -333,40 +339,39 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
                   Icon(
                     Icons.alt_route_rounded,
                     size: 34,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                   const SizedBox(height: LumaNestSpacing.lg),
                   Text(
                     '下一段路，从一个目的地开始',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    ),
                   ),
                   const SizedBox(height: LumaNestSpacing.xs),
                   Text(
                     '从探索页选择目的地生成路线，也可以导入已有 GPX 轨迹离线查看。',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onPrimaryContainer.withValues(alpha: .8),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: LumaNestSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => context.go('/explore'),
-                    icon: const Icon(Icons.add_road_outlined),
-                    label: const Text('去探索选目的地'),
-                  ),
+            ResponsiveActionGroup(
+              actions: [
+                FilledButton.icon(
+                  onPressed: () => context.go('/explore'),
+                  icon: const Icon(Icons.add_road_outlined),
+                  label: const Text('去探索选目的地'),
                 ),
-                const SizedBox(width: LumaNestSpacing.xs),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _importing ? null : _importTrack,
-                    icon: const Icon(Icons.file_upload_outlined),
-                    label: Text(_importing ? '正在导入' : '导入轨迹'),
-                  ),
+                OutlinedButton.icon(
+                  onPressed: _importing ? null : _importTrack,
+                  icon: const Icon(Icons.file_upload_outlined),
+                  label: Text(_importing ? '正在导入' : '导入轨迹'),
                 ),
               ],
             ),
@@ -735,27 +740,22 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         ),
         if (route.source != RouteSource.importedGpx) ...[
           const SizedBox(height: LumaNestSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => ref
-                      .read(userLibraryProvider.notifier)
-                      .toggleSavedRoute(destination),
-                  icon: Icon(
-                    routeSaved ? Icons.bookmark : Icons.bookmark_outline,
-                  ),
-                  label: Text(routeSaved ? '取消保存路线' : '保存路线'),
+          ResponsiveActionGroup(
+            actions: [
+              OutlinedButton.icon(
+                onPressed: () => ref
+                    .read(userLibraryProvider.notifier)
+                    .toggleSavedRoute(destination),
+                icon: Icon(
+                  routeSaved ? Icons.bookmark : Icons.bookmark_outline,
                 ),
+                label: Text(routeSaved ? '取消保存路线' : '保存路线'),
               ),
               if (!route.isStale) ...[
-                const SizedBox(width: LumaNestSpacing.xs),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _openAmapNavigation,
-                    icon: const Icon(Icons.navigation_outlined),
-                    label: const Text('交给高德导航'),
-                  ),
+                FilledButton.icon(
+                  onPressed: _openAmapNavigation,
+                  icon: const Icon(Icons.navigation_outlined),
+                  label: const Text('交给高德导航'),
                 ),
               ],
             ],

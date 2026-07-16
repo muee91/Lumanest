@@ -362,7 +362,7 @@ class _DecisionHero extends StatelessWidget {
                       Text(
                         label,
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.primary,
+                          color: theme.colorScheme.onPrimaryContainer,
                           letterSpacing: 1.1,
                         ),
                       ),
@@ -370,17 +370,24 @@ class _DecisionHero extends StatelessWidget {
                       Icon(
                         Icons.north_east_rounded,
                         size: 18,
-                        color: theme.colorScheme.primary,
+                        color: theme.colorScheme.onPrimaryContainer,
                       ),
                     ],
                   ),
                   const SizedBox(height: LumaNestSpacing.xl),
-                  Text(summary, style: theme.textTheme.headlineMedium),
+                  Text(
+                    summary,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
                   const SizedBox(height: LumaNestSpacing.md),
                   Text(
                     '基于此刻环境与有效事件',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: theme.colorScheme.onPrimaryContainer.withValues(
+                        alpha: .78,
+                      ),
                     ),
                   ),
                 ],
@@ -430,27 +437,7 @@ class _EnvironmentStrip extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
         child: Column(
           children: [
-            Row(
-              children: [
-                for (var index = 0; index < entries.length; index++) ...[
-                  Expanded(
-                    child: _MetricPill(
-                      icon: entries[index].$1,
-                      value: entries[index].$2,
-                      label: entries[index].$3,
-                    ),
-                  ),
-                  if (index != entries.length - 1)
-                    Container(
-                      width: 1,
-                      height: 42,
-                      color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: .7,
-                      ),
-                    ),
-                ],
-              ],
-            ),
+            _EnvironmentMetrics(entries: entries),
             const SizedBox(height: LumaNestSpacing.xs),
             Align(
               alignment: Alignment.centerRight,
@@ -464,6 +451,58 @@ class _EnvironmentStrip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _EnvironmentMetrics extends StatelessWidget {
+  const _EnvironmentMetrics({required this.entries});
+
+  final List<(IconData, String, String)> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+    if (textScale >= 1.3 && entries.length > 2) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / 2;
+          return Wrap(
+            runSpacing: LumaNestSpacing.sm,
+            children: [
+              for (final entry in entries)
+                SizedBox(
+                  width: itemWidth,
+                  child: _MetricPill(
+                    icon: entry.$1,
+                    value: entry.$2,
+                    label: entry.$3,
+                  ),
+                ),
+            ],
+          );
+        },
+      );
+    }
+    return Row(
+      children: [
+        for (var index = 0; index < entries.length; index++) ...[
+          Expanded(
+            child: _MetricPill(
+              icon: entries[index].$1,
+              value: entries[index].$2,
+              label: entries[index].$3,
+            ),
+          ),
+          if (index != entries.length - 1)
+            Container(
+              width: 1,
+              height: 42,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: .7),
+            ),
+        ],
+      ],
     );
   }
 }
