@@ -189,6 +189,8 @@ function buildSnapshot(defaults, overrides, revision) {
     legacyLLMImportCandidate,
     contextServiceUrl: defaults.contextServiceUrl ?? '',
     contextInternalToken: defaults.contextInternalToken ?? '',
+    discoveryServiceUrl: defaults.discoveryServiceUrl ?? '',
+    discoveryInternalToken: defaults.discoveryInternalToken ?? '',
     qweatherApiHost: defaults.qweatherApiHost ?? '',
     port: defaults.port,
     settings: validateRuntimeSettings({
