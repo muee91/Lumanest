@@ -17,6 +17,7 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:luma_nest/src/shared/widgets/responsive_action_group.dart';
+import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 
 class InspirationPage extends ConsumerWidget {
   const InspirationPage({
@@ -125,7 +126,7 @@ class _InspirationAppBar extends StatelessWidget
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
-  Widget build(BuildContext context) => AppBar(title: const Text('灵感瓶'));
+  Widget build(BuildContext context) => AppBar(title: const Text('灵感'));
 }
 
 class _InspirationErrorView extends StatelessWidget {
@@ -266,60 +267,47 @@ class _BottleScaffoldState extends State<_BottleScaffold>
     final notes = widget.notes;
     if (notes.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('灵感瓶')),
+        appBar: AppBar(title: const Text('灵感')),
         body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-              Material(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerLow.withValues(alpha: .88),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.secondaryContainer,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.hourglass_empty_rounded,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
+              LumaNestSurface(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(height: 20),
-                      Text(
-                        '此刻还没有可靠的创作线索',
-                        style: Theme.of(context).textTheme.titleLarge,
+                      child: Icon(
+                        Icons.hourglass_empty_rounded,
+                        color: Theme.of(context).colorScheme.secondary,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '当前规则没有成立的创作事件。环境变化后，新的纸条会按需出现。',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      '此刻还没有可靠的创作线索',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '当前规则没有成立的创作事件。环境变化后，新的纸条会按需出现。',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                      const SizedBox(height: 20),
-                      FilledButton.icon(
-                        onPressed: widget.onExplore,
-                        icon: const Icon(Icons.explore_outlined),
-                        label: const Text('去探索附近'),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: widget.onExplore,
+                      icon: const Icon(Icons.explore_outlined),
+                      label: const Text('去探索附近'),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -340,80 +328,52 @@ class _BottleScaffoldState extends State<_BottleScaffold>
     final index = _selectedIndex % notes.length;
     final note = notes[index];
     return Scaffold(
-      appBar: AppBar(title: const Text('灵感瓶')),
+      appBar: AppBar(title: const Text('灵感')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  '此时此地的创作线索',
-                  style: Theme.of(context).textTheme.titleMedium,
+            LumaNestEyebrow(
+              label: '此时此地的创作线索',
+              trailing: Text(
+                '${notes.length} 张纸条',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    '${notes.length} 张纸条',
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 14),
             Center(child: _buildBottle(context, notes, note)),
             const SizedBox(height: 18),
-            Material(
-              color: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerLow.withValues(alpha: .88),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-                side: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Text(
-                      '抽到的纸条',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        letterSpacing: .8,
-                      ),
+            LumaNestSurface(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Text(
+                    '抽到的纸条',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      letterSpacing: .8,
                     ),
-                    const SizedBox(height: 12),
-                    AnimatedSwitcher(
-                      duration: widget.reduceMotion
-                          ? Duration.zero
-                          : const Duration(milliseconds: 220),
-                      child: _Paper(
-                        key: Key('selected-inspiration-${note.id}'),
-                        text: note.displayLabel,
-                        large: true,
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  AnimatedSwitcher(
+                    duration: widget.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 220),
+                    child: _Paper(
+                      key: Key('selected-inspiration-${note.id}'),
+                      text: note.displayLabel,
+                      large: true,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      note.detail,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    note.detail,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),

@@ -37,7 +37,7 @@ void main() {
     expect(find.text(narrative.summary), findsOneWidget);
   });
 
-  testWidgets('decision hero uses its container foreground color', (
+  testWidgets('decision hero keeps its label on the stable readable surface', (
     tester,
   ) async {
     final snapshot = ContextFixtures.quietCity();
@@ -54,7 +54,7 @@ void main() {
         (widget) => widget is Text && widget.data?.endsWith('判断') == true,
       ),
     );
-    expect(label.style?.color, theme.colorScheme.onPrimaryContainer);
+    expect(label.style?.color, theme.colorScheme.onSurfaceVariant);
   });
 
   testWidgets('labels a manual reference place as non-live', (tester) async {

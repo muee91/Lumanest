@@ -127,19 +127,19 @@ abstract final class LumaNestTheme {
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
-        color: scheme.surfaceContainerLow.withValues(alpha: 0.9),
+        color: scheme.surfaceContainerLow.withValues(alpha: 0.92),
         shape: RoundedRectangleBorder(
           side: BorderSide(color: borderColor),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(18),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 72,
+        height: 68,
         elevation: 0,
-        backgroundColor: scheme.surface.withValues(alpha: 0.94),
-        indicatorColor: scheme.primaryContainer,
+        backgroundColor: scheme.surface.withValues(alpha: 0.82),
+        indicatorColor: Colors.transparent,
         indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(12),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
@@ -152,7 +152,7 @@ abstract final class LumaNestTheme {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             color: selected ? scheme.primary : scheme.onSurfaceVariant,
-            size: selected ? 25 : 23,
+            size: selected ? 24 : 22,
           );
         }),
       ),
@@ -161,7 +161,7 @@ abstract final class LumaNestTheme {
           minimumSize: const Size(48, 50),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -172,7 +172,7 @@ abstract final class LumaNestTheme {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           side: BorderSide(color: scheme.outline),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(14),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -195,15 +195,15 @@ abstract final class LumaNestTheme {
         ),
         border: OutlineInputBorder(
           borderSide: BorderSide.none,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: borderColor),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
         focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
       ),
       chipTheme: ChipThemeData(
@@ -224,7 +224,7 @@ abstract final class LumaNestTheme {
       listTileTheme: ListTileThemeData(
         minTileHeight: 58,
         iconColor: scheme.onSurfaceVariant,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         titleTextStyle: textTheme.titleMedium?.copyWith(
           color: scheme.onSurface,
         ),
@@ -237,12 +237,12 @@ abstract final class LumaNestTheme {
         modalBackgroundColor: scheme.surface,
         showDragHandle: true,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
@@ -250,7 +250,7 @@ abstract final class LumaNestTheme {
         contentTextStyle: textTheme.bodyMedium?.copyWith(
           color: scheme.onInverseSurface,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }

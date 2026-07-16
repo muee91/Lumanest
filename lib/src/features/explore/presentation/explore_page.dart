@@ -26,6 +26,7 @@ import 'package:luma_nest/src/features/location/application/environment_location
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/features/explore/presentation/wildlife_map_overlays.dart';
+import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class ExplorePage extends ConsumerWidget {
@@ -87,22 +88,36 @@ class _ConfigurationMissingView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _ExplorePageMark(),
-            const Spacer(),
-            Icon(
-              Icons.map_outlined,
-              size: 52,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: LumaNestSpacing.lg),
-            Text('地图尚未配置', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: LumaNestSpacing.xs),
-            Text(
-              '完成高德地图配置后，附近机位、搜索与路线入口会在这里出现。',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Expanded(
+              child: Center(
+                child: LumaNestSurface(
+                  padding: const EdgeInsets.all(LumaNestSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 34,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: LumaNestSpacing.md),
+                      Text(
+                        '地图尚未配置',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: LumaNestSpacing.xs),
+                      Text(
+                        '完成高德地图配置后，附近机位、搜索与路线入口会在这里出现。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const Spacer(),
           ],
         ),
       ),
@@ -124,39 +139,45 @@ class _ConsentPrompt extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const _ExplorePageMark(),
-            const Spacer(),
-            Container(
-              width: 58,
-              height: 58,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.layers_outlined,
-                color: Theme.of(context).colorScheme.primary,
+            Expanded(
+              child: Center(
+                child: LumaNestSurface(
+                  padding: const EdgeInsets.all(LumaNestSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.layers_outlined,
+                        size: 34,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: LumaNestSpacing.md),
+                      Text(
+                        '先确认地图隐私',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: LumaNestSpacing.xs),
+                      Text(
+                        '开启地图前需要同意高德地图隐私政策。栖光不会把你的精确位置历史保存到服务端。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: LumaNestSpacing.lg),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: onAccept,
+                          icon: const Icon(Icons.map_outlined),
+                          label: const Text('同意并开启地图'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: LumaNestSpacing.lg),
-            Text('先确认地图隐私', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: LumaNestSpacing.xs),
-            Text(
-              '开启地图前需要同意高德地图隐私政策。栖光不会把你的精确位置历史保存到服务端。',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: LumaNestSpacing.xl),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onAccept,
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('同意并开启地图'),
-              ),
-            ),
-            const Spacer(),
           ],
         ),
       ),
@@ -168,28 +189,7 @@ class _ExplorePageMark extends StatelessWidget {
   const _ExplorePageMark();
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Container(
-        width: 9,
-        height: 9,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.secondary,
-          shape: BoxShape.circle,
-        ),
-      ),
-      const SizedBox(width: LumaNestSpacing.sm),
-      Text('探索', style: Theme.of(context).textTheme.displaySmall),
-      const Spacer(),
-      Text(
-        'EXPLORE',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          letterSpacing: 1.8,
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) => const LumaNestEyebrow(label: '探索');
 }
 
 class _MapView extends ConsumerStatefulWidget {
@@ -587,36 +587,26 @@ class _FocusBanner extends StatelessWidget {
   final ExploreFocus focus;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Theme.of(
-      context,
-    ).colorScheme.secondaryContainer.withValues(alpha: .9),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-      side: BorderSide(
-        color: Theme.of(context).colorScheme.secondary.withValues(alpha: .24),
-      ),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.filter_center_focus_rounded,
-            size: 17,
-            color: Theme.of(context).colorScheme.secondary,
+  Widget build(BuildContext context) => LumaNestSurface(
+    tone: LumaNestSurfaceTone.mapOverlay,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.filter_center_focus_rounded,
+          size: 17,
+          color: Theme.of(context).colorScheme.secondary,
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            focus.label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelLarge,
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              focus.label,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -627,34 +617,27 @@ class _ReferenceLocationBanner extends StatelessWidget {
   final EnvironmentLocationDisplay location;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Theme.of(
-      context,
-    ).colorScheme.tertiaryContainer.withValues(alpha: .94),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.location_on_outlined,
-            size: 17,
-            color: Theme.of(context).colorScheme.onTertiaryContainer,
+  Widget build(BuildContext context) => LumaNestSurface(
+    tone: LumaNestSurfaceTone.mapOverlay,
+    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.location_on_outlined,
+          size: 17,
+          color: Theme.of(context).colorScheme.secondary,
+        ),
+        const SizedBox(width: 7),
+        Flexible(
+          child: Text(
+            location.description,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelLarge,
           ),
-          const SizedBox(width: 7),
-          Flexible(
-            child: Text(
-              location.description,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onTertiaryContainer,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -666,11 +649,11 @@ class _CategoryBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(nearbyCategoryProvider);
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
-      elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: .12),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .84),
+      elevation: 0,
+      shadowColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         side: BorderSide(
           color: Theme.of(
             context,
@@ -722,11 +705,11 @@ class _NearbyResultPanel extends ConsumerWidget {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final category = ref.watch(nearbyCategoryProvider);
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: .16),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .92),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: .08),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         side: BorderSide(
           color: Theme.of(
             context,
@@ -800,7 +783,7 @@ class _NearbyResultPanel extends ConsumerWidget {
                 );
               }
               return SizedBox(
-                height: 116,
+                height: 104,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(12),
@@ -1229,11 +1212,11 @@ class _SearchResultPanel extends StatelessWidget {
         results.asData?.value.any((item) => item.distanceMeters != null) ==
         true;
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: .16),
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: .92),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: .08),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         side: BorderSide(
           color: Theme.of(
             context,
@@ -1278,7 +1261,7 @@ class _SearchResultPanel extends StatelessWidget {
                 );
               }
               return SizedBox(
-                height: 116,
+                height: 104,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.all(12),

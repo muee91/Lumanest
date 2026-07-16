@@ -20,6 +20,7 @@ import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
+import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 import 'package:luma_nest/src/shared/widgets/manifest_event_metadata.dart';
 
 class TodayPage extends StatelessWidget {
@@ -322,79 +323,48 @@ class _DecisionHero extends StatelessWidget {
     return Semantics(
       container: true,
       label: '$label，$summary',
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 190),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              theme.colorScheme.primaryContainer.withValues(alpha: .94),
-              theme.colorScheme.surfaceContainerHighest.withValues(alpha: .88),
-            ],
-          ),
-          border: Border.all(
-            color: theme.colorScheme.primary.withValues(alpha: .2),
-          ),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
+      child: LumaNestSurface(
+        padding: const EdgeInsets.all(LumaNestSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Positioned(
-              right: -48,
-              top: -58,
-              child: Container(
-                width: 176,
-                height: 176,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: .13),
-                    width: 26,
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: .8,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(_dayPhaseIcon(dayPhase), size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
+                Icon(
+                  Icons.arrow_outward_rounded,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(LumaNestSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        label,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const Spacer(),
-                      Icon(
-                        Icons.north_east_rounded,
-                        size: 18,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: LumaNestSpacing.xl),
-                  Text(
-                    summary,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(height: LumaNestSpacing.md),
-                  Text(
-                    '基于此刻环境与有效事件',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer.withValues(
-                        alpha: .78,
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: LumaNestSpacing.lg),
+            Text(summary, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: LumaNestSpacing.sm),
+            Text(
+              '基于此刻环境与仍然有效的事件',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -402,6 +372,14 @@ class _DecisionHero extends StatelessWidget {
       ),
     );
   }
+
+  static IconData _dayPhaseIcon(DayPhase phase) => switch (phase) {
+    DayPhase.dawn => Icons.wb_twilight_rounded,
+    DayPhase.day => Icons.wb_sunny_outlined,
+    DayPhase.sunset => Icons.wb_twilight_outlined,
+    DayPhase.blueHour => Icons.brightness_2_outlined,
+    DayPhase.night => Icons.nightlight_round,
+  };
 }
 
 class _EnvironmentStrip extends StatelessWidget {
@@ -429,31 +407,23 @@ class _EnvironmentStrip extends StatelessWidget {
     ];
     if (entries.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow.withValues(alpha: .86),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: .7),
-        ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
-        child: Column(
-          children: [
-            _EnvironmentMetrics(entries: entries),
-            const SizedBox(height: LumaNestSpacing.xs),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '天气数据：和风天气',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+    return LumaNestSurface(
+      tone: LumaNestSurfaceTone.solid,
+      padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+      child: Column(
+        children: [
+          _EnvironmentMetrics(entries: entries),
+          const SizedBox(height: LumaNestSpacing.xs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '天气数据：和风天气',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -552,40 +522,26 @@ class _InspirationTeaser extends StatelessWidget {
   final String note;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => Material(
-    color: Theme.of(
-      context,
-    ).colorScheme.secondaryContainer.withValues(alpha: .7),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(20),
-      side: BorderSide(
-        color: Theme.of(context).colorScheme.secondary.withValues(alpha: .22),
-      ),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 15),
-        child: Row(
-          children: [
-            Icon(
-              Icons.auto_awesome_outlined,
-              size: 19,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                note,
-                key: const Key('inspiration-preview'),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            const Icon(Icons.arrow_forward_rounded, size: 18),
-          ],
+  Widget build(BuildContext context) => LumaNestSurface(
+    onTap: onTap,
+    padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 15),
+    child: Row(
+      children: [
+        Icon(
+          Icons.auto_awesome_outlined,
+          size: 19,
+          color: Theme.of(context).colorScheme.secondary,
         ),
-      ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            note,
+            key: const Key('inspiration-preview'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        const Icon(Icons.arrow_forward_rounded, size: 18),
+      ],
     ),
   );
 }
