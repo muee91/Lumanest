@@ -1,8 +1,13 @@
-ARG DISCOVERY_BASE_IMAGE=qweather-token-broker-discovery-api:latest
+ARG DISCOVERY_BASE_IMAGE=qweather-token-broker-context-service:latest
 FROM ${DISCOVERY_BASE_IMAGE}
 
 USER root
 WORKDIR /app
+# Discovery has the same production dependency set as context-service except
+# for httpx.  Using the healthy context image makes the first Discovery
+# deployment self-bootstrapping on NAS hosts whose registry mirror cannot pull
+# python:3.12-slim; later releases can still override DISCOVERY_BASE_IMAGE.
+RUN pip install --no-cache-dir 'httpx>=0.28,<1'
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
