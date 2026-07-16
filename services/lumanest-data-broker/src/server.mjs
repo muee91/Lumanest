@@ -10,6 +10,7 @@ import { RuntimeConfigService } from './admin/runtime-config.mjs';
 import { AdminAuthService } from './admin/auth.mjs';
 import { AuditLog } from './admin/audit-log.mjs';
 import { createAdminServer } from './admin/admin-server.mjs';
+import { SimulationRegistry, isSimulationSessionId } from './context/simulation.mjs';
 import {
   createConnectionTester,
   createLLMModelLister,
@@ -669,6 +670,7 @@ export function createTokenBrokerServer({
   qweatherApiHost = '',
   weatherCache = new MemoryWeatherCache(),
   requestRateLimiter = new MemoryRequestRateLimiter(),
+  simulationRegistry = new SimulationRegistry(),
   now = () => new Date(),
   fetcher = fetch,
 }) {
@@ -982,6 +984,17 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_context_request' });
         return;
       }
+      // This header is emitted only by Flutter debug builds. A release build
+      // never sends it, and an inactive registry entry has no effect.
+      const simulationSession = request.headers['x-lumanest-debug-session'];
+      if (isSimulationSessionId(simulationSession)) {
+        simulationRegistry.register(simulationSession);
+        const simulated = simulationRegistry.snapshot(simulationSession, now());
+        if (simulated != null) {
+          writeJson(response, 200, simulated);
+          return;
+        }
+      }
       const [weather, sceneEvidence] = await Promise.all([
         authoritativeWeather({
           coordinate: body.coordinate,
@@ -1163,10 +1176,12 @@ export async function createBrokerServices(environment = process.env, {
   const requestRateLimiter = redisRateLimiter == null
     ? new MemoryRequestRateLimiter()
     : new FallbackRequestRateLimiter(redisRateLimiter);
+  const simulationRegistry = new SimulationRegistry();
   const appServer = createTokenBrokerServer({
     runtimeConfig,
     weatherCache,
     requestRateLimiter,
+    simulationRegistry,
   });
   const adminServer = createAdminServer({
     authService,
@@ -1190,6 +1205,7 @@ export async function createBrokerServices(environment = process.env, {
         internalToken: snapshot.contextInternalToken,
       });
     },
+    simulationRegistry,
     restart: async () => exit(0),
   });
   return {

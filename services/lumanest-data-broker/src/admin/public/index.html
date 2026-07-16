@@ -38,6 +38,7 @@
         <button class="nav-item" data-page="services">密钥与服务</button>
         <button class="nav-item" data-page="llm">模型服务</button>
         <button class="nav-item" data-page="runtime">运行设置</button>
+        <button class="nav-item" data-page="simulation">场景回放</button>
         <p class="sidebar-label security-label">系统</p>
         <button class="nav-item" data-page="security">安全与维护</button>
         <button id="logout" class="nav-item logout">退出登录</button>
@@ -123,6 +124,15 @@
             <label class="toggle"><input name="debugLogging" type="checkbox"><span>调试日志</span></label>
             <div class="actions wide"><button type="submit">应用设置</button></div>
           </form>
+        </section>
+
+        <section class="page" data-panel="simulation" hidden>
+          <div class="form-grid">
+            <div class="section-note"><h3>Debug 场景回放</h3><p>只会作用于已登记的 Debug App 会话；正式客户端不发送会话头，也不会收到模拟数据。会话 30 分钟后自动清除。</p></div>
+            <label class="wide">模拟场景<select id="simulation-preset"><option value="lake-sunset">湖泊 · 落日倒影</option><option value="mountain-dawn">高山 · 黎明金山</option><option value="city-blue-hour">城市 · 蓝调时刻</option><option value="rain-thunder">徒步 · 降雨雷暴</option><option value="snow-hike">徒步 · 降雪</option><option value="desert-dust">沙漠 · 风沙光</option></select></label>
+            <div class="wide"><p class="warning">先在 Debug App 中刷新一次环境数据，再在下方选择会话并发送。场景不保存真实坐标、设备标识或位置历史。</p></div>
+          </div>
+          <div class="audit"><h3>在线 Debug 会话</h3><ol id="simulation-session-list"></ol></div>
         </section>
 
         <section class="page" data-panel="security" hidden>

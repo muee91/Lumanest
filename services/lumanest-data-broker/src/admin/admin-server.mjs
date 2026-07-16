@@ -129,6 +129,7 @@ export function createAdminServer({
   listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
   importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
+  simulationRegistry = null,
   clearCache = async () => {},
   restart = async () => {},
 }) {
@@ -214,6 +215,24 @@ export function createAdminServer({
       return json(response, result.ok ? 200 : 503, result.ok
         ? { sources: result.sources }
         : { sources: [], error: result.error });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/simulation/sessions') {
+      return json(response, 200, { sessions: simulationRegistry?.list() ?? [] });
+    }
+    const simulationMatch = /^\/admin-api\/simulation\/sessions\/([a-z0-9]{8})$/.exec(url.pathname);
+    if (simulationMatch != null && request.method === 'POST') {
+      const parsed = await body(request);
+      if (parsed.tooLarge || typeof parsed.value?.preset !== 'string') {
+        return json(response, 400, { error: 'invalid_simulation_request' });
+      }
+      const result = simulationRegistry?.activate(simulationMatch[1], parsed.value) ?? { ok: false, error: 'unavailable' };
+      auditLog.record({ remoteAddress, operation: 'activate_simulation', fields: ['preset'], result: result.ok ? 'ok' : result.error });
+      return json(response, result.ok ? 200 : 404, result);
+    }
+    if (simulationMatch != null && request.method === 'DELETE') {
+      const result = simulationRegistry?.clear(simulationMatch[1]) ?? { ok: false, error: 'unavailable' };
+      auditLog.record({ remoteAddress, operation: 'clear_simulation', result: result.ok ? 'ok' : result.error });
+      return json(response, result.ok ? 200 : 404, result);
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/context/imports') {
       const parsed = await body(request, maximumImportBodyBytes);

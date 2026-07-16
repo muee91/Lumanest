@@ -47,9 +47,16 @@ async function loadLLM(){const [providerData,profileData]=await Promise.all([api
 function switchPage(name){
   $$('.nav-item[data-page]').forEach((button)=>button.classList.toggle('active',button.dataset.page===name));
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
-  const titles={overview:'概览',services:'密钥与服务',llm:'模型服务',runtime:'运行设置',security:'安全与维护'};$('#page-title').textContent=titles[name];
+  const titles={overview:'概览',services:'密钥与服务',llm:'模型服务',runtime:'运行设置',simulation:'场景回放',security:'安全与维护'};$('#page-title').textContent=titles[name];
   if(name==='security')loadAudit();
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
+  if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
+}
+
+async function loadSimulation(){
+  const {sessions}=await api('simulation/sessions');const list=$('#simulation-session-list');list.replaceChildren();
+  if(!sessions.length){const item=document.createElement('li');item.textContent='尚无 Debug App 会话。打开 App 后刷新一次环境数据。';list.append(item);return;}
+  for(const session of sessions){const item=document.createElement('li');const code=document.createElement('span');code.textContent=`会话 · ${session.sessionCode}`;const state=document.createElement('span');state.textContent=session.activePreset?`当前：${session.activePreset}`:'未启用模拟';const actions=document.createElement('span');const send=document.createElement('button');send.type='button';send.className='secondary';send.textContent='发送场景';send.addEventListener('click',async()=>{await api(`simulation/sessions/${session.sessionCode}`,{method:'POST',body:{preset:$('#simulation-preset').value}});status('模拟场景已发送；在 Debug App 中刷新环境数据即可生效');await loadSimulation();});const clear=document.createElement('button');clear.type='button';clear.className='secondary';clear.textContent='停止';clear.disabled=!session.activePreset;clear.addEventListener('click',async()=>{await api(`simulation/sessions/${session.sessionCode}`,{method:'DELETE',body:{}});status('模拟已停止');await loadSimulation();});actions.append(send,clear);item.append(code,state,actions);list.append(item);}
 }
 
 async function loadAudit(){

@@ -22,6 +22,7 @@ import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart
 import 'package:luma_nest/src/infrastructure/location/amap_location_gateway.dart';
 import 'package:luma_nest/src/infrastructure/location/amap_scene_evidence_repository.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
+import 'package:luma_nest/src/core/context/debug_simulation_session.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_safety_detail_repository.dart';
 import 'package:luma_nest/src/infrastructure/solar/nrel_solar_service.dart';
 import 'package:luma_nest/src/infrastructure/weather/qweather_client.dart';
@@ -166,6 +167,7 @@ final remoteContextRepositoryProvider = Provider<RemoteContextRepository?>((
   return DataBrokerContextRepository(
     brokerBaseUrl: config.dataBrokerBaseUrl,
     serviceToken: config.lumaNestServiceToken,
+    debugSimulationSession: DebugSimulationSession.headerValue,
     transport: DioContextDataTransport(
       Dio(
         BaseOptions(

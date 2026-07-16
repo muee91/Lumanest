@@ -69,11 +69,13 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     required this.brokerBaseUrl,
     required this.serviceToken,
     required this.transport,
+    this.debugSimulationSession,
   });
 
   final String brokerBaseUrl;
   final String serviceToken;
   final ContextDataTransport transport;
+  final String? debugSimulationSession;
 
   @override
   Future<ContextSnapshot> fetchSnapshot({
@@ -113,12 +115,11 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       throw const RemoteContextFailure(RemoteContextFailureKind.configuration);
     }
     final uri = Uri.parse(brokerBaseUrl).resolve('/v1/context/snapshot');
+    final headers = <String, String>{'Authorization': 'Bearer $serviceToken'};
+    final session = debugSimulationSession;
+    if (session != null) headers['X-LumaNest-Debug-Session'] = session;
     try {
-      final body = await transport.post(
-        uri,
-        headers: {'Authorization': 'Bearer $serviceToken'},
-        body: request,
-      );
+      final body = await transport.post(uri, headers: headers, body: request);
       return _parse(body, location: location, fallback: fallback);
     } on RemoteContextFailure {
       rethrow;
