@@ -28,6 +28,8 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pump();
-    expect(find.text('动态背景'), findsOneWidget);
+    expect(find.text('显示与动效'), findsOneWidget);
+    expect(find.text('创作偏好'), findsOneWidget);
+    expect(find.text('AI 文案'), findsOneWidget);
   });
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
-import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 
 void main() {
@@ -74,6 +73,9 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pump();
+    await tester.tap(find.byKey(const Key('open-appearance-settings')));
+    await tester.pumpAndSettle();
+    final settingsScrollable = find.byType(Scrollable).last;
     final highContrastTile = find.ancestor(
       of: find.text('高对比度'),
       matching: find.byType(SwitchListTile),
@@ -93,17 +95,11 @@ void main() {
     ).colorScheme;
     expect(highContrastScheme, LumaNestTheme.highContrastLight.colorScheme);
 
-    // The ambient motion SegmentedButton sits above the high-contrast tile.
-    // Scrolling to “高对比度” recycled those segments off-screen, so drag
-    // the profile list back up to rebuild them before interacting.
+    // The ambient mode selector sits above the high-contrast tile in the
+    // focused settings sheet. Bring it back into the sheet viewport.
     await tester.dragUntilVisible(
       find.text('节能'),
-      find
-          .descendant(
-            of: find.byType(ProfilePage),
-            matching: find.byType(Scrollable),
-          )
-          .first,
+      settingsScrollable,
       const Offset(0, 100),
     );
     await tester.pump();
@@ -158,17 +154,11 @@ void main() {
       isTrue,
     );
 
-    // The “动态背景” switch sits at the very top of the profile list; the
-    // earlier scroll to the SegmentedButton recycled it. Drag back to the top
-    // to rebuild it before toggling the switch off.
+    // The dynamic-background switch sits at the top of the same focused
+    // settings sheet.
     await tester.dragUntilVisible(
       find.text('动态背景'),
-      find
-          .descendant(
-            of: find.byType(ProfilePage),
-            matching: find.byType(Scrollable),
-          )
-          .first,
+      settingsScrollable,
       const Offset(0, 100),
     );
     await tester.pump();

@@ -206,7 +206,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('50%'), findsOneWidget);
+    expect(find.textContaining('推荐强度 50%'), findsOneWidget);
     await _scrollThrough(tester, passes: 10);
     _expectNoLayoutException(tester);
   });

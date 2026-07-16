@@ -38,7 +38,6 @@ class ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preferences = ref.watch(profilePreferencesProvider);
-    final controller = ref.read(profilePreferencesProvider.notifier);
     final diagnosticStatus = ref.watch(environmentDiagnosticStatusProvider);
     final library = ref.watch(userLibraryProvider).asData?.value;
     final environmentConsentGranted = ref.watch(environmentConsentProvider);
@@ -76,189 +75,35 @@ class ProfilePage extends ConsumerWidget {
           ),
           const _ProfileSectionTitle(
             icon: Icons.tune_rounded,
-            title: '体验与个性',
-            subtitle: '只影响本机呈现与推荐顺序',
+            title: '个性设置',
+            subtitle: '按需调整显示、偏好与文案',
           ),
           _ProfileSurface(
             child: Column(
               children: [
-                SwitchListTile(
-                  title: const Text('动态背景'),
-                  value: preferences.ambientBackgroundEnabled,
-                  onChanged: (_) => controller.toggleAmbientBackground(),
+                _ProfileSettingsEntry(
+                  key: const Key('open-appearance-settings'),
+                  icon: Icons.motion_photos_auto_outlined,
+                  title: '显示与动效',
+                  subtitle: _appearanceSummary(preferences),
+                  onTap: () => _showAppearanceSettings(context),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  child: SegmentedButton<AmbientMotionMode>(
-                    segments: const [
-                      ButtonSegment(
-                        value: AmbientMotionMode.full,
-                        label: Text('完整'),
-                      ),
-                      ButtonSegment(
-                        value: AmbientMotionMode.energySaver,
-                        label: Text('节能'),
-                      ),
-                      ButtonSegment(
-                        value: AmbientMotionMode.staticColor,
-                        label: Text('静态'),
-                      ),
-                    ],
-                    selected: {preferences.ambientMotionMode},
-                    onSelectionChanged: preferences.ambientBackgroundEnabled
-                        ? (selection) =>
-                              controller.setAmbientMotionMode(selection.single)
-                        : null,
-                  ),
+                const Divider(height: 1),
+                _ProfileSettingsEntry(
+                  key: const Key('open-creative-settings'),
+                  icon: Icons.tune_outlined,
+                  title: '创作偏好',
+                  subtitle: _creativeSummary(preferences),
+                  onTap: () => _showCreativeSettings(context),
                 ),
-                SwitchListTile(
-                  title: const Text('减少动效'),
-                  value: preferences.reduceMotion,
-                  onChanged: (_) => controller.toggleReduceMotion(),
-                ),
-                SwitchListTile(
-                  title: const Text('减少闪烁'),
-                  value: preferences.reduceFlashing,
-                  onChanged: (_) => controller.toggleReduceFlashing(),
-                ),
-                SwitchListTile(
-                  title: const Text('高对比度'),
-                  subtitle: const Text('增强文字、按钮和背景之间的区分'),
-                  value: preferences.highContrast,
-                  onChanged: (_) => controller.toggleHighContrast(),
-                ),
-                const Divider(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                  child: Text(
-                    '摄影偏好',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final option in _photographyOptions)
-                        FilterChip(
-                          label: Text(option),
-                          selected: preferences.photographyPreferences.contains(
-                            option,
-                          ),
-                          onSelected: (_) =>
-                              controller.togglePhotographyPreference(option),
-                        ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                  child: Text(
-                    '活动偏好',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final option in _activityOptions)
-                        FilterChip(
-                          label: Text(option),
-                          selected: preferences.activityPreferences.contains(
-                            option,
-                          ),
-                          onSelected: (_) =>
-                              controller.toggleActivityPreference(option),
-                        ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                  child: Text(
-                    '设备',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _EquipmentField(
-                    initialValue: preferences.equipmentList,
-                    onChanged: controller.setEquipmentList,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-                  child: Text(
-                    'AI 语气',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SegmentedButton<AiTone>(
-                    segments: const [
-                      ButtonSegment(value: AiTone.concise, label: Text('简洁')),
-                      ButtonSegment(value: AiTone.balanced, label: Text('均衡')),
-                      ButtonSegment(value: AiTone.detailed, label: Text('详细')),
-                    ],
-                    selected: {preferences.aiTone},
-                    onSelectionChanged: (selection) =>
-                        controller.setAiTone(selection.single),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Row(
-                    children: [
-                      Text(
-                        '推荐强度',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const Spacer(),
-                      Semantics(
-                        label:
-                            '当前推荐强度 ${(preferences.recommendationIntensity * 100).round()}%',
-                        excludeSemantics: true,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            '${(preferences.recommendationIntensity * 100).round()}%',
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Slider(
-                    value: preferences.recommendationIntensity,
-                    min: 0,
-                    max: 1,
-                    divisions: 10,
-                    label:
-                        '${(preferences.recommendationIntensity * 100).round()}%',
-                    onChanged: controller.setRecommendationIntensity,
-                  ),
+                const Divider(height: 1),
+                _ProfileSettingsEntry(
+                  key: const Key('open-ai-settings'),
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'AI 文案',
+                  subtitle:
+                      '${_toneLabel(preferences.aiTone)} · 推荐强度 ${(preferences.recommendationIntensity * 100).round()}%',
+                  onTap: () => _showAiSettings(context),
                 ),
               ],
             ),
@@ -849,6 +694,393 @@ class ProfilePage extends ConsumerWidget {
   }
 }
 
+String _appearanceSummary(ProfilePreferences preferences) {
+  final mode = preferences.ambientBackgroundEnabled
+      ? switch (preferences.ambientMotionMode) {
+          AmbientMotionMode.full => '完整动态',
+          AmbientMotionMode.energySaver => '节能动态',
+          AmbientMotionMode.staticColor => '静态背景',
+        }
+      : '动态背景关闭';
+  final adjustments = <String>[
+    if (preferences.reduceMotion) '减少动效',
+    if (preferences.reduceFlashing) '减少闪烁',
+    if (preferences.highContrast) '高对比',
+  ];
+  return [mode, ...adjustments].join(' · ');
+}
+
+String _creativeSummary(ProfilePreferences preferences) {
+  final photographyCount = preferences.photographyPreferences.length;
+  final activityCount = preferences.activityPreferences.length;
+  if (photographyCount == 0 &&
+      activityCount == 0 &&
+      preferences.equipmentList.trim().isEmpty) {
+    return '摄影与活动偏好、设备清单';
+  }
+  return [
+    if (photographyCount > 0) '摄影 $photographyCount 项',
+    if (activityCount > 0) '活动 $activityCount 项',
+    if (preferences.equipmentList.trim().isNotEmpty) '已填写设备',
+  ].join(' · ');
+}
+
+String _toneLabel(AiTone tone) => switch (tone) {
+  AiTone.concise => '简洁语气',
+  AiTone.balanced => '均衡语气',
+  AiTone.detailed => '详细语气',
+};
+
+Future<void> _showAppearanceSettings(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (_) => const _AppearanceSettingsSheet(),
+    );
+
+Future<void> _showCreativeSettings(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (_) => const _CreativeSettingsSheet(),
+    );
+
+Future<void> _showAiSettings(BuildContext context) =>
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (_) => const _AiSettingsSheet(),
+    );
+
+class _ProfileSettingsEntry extends StatelessWidget {
+  const _ProfileSettingsEntry({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+    leading: Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Icon(
+        icon,
+        size: 20,
+        color: Theme.of(context).colorScheme.onPrimaryContainer,
+      ),
+    ),
+    title: Text(title),
+    subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: onTap,
+  );
+}
+
+class _AppearanceSettingsSheet extends ConsumerWidget {
+  const _AppearanceSettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preferences = ref.watch(profilePreferencesProvider);
+    final controller = ref.read(profilePreferencesProvider.notifier);
+    return _ProfileSettingsSheet(
+      title: '显示与动效',
+      subtitle: '只改变这台设备上的视觉呈现',
+      child: _ProfileSurface(
+        child: Column(
+          children: [
+            SwitchListTile(
+              title: const Text('动态背景'),
+              subtitle: const Text('根据当前环境呈现氛围背景'),
+              value: preferences.ambientBackgroundEnabled,
+              onChanged: (_) => controller.toggleAmbientBackground(),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<AmbientMotionMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: AmbientMotionMode.full,
+                      label: Text('完整'),
+                    ),
+                    ButtonSegment(
+                      value: AmbientMotionMode.energySaver,
+                      label: Text('节能'),
+                    ),
+                    ButtonSegment(
+                      value: AmbientMotionMode.staticColor,
+                      label: Text('静态'),
+                    ),
+                  ],
+                  selected: {preferences.ambientMotionMode},
+                  onSelectionChanged: preferences.ambientBackgroundEnabled
+                      ? (selection) =>
+                            controller.setAmbientMotionMode(selection.single)
+                      : null,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('减少动效'),
+              subtitle: const Text('降低页面切换和持续动画'),
+              value: preferences.reduceMotion,
+              onChanged: (_) => controller.toggleReduceMotion(),
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('减少闪烁'),
+              subtitle: const Text('避免快速亮度变化'),
+              value: preferences.reduceFlashing,
+              onChanged: (_) => controller.toggleReduceFlashing(),
+            ),
+            const Divider(height: 1),
+            SwitchListTile(
+              title: const Text('高对比度'),
+              subtitle: const Text('增强文字、按钮和背景之间的区分'),
+              value: preferences.highContrast,
+              onChanged: (_) => controller.toggleHighContrast(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreativeSettingsSheet extends ConsumerWidget {
+  const _CreativeSettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preferences = ref.watch(profilePreferencesProvider);
+    final controller = ref.read(profilePreferencesProvider.notifier);
+    return _ProfileSettingsSheet(
+      title: '创作偏好',
+      subtitle: '只重排已经成立的创作机会',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsGroupLabel('摄影偏好'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final option in _photographyOptions)
+                FilterChip(
+                  label: Text(option),
+                  selected: preferences.photographyPreferences.contains(option),
+                  onSelected: (_) =>
+                      controller.togglePhotographyPreference(option),
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          const _SettingsGroupLabel('活动偏好'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final option in _activityOptions)
+                FilterChip(
+                  label: Text(option),
+                  selected: preferences.activityPreferences.contains(option),
+                  onSelected: (_) =>
+                      controller.toggleActivityPreference(option),
+                ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          const _SettingsGroupLabel('常用设备'),
+          _EquipmentField(
+            initialValue: preferences.equipmentList,
+            onChanged: controller.setEquipmentList,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiSettingsSheet extends ConsumerWidget {
+  const _AiSettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preferences = ref.watch(profilePreferencesProvider);
+    final controller = ref.read(profilePreferencesProvider.notifier);
+    final percentage = (preferences.recommendationIntensity * 100).round();
+    return _ProfileSettingsSheet(
+      title: 'AI 文案',
+      subtitle: '只调整表达方式，不改变事实、安全或动作',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SettingsGroupLabel('表达语气'),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<AiTone>(
+              segments: const [
+                ButtonSegment(value: AiTone.concise, label: Text('简洁')),
+                ButtonSegment(value: AiTone.balanced, label: Text('均衡')),
+                ButtonSegment(value: AiTone.detailed, label: Text('详细')),
+              ],
+              selected: {preferences.aiTone},
+              onSelectionChanged: (selection) =>
+                  controller.setAiTone(selection.single),
+            ),
+          ),
+          const SizedBox(height: 26),
+          Row(
+            children: [
+              const Expanded(child: _SettingsGroupLabel('推荐强度')),
+              Semantics(
+                label: '当前推荐强度 $percentage%',
+                excludeSemantics: true,
+                child: _SettingValueBadge('$percentage%'),
+              ),
+            ],
+          ),
+          Slider(
+            value: preferences.recommendationIntensity,
+            min: 0,
+            max: 1,
+            divisions: 10,
+            label: '$percentage%',
+            onChanged: controller.setRecommendationIntensity,
+          ),
+          Text(
+            '低强度保留原始规则顺序；高强度优先显示与你偏好匹配的已成立事件。',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileSettingsSheet extends StatelessWidget {
+  const _ProfileSettingsSheet({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return SizedBox(
+      height: MediaQuery.sizeOf(context).height * .88,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 10, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: '关闭',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomInset),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsGroupLabel extends StatelessWidget {
+  const _SettingsGroupLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(label, style: Theme.of(context).textTheme.titleMedium),
+  );
+}
+
+class _SettingValueBadge extends StatelessWidget {
+  const _SettingValueBadge(this.value);
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Text(
+      value,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: Theme.of(context).colorScheme.onPrimaryContainer,
+      ),
+    ),
+  );
+}
+
 class _ProfileHero extends StatelessWidget {
   const _ProfileHero();
 
@@ -856,47 +1088,40 @@ class _ProfileHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.secondaryContainer.withValues(alpha: .92),
-            theme.colorScheme.surfaceContainerHighest.withValues(alpha: .84),
-          ],
-        ),
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: .56),
         border: Border.all(
           color: theme.colorScheme.secondary.withValues(alpha: .22),
         ),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
           final compact = textScale >= 1.3 || constraints.maxWidth < 320;
           final icon = Container(
-            width: 52,
-            height: 52,
+            width: 42,
+            height: 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: theme.colorScheme.secondary.withValues(alpha: .14),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.camera_outlined,
               color: theme.colorScheme.secondary,
-              size: 25,
+              size: 21,
             ),
           );
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('只属于你的栖光', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 4),
+              Text('本机空间', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 2),
               Text(
-                '无账号，偏好与创作记录优先留在本机。',
-                style: theme.textTheme.bodyMedium?.copyWith(
+                '偏好、收藏与创作记录不需要账号。',
+                style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSecondaryContainer.withValues(
                     alpha: .82,
                   ),
@@ -910,14 +1135,14 @@ class _ProfileHero extends StatelessWidget {
               color: theme.colorScheme.surface.withValues(alpha: .74),
               borderRadius: BorderRadius.circular(99),
             ),
-            child: Text('本机', style: theme.textTheme.labelSmall),
+            child: Text('仅本机', style: theme.textTheme.labelSmall),
           );
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [icon, const Spacer(), badge]),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 copy,
               ],
             );
@@ -925,7 +1150,7 @@ class _ProfileHero extends StatelessWidget {
           return Row(
             children: [
               icon,
-              const SizedBox(width: 15),
+              const SizedBox(width: 12),
               Expanded(child: copy),
               badge,
             ],

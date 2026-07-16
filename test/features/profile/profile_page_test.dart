@@ -72,6 +72,8 @@ void main() {
         ),
       );
 
+      await tester.tap(find.byKey(const Key('open-appearance-settings')));
+      await tester.pumpAndSettle();
       expect(find.text('动态背景'), findsOneWidget);
       expect(find.text('减少动效'), findsOneWidget);
       expect(find.text('减少闪烁'), findsOneWidget);
@@ -92,6 +94,8 @@ void main() {
       ),
     );
 
+    await tester.tap(find.byKey(const Key('open-appearance-settings')));
+    await tester.pumpAndSettle();
     final dynamicSwitch = find.ancestor(
       of: find.text('动态背景'),
       matching: find.byType(SwitchListTile),
@@ -118,6 +122,45 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('settings overview stays compact and panels reflow at 1.5x', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+
+    expect(find.text('显示与动效'), findsOneWidget);
+    expect(find.text('创作偏好'), findsOneWidget);
+    expect(find.text('AI 文案'), findsOneWidget);
+    expect(find.text('动态背景'), findsNothing);
+
+    for (final entryKey in const [
+      Key('open-appearance-settings'),
+      Key('open-creative-settings'),
+      Key('open-ai-settings'),
+    ]) {
+      await tester.tap(find.byKey(entryKey));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('return reminder switch requests permission before enabling', (
@@ -175,9 +218,15 @@ void main() {
       );
       await tester.pump();
 
-      final scrollable = find.byType(Scrollable).first;
+      await tester.tap(find.byKey(const Key('open-creative-settings')));
+      await tester.pumpAndSettle();
+      final creativeScrollable = find.byType(Scrollable).last;
       Future<void> reveal(Finder finder) async {
-        await tester.scrollUntilVisible(finder, 180, scrollable: scrollable);
+        await tester.scrollUntilVisible(
+          finder,
+          180,
+          scrollable: creativeScrollable,
+        );
         await tester.ensureVisible(finder);
         await tester.pump();
       }
@@ -194,12 +243,15 @@ void main() {
       await tester.enterText(find.byType(TextField), '相机、35mm、三脚架');
       await tester.pump();
 
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-ai-settings')));
+      await tester.pumpAndSettle();
+
       final detailedTone = find.text('详细');
-      await reveal(detailedTone);
       await tester.tap(detailedTone);
       await tester.pump();
 
-      await reveal(find.byType(Slider));
       final slider = find.byType(Slider);
       final sliderCenter = tester.getCenter(slider);
       final sliderWidth = tester.getSize(slider).width;
@@ -550,11 +602,11 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('配置'), findsNothing);
-    expect(find.textContaining('权限'), findsNothing);
-    expect(find.textContaining('缓存'), findsNothing);
-    // Switches are still present — the page rendered without diagnostics.
-    expect(find.text('动态背景'), findsOneWidget);
+    expect(find.text('天气配置未完成，无法获取实时天气'), findsNothing);
+    expect(find.text('地图配置未完成，无法显示探索地图'), findsNothing);
+    expect(find.textContaining('定位权限被拒绝'), findsNothing);
+    expect(find.text('网络不可用，正在显示缓存的场景数据'), findsNothing);
+    expect(find.text('个性设置'), findsOneWidget);
   });
 
   testWidgets('shows QWeather config missing diagnostic', (tester) async {
@@ -614,7 +666,7 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('缓存'), findsOneWidget);
+    expect(find.text('网络不可用，正在显示缓存的场景数据'), findsOneWidget);
   });
 
   testWidgets(
@@ -632,7 +684,7 @@ void main() {
       );
 
       expect(
-        find.textContaining('缓存'),
+        find.text('网络不可用，正在显示缓存的场景数据'),
         findsOneWidget,
         reason: 'the diagnostic message must still render',
       );
