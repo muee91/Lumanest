@@ -194,6 +194,31 @@ function normalizedWarnings(body, fetchedAt) {
   }).slice(0, 8);
 }
 
+function hasCurrentWarningContract(body) {
+  return body != null && typeof body === 'object' &&
+    Array.isArray(body.officialWarnings) && body.officialWarnings.every((warning) =>
+      warning != null && typeof warning === 'object' &&
+      boundedWarningText(warning.title, 80) != null,
+    );
+}
+
+function staleCachedBody(body) {
+  if (body == null || typeof body !== 'object' || body.weather == null ||
+      typeof body.weather !== 'object') return null;
+  const warnings = Array.isArray(body.officialWarnings) ? body.officialWarnings : [];
+  return {
+    ...body,
+    weather: { ...body.weather, stale: true, airQualityStale: true },
+    officialWarnings: warnings.flatMap((warning) => {
+      if (warning == null || typeof warning !== 'object') return [];
+      return [{
+        ...warning,
+        title: boundedWarningText(warning.title, 80) ?? '官方气象预警',
+      }];
+    }),
+  };
+}
+
 async function qweatherRequest({ host, path, location, token, fetcher, timeoutMs }) {
   const url = new URL(path, host);
   url.searchParams.set('location', location);
@@ -224,7 +249,8 @@ export async function authoritativeWeather({
   const fetchedAt = now();
   const cached = await cache.get(key);
   const cachedAge = cached == null ? Number.POSITIVE_INFINITY : fetchedAt.getTime() - cached.cachedAt;
-  if (cachedAge >= 0 && cachedAge <= freshCacheMilliseconds) {
+  if (cachedAge >= 0 && cachedAge <= freshCacheMilliseconds &&
+      hasCurrentWarningContract(cached.body)) {
     return { ok: true, body: cached.body, cache: 'fresh' };
   }
 
@@ -263,13 +289,11 @@ export async function authoritativeWeather({
     await cache.set(key, { cachedAt: fetchedAt.getTime(), body });
     return { ok: true, body, cache: 'miss' };
   } catch {
-    if (cachedAge >= 0 && cachedAge <= staleCacheMilliseconds) {
+    const staleBody = staleCachedBody(cached?.body);
+    if (cachedAge >= 0 && cachedAge <= staleCacheMilliseconds && staleBody != null) {
       return {
         ok: true,
-        body: {
-          ...cached.body,
-          weather: { ...cached.body.weather, stale: true, airQualityStale: true },
-        },
+        body: staleBody,
         cache: 'stale',
       };
     }

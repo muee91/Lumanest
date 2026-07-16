@@ -124,3 +124,46 @@ test('authoritative weather uses a bounded stale cache and rejects arbitrary hos
   const invalid = await authoritativeWeather({ ...base, apiHost: 'https://attacker.example' });
   assert.deepEqual(invalid, { ok: false, error: 'not_configured' });
 });
+
+test('legacy warning cache refreshes online and remains forward-compatible offline', async () => {
+  const cache = new RecordingCache();
+  const base = {
+    coordinate,
+    apiHost: 'https://project.qweatherapi.com',
+    privateKey,
+    keyId: 'key-id',
+    projectId: 'project-id',
+    cache,
+    now: () => new Date('2026-07-14T02:02:00Z'),
+    fetcher: async (url) => response(url.pathname),
+  };
+  await authoritativeWeather(base);
+  delete cache.entry.body.officialWarnings[0].title;
+  delete cache.entry.body.officialWarnings[0].description;
+  delete cache.entry.body.officialWarnings[0].guidance;
+
+  const refreshed = await authoritativeWeather(base);
+  assert.equal(refreshed.cache, 'miss');
+  assert.equal(refreshed.body.officialWarnings[0].title, '雷电红色预警');
+
+  delete cache.entry.body.officialWarnings[0].title;
+  const stale = await authoritativeWeather({
+    ...base,
+    now: () => new Date('2026-07-14T02:08:00Z'),
+    fetcher: async () => { throw new Error('offline'); },
+  });
+  assert.equal(stale.cache, 'stale');
+  assert.equal(stale.body.officialWarnings[0].title, '官方气象预警');
+});
+
+class RecordingCache {
+  entry = null;
+
+  async get() {
+    return this.entry;
+  }
+
+  async set(_key, value) {
+    this.entry = structuredClone(value);
+  }
+}
