@@ -2,6 +2,7 @@ import { createPrivateKey } from 'node:crypto';
 
 import { defaultRuntimeSettings, validateRuntimeSettings } from './runtime-settings.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
+import { defaultDiscoverySearchProfile, validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
 
 const configurableFields = new Set([
   'qweatherPrivateKeyPem',
@@ -11,6 +12,7 @@ const configurableFields = new Set([
   'amapWebKey',
   'llmProfiles',
   'llmRouting',
+  'discoverySearchProfile',
   'settings',
 ]);
 
@@ -55,6 +57,12 @@ function validatePatch(patch) {
       }
       continue;
     }
+    if (name === 'discoverySearchProfile') {
+      if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+        throw new TypeError('discoverySearchProfile must be an object');
+      }
+      continue;
+    }
     if (typeof value !== 'string') {
       throw new TypeError(`${name} must be a string or null`);
     }
@@ -81,6 +89,15 @@ function mergedOverrides(current, patch) {
       });
     } else if (name === 'llmRouting') {
       result.llmRouting = { ...(result.llmRouting ?? {}), ...value };
+    } else if (name === 'discoverySearchProfile') {
+      result.discoverySearchProfile = {
+        ...(result.discoverySearchProfile ?? {}),
+        ...value,
+      };
+      if (value.apiKey === undefined && result.discoverySearchProfile.apiKey === undefined &&
+          current.discoverySearchProfile?.apiKey !== undefined) {
+        result.discoverySearchProfile.apiKey = current.discoverySearchProfile.apiKey;
+      }
     } else {
       result[name] = value;
     }
@@ -171,6 +188,10 @@ function privateKeyFrom(defaults, overrides) {
 function buildSnapshot(defaults, overrides, revision) {
   const llmProfiles = normalizedProfiles(overrides.llmProfiles ?? []);
   const llmRouting = normalizedRouting(overrides.llmRouting, llmProfiles);
+  const discoverySearchProfile = validateDiscoverySearchProfile({
+    ...defaultDiscoverySearchProfile(),
+    ...(overrides.discoverySearchProfile ?? {}),
+  });
   const legacyLLMImportCandidate = defaults.aiApiKey
     ? Object.freeze({
       apiKey: defaults.aiApiKey,
@@ -186,11 +207,13 @@ function buildSnapshot(defaults, overrides, revision) {
     amapWebKey: overrides.amapWebKey ?? defaults.amapWebKey,
     llmProfiles,
     llmRouting,
+    discoverySearchProfile,
     legacyLLMImportCandidate,
     contextServiceUrl: defaults.contextServiceUrl ?? '',
     contextInternalToken: defaults.contextInternalToken ?? '',
     discoveryServiceUrl: defaults.discoveryServiceUrl ?? '',
     discoveryInternalToken: defaults.discoveryInternalToken ?? '',
+    discoveryWorkerToken: defaults.discoveryWorkerToken ?? '',
     qweatherApiHost: defaults.qweatherApiHost ?? '',
     port: defaults.port,
     settings: validateRuntimeSettings({
