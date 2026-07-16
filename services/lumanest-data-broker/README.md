@@ -141,14 +141,18 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
 
 6. 在局域网浏览器打开 `http://NAS_IP:8788/admin`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
 
-完整情境服务还需要两个仅保存在 NAS 环境文件中的值：
+完整情境与发现服务还需要以下仅保存在 NAS 环境文件中的值：
 
 - `CONTEXT_INTERNAL_TOKEN`：Broker 与 FastAPI 情境服务之间的独立随机令牌，不能传入 Flutter。
+- `DISCOVERY_INTERNAL_TOKEN`：Broker 与 Discovery API 之间的独立随机令牌，不能传入 Flutter。
+- `DISCOVERY_WORKER_TOKEN`：Discovery worker 调用 Broker 内网搜索与提取适配器的独立随机令牌，不能与其他令牌复用。
 - `LUMANEST_DATABASE_PASSWORD`：PostgreSQL 专用随机密码，不能与管理密码或 App 服务令牌复用。
 
 Broker 还通过 Compose 内部的 `REDIS_URL` 缓存和风标准化结果。缓存键使用位置网格哈希，不保存可读精确坐标；缓存不可用时直接请求和风，来源失败时最多使用两小时内、明确标记为陈旧的缓存，陈旧天气不会生成创作机会或预报事件。
 
 Compose 不向宿主机映射 FastAPI、PostgreSQL 或 Redis 端口。App 仍只能访问 `8787`，管理台仍只能通过局域网 `8788` 访问。
+
+“探索发现”默认关闭。在管理台配置 Tavily Key 前，还必须逐条启用经过审核的来源策略；每条策略都要求域名、署名、许可、版本和禁用开关。搜索、模型提取和入库只处理这些来源返回的 HTTPS 证据。模型输出没有来源、坐标不在约 50 km 粗区域内、或涉及安全/风险/野生动物时不会发布。
 
 情境导入接口只接受严格校验的 `spatialFeatures` GeoJSON 或
 `astronomyEvents` 目录，每次最多 500 条、请求体最多 2 MiB。同一来源的新版本以事务方式替换旧数据。
