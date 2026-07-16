@@ -14,6 +14,7 @@ from .models import (
     ContextImportRequest,
     ContextImportResult,
     SceneEvidence,
+    PhotographyTarget,
     SourceStatus,
     SpatialFeaturesImport,
     WildlifeLayerArea,
@@ -144,6 +145,68 @@ class ContextStore:
             for row in rows
         ]
 
+    async def photography_target(
+        self, latitude: float, longitude: float
+    ) -> PhotographyTarget | None:
+        """Find one reviewed static target near the current *request* point.
+
+        The request location is used only in the SQL predicate and is never
+        persisted, returned, or logged.  A target is deliberately absent when
+        there is no explicitly imported public Point within the conservative
+        radius; ordinary scene geometry must never become a navigation target.
+        """
+        if self.engine is None:
+            return None
+        query = text("""
+            SELECT spatial_features.id, spatial_features.name,
+                   spatial_features.target_type,
+                   ST_Y(spatial_features.geometry) AS latitude,
+                   ST_X(spatial_features.geometry) AS longitude
+            FROM spatial_features
+            JOIN source_registry ON source_registry.id = spatial_features.source_id
+            WHERE spatial_features.enabled = TRUE
+              AND source_registry.enabled = TRUE
+              AND source_registry.license_status = 'approved'
+              AND spatial_features.sensitivity = 'public'
+              AND spatial_features.evidence_class = 'scene'
+              AND spatial_features.target_type IN ('viewpoint', 'lakeshore', 'trailhead', 'urban')
+              AND ST_GeometryType(spatial_features.geometry) = 'ST_Point'
+              AND ST_DWithin(
+                  spatial_features.geometry::geography,
+                  ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography,
+                  25000
+              )
+            ORDER BY
+              ST_Distance(
+                  spatial_features.geometry::geography,
+                  ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography
+              ) ASC,
+              spatial_features.id ASC
+            LIMIT 1
+        """)
+        try:
+            async with self.engine.connect() as connection:
+                row = (await connection.execute(query, {
+                    "latitude": latitude, "longitude": longitude,
+                })).mappings().first()
+        except SQLAlchemyError:
+            return None
+        if row is None:
+            return None
+        target_hash = hashlib.sha256(str(row["id"]).encode("utf-8")).hexdigest()[:24]
+        return PhotographyTarget.model_validate({
+            "id": f"target_{target_hash}",
+            "name": row["name"],
+            "kind": row["target_type"],
+            "coordinate": {
+                "latitude": float(row["latitude"]),
+                "longitude": float(row["longitude"]),
+                "system": "wgs84",
+            },
+            # This is bound to the opportunity window by the rule layer.
+            "arrivalDeadline": datetime.now(timezone.utc),
+        })
+
     async def cached_snapshot(self, fingerprint: str) -> dict | None:
         if self.redis is None:
             return None
@@ -250,10 +313,10 @@ class ContextStore:
                         await connection.execute(
                             text("""
                                 INSERT INTO spatial_features (
-                                    id, external_id, source_id, kind, name, sensitivity, evidence_class, enabled,
+                                    id, external_id, source_id, kind, name, sensitivity, evidence_class, target_type, enabled,
                                     geometry
                                 ) VALUES (
-                                    :id, :external_id, :source_id, :kind, :name, :sensitivity, :evidence_class, :enabled,
+                                    :id, :external_id, :source_id, :kind, :name, :sensitivity, :evidence_class, :target_type, :enabled,
                                     ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326)
                                 )
                             """),
@@ -265,6 +328,7 @@ class ContextStore:
                                 "name": feature.properties.name,
                                 "sensitivity": feature.properties.sensitivity,
                                 "evidence_class": feature.properties.evidence_class,
+                                "target_type": feature.properties.target_type,
                                 "enabled": body.source.enabled,
                                 "geometry": geometry,
                             },

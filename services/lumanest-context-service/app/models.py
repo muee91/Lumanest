@@ -75,15 +75,52 @@ class SolarInput(ApiModel):
     azimuth_degrees: float | None = Field(None, ge=0, lt=360, alias="azimuthDegrees")
 
 
+class RouteCorridorSample(ApiModel):
+    """A transient point supplied by the client route planner.
+
+    It is deliberately bounded and has no persistence model.  The server uses
+    it only while evaluating this request to align an existing hourly forecast
+    and deterministic solar position with an estimated arrival time.
+    """
+
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    system: Literal["wgs84"] = "wgs84"
+    expected_at: datetime = Field(alias="expectedAt")
+    progress: float = Field(ge=0, le=1)
+
+    @field_validator("expected_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("corridor expectedAt must include a timezone")
+        return value
+
+
 class RouteInput(ApiModel):
     mode: Literal["none", "driving", "hiking"] = "none"
     stage: Literal["none", "planned", "active", "paused"] = "none"
+    route_id: str | None = Field(
+        None, alias="routeId", pattern=r"^[A-Za-z0-9_-]{1,160}$"
+    )
+    corridor_samples: list[RouteCorridorSample] = Field(
+        default_factory=list, max_length=3, alias="corridorSamples"
+    )
 
     @model_validator(mode="after")
     def enforce_mode_stage_invariant(self) -> "RouteInput":
         # ContextSnapshotV2 invariant: mode == "none" iff stage == "none".
         if (self.mode == "none") != (self.stage == "none"):
             raise ValueError("route mode must be none iff stage is none")
+        if self.mode == "none" and (self.route_id is not None or self.corridor_samples):
+            raise ValueError("route corridor requires a route")
+        if self.corridor_samples and self.route_id is None:
+            raise ValueError("corridor samples require an opaque routeId")
+        if self.corridor_samples:
+            progress = [item.progress for item in self.corridor_samples]
+            moments = [item.expected_at for item in self.corridor_samples]
+            if progress != sorted(progress) or moments != sorted(moments):
+                raise ValueError("corridor samples must be ordered by progress and expectedAt")
         return self
 
 
@@ -96,12 +133,29 @@ class WeatherForecastInput(ApiModel):
         None, ge=0, le=150, alias="nextThreeHoursMaxWindSpeedMps"
     )
     thunder_next_three_hours: bool = Field(False, alias="thunderNextThreeHours")
+    hourly: list["HourlyForecastInput"] = Field(default_factory=list, max_length=6)
 
     @field_validator("observed_at")
     @classmethod
     def require_timezone(cls, value: datetime) -> datetime:
         if value.tzinfo is None:
             raise ValueError("forecast observedAt must include a timezone")
+        return value
+
+
+class HourlyForecastInput(ApiModel):
+    at: datetime
+    condition: Literal["clear", "cloudy", "rain", "snow", "dust", "unknown"]
+    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    wind_speed_mps: float = Field(ge=0, le=150, alias="windSpeedMps")
+    precipitation_mm: float = Field(ge=0, le=2000, alias="precipitationMm")
+    thunder: bool = False
+
+    @field_validator("at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("hourly forecast at must include a timezone")
         return value
 
 
@@ -127,7 +181,7 @@ class OfficialWarningInput(ApiModel):
 
 
 class SnapshotRequest(ApiModel):
-    contract_version: Literal[2] = Field(alias="contractVersion")
+    contract_version: Literal[2, 3] = Field(alias="contractVersion")
     coordinate: Coordinate
     observed_at: datetime = Field(alias="observedAt")
     locale: Literal["zh-CN", "en"] = "zh-CN"
@@ -261,6 +315,111 @@ class SnapshotResponse(ApiModel):
     manifest: Manifest
 
 
+class OpportunityEvidence(ApiModel):
+    label: str = Field(min_length=1, max_length=40)
+    value: str = Field(min_length=1, max_length=80)
+
+
+class PhotographyOpportunity(ApiModel):
+    id: str = Field(pattern=r"^[a-z0-9_-]{1,64}$")
+    kind: Literal["blueHour", "reflection", "alpenglow", "morningMist", "sunsetGlow", "astronomy"]
+    start_at: datetime = Field(alias="startAt")
+    peak_at: datetime = Field(alias="peakAt")
+    end_at: datetime = Field(alias="endAt")
+    score: int = Field(ge=0, le=100)
+    confidence: float = Field(ge=0, le=1)
+    geo_scope: Literal["point", "regional", "route"] = Field(alias="geoScope")
+    direction_degrees: float | None = Field(None, ge=0, lt=360, alias="directionDegrees")
+    evidence: list[OpportunityEvidence] = Field(min_length=1, max_length=4)
+    primary_action: Literal["openExplore", "openShootingWindow", "openWeather", "openRoute", "openAuthority"] = Field(alias="primaryAction")
+    fallback_action: Literal["openExplore", "openShootingWindow", "openWeather", "openRoute", "openAuthority"] | None = Field(None, alias="fallbackAction")
+    equipment_hints: list[str] = Field(default_factory=list, max_length=4, alias="equipmentHints")
+    target: "PhotographyTarget | None" = None
+    corridor: "PhotographyCorridor | None" = None
+
+    @field_validator("equipment_hints")
+    @classmethod
+    def validate_hints(cls, value: list[str]) -> list[str]:
+        if any(not 1 <= len(item.strip()) <= 40 for item in value):
+            raise ValueError("equipment hint must contain 1 to 40 characters")
+        return value
+
+    @model_validator(mode="after")
+    def ordered_window(self) -> "PhotographyOpportunity":
+        if not self.start_at <= self.peak_at <= self.end_at:
+            raise ValueError("opportunity window must be ordered")
+        if self.corridor is not None:
+            if self.geo_scope == "point":
+                raise ValueError("corridor data is only valid for route or regional opportunities")
+            if any(
+                observation.opportunity_id is not None
+                and observation.opportunity_id != self.id
+                for observation in self.corridor.observations
+            ):
+                raise ValueError("corridor observations must reference their opportunity")
+        return self
+
+
+class PhotographyTarget(ApiModel):
+    """A reviewed, public, static place a creative opportunity may point to.
+
+    This is deliberately not a user place, a route waypoint, or a live location
+    record.  It is emitted only from an explicitly marked public source feature.
+    """
+
+    id: str = Field(pattern=r"^target_[a-f0-9]{24}$")
+    name: str = Field(min_length=1, max_length=200)
+    kind: Literal["viewpoint", "lakeshore", "trailhead", "urban"]
+    coordinate: Coordinate
+    arrival_deadline: datetime = Field(alias="arrivalDeadline")
+
+    @field_validator("arrival_deadline")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("target arrivalDeadline must include a timezone")
+        return value
+
+
+class PhotographyCorridorObservation(ApiModel):
+    progress: float = Field(ge=0, le=1)
+    expected_at: datetime = Field(alias="expectedAt")
+    condition: Literal["clear", "cloudy", "rain", "snow", "dust", "unknown"]
+    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    wind_speed_mps: float = Field(ge=0, le=150, alias="windSpeedMps")
+    precipitation_mm: float = Field(ge=0, le=500, alias="precipitationMm")
+    thunder: bool
+    sun_azimuth_degrees: float | None = Field(None, ge=0, lt=360, alias="sunAzimuthDegrees")
+    opportunity_id: str | None = Field(
+        None, alias="opportunityId", pattern=r"^photo-[a-z0-9_-]{1,58}$"
+    )
+
+    @field_validator("expected_at")
+    @classmethod
+    def require_timezone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            raise ValueError("corridor expectedAt must include a timezone")
+        return value
+
+
+class PhotographyCorridor(ApiModel):
+    route_id: str = Field(alias="routeId", pattern=r"^[A-Za-z0-9_-]{1,160}$")
+    observations: list[PhotographyCorridorObservation] = Field(max_length=3)
+
+    @model_validator(mode="after")
+    def require_ordered_observations(self) -> "PhotographyCorridor":
+        progress = [item.progress for item in self.observations]
+        moments = [item.expected_at for item in self.observations]
+        if progress != sorted(progress) or moments != sorted(moments):
+            raise ValueError("corridor observations must be ordered")
+        return self
+
+
+class SnapshotResponseV3(SnapshotResponse):
+    contract_version: Literal[3] = Field(3, alias="contractVersion")
+    opportunities: list[PhotographyOpportunity] = Field(default_factory=list, max_length=8)
+
+
 class SourceStatus(ApiModel):
     id: str
     dataset_type: Literal["unknown", "spatialFeatures", "astronomyEvents"] = Field(
@@ -303,6 +462,16 @@ class SpatialFeatureProperties(ApiModel):
     evidence_class: Literal["scene", "wildlifeOpportunity", "wildlifeSafety"] = Field(
         "scene", alias="evidenceClass"
     )
+    photography_target: bool = Field(False, alias="photographyTarget")
+    target_type: Literal["viewpoint", "lakeshore", "trailhead", "urban"] | None = Field(
+        None, alias="targetType"
+    )
+
+    @model_validator(mode="after")
+    def require_complete_target_metadata(self) -> "SpatialFeatureProperties":
+        if self.photography_target != (self.target_type is not None):
+            raise ValueError("photography targets require targetType")
+        return self
 
 
 class GeoJsonGeometry(ApiModel):
@@ -378,6 +547,11 @@ class GeoJsonFeature(ApiModel):
 
     @model_validator(mode="after")
     def prevent_exact_sensitive_points(self) -> "GeoJsonFeature":
+        if self.properties.photography_target:
+            if self.properties.sensitivity != "public":
+                raise ValueError("photography targets must be public")
+            if self.properties.evidence_class != "scene" or self.geometry.type != "Point":
+                raise ValueError("photography targets must be public scene points")
         if self.properties.sensitivity == "sensitive":
             if self.geometry.type == "Point":
                 raise ValueError("sensitive features must use a coarse polygon")

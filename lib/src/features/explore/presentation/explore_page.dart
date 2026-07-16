@@ -9,8 +9,10 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/context_event.dart' as context_event;
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
@@ -384,7 +386,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                     _FocusBanner(focus: focus),
                   ],
                   const SizedBox(height: 8),
-                  const _CategoryBar(),
+                  const _CreativeIntentBar(),
                   if (locationDisplay.isReference) ...[
                     const SizedBox(height: 8),
                     _ReferenceLocationBanner(locationDisplay),
@@ -505,7 +507,11 @@ class _MapViewState extends ConsumerState<_MapView> {
                       _FocusBanner(focus: focus),
                       const SizedBox(height: 8),
                     ],
-                    const _CategoryBar(),
+                    _OpportunityStrip(
+                      opportunities: value.photographyOpportunities,
+                    ),
+                    const SizedBox(height: 8),
+                    const _CreativeIntentBar(),
                     if (locationDisplay.isReference) ...[
                       const SizedBox(height: 8),
                       _ReferenceLocationBanner(locationDisplay),
@@ -614,6 +620,116 @@ class _FocusBanner extends StatelessWidget {
   );
 }
 
+/// A factual, compact hand-off from the established opportunity rules to the
+/// map. It never creates map pins or turns an opportunity into a safety claim.
+class _OpportunityStrip extends StatelessWidget {
+  const _OpportunityStrip({required this.opportunities});
+
+  final List<PhotographyOpportunity> opportunities;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final candidates =
+        opportunities
+            .where((item) => !item.isExpiredAt(now))
+            .toList(growable: false)
+          ..sort((first, second) {
+            final byScore = second.score.compareTo(first.score);
+            return byScore != 0
+                ? byScore
+                : first.startsAt.compareTo(second.startsAt);
+          });
+    if (candidates.isEmpty) return const SizedBox.shrink();
+    final opportunity = candidates.first;
+    final facts = <String>[
+      _windowLabel(opportunity, now),
+      if (opportunity.directionDegrees case final direction?)
+        _directionLabel(direction),
+      if (opportunity.equipmentHints.isNotEmpty)
+        opportunity.equipmentHints.first,
+    ];
+    return LumaNestSurface(
+      tone: LumaNestSurfaceTone.mapOverlay,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      child: Row(
+        children: [
+          Icon(
+            Icons.wb_twilight_outlined,
+            size: 18,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  opportunity.title,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                if (facts.isNotEmpty)
+                  Text(
+                    facts.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+              ],
+            ),
+          ),
+          if (opportunity.primaryAction ==
+              context_event.ContextAction.openShootingWindow)
+            TextButton(
+              onPressed: () => context.go(
+                Uri(
+                  path: '/shooting-window',
+                  queryParameters: {'opportunity': opportunity.id},
+                ).toString(),
+              ),
+              child: const Text('守候'),
+            ),
+          if (opportunity.target case final target?)
+            TextButton(
+              onPressed: () {
+                // Reviewed targets are WGS84; RoutePage's AMap route handoff
+                // accepts GCJ-02 query coordinates. This is a direct route
+                // planning entry, not navigation or a map-derived claim.
+                final gcj02 = ChinaCoordinateConverter.wgs84ToGcj02(
+                  target.coordinate,
+                );
+                context.go(
+                  Uri(
+                    path: '/route',
+                    queryParameters: {
+                      'name': target.name,
+                      'lat': gcj02.latitude.toString(),
+                      'lon': gcj02.longitude.toString(),
+                    },
+                  ).toString(),
+                );
+              },
+              child: const Text('去机位'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _windowLabel(PhotographyOpportunity value, DateTime now) {
+    final time = _time(value.startsAt);
+    return now.isBefore(value.startsAt) ? '$time 开始' : '进行中';
+  }
+
+  static String _time(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+
+  static String _directionLabel(double degrees) {
+    const labels = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+    return '${labels[((degrees + 22.5) ~/ 45) % 8]} ${degrees.round()}°';
+  }
+}
+
 class _ReferenceLocationBanner extends StatelessWidget {
   const _ReferenceLocationBanner(this.location);
 
@@ -645,29 +761,29 @@ class _ReferenceLocationBanner extends StatelessWidget {
   );
 }
 
-class _CategoryBar extends ConsumerWidget {
-  const _CategoryBar();
+class _CreativeIntentBar extends ConsumerWidget {
+  const _CreativeIntentBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(nearbyCategoryProvider);
+    final selected = ref.watch(exploreIntentProvider).creativeIntent;
     return Material(
       type: MaterialType.transparency,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            for (final category in NearbyPlaceCategory.values)
+            for (final intent in ExploreCreativeIntent.values)
               Padding(
                 padding: const EdgeInsets.only(right: 7),
                 child: ChoiceChip(
                   visualDensity: VisualDensity.compact,
-                  label: Text(category.label),
-                  selected: category == selected,
+                  label: Text(intent.label),
+                  selected: intent == selected,
                   onSelected: (_) {
                     ref
                         .read(exploreIntentProvider.notifier)
-                        .complete(category: category);
+                        .chooseCreativeIntent(intent);
                     GoRouter.maybeOf(context)?.go('/explore');
                   },
                 ),
@@ -696,6 +812,7 @@ class _NearbyResultPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final category = ref.watch(nearbyCategoryProvider);
+    final creativeIntent = ref.watch(exploreIntentProvider).creativeIntent;
     return LumaNestSurface(
       tone: LumaNestSurfaceTone.mapOverlay,
       borderRadius: BorderRadius.circular(16),
@@ -713,7 +830,9 @@ class _NearbyResultPanel extends ConsumerWidget {
                 ),
                 const SizedBox(width: 9),
                 Text(
-                  '附近${category.label}',
+                  creativeIntent == null
+                      ? '附近${category.label}'
+                      : '附近${creativeIntent.label}线索',
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ],

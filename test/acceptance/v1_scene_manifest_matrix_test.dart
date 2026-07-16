@@ -107,15 +107,25 @@ void main() {
         expect(manifest.secondary, hasLength(lessThanOrEqualTo(2)));
 
         final notes = InspirationNotes.build(snapshot, manifest: manifest);
-        expect(notes.map((note) => note.id), sceneCase.creativeIds);
+        final factualIds = notes
+            .where((note) => note.isFactual)
+            .map((note) => note.id);
+        expect(
+          factualIds,
+          sceneCase.creativeIds.where((id) => id != 'regional-wildlife'),
+        );
+        expect(notes.where((note) => !note.isFactual), isNotEmpty);
         for (final safetyId in sceneCase.safetyIds) {
           expect(notes.map((note) => note.id), isNot(contains(safetyId)));
         }
         if (manifest.primary case final primary?) {
-          expect(notes.first.id, primary.id);
+          if (primary.id != 'regional-wildlife') {
+            expect(notes.first.id, primary.id);
+          }
           expect(manifest.inspirationPreview, isNotEmpty);
         } else {
-          expect(notes, isEmpty);
+          expect(notes.where((note) => note.isFactual), isEmpty);
+          expect(notes.where((note) => !note.isFactual), isNotEmpty);
           expect(manifest.inspirationPreview, isEmpty);
         }
       });
@@ -176,10 +186,12 @@ void main() {
         expect(expiredManifest.creativeItems, isEmpty);
         expect(expiredManifest.safety, isEmpty);
         expect(expiredManifest.inspirationPreview, isEmpty);
-        expect(
-          InspirationNotes.build(snapshot, manifest: expiredManifest),
-          isEmpty,
+        final expiredNotes = InspirationNotes.build(
+          snapshot,
+          manifest: expiredManifest,
         );
+        expect(expiredNotes.where((note) => note.isFactual), isEmpty);
+        expect(expiredNotes.where((note) => !note.isFactual), isNotEmpty);
       });
     }
   });

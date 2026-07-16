@@ -8,6 +8,8 @@ import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/route_corridor_context.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
@@ -556,6 +558,26 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         ),
       );
       try {
+        final seed = StringBuffer(widget.route.sourceId ?? '')
+          ..write(widget.destinationLatitude)
+          ..write(',')
+          ..write(widget.destinationLongitude)
+          ..write(',')
+          ..write(widget.travelMode.name);
+        ref
+            .read(routeCorridorContextProvider.notifier)
+            .replace(
+              RouteCorridorContext.fromPolyline(
+                polyline: widget.route.polyline,
+                durationSeconds: widget.route.durationSeconds,
+                departureAt: widget.departureAt,
+                routeSeed: seed.toString(),
+              ),
+            );
+      } on Object {
+        ref.read(routeCorridorContextProvider.notifier).clear();
+      }
+      try {
         final library = await ref.read(userLibraryProvider.future);
         if (!mounted) return;
         final active = library.activeJourney;
@@ -629,6 +651,10 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
                 )
                 .toList(growable: false),
       hikingAssessment: hikingAssessment,
+    );
+    final routeOpportunities = RouteTimeline.eligiblePhotographyOpportunities(
+      snapshot,
+      departureAt: widget.departureAt,
     );
     final distance = route.distanceMeters >= 1000
         ? '${(route.distanceMeters / 1000).toStringAsFixed(1)} km'
@@ -721,6 +747,17 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
                 ),
               ],
             ],
+          ),
+        ],
+        if (snapshot != null && routeOpportunities.isNotEmpty) ...[
+          const SizedBox(height: LumaNestSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: () => _saveOfflinePhotographyPack(
+              snapshot: snapshot,
+              opportunities: routeOpportunities,
+            ),
+            icon: const Icon(Icons.download_for_offline_outlined),
+            label: const Text('保存本次摄影离线包'),
           ),
         ],
         if (route.source == RouteSource.importedGpx) ...[
@@ -832,7 +869,7 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           const SizedBox(height: 22),
           Text('行动时间轴', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
-          const Text('补给时间按路线进度估算；拍摄窗口使用当前地点日月数据，未推断沿途未来天气和地形遮挡。'),
+          const Text('补给按路线进度估算；摄影机会仅采用已成立的区域或路线窗口，未推断沿途未来天气和地形遮挡。'),
           const SizedBox(height: 10),
           LumaNestSurface(
             tone: LumaNestSurfaceTone.solid,
@@ -955,12 +992,140 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
     );
   }
 
+  Future<void> _saveOfflinePhotographyPack({
+    required ContextSnapshot snapshot,
+    required List<PhotographyOpportunity> opportunities,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final observedAt = snapshot.observedAt.toUtc();
+    final pack = OfflinePhotographyPack.create(
+      name: '${widget.route.destinationName} 摄影离线包',
+      createdAt: now,
+      dataTimestamp: observedAt.isAfter(now) ? now : observedAt,
+      route: _journeyDestination,
+      places: (_support?.asData?.value ?? const <RouteSupportStop>[])
+          .map(
+            (stop) => SavedPlace(
+              id: stop.place.id,
+              name: stop.place.name,
+              category: stop.place.category.name,
+              latitude: stop.place.point.latitude,
+              longitude: stop.place.point.longitude,
+            ),
+          )
+          .toList(growable: false),
+      windows: opportunities
+          .map(
+            (opportunity) => OfflinePhotographyWindow(
+              id: opportunity.id,
+              label: opportunity.title,
+              startsAt: opportunity.startsAt,
+              endsAt: opportunity.expiresAt,
+              peakAt: opportunity.peaksAt,
+            ),
+          )
+          .toList(growable: false),
+      opportunitySnapshot: {
+        'format': 'lumanest-route-photography-v1',
+        'snapshotId': snapshot.id,
+        'observedAt': observedAt.toIso8601String(),
+        'expiresAt': snapshot.expiresAt.toUtc().toIso8601String(),
+        'routeDurationSeconds': widget.route.durationSeconds,
+        'supportStops': (_support?.asData?.value ?? const <RouteSupportStop>[])
+            .map(
+              (stop) => {
+                'id': stop.place.id,
+                'routeProgress': stop.routeProgress,
+                'category': stop.place.category.name,
+              },
+            )
+            .toList(growable: false),
+        'opportunities': opportunities
+            .map(
+              (opportunity) => {
+                'id': opportunity.id,
+                'title': opportunity.title,
+                'kind': opportunity.kind.name,
+                'scope': opportunity.geoScope.name,
+                'score': opportunity.score,
+                'confidence': opportunity.confidence,
+                'startsAt': opportunity.startsAt.toUtc().toIso8601String(),
+                'peaksAt': opportunity.peaksAt.toUtc().toIso8601String(),
+                'expiresAt': opportunity.expiresAt.toUtc().toIso8601String(),
+                if (opportunity.target != null)
+                  'target': {
+                    'id': opportunity.target!.id,
+                    'name': opportunity.target!.name,
+                    'kind': opportunity.target!.kind.name,
+                    'coordinate': {
+                      'latitude': opportunity.target!.coordinate.latitude,
+                      'longitude': opportunity.target!.coordinate.longitude,
+                      'system': 'wgs84',
+                    },
+                    'arrivalDeadline': opportunity.target!.arrivalDeadline
+                        .toUtc()
+                        .toIso8601String(),
+                  },
+                if (opportunity.corridor != null)
+                  'corridor': {
+                    'routeId': opportunity.corridor!.routeId,
+                    'observations': opportunity.corridor!.observations
+                        .map(
+                          (item) => {
+                            'progress': item.progress,
+                            'expectedAt': item.expectedAt
+                                .toUtc()
+                                .toIso8601String(),
+                            'condition': item.condition,
+                            'cloudCoverPercent': item.cloudCoverPercent,
+                            'windSpeedMps': item.windSpeedMps,
+                            'precipitationMm': item.precipitationMm,
+                            'thunder': item.thunder,
+                            'sunAzimuthDegrees': item.sunAzimuthDegrees,
+                            'opportunityId': item.opportunityId,
+                          },
+                        )
+                        .toList(growable: false),
+                  },
+                'evidence': opportunity.evidence
+                    .map(
+                      (item) => {
+                        'id': item.id,
+                        'kind': item.kind.name,
+                        'statement': item.statement,
+                        'confidence': item.confidence,
+                        'supports': item.supports,
+                      },
+                    )
+                    .toList(growable: false),
+              },
+            )
+            .toList(growable: false),
+      },
+    );
+    try {
+      await ref
+          .read(userLibraryProvider.notifier)
+          .saveOfflinePhotographyPack(pack);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已保存到本机离线摄影包')));
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('离线摄影包未能保存，请重试')));
+    }
+  }
+
   IconData _timelineIcon(RouteTimelineKind kind) => switch (kind) {
     RouteTimelineKind.departure => Icons.trip_origin,
     RouteTimelineKind.safety => Icons.warning_amber_rounded,
     RouteTimelineKind.support => Icons.storefront_outlined,
     RouteTimelineKind.elevation => Icons.terrain_outlined,
     RouteTimelineKind.shooting => Icons.photo_camera_outlined,
+    RouteTimelineKind.shootingMissed => Icons.schedule_outlined,
     RouteTimelineKind.arrival => Icons.flag_outlined,
     RouteTimelineKind.returnDeadline => Icons.timer_outlined,
     RouteTimelineKind.estimatedReturn => Icons.keyboard_return,
@@ -1153,6 +1318,7 @@ class _ActiveTrackUnavailableView extends ConsumerWidget {
         .read(userLibraryProvider.notifier)
         .endJourney(journey.destination, routeKey: journey.routeKey);
     ref.read(routeContextStateProvider.notifier).end();
+    ref.read(routeCorridorContextProvider.notifier).clear();
   }
 }
 
@@ -1181,6 +1347,7 @@ class _RouteNoneSyncState extends ConsumerState<_RouteNoneSync> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(routeContextStateProvider.notifier).end();
+      ref.read(routeCorridorContextProvider.notifier).clear();
     });
   }
 
@@ -1286,6 +1453,7 @@ class _RouteLifecycleBar extends ConsumerWidget {
                   OutlinedButton(
                     onPressed: () {
                       notifier.end();
+                      ref.read(routeCorridorContextProvider.notifier).clear();
                       // Cancel the planned route: leave the destination so the
                       // page and state stay consistent (no destination, none).
                       context.go('/route');
@@ -1386,6 +1554,7 @@ class _RouteLifecycleBar extends ConsumerWidget {
       }
     }
     notifier.end();
+    ref.read(routeCorridorContextProvider.notifier).clear();
     if (!context.mounted) return;
     context.go('/route');
     if (recordFailed || reminderCancelFailed) {

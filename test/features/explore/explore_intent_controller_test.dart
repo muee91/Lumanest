@@ -88,4 +88,14 @@ void main() {
     expect(state().category, NearbyPlaceCategory.humanity);
     expect(state().activeFocus, isNull);
   });
+
+  test('creative intent resolves to its existing nearby category', () {
+    controller().chooseCreativeIntent(ExploreCreativeIntent.reflection);
+
+    expect(state().creativeIntent, ExploreCreativeIntent.reflection);
+    expect(state().category, NearbyPlaceCategory.waterfront);
+
+    controller().chooseCreativeIntent(ExploreCreativeIntent.shelter);
+    expect(state().category, NearbyPlaceCategory.food);
+  });
 }

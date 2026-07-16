@@ -19,6 +19,7 @@ void main() {
         label: '看天象',
         emoji: '✨',
         category: InspirationCategory.light,
+        kind: InspirationNoteKind.factualOpportunity,
         action: ManifestAction.openAuthority,
         detail: '不应打开非 HTTPS 地址。',
         priority: 100,
@@ -335,10 +336,35 @@ void main() {
     expect(store.value.journeys, hasLength(1));
     expect(store.value.importedTracks, hasLength(1));
 
+    await controller.watchOpportunity(
+      opportunityId: 'blue-hour',
+      snapshotId: 'snapshot-1',
+      title: '蓝调窗口',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    );
+    await controller.recordOpportunityResult(
+      opportunityId: 'blue-hour',
+      snapshotId: 'snapshot-1',
+      outcome: PhotographyOpportunityOutcome.shot,
+    );
+    await controller.saveOfflinePhotographyPack(
+      OfflinePhotographyPack.create(
+        name: '本地拍摄包',
+        createdAt: DateTime.now(),
+        dataTimestamp: DateTime.now().subtract(const Duration(minutes: 1)),
+        places: const [],
+        windows: const [],
+        opportunitySnapshot: const {'opportunityId': 'blue-hour'},
+      ),
+    );
+
     await controller.clearRecentRoute();
     expect(store.value.recentRoute, isNull);
     expect(store.value.savedRoutes, hasLength(1));
     expect(store.value.journeys, hasLength(1));
+    expect(store.value.watchedOpportunities, hasLength(1));
+    expect(store.value.opportunityResults, hasLength(1));
+    expect(store.value.offlinePhotographyPacks, hasLength(1));
 
     await controller.clearSavedRoutes();
     expect(store.value.savedRoutes, isEmpty);
@@ -366,6 +392,7 @@ void main() {
         label: '找倒影',
         emoji: '🪞',
         category: InspirationCategory.place,
+        kind: InspirationNoteKind.factualOpportunity,
         action: ManifestAction.openExplore,
         detail: '风正在变小，去湖岸找一段干净的水面。',
         priority: 100,
@@ -387,6 +414,66 @@ void main() {
 
       await controller.deleteSavedNote(store.value.savedNotes.single.id);
       expect(store.value.savedNotes, isEmpty);
+    },
+  );
+
+  test(
+    'keeps explicit photography feedback and packs local and clearable',
+    () async {
+      final store = _FakeStore(const UserLibraryState());
+      final container = ProviderContainer(
+        overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      await container.read(userLibraryProvider.future);
+      final controller = container.read(userLibraryProvider.notifier);
+
+      await controller.watchOpportunity(
+        opportunityId: 'alpenglow',
+        snapshotId: 'snapshot-2',
+        title: '金山窗口',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      await controller.recordOpportunityResult(
+        opportunityId: 'alpenglow',
+        snapshotId: 'snapshot-2',
+        outcome: PhotographyOpportunityOutcome.missed,
+        reason: '到达太晚',
+      );
+      await controller.saveOfflinePhotographyPack(
+        OfflinePhotographyPack.create(
+          name: '山谷清晨',
+          createdAt: DateTime.utc(2026, 7, 15, 8),
+          dataTimestamp: DateTime.utc(2026, 7, 15, 7, 50),
+          places: const [],
+          windows: [
+            OfflinePhotographyWindow(
+              id: 'mist',
+              label: '晨雾',
+              startsAt: DateTime.utc(2026, 7, 16, 5),
+              endsAt: DateTime.utc(2026, 7, 16, 6),
+            ),
+          ],
+          opportunitySnapshot: const {'eventId': 'mist'},
+        ),
+      );
+
+      expect(
+        store.value.watchedOpportunities.single.opportunityId,
+        'alpenglow',
+      );
+      expect(
+        store.value.opportunityResults.single.outcome,
+        PhotographyOpportunityOutcome.missed,
+      );
+      expect(store.value.offlinePhotographyPacks.single.name, '山谷清晨');
+      expect(store.value.toExportJson()['format'], 'lumanest-local-library-v2');
+
+      await controller.clearPhotographyActivity();
+
+      expect(store.value.watchedOpportunities, isEmpty);
+      expect(store.value.opportunityResults, isEmpty);
+      expect(store.value.offlinePhotographyPacks, isEmpty);
     },
   );
 }

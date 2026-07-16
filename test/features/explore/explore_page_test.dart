@@ -413,7 +413,7 @@ void main() {
     );
   });
 
-  testWidgets('manual category choice completes a temporary intent', (
+  testWidgets('creative intent choice completes a temporary focus', (
     tester,
   ) async {
     final container = ProviderContainer(
@@ -454,7 +454,7 @@ void main() {
     await tester.pump();
     expect(find.text('正在寻找湖岸与水面线索'), findsOneWidget);
 
-    await tester.tap(find.text('吃饭'));
+    await tester.tap(find.text('补给'));
     await tester.pump();
     await tester.pump();
 
@@ -462,7 +462,7 @@ void main() {
     expect(container.read(exploreIntentProvider).activeFocus, isNull);
     expect(
       container.read(exploreIntentProvider).category,
-      NearbyPlaceCategory.food,
+      NearbyPlaceCategory.supply,
     );
     expect(
       router.routerDelegate.currentConfiguration.uri.toString(),

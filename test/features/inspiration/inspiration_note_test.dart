@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
@@ -34,7 +36,7 @@ void main() {
       manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
     );
 
-    expect(notes.map((note) => note.id), ['reflection', 'blue-hour']);
+    expect(notes.take(2).map((note) => note.id), ['reflection', 'blue-hour']);
     expect(notes.first.displayLabel, '等倒影🪞');
   });
 
@@ -57,10 +59,11 @@ void main() {
       notes.map((note) => note.displayLabel).join(),
       isNot(contains('雷暴')),
     );
-    expect(notes, isEmpty);
+    expect(notes, isNotEmpty);
+    expect(notes.every((note) => !note.isFactual), isTrue);
   });
 
-  test('regional wildlife becomes a creative note, never a safety alert', () {
+  test('wildlife records never enter the bottle', () {
     final notes = InspirationNotes.build(
       ContextSnapshot(
         id: 'wildlife',
@@ -74,11 +77,8 @@ void main() {
       ),
     );
 
-    expect(notes.map((note) => note.id), contains('regional-wildlife'));
-    expect(
-      notes.singleWhere((note) => note.id == 'regional-wildlife').detail,
-      contains('GBIF'),
-    );
+    expect(notes.map((note) => note.id), isNot(contains('regional-wildlife')));
+    expect(notes.every((note) => !note.detail.contains('GBIF')), isTrue);
   });
 
   test('reviewed astronomy note retains its authority action URL', () {
@@ -106,7 +106,51 @@ void main() {
       ),
     );
 
-    expect(notes.single.action, ManifestAction.openAuthority);
-    expect(notes.single.authorityUri, authority);
+    final astronomy = notes.singleWhere(
+      (note) => note.id == 'astronomy-catalog:eclipse',
+    );
+    expect(astronomy.action, ManifestAction.openAuthority);
+    expect(astronomy.authorityUri, authority);
+  });
+
+  test('V3 opportunities keep evidence and their established action', () {
+    final now = DateTime.utc(2026, 7, 17, 11);
+    final notes = InspirationNotes.build(
+      ContextSnapshot(
+        id: 'v3',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 30)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.sunset,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        photographyOpportunities: [
+          PhotographyOpportunity(
+            id: 'sunset-glow',
+            title: '晚霞窗口',
+            startsAt: now,
+            peaksAt: now.add(const Duration(minutes: 10)),
+            expiresAt: now.add(const Duration(minutes: 20)),
+            confidence: .8,
+            primaryAction: ContextAction.openExplore,
+            evidence: const [
+              PhotographyEvidence(
+                id: 'cloud',
+                kind: PhotographyEvidenceKind.weather,
+                statement: '云层条件已由预报确认。',
+                confidence: .8,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final factual = notes.first;
+    expect(factual.isFactual, isTrue);
+    expect(factual.opportunityId, 'sunset-glow');
+    expect(factual.action, ManifestAction.openExplore);
+    expect(factual.evidence.single.statement, contains('预报确认'));
+    expect(notes.any((note) => !note.isFactual), isTrue);
   });
 }

@@ -70,6 +70,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('inspiration-bottle')));
+    await tester.pump(const Duration(milliseconds: 300));
+
     expect(
       find.byKey(const Key('selected-inspiration-humanity-light')),
       findsOneWidget,

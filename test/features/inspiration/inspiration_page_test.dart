@@ -58,7 +58,7 @@ void main() {
     expect(settingsOpened, 1);
   });
 
-  testWidgets('quiet context stays compact and offers a real next action', (
+  testWidgets('quiet context keeps local creative prompts available', (
     tester,
   ) async {
     var explorations = 0;
@@ -74,12 +74,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('此刻没有可抽取的纸条'), findsOneWidget);
-    expect(find.byKey(const Key('inspiration-bottle')), findsNothing);
-    expect(find.text('探索附近'), findsOneWidget);
-
-    await tester.tap(find.text('探索附近'));
-    expect(explorations, 1);
+    expect(find.byKey(const Key('inspiration-bottle')), findsOneWidget);
+    expect(find.text('抽一张'), findsOneWidget);
+    expect(explorations, 0);
   });
 
   testWidgets('bottle keeps a subtle idle ticker when motion is allowed', (

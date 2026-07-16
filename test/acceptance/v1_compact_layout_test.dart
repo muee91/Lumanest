@@ -141,10 +141,10 @@ void main() {
     );
     await _scrollThrough(tester);
     _expectNoLayoutException(tester);
-    expect(
-      tester.getTopLeft(find.text('能见度')).dy,
-      greaterThan(tester.getTopLeft(find.text('气温')).dy),
-    );
+    // Today only renders evidence that explains the active decision. At large
+    // text scales it must retain the verdict rather than reserve a fixed
+    // weather-dashboard row.
+    expect(find.byKey(const Key('today-environment-hero')), findsOneWidget);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -206,7 +206,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.textContaining('推荐强度 50%'), findsOneWidget);
+    expect(find.textContaining('50%'), findsOneWidget);
     await _scrollThrough(tester, passes: 10);
     _expectNoLayoutException(tester);
   });

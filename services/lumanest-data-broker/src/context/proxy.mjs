@@ -25,11 +25,43 @@ function validRouteModeStage(mode, stage) {
   return (mode === 'none') === (stage === 'none');
 }
 
+function validCorridorSample(value) {
+  return exactKeys(value, new Set([
+    'latitude', 'longitude', 'system', 'expectedAt', 'progress',
+  ])) && value.system === 'wgs84' &&
+    finiteIn(value.latitude, -90, 90) && finiteIn(value.longitude, -180, 180) &&
+    typeof value.expectedAt === 'string' && Number.isFinite(Date.parse(value.expectedAt)) &&
+    finiteIn(value.progress, 0, 1);
+}
+
+function validRouteRequest(route, contractVersion) {
+  const legacyKeys = new Set(['mode', 'stage']);
+  const corridorKeys = new Set(['mode', 'stage', 'routeId', 'corridorSamples']);
+  if (!(exactKeys(route, legacyKeys) || exactKeys(route, corridorKeys)) ||
+      !['none', 'driving', 'hiking'].includes(route.mode) ||
+      !['none', 'planned', 'active', 'paused'].includes(route.stage) ||
+      !validRouteModeStage(route.mode, route.stage)) return false;
+  const hasCorridor = Object.hasOwn(route, 'corridorSamples');
+  if (!hasCorridor) return true;
+  if (contractVersion !== 3 || route.mode === 'none' ||
+      typeof route.routeId !== 'string' || !/^[A-Za-z0-9_-]{1,160}$/.test(route.routeId) ||
+      !Array.isArray(route.corridorSamples) || route.corridorSamples.length > 3 ||
+      !route.corridorSamples.every(validCorridorSample)) return false;
+  for (let index = 1; index < route.corridorSamples.length; index += 1) {
+    const prior = route.corridorSamples[index - 1];
+    const current = route.corridorSamples[index];
+    if (prior.progress > current.progress || Date.parse(prior.expectedAt) > Date.parse(current.expectedAt)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function validContextRequest(body) {
   const keys = Object.keys(body ?? {});
   const legacy = keys.some((key) => ['evidence', 'weather', 'solar'].includes(key));
   if (!exactKeys(body, legacy ? legacyRequestKeys : canonicalRequestKeys) ||
-      body.contractVersion !== 2) return false;
+      ![2, 3].includes(body.contractVersion)) return false;
   if (!exactKeys(body.coordinate, new Set(['latitude', 'longitude', 'system'])) ||
       body.coordinate.system !== 'wgs84' ||
       !finiteIn(body.coordinate.latitude, -90, 90) ||
@@ -37,10 +69,7 @@ export function validContextRequest(body) {
   if (typeof body.observedAt !== 'string' || !Number.isFinite(Date.parse(body.observedAt))) return false;
   if (!['zh-CN', 'en'].includes(body.locale)) return false;
   if (!['photography', 'food', 'supplies', 'fuel', 'wildlife'].includes(body.intent)) return false;
-  if (!exactKeys(body.route, new Set(['mode', 'stage'])) ||
-      !['none', 'driving', 'hiking'].includes(body.route.mode) ||
-      !['none', 'planned', 'active', 'paused'].includes(body.route.stage) ||
-      !validRouteModeStage(body.route.mode, body.route.stage)) return false;
+  if (!validRouteRequest(body.route, body.contractVersion)) return false;
   if (!legacy) return true;
   if (!exactKeys(body.evidence, new Set([
     'urban', 'waterBody', 'mountainous', 'aridLand', 'settlement',
@@ -112,16 +141,89 @@ function validEvent(value) {
       [...value.title.trim()].length <= 80));
 }
 
+function validOpportunity(value) {
+  const opportunityKeys = new Set(['id', 'kind', 'startAt', 'peakAt', 'endAt', 'score', 'confidence',
+    'geoScope', 'directionDegrees', 'evidence', 'primaryAction', 'fallbackAction', 'equipmentHints',
+    'target', 'corridor']);
+  const requiredOpportunityKeys = new Set([...opportunityKeys].filter((key) => key !== 'target' && key !== 'corridor'));
+  const targetOnlyKeys = new Set([...requiredOpportunityKeys, 'target']);
+  const corridorOnlyKeys = new Set([...requiredOpportunityKeys, 'corridor']);
+  if (!([requiredOpportunityKeys, targetOnlyKeys, corridorOnlyKeys, opportunityKeys]
+    .some((keys) => exactKeys(value, keys))) ||
+    typeof value.id !== 'string' || !/^photo-[a-z0-9_-]{1,58}$/.test(value.id) ||
+    !['blueHour', 'reflection', 'alpenglow', 'morningMist', 'sunsetGlow', 'astronomy'].includes(value.kind) ||
+    !['point', 'regional', 'route'].includes(value.geoScope) || !Number.isInteger(value.score) ||
+    !finiteIn(value.score, 0, 100) || !finiteIn(value.confidence, 0, 1) ||
+    !['openExplore', 'openShootingWindow', 'openWeather', 'openRoute', 'openAuthority'].includes(value.primaryAction) ||
+    (value.fallbackAction != null && !['openExplore', 'openShootingWindow', 'openWeather', 'openRoute', 'openAuthority'].includes(value.fallbackAction)) ||
+    (value.directionDegrees != null && (!finiteIn(value.directionDegrees, 0, 360) || value.directionDegrees === 360)) ||
+    !Array.isArray(value.evidence) || value.evidence.length < 1 || value.evidence.length > 4 ||
+    !value.evidence.every((item) => exactKeys(item, new Set(['label', 'value'])) && typeof item.label === 'string' &&
+      item.label.length >= 1 && item.label.length <= 40 && typeof item.value === 'string' && item.value.length >= 1 && item.value.length <= 80) ||
+    !Array.isArray(value.equipmentHints) || value.equipmentHints.length > 4 ||
+    !value.equipmentHints.every((item) => typeof item === 'string' && item.trim().length >= 1 && item.trim().length <= 40) ||
+    (Object.hasOwn(value, 'target') && value.target != null && !validPhotographyTarget(value.target)) ||
+    (Object.hasOwn(value, 'corridor') && value.corridor != null &&
+      (!['regional', 'route'].includes(value.geoScope) ||
+       !validPhotographyCorridor(value.corridor, value.id)))) return false;
+  const times = [value.startAt, value.peakAt, value.endAt].map(Date.parse);
+  return times.every(Number.isFinite) && times[0] <= times[1] && times[1] <= times[2];
+}
+
+function validPhotographyCorridor(value, opportunityId) {
+  if (!exactKeys(value, new Set(['routeId', 'observations'])) ||
+      typeof value.routeId !== 'string' || !/^[A-Za-z0-9_-]{1,160}$/.test(value.routeId) ||
+      !Array.isArray(value.observations) || value.observations.length > 3) return false;
+  let previousProgress = -1;
+  let previousExpectedAt = -Infinity;
+  return value.observations.every((observation) => {
+    if (!exactKeys(observation, new Set([
+      'progress', 'expectedAt', 'condition', 'cloudCoverPercent', 'windSpeedMps',
+      'precipitationMm', 'thunder', 'sunAzimuthDegrees', 'opportunityId',
+    ])) || !finiteIn(observation.progress, 0, 1) ||
+      typeof observation.expectedAt !== 'string' ||
+      !Number.isFinite(Date.parse(observation.expectedAt)) ||
+      !['clear', 'cloudy', 'rain', 'snow', 'dust', 'unknown'].includes(observation.condition) ||
+      (observation.cloudCoverPercent != null && !finiteIn(observation.cloudCoverPercent, 0, 100)) ||
+      !finiteIn(observation.windSpeedMps, 0, 150) ||
+      !finiteIn(observation.precipitationMm, 0, 500) ||
+      typeof observation.thunder !== 'boolean' ||
+      (observation.sunAzimuthDegrees != null &&
+        (!finiteIn(observation.sunAzimuthDegrees, 0, 360) || observation.sunAzimuthDegrees === 360)) ||
+      (observation.opportunityId != null &&
+        (typeof observation.opportunityId !== 'string' || observation.opportunityId !== opportunityId))) return false;
+    const expectedAt = Date.parse(observation.expectedAt);
+    if (observation.progress < previousProgress || expectedAt < previousExpectedAt) return false;
+    previousProgress = observation.progress;
+    previousExpectedAt = expectedAt;
+    return true;
+  });
+}
+
+function validPhotographyTarget(value) {
+  return exactKeys(value, new Set(['id', 'name', 'kind', 'coordinate', 'arrivalDeadline'])) &&
+    typeof value.id === 'string' && /^target_[a-f0-9]{24}$/.test(value.id) &&
+    typeof value.name === 'string' && [...value.name.trim()].length >= 1 && [...value.name.trim()].length <= 200 &&
+    ['viewpoint', 'lakeshore', 'trailhead', 'urban'].includes(value.kind) &&
+    exactKeys(value.coordinate, new Set(['latitude', 'longitude', 'system'])) &&
+    value.coordinate.system === 'wgs84' && finiteIn(value.coordinate.latitude, -90, 90) &&
+    finiteIn(value.coordinate.longitude, -180, 180) &&
+    typeof value.arrivalDeadline === 'string' && Number.isFinite(Date.parse(value.arrivalDeadline));
+}
+
 function validContextResponse(body) {
+  const isV3 = body?.contractVersion === 3;
   if (!exactKeys(body, new Set([
     'contractVersion', 'contextId', 'generatedAt', 'expiresAt', 'scene', 'fingerprint',
     'stale', 'dataFreshness', 'weather', 'sunMoon', 'route', 'events', 'allowedActions', 'manifest',
-  ])) || body.contractVersion !== 2) return false;
+    ...(isV3 ? ['opportunities'] : []),
+  ])) || ![2, 3].includes(body.contractVersion)) return false;
   if (!/^ctx_[a-f0-9]{24}$/.test(body.contextId) ||
       !Number.isFinite(Date.parse(body.generatedAt)) || !Number.isFinite(Date.parse(body.expiresAt)) ||
       !['unknown', 'city', 'lake', 'mountain', 'desert', 'village', 'driving', 'hiking'].includes(body.scene) ||
       !/^[a-f0-9]{24}$/.test(body.fingerprint) || typeof body.stale !== 'boolean' ||
-      !body.events.every(validEvent)) return false;
+      !body.events.every(validEvent) || (isV3 && (!Array.isArray(body.opportunities) ||
+        body.opportunities.length > 8 || !body.opportunities.every(validOpportunity)))) return false;
   const freshness = body.dataFreshness;
   if (!exactKeys(freshness, new Set(['context', 'weather', 'weatherObservedAt'])) ||
       !['fresh', 'stale'].includes(freshness.context) || !['fresh', 'stale'].includes(freshness.weather) ||
@@ -167,6 +269,9 @@ function validContextResponse(body) {
       !Array.isArray(body.allowedActions) ||
       body.allowedActions.some((action) => !actions.has(action)) ||
       new Set(body.allowedActions).size !== body.allowedActions.length) return false;
+  if (isV3 && body.opportunities.some((opportunity) =>
+    !body.allowedActions.includes(opportunity.primaryAction) ||
+    (opportunity.fallbackAction != null && !body.allowedActions.includes(opportunity.fallbackAction)))) return false;
   return exactKeys(body.manifest, new Set([
     'layoutMode', 'primaryEventId', 'secondaryEventIds', 'safetyEventIds',
   ])) && ['quiet', 'opportunity', 'safety'].includes(body.manifest.layoutMode) &&

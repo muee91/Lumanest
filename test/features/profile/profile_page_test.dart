@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/features/profile/presentation/environment_diagnostics.dart';
 import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
+import 'package:luma_nest/src/features/profile/presentation/local_photography_export.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/features/profile/application/environment_privacy_service.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
@@ -531,6 +532,152 @@ void main() {
     expect(find.byTooltip('删除行程记录'), findsOneWidget);
   });
 
+  testWidgets('shows only real local photography activity and lets packs go', (
+    tester,
+  ) async {
+    final watched = WatchedPhotographyOpportunity.create(
+      opportunityId: 'sunset',
+      snapshotId: 'snapshot-1',
+      title: '晚霞窗口',
+      watchedAt: DateTime.utc(2026, 7, 15, 10),
+      expiresAt: DateTime.utc(2026, 7, 15, 12),
+    );
+    final pack = OfflinePhotographyPack.create(
+      name: '湖岸傍晚',
+      createdAt: DateTime.utc(2026, 7, 15, 10),
+      dataTimestamp: DateTime.utc(2026, 7, 15, 9, 50),
+      places: const [
+        SavedPlace(
+          id: 'lake-east',
+          name: '东岸机位',
+          category: '摄影机位',
+          latitude: 30.2,
+          longitude: 120.1,
+        ),
+      ],
+      windows: [
+        OfflinePhotographyWindow(
+          id: 'sunset-window',
+          label: '晚霞',
+          startsAt: DateTime.utc(2026, 7, 15, 11),
+          endsAt: DateTime.utc(2026, 7, 15, 12),
+        ),
+      ],
+      opportunitySnapshot: const {'source': 'local'},
+    );
+    final store = _ProfileLibraryStore(
+      UserLibraryState(
+        watchedOpportunities: [watched],
+        opportunityResults: [
+          PhotographyOpportunityResult.record(
+            opportunityId: 'sunset',
+            snapshotId: 'snapshot-1',
+            outcome: PhotographyOpportunityOutcome.shot,
+            recordedAt: DateTime.utc(2026, 7, 15, 12),
+          ),
+        ],
+        offlinePhotographyPacks: [pack],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(store),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('摄影活动'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('湖岸傍晚'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+
+    expect(find.text('晚霞窗口'), findsOneWidget);
+    expect(find.text('已拍摄'), findsOneWidget);
+    expect(find.text('湖岸傍晚'), findsOneWidget);
+
+    await tester.ensureVisible(find.byTooltip('删除离线摄影包'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('删除离线摄影包'));
+    await tester.pump();
+    expect(store.value.offlinePhotographyPacks, isEmpty);
+    expect(store.value.watchedOpportunities, isNotEmpty);
+  });
+
+  testWidgets('does not reserve photography activity for an empty library', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(const UserLibraryState()),
+          ),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('摄影活动'), findsNothing);
+    expect(find.text('导出摄影数据'), findsNothing);
+  });
+
+  testWidgets('exports only the local photography payload on request', (
+    tester,
+  ) async {
+    final watched = WatchedPhotographyOpportunity.create(
+      opportunityId: 'blue-hour',
+      snapshotId: 'snapshot-2',
+      title: '蓝调窗口',
+      watchedAt: DateTime.utc(2026, 7, 15, 10),
+      expiresAt: DateTime.utc(2026, 7, 15, 11),
+    );
+    final exporter = _ProfilePhotographyExporter();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          environmentDiagnosticStatusProvider.overrideWithValue(
+            EnvironmentDiagnosticStatus.operational,
+          ),
+          userLibraryStoreProvider.overrideWithValue(
+            _ProfileLibraryStore(
+              UserLibraryState(watchedOpportunities: [watched]),
+            ),
+          ),
+          localPhotographyExportServiceProvider.overrideWithValue(exporter),
+        ],
+        child: const MaterialApp(home: ProfilePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.dragUntilVisible(
+      find.text('导出摄影数据'),
+      find.byType(Scrollable).first,
+      const Offset(0, -100),
+    );
+    await tester.ensureVisible(find.text('导出摄影数据'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导出摄影数据'));
+    await tester.pump();
+
+    expect(exporter.exported, isNotNull);
+    expect(
+      exporter.exported!.toExportJson()['watchedOpportunities'],
+      hasLength(1),
+    );
+    expect(find.textContaining('摄影数据已导出到'), findsOneWidget);
+  });
+
   testWidgets('saved creative notes can repeat their whitelisted action', (
     tester,
   ) async {
@@ -541,6 +688,7 @@ void main() {
         label: '找倒影',
         emoji: '🪞',
         category: InspirationCategory.place,
+        kind: InspirationNoteKind.factualOpportunity,
         action: ManifestAction.openExplore,
         detail: '去湖岸找一段干净的水面。',
         priority: 100,
@@ -858,6 +1006,16 @@ class _ProfileLibraryStore implements UserLibraryStore {
 
   @override
   Future<void> write(UserLibraryState state) async => value = state;
+}
+
+class _ProfilePhotographyExporter implements LocalPhotographyExportService {
+  UserLibraryState? exported;
+
+  @override
+  Future<String> export(UserLibraryState library) async {
+    exported = library;
+    return '/storage/emulated/0/Download/LumaNest/photography.json';
+  }
 }
 
 class _ProfileRouteReminderPreferenceStore

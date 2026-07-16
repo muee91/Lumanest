@@ -11,6 +11,7 @@ import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/safety_detail.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
@@ -118,6 +119,7 @@ class TodayPage extends StatelessWidget {
   Widget _buildContent(BuildContext context, ContextSnapshot snapshot) {
     final effectiveManifest = manifest ?? ManifestPolicy.build(snapshot);
     final primary = effectiveManifest.primary;
+    final photographyOpportunity = _primaryPhotographyOpportunity(snapshot);
     void performAction(ManifestItem item) {
       final injected = onManifestAction;
       if (injected != null) {
@@ -149,12 +151,16 @@ class TodayPage extends StatelessWidget {
           dayPhase: snapshot.dayPhase,
           snapshot: snapshot,
           primary: primary,
+          photographyOpportunity: photographyOpportunity,
         ),
         if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
           const SizedBox(height: LumaNestSpacing.sm),
           _EvidenceMetrics(snapshot: snapshot, primary: primary),
         ],
-        if (primary case final primary?) ...[
+        if (photographyOpportunity case final opportunity?) ...[
+          const SizedBox(height: LumaNestSpacing.md),
+          _PhotographyOpportunityAction(opportunity: opportunity),
+        ] else if (primary case final primary?) ...[
           const SizedBox(height: LumaNestSpacing.md),
           _PrimaryActionBar(
             key: const Key('primary-opportunity'),
@@ -226,6 +232,23 @@ class TodayPage extends StatelessWidget {
     'alpenglow' || 'blue-hour' => snapshot.visibilityKilometers != null,
     _ => false,
   };
+
+  static PhotographyOpportunity? _primaryPhotographyOpportunity(
+    ContextSnapshot snapshot,
+  ) {
+    final now = snapshot.observedAt;
+    final opportunities =
+        snapshot.photographyOpportunities
+            .where((item) => !item.isExpiredAt(now))
+            .toList(growable: false)
+          ..sort((first, second) {
+            final scoreOrder = second.score.compareTo(first.score);
+            return scoreOrder != 0
+                ? scoreOrder
+                : first.startsAt.compareTo(second.startsAt);
+          });
+    return opportunities.firstOrNull;
+  }
 
   static String _errorMessage(Object error) {
     if (error is EnvironmentLoadFailure) {
@@ -367,10 +390,12 @@ class _DecisionHero extends StatelessWidget {
     required this.dayPhase,
     required this.snapshot,
     required this.primary,
+    this.photographyOpportunity,
   });
   final DayPhase dayPhase;
   final ContextSnapshot snapshot;
   final ManifestItem? primary;
+  final PhotographyOpportunity? photographyOpportunity;
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +408,8 @@ class _DecisionHero extends StatelessWidget {
       DayPhase.night => '夜间判断',
     };
     final window = _currentOrNextWindow(snapshot);
-    final verdict = primary?.title ?? '暂无明确拍摄窗口';
+    final verdict =
+        photographyOpportunity?.title ?? primary?.title ?? '暂无明确拍摄窗口';
     return Semantics(
       container: true,
       label: '$label，$verdict',
@@ -937,6 +963,62 @@ class _SafetyRegion extends StatelessWidget {
                   trailing: const Icon(Icons.arrow_forward_rounded, size: 18),
                   onTap: () => onAction(item),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotographyOpportunityAction extends StatelessWidget {
+  const _PhotographyOpportunityAction({required this.opportunity});
+
+  final PhotographyOpportunity opportunity;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now().toUtc();
+    final startsIn = opportunity.startsAt.difference(now);
+    final label = startsIn > const Duration(minutes: 1) ? '开始守候' : '查看拍摄判断';
+    final time = TimeOfDay.fromDateTime(
+      opportunity.startsAt.toLocal(),
+    ).format(context);
+    return Semantics(
+      button: true,
+      label: '$label，${opportunity.title}，$time 开始',
+      child: InkWell(
+        key: const Key('today-photography-opportunity'),
+        onTap: () => context.go(
+          Uri(
+            path: '/shooting-window',
+            queryParameters: {'opportunity': opportunity.id},
+          ).toString(),
+        ),
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '$label · $time',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              Text(
+                '${opportunity.score}%',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward_rounded, size: 18),
             ],
           ),
         ),

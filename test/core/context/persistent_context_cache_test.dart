@@ -7,6 +7,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -202,6 +203,64 @@ void main() {
 
     expect(await cache.readLatest(), isNull);
   });
+
+  test(
+    'round-trips fresh V3 photography opportunities and stale drops them',
+    () async {
+      final preferences = SharedPreferencesAsync();
+      const key = 'context-cache-photography-opportunities';
+      final now = DateTime.utc(2026, 7, 17, 11);
+      final snapshot = ContextSnapshot(
+        id: 'ctx-photo',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.lake,
+        dayPhase: DayPhase.sunset,
+        weather: WeatherType.cloudy,
+        activeRoute: false,
+        photographyOpportunities: [
+          PhotographyOpportunity(
+            id: 'photo-reflection-2026071711',
+            kind: PhotographyOpportunityKind.reflection,
+            title: '倒影窗口',
+            startsAt: now.add(const Duration(minutes: 5)),
+            peaksAt: now.add(const Duration(minutes: 20)),
+            expiresAt: now.add(const Duration(minutes: 40)),
+            score: 74,
+            confidence: .76,
+            geoScope: PhotographyOpportunityGeoScope.point,
+            primaryAction: ContextAction.openExplore,
+            fallbackAction: ContextAction.openShootingWindow,
+            equipmentHints: const ['偏振镜'],
+            evidence: const [
+              PhotographyEvidence(
+                id: 'photo-reflection-2026071711:0',
+                kind: PhotographyEvidenceKind.weather,
+                statement: '风速 2.0m/s',
+                confidence: .76,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await PersistentContextCache(
+        preferences,
+        storageKey: key,
+      ).write(snapshot);
+      final restored = await PersistentContextCache(
+        preferences,
+        storageKey: key,
+      ).readLatest();
+
+      expect(restored?.photographyOpportunities.single.equipmentHints, ['偏振镜']);
+      expect(
+        restored?.photographyOpportunities.single.primaryAction,
+        ContextAction.openExplore,
+      );
+      expect(restored?.asStale().photographyOpportunities, isEmpty);
+    },
+  );
 
   group('server manifest', () {
     test(

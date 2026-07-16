@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
@@ -47,6 +48,96 @@ void main() {
       RouteTimelineKind.arrival,
     ]);
   });
+
+  test('turns a route-scoped opportunity into an arrival action', () {
+    final now = DateTime.utc(2026, 7, 13, 10);
+    final snapshot = _snapshot(
+      now: now,
+      opportunities: [
+        _opportunity(
+          startsAt: now.add(const Duration(minutes: 45)),
+          expiresAt: now.add(const Duration(hours: 2)),
+        ),
+      ],
+    );
+
+    final timeline = RouteTimeline.build(
+      route: _route(duration: const Duration(hours: 1)),
+      snapshot: snapshot,
+      departureAt: now,
+    );
+    final entry = timeline.singleWhere(
+      (item) => item.id == 'opportunity-sunset-route',
+    );
+
+    expect(entry.kind, RouteTimelineKind.shooting);
+    expect(entry.time, now.add(const Duration(hours: 1)));
+    expect(entry.end, now.add(const Duration(hours: 2)));
+    expect(entry.description, contains('预计抵达时仍在窗口内'));
+    expect(entry.description, contains('未推断沿途逐点天气'));
+  });
+
+  test('marks an opportunity missed when arrival is after its end', () {
+    final now = DateTime.utc(2026, 7, 13, 10);
+    final timeline = RouteTimeline.build(
+      route: _route(duration: const Duration(hours: 2)),
+      snapshot: _snapshot(
+        now: now,
+        opportunities: [
+          _opportunity(
+            startsAt: now.add(const Duration(minutes: 10)),
+            expiresAt: now.add(const Duration(hours: 1)),
+          ),
+        ],
+      ),
+      departureAt: now,
+    );
+    final entry = timeline.singleWhere(
+      (item) => item.id == 'missed-opportunity-sunset-route',
+    );
+
+    expect(entry.kind, RouteTimelineKind.shootingMissed);
+    expect(entry.label, '错过 晚霞窗口');
+    expect(entry.time, now.add(const Duration(hours: 2)));
+    expect(entry.description, contains('窗口已结束'));
+  });
+
+  test(
+    'does not project point opportunities or stale snapshots onto a route',
+    () {
+      final now = DateTime.utc(2026, 7, 13, 10);
+      final point = _opportunity(
+        startsAt: now.add(const Duration(minutes: 10)),
+        expiresAt: now.add(const Duration(hours: 1)),
+        scope: PhotographyOpportunityGeoScope.point,
+      );
+      final snapshot = _snapshot(now: now, opportunities: [point]);
+      final route = _route(duration: const Duration(minutes: 30));
+
+      expect(
+        RouteTimeline.eligiblePhotographyOpportunities(
+          snapshot,
+          departureAt: now,
+        ),
+        isEmpty,
+      );
+      expect(
+        RouteTimeline.eligiblePhotographyOpportunities(
+          snapshot.asStale(),
+          departureAt: now,
+        ),
+        isEmpty,
+      );
+      expect(
+        RouteTimeline.build(
+          route: route,
+          snapshot: snapshot,
+          departureAt: now,
+        ).where((entry) => entry.id.contains('opportunity-')),
+        isEmpty,
+      );
+    },
+  );
 
   test('merges support, route risk, elevation and hiking return nodes', () {
     final now = DateTime.utc(2026, 7, 13, 10);
@@ -151,6 +242,7 @@ ContextSnapshot _snapshot({
   required DateTime now,
   DateTime? sunrise,
   DateTime? sunset,
+  List<PhotographyOpportunity> opportunities = const [],
 }) => ContextSnapshot(
   id: 'route-context',
   observedAt: now,
@@ -161,4 +253,27 @@ ContextSnapshot _snapshot({
   activeRoute: true,
   sunrise: sunrise,
   sunset: sunset,
+  photographyOpportunities: opportunities,
+);
+
+PhotographyOpportunity _opportunity({
+  required DateTime startsAt,
+  required DateTime expiresAt,
+  PhotographyOpportunityGeoScope scope = PhotographyOpportunityGeoScope.route,
+}) => PhotographyOpportunity(
+  id: 'sunset-route',
+  title: '晚霞窗口',
+  startsAt: startsAt,
+  peaksAt: startsAt.add(const Duration(minutes: 15)),
+  expiresAt: expiresAt,
+  confidence: .8,
+  evidence: const [
+    PhotographyEvidence(
+      id: 'cloud-gap',
+      kind: PhotographyEvidenceKind.weather,
+      statement: '云隙已成立',
+      confidence: .8,
+    ),
+  ],
+  geoScope: scope,
 );

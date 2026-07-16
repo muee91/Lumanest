@@ -28,7 +28,10 @@ class DriftUserLibraryStore implements UserLibraryStore {
         persisted.savedRoutes.isNotEmpty ||
         persisted.journeys.isNotEmpty ||
         persisted.importedTracks.isNotEmpty ||
-        persisted.savedNotes.isNotEmpty) {
+        persisted.savedNotes.isNotEmpty ||
+        persisted.watchedOpportunities.isNotEmpty ||
+        persisted.opportunityResults.isNotEmpty ||
+        persisted.offlinePhotographyPacks.isNotEmpty) {
       return persisted;
     }
 
@@ -65,6 +68,17 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final noteQuery = _database.select(_database.savedInspirationNotes)
         ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
       final notes = await noteQuery.get();
+      final watchedQuery = _database.select(
+        _database.watchedPhotographyOpportunities,
+      )..orderBy([(row) => OrderingTerm.desc(row.watchedAt)]);
+      final watched = await watchedQuery.get();
+      final resultQuery = _database.select(
+        _database.photographyOpportunityResults,
+      )..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]);
+      final results = await resultQuery.get();
+      final packQuery = _database.select(_database.offlinePhotographyPacks)
+        ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]);
+      final packs = await packQuery.get();
       return UserLibraryState(
         savedPlaces: places
             .map(
@@ -133,6 +147,38 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 authorityUri: _validAuthorityUri(row.authorityUrl),
               ),
             )
+            .toList(growable: false),
+        watchedOpportunities: watched
+            .map(
+              (row) => WatchedPhotographyOpportunity(
+                id: row.id,
+                opportunityId: row.opportunityId,
+                snapshotId: row.snapshotId,
+                title: row.title,
+                watchedAt: row.watchedAt.toUtc(),
+                expiresAt: row.expiresAt.toUtc(),
+                targetId: row.targetId,
+              ),
+            )
+            .toList(growable: false),
+        opportunityResults: results
+            .map(
+              (row) => PhotographyOpportunityResult(
+                id: row.id,
+                opportunityId: row.opportunityId,
+                snapshotId: row.snapshotId,
+                outcome: PhotographyOpportunityOutcome.values.byName(
+                  row.outcome,
+                ),
+                recordedAt: row.recordedAt.toUtc(),
+                reason: row.reason,
+                targetId: row.targetId,
+              ),
+            )
+            .toList(growable: false),
+        offlinePhotographyPacks: packs
+            .map(_decodeOfflinePhotographyPack)
+            .whereType<OfflinePhotographyPack>()
             .toList(growable: false),
       );
     });
@@ -256,7 +302,109 @@ class DriftUserLibraryStore implements UserLibraryStore {
               ),
             );
       }
+
+      await _database.delete(_database.watchedPhotographyOpportunities).go();
+      for (final watched in state.watchedOpportunities.take(100)) {
+        await _database
+            .into(_database.watchedPhotographyOpportunities)
+            .insert(
+              WatchedPhotographyOpportunitiesCompanion.insert(
+                id: watched.id,
+                opportunityId: watched.opportunityId,
+                snapshotId: watched.snapshotId,
+                title: watched.title,
+                watchedAt: watched.watchedAt.toUtc(),
+                expiresAt: watched.expiresAt.toUtc(),
+                targetId: Value(watched.targetId),
+              ),
+            );
+      }
+
+      await _database.delete(_database.photographyOpportunityResults).go();
+      for (final result in state.opportunityResults.take(200)) {
+        await _database
+            .into(_database.photographyOpportunityResults)
+            .insert(
+              PhotographyOpportunityResultsCompanion.insert(
+                id: result.id,
+                opportunityId: result.opportunityId,
+                snapshotId: result.snapshotId,
+                outcome: result.outcome.name,
+                reason: Value(result.reason),
+                recordedAt: result.recordedAt.toUtc(),
+                targetId: Value(result.targetId),
+              ),
+            );
+      }
+
+      await _database.delete(_database.offlinePhotographyPacks).go();
+      for (final pack in state.offlinePhotographyPacks.take(50)) {
+        await _database
+            .into(_database.offlinePhotographyPacks)
+            .insert(
+              OfflinePhotographyPacksCompanion.insert(
+                id: pack.id,
+                name: pack.name,
+                createdAt: pack.createdAt.toUtc(),
+                dataTimestamp: pack.dataTimestamp.toUtc(),
+                routeJson: Value(
+                  pack.route == null ? null : jsonEncode(pack.route!.toJson()),
+                ),
+                placesJson: jsonEncode(
+                  pack.places
+                      .map((place) => place.toJson())
+                      .toList(growable: false),
+                ),
+                windowsJson: jsonEncode(
+                  pack.windows
+                      .map((window) => window.toJson())
+                      .toList(growable: false),
+                ),
+                opportunityJson: jsonEncode(pack.opportunitySnapshot),
+              ),
+            );
+      }
     });
+  }
+
+  OfflinePhotographyPack? _decodeOfflinePhotographyPack(
+    OfflinePhotographyPackRow row,
+  ) {
+    try {
+      final route = row.routeJson == null
+          ? null
+          : SavedRouteDestination.fromJson(jsonDecode(row.routeJson!));
+      final rawPlaces = jsonDecode(row.placesJson);
+      final rawWindows = jsonDecode(row.windowsJson);
+      final rawOpportunity = jsonDecode(row.opportunityJson);
+      if (rawPlaces is! List || rawWindows is! List || rawOpportunity is! Map) {
+        return null;
+      }
+      final places = rawPlaces
+          .map(SavedPlace.fromJson)
+          .whereType<SavedPlace>()
+          .toList(growable: false);
+      if (places.length != rawPlaces.length) return null;
+      final windows = rawWindows
+          .map(OfflinePhotographyWindow.fromJson)
+          .whereType<OfflinePhotographyWindow>()
+          .toList(growable: false);
+      if (windows.length != rawWindows.length) return null;
+      return OfflinePhotographyPack.restore(
+        id: row.id,
+        name: row.name,
+        createdAt: row.createdAt.toUtc(),
+        dataTimestamp: row.dataTimestamp.toUtc(),
+        route: route,
+        places: places,
+        windows: windows,
+        opportunitySnapshot: rawOpportunity.map(
+          (key, value) => MapEntry('$key', value),
+        ),
+      );
+    } on Object {
+      return null;
+    }
   }
 
   ImportedRouteTrack? _decodeTrack(ImportedRouteTrackRow row) {

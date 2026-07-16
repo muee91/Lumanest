@@ -991,7 +991,9 @@ export function createTokenBrokerServer({
         simulationRegistry.register(simulationSession);
         const simulated = simulationRegistry.snapshot(simulationSession, now());
         if (simulated != null) {
-          writeJson(response, 200, simulated);
+          writeJson(response, 200, body.contractVersion === 3
+            ? { ...simulated, contractVersion: 3, opportunities: [] }
+            : simulated);
           return;
         }
       }

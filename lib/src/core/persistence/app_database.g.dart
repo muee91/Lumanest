@@ -4450,6 +4450,1508 @@ class WildlifeMapLayerCachesCompanion
   }
 }
 
+class $WatchedPhotographyOpportunitiesTable
+    extends WatchedPhotographyOpportunities
+    with
+        TableInfo<
+          $WatchedPhotographyOpportunitiesTable,
+          WatchedPhotographyOpportunityRow
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WatchedPhotographyOpportunitiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _opportunityIdMeta = const VerificationMeta(
+    'opportunityId',
+  );
+  @override
+  late final GeneratedColumn<String> opportunityId = GeneratedColumn<String>(
+    'opportunity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snapshotIdMeta = const VerificationMeta(
+    'snapshotId',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotId = GeneratedColumn<String>(
+    'snapshot_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+    'target_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _watchedAtMeta = const VerificationMeta(
+    'watchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> watchedAt = GeneratedColumn<DateTime>(
+    'watched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    opportunityId,
+    snapshotId,
+    title,
+    targetId,
+    watchedAt,
+    expiresAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'watched_photography_opportunities';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<WatchedPhotographyOpportunityRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('opportunity_id')) {
+      context.handle(
+        _opportunityIdMeta,
+        opportunityId.isAcceptableOrUnknown(
+          data['opportunity_id']!,
+          _opportunityIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_opportunityIdMeta);
+    }
+    if (data.containsKey('snapshot_id')) {
+      context.handle(
+        _snapshotIdMeta,
+        snapshotId.isAcceptableOrUnknown(data['snapshot_id']!, _snapshotIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    }
+    if (data.containsKey('watched_at')) {
+      context.handle(
+        _watchedAtMeta,
+        watchedAt.isAcceptableOrUnknown(data['watched_at']!, _watchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_watchedAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WatchedPhotographyOpportunityRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WatchedPhotographyOpportunityRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      opportunityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}opportunity_id'],
+      )!,
+      snapshotId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_id'],
+      ),
+      watchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}watched_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+    );
+  }
+
+  @override
+  $WatchedPhotographyOpportunitiesTable createAlias(String alias) {
+    return $WatchedPhotographyOpportunitiesTable(attachedDatabase, alias);
+  }
+}
+
+class WatchedPhotographyOpportunityRow extends DataClass
+    implements Insertable<WatchedPhotographyOpportunityRow> {
+  final String id;
+  final String opportunityId;
+  final String snapshotId;
+  final String title;
+  final String? targetId;
+  final DateTime watchedAt;
+  final DateTime expiresAt;
+  const WatchedPhotographyOpportunityRow({
+    required this.id,
+    required this.opportunityId,
+    required this.snapshotId,
+    required this.title,
+    this.targetId,
+    required this.watchedAt,
+    required this.expiresAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['opportunity_id'] = Variable<String>(opportunityId);
+    map['snapshot_id'] = Variable<String>(snapshotId);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<String>(targetId);
+    }
+    map['watched_at'] = Variable<DateTime>(watchedAt);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    return map;
+  }
+
+  WatchedPhotographyOpportunitiesCompanion toCompanion(bool nullToAbsent) {
+    return WatchedPhotographyOpportunitiesCompanion(
+      id: Value(id),
+      opportunityId: Value(opportunityId),
+      snapshotId: Value(snapshotId),
+      title: Value(title),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      watchedAt: Value(watchedAt),
+      expiresAt: Value(expiresAt),
+    );
+  }
+
+  factory WatchedPhotographyOpportunityRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WatchedPhotographyOpportunityRow(
+      id: serializer.fromJson<String>(json['id']),
+      opportunityId: serializer.fromJson<String>(json['opportunityId']),
+      snapshotId: serializer.fromJson<String>(json['snapshotId']),
+      title: serializer.fromJson<String>(json['title']),
+      targetId: serializer.fromJson<String?>(json['targetId']),
+      watchedAt: serializer.fromJson<DateTime>(json['watchedAt']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'opportunityId': serializer.toJson<String>(opportunityId),
+      'snapshotId': serializer.toJson<String>(snapshotId),
+      'title': serializer.toJson<String>(title),
+      'targetId': serializer.toJson<String?>(targetId),
+      'watchedAt': serializer.toJson<DateTime>(watchedAt),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+    };
+  }
+
+  WatchedPhotographyOpportunityRow copyWith({
+    String? id,
+    String? opportunityId,
+    String? snapshotId,
+    String? title,
+    Value<String?> targetId = const Value.absent(),
+    DateTime? watchedAt,
+    DateTime? expiresAt,
+  }) => WatchedPhotographyOpportunityRow(
+    id: id ?? this.id,
+    opportunityId: opportunityId ?? this.opportunityId,
+    snapshotId: snapshotId ?? this.snapshotId,
+    title: title ?? this.title,
+    targetId: targetId.present ? targetId.value : this.targetId,
+    watchedAt: watchedAt ?? this.watchedAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+  );
+  WatchedPhotographyOpportunityRow copyWithCompanion(
+    WatchedPhotographyOpportunitiesCompanion data,
+  ) {
+    return WatchedPhotographyOpportunityRow(
+      id: data.id.present ? data.id.value : this.id,
+      opportunityId: data.opportunityId.present
+          ? data.opportunityId.value
+          : this.opportunityId,
+      snapshotId: data.snapshotId.present
+          ? data.snapshotId.value
+          : this.snapshotId,
+      title: data.title.present ? data.title.value : this.title,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      watchedAt: data.watchedAt.present ? data.watchedAt.value : this.watchedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WatchedPhotographyOpportunityRow(')
+          ..write('id: $id, ')
+          ..write('opportunityId: $opportunityId, ')
+          ..write('snapshotId: $snapshotId, ')
+          ..write('title: $title, ')
+          ..write('targetId: $targetId, ')
+          ..write('watchedAt: $watchedAt, ')
+          ..write('expiresAt: $expiresAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    opportunityId,
+    snapshotId,
+    title,
+    targetId,
+    watchedAt,
+    expiresAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WatchedPhotographyOpportunityRow &&
+          other.id == this.id &&
+          other.opportunityId == this.opportunityId &&
+          other.snapshotId == this.snapshotId &&
+          other.title == this.title &&
+          other.targetId == this.targetId &&
+          other.watchedAt == this.watchedAt &&
+          other.expiresAt == this.expiresAt);
+}
+
+class WatchedPhotographyOpportunitiesCompanion
+    extends UpdateCompanion<WatchedPhotographyOpportunityRow> {
+  final Value<String> id;
+  final Value<String> opportunityId;
+  final Value<String> snapshotId;
+  final Value<String> title;
+  final Value<String?> targetId;
+  final Value<DateTime> watchedAt;
+  final Value<DateTime> expiresAt;
+  final Value<int> rowid;
+  const WatchedPhotographyOpportunitiesCompanion({
+    this.id = const Value.absent(),
+    this.opportunityId = const Value.absent(),
+    this.snapshotId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.watchedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WatchedPhotographyOpportunitiesCompanion.insert({
+    required String id,
+    required String opportunityId,
+    required String snapshotId,
+    required String title,
+    this.targetId = const Value.absent(),
+    required DateTime watchedAt,
+    required DateTime expiresAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       opportunityId = Value(opportunityId),
+       snapshotId = Value(snapshotId),
+       title = Value(title),
+       watchedAt = Value(watchedAt),
+       expiresAt = Value(expiresAt);
+  static Insertable<WatchedPhotographyOpportunityRow> custom({
+    Expression<String>? id,
+    Expression<String>? opportunityId,
+    Expression<String>? snapshotId,
+    Expression<String>? title,
+    Expression<String>? targetId,
+    Expression<DateTime>? watchedAt,
+    Expression<DateTime>? expiresAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (opportunityId != null) 'opportunity_id': opportunityId,
+      if (snapshotId != null) 'snapshot_id': snapshotId,
+      if (title != null) 'title': title,
+      if (targetId != null) 'target_id': targetId,
+      if (watchedAt != null) 'watched_at': watchedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WatchedPhotographyOpportunitiesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? opportunityId,
+    Value<String>? snapshotId,
+    Value<String>? title,
+    Value<String?>? targetId,
+    Value<DateTime>? watchedAt,
+    Value<DateTime>? expiresAt,
+    Value<int>? rowid,
+  }) {
+    return WatchedPhotographyOpportunitiesCompanion(
+      id: id ?? this.id,
+      opportunityId: opportunityId ?? this.opportunityId,
+      snapshotId: snapshotId ?? this.snapshotId,
+      title: title ?? this.title,
+      targetId: targetId ?? this.targetId,
+      watchedAt: watchedAt ?? this.watchedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (opportunityId.present) {
+      map['opportunity_id'] = Variable<String>(opportunityId.value);
+    }
+    if (snapshotId.present) {
+      map['snapshot_id'] = Variable<String>(snapshotId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (watchedAt.present) {
+      map['watched_at'] = Variable<DateTime>(watchedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WatchedPhotographyOpportunitiesCompanion(')
+          ..write('id: $id, ')
+          ..write('opportunityId: $opportunityId, ')
+          ..write('snapshotId: $snapshotId, ')
+          ..write('title: $title, ')
+          ..write('targetId: $targetId, ')
+          ..write('watchedAt: $watchedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
+    with
+        TableInfo<
+          $PhotographyOpportunityResultsTable,
+          PhotographyOpportunityResultRow
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PhotographyOpportunityResultsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _opportunityIdMeta = const VerificationMeta(
+    'opportunityId',
+  );
+  @override
+  late final GeneratedColumn<String> opportunityId = GeneratedColumn<String>(
+    'opportunity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snapshotIdMeta = const VerificationMeta(
+    'snapshotId',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotId = GeneratedColumn<String>(
+    'snapshot_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
+    'target_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _outcomeMeta = const VerificationMeta(
+    'outcome',
+  );
+  @override
+  late final GeneratedColumn<String> outcome = GeneratedColumn<String>(
+    'outcome',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    opportunityId,
+    snapshotId,
+    targetId,
+    outcome,
+    reason,
+    recordedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'photography_opportunity_results';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PhotographyOpportunityResultRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('opportunity_id')) {
+      context.handle(
+        _opportunityIdMeta,
+        opportunityId.isAcceptableOrUnknown(
+          data['opportunity_id']!,
+          _opportunityIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_opportunityIdMeta);
+    }
+    if (data.containsKey('snapshot_id')) {
+      context.handle(
+        _snapshotIdMeta,
+        snapshotId.isAcceptableOrUnknown(data['snapshot_id']!, _snapshotIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotIdMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    }
+    if (data.containsKey('outcome')) {
+      context.handle(
+        _outcomeMeta,
+        outcome.isAcceptableOrUnknown(data['outcome']!, _outcomeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_outcomeMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PhotographyOpportunityResultRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PhotographyOpportunityResultRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      opportunityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}opportunity_id'],
+      )!,
+      snapshotId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_id'],
+      )!,
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_id'],
+      ),
+      outcome: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}outcome'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      ),
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PhotographyOpportunityResultsTable createAlias(String alias) {
+    return $PhotographyOpportunityResultsTable(attachedDatabase, alias);
+  }
+}
+
+class PhotographyOpportunityResultRow extends DataClass
+    implements Insertable<PhotographyOpportunityResultRow> {
+  final String id;
+  final String opportunityId;
+  final String snapshotId;
+  final String? targetId;
+  final String outcome;
+  final String? reason;
+  final DateTime recordedAt;
+  const PhotographyOpportunityResultRow({
+    required this.id,
+    required this.opportunityId,
+    required this.snapshotId,
+    this.targetId,
+    required this.outcome,
+    this.reason,
+    required this.recordedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['opportunity_id'] = Variable<String>(opportunityId);
+    map['snapshot_id'] = Variable<String>(snapshotId);
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<String>(targetId);
+    }
+    map['outcome'] = Variable<String>(outcome);
+    if (!nullToAbsent || reason != null) {
+      map['reason'] = Variable<String>(reason);
+    }
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    return map;
+  }
+
+  PhotographyOpportunityResultsCompanion toCompanion(bool nullToAbsent) {
+    return PhotographyOpportunityResultsCompanion(
+      id: Value(id),
+      opportunityId: Value(opportunityId),
+      snapshotId: Value(snapshotId),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      outcome: Value(outcome),
+      reason: reason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reason),
+      recordedAt: Value(recordedAt),
+    );
+  }
+
+  factory PhotographyOpportunityResultRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PhotographyOpportunityResultRow(
+      id: serializer.fromJson<String>(json['id']),
+      opportunityId: serializer.fromJson<String>(json['opportunityId']),
+      snapshotId: serializer.fromJson<String>(json['snapshotId']),
+      targetId: serializer.fromJson<String?>(json['targetId']),
+      outcome: serializer.fromJson<String>(json['outcome']),
+      reason: serializer.fromJson<String?>(json['reason']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'opportunityId': serializer.toJson<String>(opportunityId),
+      'snapshotId': serializer.toJson<String>(snapshotId),
+      'targetId': serializer.toJson<String?>(targetId),
+      'outcome': serializer.toJson<String>(outcome),
+      'reason': serializer.toJson<String?>(reason),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+    };
+  }
+
+  PhotographyOpportunityResultRow copyWith({
+    String? id,
+    String? opportunityId,
+    String? snapshotId,
+    Value<String?> targetId = const Value.absent(),
+    String? outcome,
+    Value<String?> reason = const Value.absent(),
+    DateTime? recordedAt,
+  }) => PhotographyOpportunityResultRow(
+    id: id ?? this.id,
+    opportunityId: opportunityId ?? this.opportunityId,
+    snapshotId: snapshotId ?? this.snapshotId,
+    targetId: targetId.present ? targetId.value : this.targetId,
+    outcome: outcome ?? this.outcome,
+    reason: reason.present ? reason.value : this.reason,
+    recordedAt: recordedAt ?? this.recordedAt,
+  );
+  PhotographyOpportunityResultRow copyWithCompanion(
+    PhotographyOpportunityResultsCompanion data,
+  ) {
+    return PhotographyOpportunityResultRow(
+      id: data.id.present ? data.id.value : this.id,
+      opportunityId: data.opportunityId.present
+          ? data.opportunityId.value
+          : this.opportunityId,
+      snapshotId: data.snapshotId.present
+          ? data.snapshotId.value
+          : this.snapshotId,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      outcome: data.outcome.present ? data.outcome.value : this.outcome,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PhotographyOpportunityResultRow(')
+          ..write('id: $id, ')
+          ..write('opportunityId: $opportunityId, ')
+          ..write('snapshotId: $snapshotId, ')
+          ..write('targetId: $targetId, ')
+          ..write('outcome: $outcome, ')
+          ..write('reason: $reason, ')
+          ..write('recordedAt: $recordedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    opportunityId,
+    snapshotId,
+    targetId,
+    outcome,
+    reason,
+    recordedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PhotographyOpportunityResultRow &&
+          other.id == this.id &&
+          other.opportunityId == this.opportunityId &&
+          other.snapshotId == this.snapshotId &&
+          other.targetId == this.targetId &&
+          other.outcome == this.outcome &&
+          other.reason == this.reason &&
+          other.recordedAt == this.recordedAt);
+}
+
+class PhotographyOpportunityResultsCompanion
+    extends UpdateCompanion<PhotographyOpportunityResultRow> {
+  final Value<String> id;
+  final Value<String> opportunityId;
+  final Value<String> snapshotId;
+  final Value<String?> targetId;
+  final Value<String> outcome;
+  final Value<String?> reason;
+  final Value<DateTime> recordedAt;
+  final Value<int> rowid;
+  const PhotographyOpportunityResultsCompanion({
+    this.id = const Value.absent(),
+    this.opportunityId = const Value.absent(),
+    this.snapshotId = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.outcome = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PhotographyOpportunityResultsCompanion.insert({
+    required String id,
+    required String opportunityId,
+    required String snapshotId,
+    this.targetId = const Value.absent(),
+    required String outcome,
+    this.reason = const Value.absent(),
+    required DateTime recordedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       opportunityId = Value(opportunityId),
+       snapshotId = Value(snapshotId),
+       outcome = Value(outcome),
+       recordedAt = Value(recordedAt);
+  static Insertable<PhotographyOpportunityResultRow> custom({
+    Expression<String>? id,
+    Expression<String>? opportunityId,
+    Expression<String>? snapshotId,
+    Expression<String>? targetId,
+    Expression<String>? outcome,
+    Expression<String>? reason,
+    Expression<DateTime>? recordedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (opportunityId != null) 'opportunity_id': opportunityId,
+      if (snapshotId != null) 'snapshot_id': snapshotId,
+      if (targetId != null) 'target_id': targetId,
+      if (outcome != null) 'outcome': outcome,
+      if (reason != null) 'reason': reason,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PhotographyOpportunityResultsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? opportunityId,
+    Value<String>? snapshotId,
+    Value<String?>? targetId,
+    Value<String>? outcome,
+    Value<String?>? reason,
+    Value<DateTime>? recordedAt,
+    Value<int>? rowid,
+  }) {
+    return PhotographyOpportunityResultsCompanion(
+      id: id ?? this.id,
+      opportunityId: opportunityId ?? this.opportunityId,
+      snapshotId: snapshotId ?? this.snapshotId,
+      targetId: targetId ?? this.targetId,
+      outcome: outcome ?? this.outcome,
+      reason: reason ?? this.reason,
+      recordedAt: recordedAt ?? this.recordedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (opportunityId.present) {
+      map['opportunity_id'] = Variable<String>(opportunityId.value);
+    }
+    if (snapshotId.present) {
+      map['snapshot_id'] = Variable<String>(snapshotId.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<String>(targetId.value);
+    }
+    if (outcome.present) {
+      map['outcome'] = Variable<String>(outcome.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PhotographyOpportunityResultsCompanion(')
+          ..write('id: $id, ')
+          ..write('opportunityId: $opportunityId, ')
+          ..write('snapshotId: $snapshotId, ')
+          ..write('targetId: $targetId, ')
+          ..write('outcome: $outcome, ')
+          ..write('reason: $reason, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $OfflinePhotographyPacksTable extends OfflinePhotographyPacks
+    with TableInfo<$OfflinePhotographyPacksTable, OfflinePhotographyPackRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OfflinePhotographyPacksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dataTimestampMeta = const VerificationMeta(
+    'dataTimestamp',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dataTimestamp =
+      GeneratedColumn<DateTime>(
+        'data_timestamp',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _routeJsonMeta = const VerificationMeta(
+    'routeJson',
+  );
+  @override
+  late final GeneratedColumn<String> routeJson = GeneratedColumn<String>(
+    'route_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _placesJsonMeta = const VerificationMeta(
+    'placesJson',
+  );
+  @override
+  late final GeneratedColumn<String> placesJson = GeneratedColumn<String>(
+    'places_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _windowsJsonMeta = const VerificationMeta(
+    'windowsJson',
+  );
+  @override
+  late final GeneratedColumn<String> windowsJson = GeneratedColumn<String>(
+    'windows_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _opportunityJsonMeta = const VerificationMeta(
+    'opportunityJson',
+  );
+  @override
+  late final GeneratedColumn<String> opportunityJson = GeneratedColumn<String>(
+    'opportunity_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    createdAt,
+    dataTimestamp,
+    routeJson,
+    placesJson,
+    windowsJson,
+    opportunityJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'offline_photography_packs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<OfflinePhotographyPackRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('data_timestamp')) {
+      context.handle(
+        _dataTimestampMeta,
+        dataTimestamp.isAcceptableOrUnknown(
+          data['data_timestamp']!,
+          _dataTimestampMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dataTimestampMeta);
+    }
+    if (data.containsKey('route_json')) {
+      context.handle(
+        _routeJsonMeta,
+        routeJson.isAcceptableOrUnknown(data['route_json']!, _routeJsonMeta),
+      );
+    }
+    if (data.containsKey('places_json')) {
+      context.handle(
+        _placesJsonMeta,
+        placesJson.isAcceptableOrUnknown(data['places_json']!, _placesJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_placesJsonMeta);
+    }
+    if (data.containsKey('windows_json')) {
+      context.handle(
+        _windowsJsonMeta,
+        windowsJson.isAcceptableOrUnknown(
+          data['windows_json']!,
+          _windowsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_windowsJsonMeta);
+    }
+    if (data.containsKey('opportunity_json')) {
+      context.handle(
+        _opportunityJsonMeta,
+        opportunityJson.isAcceptableOrUnknown(
+          data['opportunity_json']!,
+          _opportunityJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_opportunityJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  OfflinePhotographyPackRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OfflinePhotographyPackRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      dataTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}data_timestamp'],
+      )!,
+      routeJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}route_json'],
+      ),
+      placesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}places_json'],
+      )!,
+      windowsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}windows_json'],
+      )!,
+      opportunityJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}opportunity_json'],
+      )!,
+    );
+  }
+
+  @override
+  $OfflinePhotographyPacksTable createAlias(String alias) {
+    return $OfflinePhotographyPacksTable(attachedDatabase, alias);
+  }
+}
+
+class OfflinePhotographyPackRow extends DataClass
+    implements Insertable<OfflinePhotographyPackRow> {
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final DateTime dataTimestamp;
+  final String? routeJson;
+  final String placesJson;
+  final String windowsJson;
+  final String opportunityJson;
+  const OfflinePhotographyPackRow({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.dataTimestamp,
+    this.routeJson,
+    required this.placesJson,
+    required this.windowsJson,
+    required this.opportunityJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['data_timestamp'] = Variable<DateTime>(dataTimestamp);
+    if (!nullToAbsent || routeJson != null) {
+      map['route_json'] = Variable<String>(routeJson);
+    }
+    map['places_json'] = Variable<String>(placesJson);
+    map['windows_json'] = Variable<String>(windowsJson);
+    map['opportunity_json'] = Variable<String>(opportunityJson);
+    return map;
+  }
+
+  OfflinePhotographyPacksCompanion toCompanion(bool nullToAbsent) {
+    return OfflinePhotographyPacksCompanion(
+      id: Value(id),
+      name: Value(name),
+      createdAt: Value(createdAt),
+      dataTimestamp: Value(dataTimestamp),
+      routeJson: routeJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(routeJson),
+      placesJson: Value(placesJson),
+      windowsJson: Value(windowsJson),
+      opportunityJson: Value(opportunityJson),
+    );
+  }
+
+  factory OfflinePhotographyPackRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OfflinePhotographyPackRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      dataTimestamp: serializer.fromJson<DateTime>(json['dataTimestamp']),
+      routeJson: serializer.fromJson<String?>(json['routeJson']),
+      placesJson: serializer.fromJson<String>(json['placesJson']),
+      windowsJson: serializer.fromJson<String>(json['windowsJson']),
+      opportunityJson: serializer.fromJson<String>(json['opportunityJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'dataTimestamp': serializer.toJson<DateTime>(dataTimestamp),
+      'routeJson': serializer.toJson<String?>(routeJson),
+      'placesJson': serializer.toJson<String>(placesJson),
+      'windowsJson': serializer.toJson<String>(windowsJson),
+      'opportunityJson': serializer.toJson<String>(opportunityJson),
+    };
+  }
+
+  OfflinePhotographyPackRow copyWith({
+    String? id,
+    String? name,
+    DateTime? createdAt,
+    DateTime? dataTimestamp,
+    Value<String?> routeJson = const Value.absent(),
+    String? placesJson,
+    String? windowsJson,
+    String? opportunityJson,
+  }) => OfflinePhotographyPackRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    createdAt: createdAt ?? this.createdAt,
+    dataTimestamp: dataTimestamp ?? this.dataTimestamp,
+    routeJson: routeJson.present ? routeJson.value : this.routeJson,
+    placesJson: placesJson ?? this.placesJson,
+    windowsJson: windowsJson ?? this.windowsJson,
+    opportunityJson: opportunityJson ?? this.opportunityJson,
+  );
+  OfflinePhotographyPackRow copyWithCompanion(
+    OfflinePhotographyPacksCompanion data,
+  ) {
+    return OfflinePhotographyPackRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      dataTimestamp: data.dataTimestamp.present
+          ? data.dataTimestamp.value
+          : this.dataTimestamp,
+      routeJson: data.routeJson.present ? data.routeJson.value : this.routeJson,
+      placesJson: data.placesJson.present
+          ? data.placesJson.value
+          : this.placesJson,
+      windowsJson: data.windowsJson.present
+          ? data.windowsJson.value
+          : this.windowsJson,
+      opportunityJson: data.opportunityJson.present
+          ? data.opportunityJson.value
+          : this.opportunityJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OfflinePhotographyPackRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('dataTimestamp: $dataTimestamp, ')
+          ..write('routeJson: $routeJson, ')
+          ..write('placesJson: $placesJson, ')
+          ..write('windowsJson: $windowsJson, ')
+          ..write('opportunityJson: $opportunityJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    createdAt,
+    dataTimestamp,
+    routeJson,
+    placesJson,
+    windowsJson,
+    opportunityJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OfflinePhotographyPackRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.createdAt == this.createdAt &&
+          other.dataTimestamp == this.dataTimestamp &&
+          other.routeJson == this.routeJson &&
+          other.placesJson == this.placesJson &&
+          other.windowsJson == this.windowsJson &&
+          other.opportunityJson == this.opportunityJson);
+}
+
+class OfflinePhotographyPacksCompanion
+    extends UpdateCompanion<OfflinePhotographyPackRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> dataTimestamp;
+  final Value<String?> routeJson;
+  final Value<String> placesJson;
+  final Value<String> windowsJson;
+  final Value<String> opportunityJson;
+  final Value<int> rowid;
+  const OfflinePhotographyPacksCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.dataTimestamp = const Value.absent(),
+    this.routeJson = const Value.absent(),
+    this.placesJson = const Value.absent(),
+    this.windowsJson = const Value.absent(),
+    this.opportunityJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  OfflinePhotographyPacksCompanion.insert({
+    required String id,
+    required String name,
+    required DateTime createdAt,
+    required DateTime dataTimestamp,
+    this.routeJson = const Value.absent(),
+    required String placesJson,
+    required String windowsJson,
+    required String opportunityJson,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       dataTimestamp = Value(dataTimestamp),
+       placesJson = Value(placesJson),
+       windowsJson = Value(windowsJson),
+       opportunityJson = Value(opportunityJson);
+  static Insertable<OfflinePhotographyPackRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? dataTimestamp,
+    Expression<String>? routeJson,
+    Expression<String>? placesJson,
+    Expression<String>? windowsJson,
+    Expression<String>? opportunityJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (createdAt != null) 'created_at': createdAt,
+      if (dataTimestamp != null) 'data_timestamp': dataTimestamp,
+      if (routeJson != null) 'route_json': routeJson,
+      if (placesJson != null) 'places_json': placesJson,
+      if (windowsJson != null) 'windows_json': windowsJson,
+      if (opportunityJson != null) 'opportunity_json': opportunityJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  OfflinePhotographyPacksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? dataTimestamp,
+    Value<String?>? routeJson,
+    Value<String>? placesJson,
+    Value<String>? windowsJson,
+    Value<String>? opportunityJson,
+    Value<int>? rowid,
+  }) {
+    return OfflinePhotographyPacksCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      createdAt: createdAt ?? this.createdAt,
+      dataTimestamp: dataTimestamp ?? this.dataTimestamp,
+      routeJson: routeJson ?? this.routeJson,
+      placesJson: placesJson ?? this.placesJson,
+      windowsJson: windowsJson ?? this.windowsJson,
+      opportunityJson: opportunityJson ?? this.opportunityJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (dataTimestamp.present) {
+      map['data_timestamp'] = Variable<DateTime>(dataTimestamp.value);
+    }
+    if (routeJson.present) {
+      map['route_json'] = Variable<String>(routeJson.value);
+    }
+    if (placesJson.present) {
+      map['places_json'] = Variable<String>(placesJson.value);
+    }
+    if (windowsJson.present) {
+      map['windows_json'] = Variable<String>(windowsJson.value);
+    }
+    if (opportunityJson.present) {
+      map['opportunity_json'] = Variable<String>(opportunityJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OfflinePhotographyPacksCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('dataTimestamp: $dataTimestamp, ')
+          ..write('routeJson: $routeJson, ')
+          ..write('placesJson: $placesJson, ')
+          ..write('windowsJson: $windowsJson, ')
+          ..write('opportunityJson: $opportunityJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4467,6 +5969,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $SavedInspirationNotesTable(this);
   late final $WildlifeMapLayerCachesTable wildlifeMapLayerCaches =
       $WildlifeMapLayerCachesTable(this);
+  late final $WatchedPhotographyOpportunitiesTable
+  watchedPhotographyOpportunities = $WatchedPhotographyOpportunitiesTable(this);
+  late final $PhotographyOpportunityResultsTable photographyOpportunityResults =
+      $PhotographyOpportunityResultsTable(this);
+  late final $OfflinePhotographyPacksTable offlinePhotographyPacks =
+      $OfflinePhotographyPacksTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4481,6 +5989,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     baseRegions,
     savedInspirationNotes,
     wildlifeMapLayerCaches,
+    watchedPhotographyOpportunities,
+    photographyOpportunityResults,
+    offlinePhotographyPacks,
   ];
 }
 
@@ -6813,6 +8324,814 @@ typedef $$WildlifeMapLayerCachesTableProcessedTableManager =
       WildlifeMapLayerCacheRow,
       PrefetchHooks Function()
     >;
+typedef $$WatchedPhotographyOpportunitiesTableCreateCompanionBuilder =
+    WatchedPhotographyOpportunitiesCompanion Function({
+      required String id,
+      required String opportunityId,
+      required String snapshotId,
+      required String title,
+      Value<String?> targetId,
+      required DateTime watchedAt,
+      required DateTime expiresAt,
+      Value<int> rowid,
+    });
+typedef $$WatchedPhotographyOpportunitiesTableUpdateCompanionBuilder =
+    WatchedPhotographyOpportunitiesCompanion Function({
+      Value<String> id,
+      Value<String> opportunityId,
+      Value<String> snapshotId,
+      Value<String> title,
+      Value<String?> targetId,
+      Value<DateTime> watchedAt,
+      Value<DateTime> expiresAt,
+      Value<int> rowid,
+    });
+
+class $$WatchedPhotographyOpportunitiesTableFilterComposer
+    extends Composer<_$AppDatabase, $WatchedPhotographyOpportunitiesTable> {
+  $$WatchedPhotographyOpportunitiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opportunityId => $composableBuilder(
+    column: $table.opportunityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotId => $composableBuilder(
+    column: $table.snapshotId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get watchedAt => $composableBuilder(
+    column: $table.watchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$WatchedPhotographyOpportunitiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $WatchedPhotographyOpportunitiesTable> {
+  $$WatchedPhotographyOpportunitiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opportunityId => $composableBuilder(
+    column: $table.opportunityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotId => $composableBuilder(
+    column: $table.snapshotId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get watchedAt => $composableBuilder(
+    column: $table.watchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$WatchedPhotographyOpportunitiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WatchedPhotographyOpportunitiesTable> {
+  $$WatchedPhotographyOpportunitiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get opportunityId => $composableBuilder(
+    column: $table.opportunityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snapshotId => $composableBuilder(
+    column: $table.snapshotId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get watchedAt =>
+      $composableBuilder(column: $table.watchedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+}
+
+class $$WatchedPhotographyOpportunitiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $WatchedPhotographyOpportunitiesTable,
+          WatchedPhotographyOpportunityRow,
+          $$WatchedPhotographyOpportunitiesTableFilterComposer,
+          $$WatchedPhotographyOpportunitiesTableOrderingComposer,
+          $$WatchedPhotographyOpportunitiesTableAnnotationComposer,
+          $$WatchedPhotographyOpportunitiesTableCreateCompanionBuilder,
+          $$WatchedPhotographyOpportunitiesTableUpdateCompanionBuilder,
+          (
+            WatchedPhotographyOpportunityRow,
+            BaseReferences<
+              _$AppDatabase,
+              $WatchedPhotographyOpportunitiesTable,
+              WatchedPhotographyOpportunityRow
+            >,
+          ),
+          WatchedPhotographyOpportunityRow,
+          PrefetchHooks Function()
+        > {
+  $$WatchedPhotographyOpportunitiesTableTableManager(
+    _$AppDatabase db,
+    $WatchedPhotographyOpportunitiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WatchedPhotographyOpportunitiesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$WatchedPhotographyOpportunitiesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$WatchedPhotographyOpportunitiesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> opportunityId = const Value.absent(),
+                Value<String> snapshotId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> targetId = const Value.absent(),
+                Value<DateTime> watchedAt = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => WatchedPhotographyOpportunitiesCompanion(
+                id: id,
+                opportunityId: opportunityId,
+                snapshotId: snapshotId,
+                title: title,
+                targetId: targetId,
+                watchedAt: watchedAt,
+                expiresAt: expiresAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String opportunityId,
+                required String snapshotId,
+                required String title,
+                Value<String?> targetId = const Value.absent(),
+                required DateTime watchedAt,
+                required DateTime expiresAt,
+                Value<int> rowid = const Value.absent(),
+              }) => WatchedPhotographyOpportunitiesCompanion.insert(
+                id: id,
+                opportunityId: opportunityId,
+                snapshotId: snapshotId,
+                title: title,
+                targetId: targetId,
+                watchedAt: watchedAt,
+                expiresAt: expiresAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$WatchedPhotographyOpportunitiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $WatchedPhotographyOpportunitiesTable,
+      WatchedPhotographyOpportunityRow,
+      $$WatchedPhotographyOpportunitiesTableFilterComposer,
+      $$WatchedPhotographyOpportunitiesTableOrderingComposer,
+      $$WatchedPhotographyOpportunitiesTableAnnotationComposer,
+      $$WatchedPhotographyOpportunitiesTableCreateCompanionBuilder,
+      $$WatchedPhotographyOpportunitiesTableUpdateCompanionBuilder,
+      (
+        WatchedPhotographyOpportunityRow,
+        BaseReferences<
+          _$AppDatabase,
+          $WatchedPhotographyOpportunitiesTable,
+          WatchedPhotographyOpportunityRow
+        >,
+      ),
+      WatchedPhotographyOpportunityRow,
+      PrefetchHooks Function()
+    >;
+typedef $$PhotographyOpportunityResultsTableCreateCompanionBuilder =
+    PhotographyOpportunityResultsCompanion Function({
+      required String id,
+      required String opportunityId,
+      required String snapshotId,
+      Value<String?> targetId,
+      required String outcome,
+      Value<String?> reason,
+      required DateTime recordedAt,
+      Value<int> rowid,
+    });
+typedef $$PhotographyOpportunityResultsTableUpdateCompanionBuilder =
+    PhotographyOpportunityResultsCompanion Function({
+      Value<String> id,
+      Value<String> opportunityId,
+      Value<String> snapshotId,
+      Value<String?> targetId,
+      Value<String> outcome,
+      Value<String?> reason,
+      Value<DateTime> recordedAt,
+      Value<int> rowid,
+    });
+
+class $$PhotographyOpportunityResultsTableFilterComposer
+    extends Composer<_$AppDatabase, $PhotographyOpportunityResultsTable> {
+  $$PhotographyOpportunityResultsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opportunityId => $composableBuilder(
+    column: $table.opportunityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotId => $composableBuilder(
+    column: $table.snapshotId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get outcome => $composableBuilder(
+    column: $table.outcome,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PhotographyOpportunityResultsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PhotographyOpportunityResultsTable> {
+  $$PhotographyOpportunityResultsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opportunityId => $composableBuilder(
+    column: $table.opportunityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotId => $composableBuilder(
+    column: $table.snapshotId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetId => $composableBuilder(
+    column: $table.targetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get outcome => $composableBuilder(
+    column: $table.outcome,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PhotographyOpportunityResultsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PhotographyOpportunityResultsTable> {
+  $$PhotographyOpportunityResultsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get opportunityId => $composableBuilder(
+    column: $table.opportunityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get snapshotId => $composableBuilder(
+    column: $table.snapshotId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<String> get outcome =>
+      $composableBuilder(column: $table.outcome, builder: (column) => column);
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$PhotographyOpportunityResultsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PhotographyOpportunityResultsTable,
+          PhotographyOpportunityResultRow,
+          $$PhotographyOpportunityResultsTableFilterComposer,
+          $$PhotographyOpportunityResultsTableOrderingComposer,
+          $$PhotographyOpportunityResultsTableAnnotationComposer,
+          $$PhotographyOpportunityResultsTableCreateCompanionBuilder,
+          $$PhotographyOpportunityResultsTableUpdateCompanionBuilder,
+          (
+            PhotographyOpportunityResultRow,
+            BaseReferences<
+              _$AppDatabase,
+              $PhotographyOpportunityResultsTable,
+              PhotographyOpportunityResultRow
+            >,
+          ),
+          PhotographyOpportunityResultRow,
+          PrefetchHooks Function()
+        > {
+  $$PhotographyOpportunityResultsTableTableManager(
+    _$AppDatabase db,
+    $PhotographyOpportunityResultsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PhotographyOpportunityResultsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$PhotographyOpportunityResultsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$PhotographyOpportunityResultsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> opportunityId = const Value.absent(),
+                Value<String> snapshotId = const Value.absent(),
+                Value<String?> targetId = const Value.absent(),
+                Value<String> outcome = const Value.absent(),
+                Value<String?> reason = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PhotographyOpportunityResultsCompanion(
+                id: id,
+                opportunityId: opportunityId,
+                snapshotId: snapshotId,
+                targetId: targetId,
+                outcome: outcome,
+                reason: reason,
+                recordedAt: recordedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String opportunityId,
+                required String snapshotId,
+                Value<String?> targetId = const Value.absent(),
+                required String outcome,
+                Value<String?> reason = const Value.absent(),
+                required DateTime recordedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PhotographyOpportunityResultsCompanion.insert(
+                id: id,
+                opportunityId: opportunityId,
+                snapshotId: snapshotId,
+                targetId: targetId,
+                outcome: outcome,
+                reason: reason,
+                recordedAt: recordedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PhotographyOpportunityResultsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PhotographyOpportunityResultsTable,
+      PhotographyOpportunityResultRow,
+      $$PhotographyOpportunityResultsTableFilterComposer,
+      $$PhotographyOpportunityResultsTableOrderingComposer,
+      $$PhotographyOpportunityResultsTableAnnotationComposer,
+      $$PhotographyOpportunityResultsTableCreateCompanionBuilder,
+      $$PhotographyOpportunityResultsTableUpdateCompanionBuilder,
+      (
+        PhotographyOpportunityResultRow,
+        BaseReferences<
+          _$AppDatabase,
+          $PhotographyOpportunityResultsTable,
+          PhotographyOpportunityResultRow
+        >,
+      ),
+      PhotographyOpportunityResultRow,
+      PrefetchHooks Function()
+    >;
+typedef $$OfflinePhotographyPacksTableCreateCompanionBuilder =
+    OfflinePhotographyPacksCompanion Function({
+      required String id,
+      required String name,
+      required DateTime createdAt,
+      required DateTime dataTimestamp,
+      Value<String?> routeJson,
+      required String placesJson,
+      required String windowsJson,
+      required String opportunityJson,
+      Value<int> rowid,
+    });
+typedef $$OfflinePhotographyPacksTableUpdateCompanionBuilder =
+    OfflinePhotographyPacksCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<DateTime> createdAt,
+      Value<DateTime> dataTimestamp,
+      Value<String?> routeJson,
+      Value<String> placesJson,
+      Value<String> windowsJson,
+      Value<String> opportunityJson,
+      Value<int> rowid,
+    });
+
+class $$OfflinePhotographyPacksTableFilterComposer
+    extends Composer<_$AppDatabase, $OfflinePhotographyPacksTable> {
+  $$OfflinePhotographyPacksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dataTimestamp => $composableBuilder(
+    column: $table.dataTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get routeJson => $composableBuilder(
+    column: $table.routeJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get placesJson => $composableBuilder(
+    column: $table.placesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get windowsJson => $composableBuilder(
+    column: $table.windowsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opportunityJson => $composableBuilder(
+    column: $table.opportunityJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$OfflinePhotographyPacksTableOrderingComposer
+    extends Composer<_$AppDatabase, $OfflinePhotographyPacksTable> {
+  $$OfflinePhotographyPacksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dataTimestamp => $composableBuilder(
+    column: $table.dataTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get routeJson => $composableBuilder(
+    column: $table.routeJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get placesJson => $composableBuilder(
+    column: $table.placesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get windowsJson => $composableBuilder(
+    column: $table.windowsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opportunityJson => $composableBuilder(
+    column: $table.opportunityJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$OfflinePhotographyPacksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OfflinePhotographyPacksTable> {
+  $$OfflinePhotographyPacksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get dataTimestamp => $composableBuilder(
+    column: $table.dataTimestamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get routeJson =>
+      $composableBuilder(column: $table.routeJson, builder: (column) => column);
+
+  GeneratedColumn<String> get placesJson => $composableBuilder(
+    column: $table.placesJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get windowsJson => $composableBuilder(
+    column: $table.windowsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get opportunityJson => $composableBuilder(
+    column: $table.opportunityJson,
+    builder: (column) => column,
+  );
+}
+
+class $$OfflinePhotographyPacksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $OfflinePhotographyPacksTable,
+          OfflinePhotographyPackRow,
+          $$OfflinePhotographyPacksTableFilterComposer,
+          $$OfflinePhotographyPacksTableOrderingComposer,
+          $$OfflinePhotographyPacksTableAnnotationComposer,
+          $$OfflinePhotographyPacksTableCreateCompanionBuilder,
+          $$OfflinePhotographyPacksTableUpdateCompanionBuilder,
+          (
+            OfflinePhotographyPackRow,
+            BaseReferences<
+              _$AppDatabase,
+              $OfflinePhotographyPacksTable,
+              OfflinePhotographyPackRow
+            >,
+          ),
+          OfflinePhotographyPackRow,
+          PrefetchHooks Function()
+        > {
+  $$OfflinePhotographyPacksTableTableManager(
+    _$AppDatabase db,
+    $OfflinePhotographyPacksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OfflinePhotographyPacksTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$OfflinePhotographyPacksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$OfflinePhotographyPacksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> dataTimestamp = const Value.absent(),
+                Value<String?> routeJson = const Value.absent(),
+                Value<String> placesJson = const Value.absent(),
+                Value<String> windowsJson = const Value.absent(),
+                Value<String> opportunityJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => OfflinePhotographyPacksCompanion(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+                dataTimestamp: dataTimestamp,
+                routeJson: routeJson,
+                placesJson: placesJson,
+                windowsJson: windowsJson,
+                opportunityJson: opportunityJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required DateTime createdAt,
+                required DateTime dataTimestamp,
+                Value<String?> routeJson = const Value.absent(),
+                required String placesJson,
+                required String windowsJson,
+                required String opportunityJson,
+                Value<int> rowid = const Value.absent(),
+              }) => OfflinePhotographyPacksCompanion.insert(
+                id: id,
+                name: name,
+                createdAt: createdAt,
+                dataTimestamp: dataTimestamp,
+                routeJson: routeJson,
+                placesJson: placesJson,
+                windowsJson: windowsJson,
+                opportunityJson: opportunityJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$OfflinePhotographyPacksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $OfflinePhotographyPacksTable,
+      OfflinePhotographyPackRow,
+      $$OfflinePhotographyPacksTableFilterComposer,
+      $$OfflinePhotographyPacksTableOrderingComposer,
+      $$OfflinePhotographyPacksTableAnnotationComposer,
+      $$OfflinePhotographyPacksTableCreateCompanionBuilder,
+      $$OfflinePhotographyPacksTableUpdateCompanionBuilder,
+      (
+        OfflinePhotographyPackRow,
+        BaseReferences<
+          _$AppDatabase,
+          $OfflinePhotographyPacksTable,
+          OfflinePhotographyPackRow
+        >,
+      ),
+      OfflinePhotographyPackRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6843,5 +9162,22 @@ class $AppDatabaseManager {
       $$WildlifeMapLayerCachesTableTableManager(
         _db,
         _db.wildlifeMapLayerCaches,
+      );
+  $$WatchedPhotographyOpportunitiesTableTableManager
+  get watchedPhotographyOpportunities =>
+      $$WatchedPhotographyOpportunitiesTableTableManager(
+        _db,
+        _db.watchedPhotographyOpportunities,
+      );
+  $$PhotographyOpportunityResultsTableTableManager
+  get photographyOpportunityResults =>
+      $$PhotographyOpportunityResultsTableTableManager(
+        _db,
+        _db.photographyOpportunityResults,
+      );
+  $$OfflinePhotographyPacksTableTableManager get offlinePhotographyPacks =>
+      $$OfflinePhotographyPacksTableTableManager(
+        _db,
+        _db.offlinePhotographyPacks,
       );
 }

@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -88,6 +89,9 @@ class InspirationPage extends ConsumerWidget {
             snapshot,
             narrative: narrative.asData?.value,
             manifest: manifest,
+            availableEquipment: EquipmentCapabilityParser.parse(
+              preferences.equipmentList,
+            ),
           ),
           snapshotId: snapshot.id,
           reduceMotion: reduceMotion,
@@ -285,38 +289,9 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
   @override
   Widget build(BuildContext context) {
     final notes = widget.notes;
-    if (notes.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('灵感')),
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            children: [
-              const SizedBox(height: 72),
-              Icon(
-                Icons.hourglass_empty_rounded,
-                size: 38,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: Text(
-                  '此刻没有可抽取的纸条',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: TextButton(
-                  onPressed: widget.onExplore,
-                  child: const Text('探索附近'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    // The builder always adds local composition prompts. Keep this defensive
+    // recovery in case a future change deliberately suppresses all prompts.
+    if (notes.isEmpty) return _emptyBottleScaffold(context);
     final index = _selectedIndex % notes.length;
     final note = notes[index];
     return Scaffold(
@@ -327,7 +302,7 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
           children: [
             Row(
               children: [
-                Text('此刻灵感', style: Theme.of(context).textTheme.titleMedium),
+                Text('灵感', style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 Text(
                   '${notes.length} 张',
@@ -405,18 +380,34 @@ class _InspirationNoteSheet extends StatelessWidget {
               child: Center(child: Text('已收藏')),
             ),
           const SizedBox(height: 18),
+          Text(
+            note.isFactual ? '已成立机会' : '创作方向',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 7),
           Text(note.detail, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 22),
           FilledButton.icon(
             onPressed: onAction,
             icon: const Icon(Icons.arrow_outward),
-            label: const Text('查看'),
+            label: Text(note.isFactual ? '查看机会' : '去探索'),
           ),
         ],
       ),
     ),
   );
 }
+
+Widget _emptyBottleScaffold(BuildContext context) => Scaffold(
+  appBar: AppBar(title: const Text('灵感')),
+  body: SafeArea(
+    child: Center(
+      child: Text('暂时没有纸条', style: Theme.of(context).textTheme.titleLarge),
+    ),
+  ),
+);
 
 class _Paper extends StatelessWidget {
   const _Paper({super.key, required this.text, this.large = false});

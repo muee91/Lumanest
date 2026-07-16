@@ -11,6 +11,7 @@ import 'package:luma_nest/src/core/device/device_energy_providers.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_rendering_policy.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
@@ -40,6 +41,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   late final GoRouter _router;
   String _routeLocation = '/today';
   bool _routeRefreshScheduled = false;
+  String? _lastPhotographyWatchReconciliation;
 
   /// Becomes true while the user scrolls content so the ambient canvas can
   /// auto-decelerate per design §9.3.
@@ -51,6 +53,10 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     WidgetsBinding.instance.addObserver(this);
     unawaited(ref.read(journeyRouteContextRestorerProvider).restore());
     _router = createLumaNestRouter(initialContext: widget.initialContext);
+    configurePhotographyWatchNotificationNavigation(
+      ref.read(photographyWatchNotificationServiceProvider),
+      _handlePhotographyNotificationResponse,
+    );
     _router.routerDelegate.addListener(_handleRouterChange);
   }
 
@@ -70,6 +76,39 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     final liveSnapshot = widget.initialContext == null && consentGranted
         ? ref.watch(environmentSnapshotProvider)
         : null;
+    final library = ref.watch(userLibraryProvider).asData?.value;
+    // Do not reconcile until the persisted preference has been resolved. Using
+    // a loading value as `false` here would cancel an already-scheduled local
+    // reminder on every cold start before the setting is restored.
+    final photographyWatchNotificationsEnabled = ref
+        .watch(photographyWatchNotificationsEnabledProvider)
+        .asData
+        ?.value;
+    final reconciliationSnapshot =
+        widget.initialContext ?? liveSnapshot?.asData?.value;
+    if (photographyWatchNotificationsEnabled != null &&
+        reconciliationSnapshot != null &&
+        library != null) {
+      final watchIds =
+          library.watchedOpportunities
+              .map((watch) => watch.id)
+              .toList(growable: false)
+            ..sort();
+      final reconciliationKey =
+          '${photographyWatchNotificationsEnabled ? 'enabled' : 'disabled'}:'
+          '${reconciliationSnapshot.id}:${watchIds.join(',')}';
+      if (_lastPhotographyWatchReconciliation != reconciliationKey) {
+        _lastPhotographyWatchReconciliation = reconciliationKey;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          unawaited(
+            ref
+                .read(photographyWatchNotificationReconcilerProvider)
+                .reconcile(snapshot: reconciliationSnapshot, library: library),
+          );
+        });
+      }
+    }
     final conserveDeviceEnergy = ref
         .watch(deviceEnergyProvider)
         .asData
@@ -160,6 +199,19 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
       if (nextLocation == _routeLocation) return;
       setState(() => _routeLocation = nextLocation);
     });
+  }
+
+  void _handlePhotographyNotificationResponse(String payload) {
+    final uri = Uri.tryParse(payload);
+    if (uri == null ||
+        uri.path != '/shooting-window' ||
+        uri.queryParameters.keys.any((key) => key != 'opportunity')) {
+      return;
+    }
+    final opportunityId = shootingWindowOpportunityIdFrom(uri);
+    if (opportunityId != null) {
+      _router.go(shootingWindowLocation(opportunityId));
+    }
   }
 
   @override

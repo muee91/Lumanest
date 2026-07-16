@@ -146,6 +146,9 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
         journeys: current.journeys,
         importedTracks: current.importedTracks,
         savedNotes: current.savedNotes,
+        watchedOpportunities: current.watchedOpportunities,
+        opportunityResults: current.opportunityResults,
+        offlinePhotographyPacks: current.offlinePhotographyPacks,
       ),
     );
   }
@@ -203,6 +206,109 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   Future<void> clearSavedNotes() async {
     final current = await future;
     await _save(current.copyWith(savedNotes: const []));
+  }
+
+  Future<void> watchOpportunity({
+    required String opportunityId,
+    required String snapshotId,
+    required String title,
+    required DateTime expiresAt,
+    String? targetId,
+  }) async {
+    final current = await future;
+    final watched = WatchedPhotographyOpportunity.create(
+      opportunityId: opportunityId,
+      snapshotId: snapshotId,
+      title: title,
+      watchedAt: DateTime.now(),
+      expiresAt: expiresAt,
+      targetId: targetId,
+    );
+    await _save(
+      current.copyWith(
+        watchedOpportunities: [
+          watched,
+          ...current.watchedOpportunities.where(
+            (item) => item.id != watched.id,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> unwatchOpportunity(String id) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        watchedOpportunities: current.watchedOpportunities
+            .where((item) => item.id != id)
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  Future<void> recordOpportunityResult({
+    required String opportunityId,
+    required String snapshotId,
+    required PhotographyOpportunityOutcome outcome,
+    String? reason,
+    String? targetId,
+  }) async {
+    final current = await future;
+    final result = PhotographyOpportunityResult.record(
+      opportunityId: opportunityId,
+      snapshotId: snapshotId,
+      outcome: outcome,
+      recordedAt: DateTime.now(),
+      reason: reason,
+      targetId: targetId,
+    );
+    await _save(
+      current.copyWith(
+        opportunityResults: [
+          result,
+          ...current.opportunityResults,
+        ].take(200).toList(),
+      ),
+    );
+  }
+
+  Future<void> saveOfflinePhotographyPack(OfflinePhotographyPack pack) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        offlinePhotographyPacks: [
+          pack,
+          ...current.offlinePhotographyPacks.where(
+            (item) => item.id != pack.id,
+          ),
+        ].take(50).toList(),
+      ),
+    );
+  }
+
+  Future<void> deleteOfflinePhotographyPack(String id) async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        offlinePhotographyPacks: current.offlinePhotographyPacks
+            .where((item) => item.id != id)
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  /// Local feedback and packs remain independently deletable. Future privacy
+  /// UI can call this without touching saved places, routes, or GPX tracks.
+  Future<void> clearPhotographyActivity() async {
+    final current = await future;
+    await _save(
+      current.copyWith(
+        watchedOpportunities: const [],
+        opportunityResults: const [],
+        offlinePhotographyPacks: const [],
+      ),
+    );
   }
 
   Future<void> _save(UserLibraryState value) async {

@@ -14,6 +14,7 @@ from .models import (
     SceneEvidence,
     SnapshotRequest,
     SnapshotResponse,
+    SnapshotResponseV3,
     SourceStatus,
     WildlifeLayerResponse,
 )
@@ -52,11 +53,11 @@ async def readyz(request: Request) -> dict[str, object]:
 
 @app.post(
     "/internal/v1/evaluate",
-    response_model=SnapshotResponse,
+    response_model=SnapshotResponse | SnapshotResponseV3,
     response_model_by_alias=True,
     dependencies=[Depends(require_internal_token)],
 )
-async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotResponse:
+async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotResponse | SnapshotResponseV3:
     stored = await request.app.state.store.spatial_evidence(
         body.coordinate.latitude, body.coordinate.longitude
     )
@@ -73,11 +74,17 @@ async def evaluate_context(body: SnapshotRequest, request: Request) -> SnapshotR
     )
     scene = classify_scene(body, evidence)
     astronomy_events = await request.app.state.store.active_astronomy_events(body.observed_at)
-    fingerprint = context_fingerprint(body, scene, evidence, astronomy_events)
+    target = (
+        await request.app.state.store.photography_target(
+            body.coordinate.latitude, body.coordinate.longitude
+        )
+        if body.contract_version == 3 else None
+    )
+    fingerprint = context_fingerprint(body, scene, evidence, astronomy_events, target)
     cached = await request.app.state.store.cached_snapshot(fingerprint)
     if cached is not None:
-        return SnapshotResponse.model_validate(cached)
-    snapshot = evaluate(body, evidence, astronomy_events)
+        return SnapshotResponseV3.model_validate(cached) if body.contract_version == 3 else SnapshotResponse.model_validate(cached)
+    snapshot = evaluate(body, evidence, astronomy_events, target)
     await request.app.state.store.cache_snapshot(
         snapshot.fingerprint, snapshot.model_dump(mode="json", by_alias=True)
     )

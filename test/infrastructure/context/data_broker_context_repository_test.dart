@@ -13,7 +13,7 @@ import 'package:luma_nest/src/infrastructure/context/data_broker_context_reposit
 
 void main() {
   test(
-    'posts the minimal v2 context contract and builds a complete snapshot',
+    'negotiates the v3 context contract and preserves a strict V2 response',
     () async {
       final transport = _FakeTransport();
       final repository = DataBrokerContextRepository(
@@ -28,7 +28,7 @@ void main() {
 
       expect(transport.uri.path, '/v1/context/snapshot');
       expect(transport.headers, {'Authorization': 'Bearer service-token'});
-      expect(transport.body['contractVersion'], 2);
+      expect(transport.body['contractVersion'], 3);
       expect(transport.body.containsKey('deviceId'), isFalse);
       expect(transport.body.containsKey('weather'), isFalse);
       expect(transport.body.containsKey('evidence'), isFalse);
@@ -70,26 +70,127 @@ void main() {
     expect(transport.body['route'], {'mode': 'none', 'stage': 'none'});
   });
 
-  test('parses a live quiet response when air quality is unavailable', () async {
+  test(
+    'parses V3 photography opportunities without accepting location data',
+    () async {
+      final transport = _FakeTransport()
+        ..mutateResponse = (body) {
+          body['contractVersion'] = 3;
+          body['opportunities'] = [
+            {
+              'id': 'photo-sunsetglow-2026071402',
+              'kind': 'sunsetGlow',
+              'startAt': '2026-07-14T02:05:00Z',
+              'peakAt': '2026-07-14T02:20:00Z',
+              'endAt': '2026-07-14T02:40:00Z',
+              'score': 78,
+              'confidence': .72,
+              'geoScope': 'regional',
+              'directionDegrees': 280,
+              'evidence': [
+                {'label': '云量', 'value': '45%'},
+                {'label': '时段', 'value': '日落前后'},
+              ],
+              'primaryAction': 'openShootingWindow',
+              'fallbackAction': 'openExplore',
+              'equipmentHints': ['广角镜头'],
+            },
+          ];
+        };
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      final result = await repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      );
+
+      final opportunity = result.photographyOpportunities.single;
+      expect(opportunity.title, '晚霞窗口');
+      expect(opportunity.score, 78);
+      expect(opportunity.primaryAction, ContextAction.openShootingWindow);
+      expect(opportunity.fallbackAction, ContextAction.openExplore);
+      expect(opportunity.equipmentHints, ['广角镜头']);
+      expect(opportunity.evidence.map((item) => item.statement), [
+        '云量 45%',
+        '时段 日落前后',
+      ]);
+    },
+  );
+
+  test('rejects V3 opportunities that attempt to carry a coordinate', () async {
     final transport = _FakeTransport()
       ..mutateResponse = (body) {
-        body['scene'] = 'village';
-        body['weather'] = {
-          ...(body['weather']! as Map),
-          'airQualityIndex': null,
-          'airQualityCategory': null,
-          'primaryPollutant': null,
-          'airQualityObservedAt': null,
-          'airQualityStale': true,
-        };
-        body['events'] = <Object?>[];
-        body['allowedActions'] = <Object?>[];
-        body['manifest'] = {
-          'layoutMode': 'quiet',
-          'primaryEventId': null,
-          'secondaryEventIds': <Object?>[],
-          'safetyEventIds': <Object?>[],
-        };
+        body['contractVersion'] = 3;
+        body['opportunities'] = [
+          {
+            'id': 'photo-reflection-2026071402',
+            'kind': 'reflection',
+            'startAt': '2026-07-14T02:05:00Z',
+            'peakAt': '2026-07-14T02:20:00Z',
+            'endAt': '2026-07-14T02:40:00Z',
+            'score': 74,
+            'confidence': .76,
+            'geoScope': 'point',
+            'directionDegrees': null,
+            'evidence': [
+              {'label': '风速', 'value': '2.0m/s'},
+            ],
+            'primaryAction': 'openExplore',
+            'fallbackAction': null,
+            'equipmentHints': [],
+            'coordinate': {'latitude': 30.2, 'longitude': 120.1},
+          },
+        ];
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    expect(
+      repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      ),
+      throwsA(
+        isA<RemoteContextFailure>().having(
+          (value) => value.kind,
+          'kind',
+          RemoteContextFailureKind.response,
+        ),
+      ),
+    );
+  });
+
+  test('drops V3 opportunities when the returned snapshot is stale', () async {
+    final transport = _FakeTransport()
+      ..mutateResponse = (body) {
+        body['contractVersion'] = 3;
+        body['stale'] = true;
+        body['opportunities'] = [
+          {
+            'id': 'photo-bluehour-2026071402',
+            'kind': 'blueHour',
+            'startAt': '2026-07-14T02:05:00Z',
+            'peakAt': '2026-07-14T02:20:00Z',
+            'endAt': '2026-07-14T02:40:00Z',
+            'score': 82,
+            'confidence': .82,
+            'geoScope': 'point',
+            'directionDegrees': 280,
+            'evidence': [
+              {'label': '预报', 'value': 'clear'},
+            ],
+            'primaryAction': 'openShootingWindow',
+            'fallbackAction': null,
+            'equipmentHints': ['三脚架'],
+          },
+        ];
       };
     final repository = DataBrokerContextRepository(
       brokerBaseUrl: 'https://broker.example',
@@ -102,11 +203,50 @@ void main() {
       observedAt: DateTime.utc(2026, 7, 14, 2),
     );
 
-    expect(result.primaryScene, SceneType.village);
-    expect(result.airQualityIndex, isNull);
-    expect(result.airQualityStale, isTrue);
-    expect(result.events, isEmpty);
+    expect(result.isStale, isTrue);
+    expect(result.photographyOpportunities, isEmpty);
   });
+
+  test(
+    'parses a live quiet response when air quality is unavailable',
+    () async {
+      final transport = _FakeTransport()
+        ..mutateResponse = (body) {
+          body['scene'] = 'village';
+          body['weather'] = {
+            ...(body['weather']! as Map),
+            'airQualityIndex': null,
+            'airQualityCategory': null,
+            'primaryPollutant': null,
+            'airQualityObservedAt': null,
+            'airQualityStale': true,
+          };
+          body['events'] = <Object?>[];
+          body['allowedActions'] = <Object?>[];
+          body['manifest'] = {
+            'layoutMode': 'quiet',
+            'primaryEventId': null,
+            'secondaryEventIds': <Object?>[],
+            'safetyEventIds': <Object?>[],
+          };
+        };
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
+      final result = await repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      );
+
+      expect(result.primaryScene, SceneType.village);
+      expect(result.airQualityIndex, isNull);
+      expect(result.airQualityStale, isTrue);
+      expect(result.events, isEmpty);
+    },
+  );
 
   test('canonical request carries driving/planned route', () async {
     final transport = _FakeTransport();

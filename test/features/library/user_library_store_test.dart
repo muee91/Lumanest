@@ -90,6 +90,7 @@ void main() {
             label: '看天象',
             emoji: '✨',
             category: InspirationCategory.light,
+            kind: InspirationNoteKind.factualOpportunity,
             action: ManifestAction.openAuthority,
             detail: '查看经过审核的权威天象目录。',
             priority: 100,
@@ -97,6 +98,55 @@ void main() {
             authorityUri: Uri.parse('https://science.nasa.gov/event-1'),
           ),
           savedAt: DateTime.utc(2026, 7, 15),
+        ),
+      ],
+      watchedOpportunities: [
+        WatchedPhotographyOpportunity.create(
+          opportunityId: 'blue-hour',
+          snapshotId: 'snapshot-1',
+          title: '蓝调时刻',
+          watchedAt: DateTime.utc(2026, 7, 15, 17),
+          expiresAt: DateTime.utc(2026, 7, 15, 18),
+        ),
+      ],
+      opportunityResults: [
+        PhotographyOpportunityResult.record(
+          opportunityId: 'blue-hour',
+          snapshotId: 'snapshot-1',
+          outcome: PhotographyOpportunityOutcome.shot,
+          recordedAt: DateTime.utc(2026, 7, 15, 18),
+          reason: '云隙出现。',
+        ),
+      ],
+      offlinePhotographyPacks: [
+        OfflinePhotographyPack.create(
+          name: '湖岸晚霞',
+          createdAt: DateTime.utc(2026, 7, 15, 12),
+          dataTimestamp: DateTime.utc(2026, 7, 15, 11, 50),
+          route: const SavedRouteDestination(
+            name: '湖岸停车点',
+            latitude: 30.1,
+            longitude: 120.1,
+          ),
+          places: const [
+            SavedPlace(
+              id: 'lake-1',
+              name: '东岸机位',
+              category: 'viewpoint',
+              latitude: 30.2,
+              longitude: 120.2,
+            ),
+          ],
+          windows: [
+            OfflinePhotographyWindow(
+              id: 'sunset',
+              label: '晚霞窗口',
+              startsAt: DateTime.utc(2026, 7, 15, 18),
+              endsAt: DateTime.utc(2026, 7, 15, 18, 30),
+              peakAt: DateTime.utc(2026, 7, 15, 18, 15),
+            ),
+          ],
+          opportunitySnapshot: const {'eventId': 'sunset', 'confidence': 0.8},
         ),
       ],
     );
@@ -129,6 +179,23 @@ void main() {
       restored.savedNotes.single.manifestAction,
       ManifestAction.openAuthority,
     );
+    expect(restored.watchedOpportunities.single.title, '蓝调时刻');
+    expect(
+      restored.opportunityResults.single.outcome,
+      PhotographyOpportunityOutcome.shot,
+    );
+    expect(restored.opportunityResults.single.reason, '云隙出现。');
+    expect(restored.offlinePhotographyPacks.single.route?.name, '湖岸停车点');
+    expect(restored.offlinePhotographyPacks.single.places.single.name, '东岸机位');
+    expect(
+      restored.offlinePhotographyPacks.single.windows.single.label,
+      '晚霞窗口',
+    );
+    expect(
+      restored.offlinePhotographyPacks.single.opportunitySnapshot['eventId'],
+      'sunset',
+    );
+    expect(restored.toExportJson()['offlinePhotographyPacks'], hasLength(1));
   });
 
   test('a write replaces removed places and clears a removed route', () async {

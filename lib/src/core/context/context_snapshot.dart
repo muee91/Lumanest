@@ -1,6 +1,7 @@
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
 enum SceneType {
@@ -48,6 +49,7 @@ class ContextSnapshot {
     List<String> safetyEventIds = const [],
     List<String> wildlifeEventIds = const [],
     List<ContextEvent> events = const [],
+    List<PhotographyOpportunity> photographyOpportunities = const [],
     this.wildlifeActivity,
     this.location,
     this.temperatureCelsius,
@@ -78,6 +80,7 @@ class ContextSnapshot {
        safetyEventIds = List.unmodifiable(safetyEventIds),
        wildlifeEventIds = List.unmodifiable(wildlifeEventIds),
        events = List.unmodifiable(events),
+       photographyOpportunities = List.unmodifiable(photographyOpportunities),
        allowedActions = List.unmodifiable(allowedActions);
 
   final String id;
@@ -91,6 +94,10 @@ class ContextSnapshot {
   final List<String> safetyEventIds;
   final List<String> wildlifeEventIds;
   final List<ContextEvent> events;
+
+  /// V3 server-established creative windows. Never present for stale or local
+  /// fallback snapshots.
+  final List<PhotographyOpportunity> photographyOpportunities;
   final RegionalWildlifeActivity? wildlifeActivity;
   final GeoPoint? location;
   final double? temperatureCelsius;
@@ -134,6 +141,7 @@ class ContextSnapshot {
       safetyEventIds: safetyEventIds,
       wildlifeEventIds: wildlifeEventIds,
       events: retainedEvents,
+      photographyOpportunities: const [],
       wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -199,6 +207,7 @@ class ContextSnapshot {
         ),
         ...wildlifeEvents,
       ],
+      photographyOpportunities: photographyOpportunities,
       wildlifeActivity: activity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -233,6 +242,7 @@ class ContextSnapshot {
     required DateTime expiresAt,
     required SceneType primaryScene,
     required List<ContextEvent> events,
+    List<PhotographyOpportunity> photographyOpportunities = const [],
     required DateTime remoteGeneratedAt,
     required ContextDataFreshness dataFreshness,
     required MoonPhase moonPhase,
@@ -258,6 +268,7 @@ class ContextSnapshot {
           .map((event) => event.id)
           .toList(growable: false),
       events: events,
+      photographyOpportunities: photographyOpportunities,
       wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,

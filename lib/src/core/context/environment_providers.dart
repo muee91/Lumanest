@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/context/safety_detail.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
@@ -211,6 +212,7 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
     sceneEvidenceRepository: ref.watch(sceneEvidenceRepositoryProvider),
     remoteContextRepository: ref.watch(remoteContextRepositoryProvider),
     route: ref.watch(routeContextStateProvider),
+    corridor: ref.watch(routeCorridorContextProvider),
     logger: ref.watch(appLoggerProvider),
     cacheWriteGuard: ref.watch(contextCacheWriteGuardProvider),
     now: DateTime.now,

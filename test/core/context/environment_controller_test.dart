@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -61,6 +62,7 @@ void main() {
     Duration locationTimeout = const Duration(seconds: 15),
     Duration weatherTimeout = const Duration(seconds: 10),
     RouteContextState route = RouteContextState.none,
+    RouteCorridorContext? corridor,
     AppLogger? logger,
     ContextCache? contextCache,
     ContextCacheWriteGuard? cacheWriteGuard,
@@ -757,6 +759,7 @@ class _FakeRemoteContextRepository implements RemoteContextRepository {
     required LocationReading location,
     required DateTime observedAt,
     RouteContextState route = RouteContextState.none,
+    RouteCorridorContext? corridor,
   }) async {
     fetchCalls += 1;
     recordedRoutes.add(route);

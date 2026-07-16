@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timezone
 
 import pytest
@@ -6,7 +5,8 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models import ContextImportResult, RouteState, SceneEvidence, WildlifeLayerArea
+from app.models import (ContextImportResult, PhotographyTarget, RouteState,
+                        SceneEvidence, SpatialFeaturesImport, WildlifeLayerArea)
 from app.store import ContextStore
 
 
@@ -71,6 +71,65 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
         assert body["route"] == {"mode": "none", "stage": "none", "active": False}
         assert body["allowedActions"] == ["openExplore"]
         assert "latitude" not in body and "longitude" not in body
+
+
+def test_internal_v3_evaluate_keeps_opportunities_and_their_allowed_actions(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    request = payload() | {
+        "contractVersion": 3,
+        "forecast": payload()["forecast"] | {"hourly": [{
+            "at": "2026-07-14T11:00:00+08:00",
+            "condition": "clear",
+            "cloudCoverPercent": 25,
+            "windSpeedMps": 1.5,
+            "precipitationMm": 0,
+            "thunder": False,
+        }]},
+    }
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=request,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["contractVersion"] == 3
+    reflection = next(item for item in body["opportunities"] if item["kind"] == "reflection")
+    assert reflection["primaryAction"] in body["allowedActions"]
+    assert reflection["fallbackAction"] in body["allowedActions"]
+
+
+def test_internal_v3_evaluate_exposes_only_the_store_selected_static_target(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+
+    async def photography_target(_store, latitude, longitude):
+        assert (latitude, longitude) == (30.25, 120.15)
+        return PhotographyTarget.model_validate({
+            "id": "target_0123456789abcdef01234567", "name": "东岸观景台", "kind": "lakeshore",
+            "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
+            "arrivalDeadline": "2026-07-14T10:00:00+08:00",
+        })
+
+    monkeypatch.setattr(ContextStore, "photography_target", photography_target)
+    request = payload() | {
+        "contractVersion": 3,
+        "forecast": payload()["forecast"] | {"hourly": [{
+            "at": "2026-07-14T11:00:00+08:00", "condition": "clear", "cloudCoverPercent": 25,
+            "windSpeedMps": 1.5, "precipitationMm": 0, "thunder": False,
+        }]},
+    }
+    with TestClient(app) as client:
+        response = client.post("/internal/v1/evaluate", json=request, headers={
+            "X-Internal-Service-Token": "internal-test-token",
+        })
+    reflection = next(item for item in response.json()["opportunities"] if item["kind"] == "reflection")
+    assert reflection["target"] == {
+        "id": "target_0123456789abcdef01234567", "name": "东岸观景台", "kind": "lakeshore",
+        "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
+        "arrivalDeadline": "2026-07-14T11:00:00+08:00",
+    }
 
 
 def test_internal_evaluate_merges_generic_scene_with_reviewed_safety(monkeypatch):
@@ -153,6 +212,50 @@ async def test_spatial_evidence_reads_all_query_columns_for_scene_and_wildlife()
     assert evidence.water_body is True
     assert evidence.wildlife_opportunity is True
     assert evidence.wildlife_safety is True
+
+
+@pytest.mark.asyncio
+async def test_photography_target_store_requires_approved_public_static_point():
+    captured = {}
+
+    class Result:
+        def mappings(self):
+            return self
+
+        def first(self):
+            return {
+                "id": "f" * 64, "name": "东岸观景台", "target_type": "lakeshore",
+                "latitude": 30.251, "longitude": 120.151,
+            }
+
+    class Connection:
+        async def execute(self, statement, parameters):
+            captured["statement"] = str(statement)
+            captured["parameters"] = parameters
+            return Result()
+
+    class ConnectionContext:
+        async def __aenter__(self):
+            return Connection()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Engine:
+        def connect(self):
+            return ConnectionContext()
+
+    store = ContextStore(None, None)
+    store.engine = Engine()
+    target = await store.photography_target(30.25, 120.15)
+
+    assert target is not None
+    assert target.kind == "lakeshore"
+    assert target.coordinate.system == "wgs84"
+    assert captured["parameters"] == {"latitude": 30.25, "longitude": 120.15}
+    assert "license_status = 'approved'" in captured["statement"]
+    assert "sensitivity = 'public'" in captured["statement"]
+    assert "target_type IN" in captured["statement"]
 
 
 def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch):
@@ -412,6 +515,27 @@ def test_import_rejects_unlicensed_enabled_source_and_sensitive_point(monkeypatc
         assert client.post("/internal/v1/imports", json=unlicensed, headers=headers).status_code == 422
         assert client.post("/internal/v1/imports", json=sensitive, headers=headers).status_code == 422
         assert client.post("/internal/v1/imports", json=too_precise, headers=headers).status_code == 422
+
+
+def test_photography_target_import_requires_an_explicit_public_scene_point():
+    valid = spatial_import_payload()
+    valid["featureCollection"]["features"][0] = {
+        "type": "Feature", "id": "east-bank", "geometry": {
+            "type": "Point", "coordinates": [120.151, 30.251],
+        },
+        "properties": {
+            "kind": "water", "name": "东岸观景台", "photographyTarget": True,
+            "targetType": "lakeshore",
+        },
+    }
+    assert SpatialFeaturesImport.model_validate(valid).feature_collection.features[0].properties.target_type == "lakeshore"
+
+    sensitive = valid | {"featureCollection": valid["featureCollection"] | {"features": [{
+        **valid["featureCollection"]["features"][0],
+        "properties": valid["featureCollection"]["features"][0]["properties"] | {"sensitivity": "sensitive"},
+    }]}}
+    with pytest.raises(ValueError):
+        SpatialFeaturesImport.model_validate(sensitive)
 
 
 def test_import_requires_reviewed_source_categories_for_wildlife_evidence(monkeypatch):

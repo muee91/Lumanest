@@ -1,4 +1,6 @@
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/domain/hiking_return_assessment.dart';
@@ -11,6 +13,7 @@ enum RouteTimelineKind {
   support,
   elevation,
   shooting,
+  shootingMissed,
   arrival,
   returnDeadline,
   estimatedReturn,
@@ -42,6 +45,24 @@ class RouteTimelineEntry {
 }
 
 abstract final class RouteTimeline {
+  /// Opportunities are only route-aware when the context service has
+  /// explicitly established a regional or route-wide scope. A point snapshot
+  /// belongs to the current location and must not be projected along a route.
+  static List<PhotographyOpportunity> eligiblePhotographyOpportunities(
+    ContextSnapshot? snapshot, {
+    required DateTime departureAt,
+  }) {
+    if (snapshot == null || snapshot.isStale) return const [];
+    final departure = departureAt.toUtc();
+    return snapshot.photographyOpportunities
+        .where(
+          (opportunity) =>
+              opportunity.geoScope != PhotographyOpportunityGeoScope.point &&
+              opportunity.expiresAt.toUtc().isAfter(departure),
+        )
+        .toList(growable: false);
+  }
+
   static List<RouteTimelineEntry> build({
     required DrivingRoute route,
     ContextSnapshot? snapshot,
@@ -91,6 +112,11 @@ abstract final class RouteTimeline {
               ? '全程累计爬升约 ${route.ascentMeters} m。'
               : '全程累计爬升约 ${route.ascentMeters} m，累计下降约 ${route.descentMeters} m。',
         ),
+      for (final opportunity in eligiblePhotographyOpportunities(
+        snapshot,
+        departureAt: departure,
+      ))
+        _routeOpportunityEntry(opportunity: opportunity, arrival: arrival),
       for (final window
           in snapshot == null
               ? const <ShootingWindow>[]
@@ -142,6 +168,53 @@ abstract final class RouteTimeline {
     });
     return List.unmodifiable(entries);
   }
+
+  static RouteTimelineEntry _routeOpportunityEntry({
+    required PhotographyOpportunity opportunity,
+    required DateTime arrival,
+  }) {
+    final start = opportunity.startsAt.toUtc();
+    final end = opportunity.expiresAt.toUtc();
+    final action = _actionLabel(opportunity.primaryAction);
+    final fallback = _actionLabel(opportunity.fallbackAction);
+    if (!arrival.isBefore(end)) {
+      return RouteTimelineEntry(
+        id: 'missed-opportunity-${opportunity.id}',
+        kind: RouteTimelineKind.shootingMissed,
+        label: '错过 ${opportunity.title}',
+        time: arrival,
+        end: end,
+        description:
+            '预计抵达时窗口已结束；${fallback ?? '跳过这段窗口'}。仅依据已成立的${_scopeLabel(opportunity.geoScope)}机会，未推断沿途逐点天气。',
+      );
+    }
+    final actionAt = arrival.isAfter(start) ? arrival : start;
+    final timing = arrival.isAfter(start) ? '预计抵达时仍在窗口内' : '预计抵达后等待窗口开始';
+    return RouteTimelineEntry(
+      id: 'opportunity-${opportunity.id}',
+      kind: RouteTimelineKind.shooting,
+      label: opportunity.title,
+      time: actionAt,
+      end: end,
+      description:
+          '$timing；${action ?? '抵达后拍摄'}。仅依据已成立的${_scopeLabel(opportunity.geoScope)}机会，未推断沿途逐点天气。',
+    );
+  }
+
+  static String _scopeLabel(PhotographyOpportunityGeoScope scope) =>
+      switch (scope) {
+        PhotographyOpportunityGeoScope.route => '路线范围',
+        PhotographyOpportunityGeoScope.regional => '区域范围',
+        PhotographyOpportunityGeoScope.point => '点位范围',
+      };
+
+  static String? _actionLabel(ContextAction? action) => switch (action) {
+    null => null,
+    ContextAction.openShootingWindow => '抵达后查看拍摄建议',
+    ContextAction.openExplore => '抵达后查看备选机位',
+    ContextAction.openRoute => '保留路线并观察',
+    _ => '查看拍摄建议',
+  };
 
   static bool _overlaps(
     DateTime start,

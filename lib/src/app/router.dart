@@ -29,7 +29,11 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
               ),
               GoRoute(
                 path: '/shooting-window',
-                builder: (context, state) => const ShootingWindowPage(),
+                builder: (context, state) => ShootingWindowPage(
+                  initialOpportunityId: shootingWindowOpportunityIdFrom(
+                    state.uri,
+                  ),
+                ),
               ),
             ],
           ),
@@ -90,4 +94,19 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
       ),
     ],
   );
+}
+
+String shootingWindowLocation(String opportunityId) => Uri(
+  path: '/shooting-window',
+  queryParameters: {'opportunity': opportunityId},
+).toString();
+
+String? shootingWindowOpportunityIdFrom(Uri uri) {
+  if (uri.queryParameters.keys.any((key) => key != 'opportunity')) {
+    return null;
+  }
+  final value = uri.queryParameters['opportunity'];
+  return value != null && RegExp(r'^photo-[a-z0-9_-]{1,58}$').hasMatch(value)
+      ? value
+      : null;
 }

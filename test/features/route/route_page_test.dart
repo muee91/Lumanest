@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/context_event.dart' as context;
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
@@ -220,6 +221,81 @@ void main() {
     expect(find.text('沿途小店'), findsWidgets);
     expect(find.textContaining('时间为进度估算'), findsOneWidget);
     expect(find.text('重新扫描沿途服务点'), findsOneWidget);
+  });
+
+  testWidgets('saves an explicit route photography pack locally', (
+    tester,
+  ) async {
+    final now = DateTime.utc(2026, 7, 15, 8);
+    final store = _MemoryLibraryStore();
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    final route = DrivingRoute(
+      destinationName: '湖岸营地',
+      distanceMeters: 8000,
+      durationSeconds: const Duration(hours: 1).inSeconds,
+      tollsYuan: 0,
+      polyline: const [],
+    );
+    final snapshot = ContextSnapshot(
+      id: 'offline-pack-context',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.lake,
+      dayPhase: DayPhase.sunset,
+      weather: WeatherType.clear,
+      activeRoute: true,
+      photographyOpportunities: [
+        PhotographyOpportunity(
+          id: 'route-sunset',
+          title: '晚霞窗口',
+          startsAt: now.add(const Duration(minutes: 30)),
+          peaksAt: now.add(const Duration(minutes: 45)),
+          expiresAt: now.add(const Duration(hours: 2)),
+          confidence: .8,
+          score: 78,
+          geoScope: PhotographyOpportunityGeoScope.route,
+          evidence: const [
+            PhotographyEvidence(
+              id: 'cloud-gap',
+              kind: PhotographyEvidenceKind.weather,
+              statement: '云隙已成立',
+              confidence: .8,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: RoutePage(
+              destinationName: '湖岸营地',
+              destinationLatitude: 30.1,
+              destinationLongitude: 120.1,
+              routeAsync: AsyncData(route),
+              contextSnapshot: snapshot,
+              timelineNow: now,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('保存本次摄影离线包'));
+    await tester.pumpAndSettle();
+
+    final pack = store.value.offlinePhotographyPacks.single;
+    expect(pack.route?.name, '湖岸营地');
+    expect(pack.windows.single.label, '晚霞窗口');
+    expect(pack.opportunitySnapshot['snapshotId'], 'offline-pack-context');
+    expect(find.text('已保存到本机离线摄影包'), findsOneWidget);
   });
 
   testWidgets('walking route shows ascent honesty and return-light warning', (

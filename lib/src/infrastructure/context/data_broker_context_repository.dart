@@ -3,13 +3,15 @@ import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
+import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
 
-const _responseKeys = <String>{
+const _v2ResponseKeys = <String>{
   'contractVersion',
   'contextId',
   'generatedAt',
@@ -26,9 +28,14 @@ const _responseKeys = <String>{
   'manifest',
 };
 
+const _v3ResponseKeys = <String>{..._v2ResponseKeys, 'opportunities'};
+
 bool _hasExactKeys(Map<Object?, Object?> value, Set<String> keys) {
   return value.length == keys.length && value.keys.every(keys.contains);
 }
+
+bool _hasOnlyKeys(Map<Object?, Object?> value, Set<String> keys) =>
+    value.keys.every(keys.contains);
 
 bool _finiteIn(Object? value, double minimum, double maximum) {
   return value is num && value.isFinite && value >= minimum && value <= maximum;
@@ -82,9 +89,10 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     required LocationReading location,
     required DateTime observedAt,
     RouteContextState route = RouteContextState.none,
+    RouteCorridorContext? corridor,
   }) {
     return _post(
-      request: _canonicalRequest(location, observedAt, route),
+      request: _canonicalRequest(location, observedAt, route, corridor),
       location: location.point,
     );
   }
@@ -145,9 +153,10 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     LocationReading location,
     DateTime observedAt,
     RouteContextState route,
+    RouteCorridorContext? corridor,
   ) {
     return {
-      'contractVersion': 2,
+      'contractVersion': 3,
       'coordinate': {
         'latitude': location.point.latitude,
         'longitude': location.point.longitude,
@@ -156,7 +165,11 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       'observedAt': observedAt.toUtc().toIso8601String(),
       'locale': 'zh-CN',
       'intent': 'photography',
-      'route': route.toRequest(),
+      'route': {
+        ...route.toRequest(),
+        if (route.hasRoute && corridor?.isUsable == true)
+          ...corridor!.toRequest(),
+      },
     };
   }
 
@@ -167,7 +180,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
   ) {
     final scene = base.primaryScene;
     return {
-      'contractVersion': 2,
+      'contractVersion': 3,
       'coordinate': {
         'latitude': base.location!.latitude,
         'longitude': base.location!.longitude,
@@ -212,8 +225,10 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     required GeoPoint location,
     ContextSnapshot? fallback,
   }) {
-    if (!_hasExactKeys(body, _responseKeys) ||
-        body['contractVersion'] != 2 ||
+    final contractVersion = body['contractVersion'];
+    final isV3 = contractVersion == 3;
+    if (!_hasExactKeys(body, isV3 ? _v3ResponseKeys : _v2ResponseKeys) ||
+        (contractVersion != 2 && contractVersion != 3) ||
         body['contextId'] is! String ||
         body['scene'] is! String ||
         body['events'] is! List ||
@@ -222,7 +237,8 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         body['sunMoon'] is! Map ||
         body['route'] is! Map ||
         body['manifest'] is! Map ||
-        body['allowedActions'] is! List) {
+        body['allowedActions'] is! List ||
+        (isV3 && body['opportunities'] is! List)) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
     final scene = SceneType.values
@@ -289,6 +305,9 @@ class DataBrokerContextRepository implements RemoteContextRepository {
               .firstOrNull;
         })
         .toList(growable: false);
+    final opportunities = isV3
+        ? _opportunities(body['opportunities'] as List)
+        : const <PhotographyOpportunity>[];
     if (!RegExp(r'^ctx_[a-f0-9]{24}$').hasMatch(body['contextId']! as String) ||
         body['fingerprint'] is! String ||
         !RegExp(r'^[a-f0-9]{24}$').hasMatch(body['fingerprint']! as String) ||
@@ -444,6 +463,12 @@ class DataBrokerContextRepository implements RemoteContextRepository {
           .map((event) => event.id)
           .toList(growable: false),
       events: events,
+      photographyOpportunities:
+          body['stale']! as bool ||
+              dataFreshness == ContextDataFreshness.stale ||
+              weatherFreshness == ContextDataFreshness.stale
+          ? const []
+          : opportunities,
       wildlifeActivity: fallback?.wildlifeActivity,
       location: location,
       temperatureCelsius: (temperature as num?)?.toDouble(),
@@ -590,4 +615,284 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       sourceUri: sourceUri,
     );
   }
+
+  List<PhotographyOpportunity> _opportunities(List raw) {
+    if (raw.length > 8) {
+      throw const FormatException('Too many photography opportunities');
+    }
+    final ids = <String>{};
+    return List.unmodifiable(
+      raw.map((value) {
+        final opportunity = _opportunity(value);
+        if (!ids.add(opportunity.id)) {
+          throw const FormatException('Duplicate photography opportunity');
+        }
+        return opportunity;
+      }),
+    );
+  }
+
+  PhotographyOpportunity _opportunity(Object? raw) {
+    if (raw is! Map) {
+      throw const FormatException('Invalid photography opportunity');
+    }
+    final value = Map<String, Object?>.from(raw);
+    const keys = {
+      'id',
+      'kind',
+      'startAt',
+      'peakAt',
+      'endAt',
+      'score',
+      'confidence',
+      'geoScope',
+      'directionDegrees',
+      'evidence',
+      'primaryAction',
+      'fallbackAction',
+      'equipmentHints',
+      'target',
+      'corridor',
+    };
+    final kind = PhotographyOpportunityKind.values
+        .where((item) => item.name == value['kind'])
+        .firstOrNull;
+    final scope = PhotographyOpportunityGeoScope.values
+        .where((item) => item.name == value['geoScope'])
+        .firstOrNull;
+    final primaryAction = ContextAction.values
+        .where((item) => item.name == value['primaryAction'])
+        .firstOrNull;
+    final fallbackAction = value['fallbackAction'] == null
+        ? null
+        : ContextAction.values
+              .where((item) => item.name == value['fallbackAction'])
+              .firstOrNull;
+    final startsAt = DateTime.tryParse('${value['startAt'] ?? ''}')?.toUtc();
+    final peaksAt = DateTime.tryParse('${value['peakAt'] ?? ''}')?.toUtc();
+    final endsAt = DateTime.tryParse('${value['endAt'] ?? ''}')?.toUtc();
+    final id = value['id'];
+    final score = value['score'];
+    final confidence = value['confidence'];
+    final direction = value['directionDegrees'];
+    final evidence = value['evidence'];
+    final hints = value['equipmentHints'];
+    final target = _target(value['target']);
+    final corridor = _corridor(value['corridor']);
+    if (!_hasOnlyKeys(value, keys) ||
+        id is! String ||
+        !RegExp(r'^photo-[a-z0-9_-]{1,58}$').hasMatch(id) ||
+        kind == null ||
+        scope == null ||
+        startsAt == null ||
+        peaksAt == null ||
+        endsAt == null ||
+        peaksAt.isBefore(startsAt) ||
+        endsAt.isBefore(peaksAt) ||
+        score is! int ||
+        score < 0 ||
+        score > 100 ||
+        !_finiteIn(confidence, 0, 1) ||
+        (direction != null && !_finiteIn(direction, 0, 359.999)) ||
+        primaryAction == null ||
+        (value['fallbackAction'] != null && fallbackAction == null) ||
+        evidence is! List ||
+        evidence.isEmpty ||
+        evidence.length > 4 ||
+        hints is! List ||
+        hints.length > 4) {
+      throw const FormatException('Invalid photography opportunity');
+    }
+    final decodedEvidence = <PhotographyEvidence>[];
+    for (var index = 0; index < evidence.length; index += 1) {
+      final entry = evidence[index];
+      if (entry is! Map) throw const FormatException('Invalid evidence');
+      final item = Map<String, Object?>.from(entry);
+      if (!_hasExactKeys(item, const {'label', 'value'}) ||
+          item['label'] is! String ||
+          item['value'] is! String ||
+          (item['label'] as String).trim().isEmpty ||
+          (item['label'] as String).runes.length > 40 ||
+          (item['value'] as String).trim().isEmpty ||
+          (item['value'] as String).runes.length > 80) {
+        throw const FormatException('Invalid photography evidence');
+      }
+      final label = (item['label'] as String).trim();
+      decodedEvidence.add(
+        PhotographyEvidence(
+          id: '$id:$index',
+          kind: _evidenceKind(label),
+          statement: '$label ${(item['value'] as String).trim()}',
+          confidence: (confidence as num).toDouble(),
+        ),
+      );
+    }
+    final equipmentHints = <String>[];
+    for (final hint in hints) {
+      if (hint is! String ||
+          hint.trim().isEmpty ||
+          hint.runes.length > 40 ||
+          hint.contains(RegExp(r'[\r\n]'))) {
+        throw const FormatException('Invalid equipment hint');
+      }
+      equipmentHints.add(hint.trim());
+    }
+    return PhotographyOpportunity(
+      id: id,
+      kind: kind,
+      title: _titleFor(kind),
+      startsAt: startsAt,
+      peaksAt: peaksAt,
+      expiresAt: endsAt,
+      score: score,
+      confidence: (confidence as num).toDouble(),
+      geoScope: scope,
+      directionDegrees: (direction as num?)?.toDouble(),
+      primaryAction: primaryAction,
+      fallbackAction: fallbackAction,
+      evidence: decodedEvidence,
+      equipmentHints: equipmentHints,
+      target: target,
+      corridor: corridor,
+    );
+  }
+
+  PhotographyTarget? _target(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map) throw const FormatException('Invalid photography target');
+    final value = Map<String, Object?>.from(raw);
+    final coordinate = value['coordinate'];
+    if (!_hasExactKeys(value, const {
+          'id',
+          'name',
+          'kind',
+          'coordinate',
+          'arrivalDeadline',
+        }) ||
+        coordinate is! Map) {
+      throw const FormatException('Invalid photography target');
+    }
+    final point = Map<String, Object?>.from(coordinate);
+    final kind = PhotographyTargetKind.values
+        .where((item) => item.name == value['kind'])
+        .firstOrNull;
+    final latitude = point['latitude'];
+    final longitude = point['longitude'];
+    final deadline = DateTime.tryParse(
+      '${value['arrivalDeadline'] ?? ''}',
+    )?.toUtc();
+    if (!_hasExactKeys(point, const {'latitude', 'longitude', 'system'}) ||
+        value['id'] is! String ||
+        (value['id'] as String).isEmpty ||
+        (value['id'] as String).length > 160 ||
+        value['name'] is! String ||
+        (value['name'] as String).trim().isEmpty ||
+        (value['name'] as String).runes.length > 80 ||
+        kind == null ||
+        point['system'] != 'wgs84' ||
+        !_finiteIn(latitude, -90, 90) ||
+        !_finiteIn(longitude, -180, 180) ||
+        deadline == null) {
+      throw const FormatException('Invalid photography target');
+    }
+    return PhotographyTarget(
+      id: value['id'] as String,
+      name: (value['name'] as String).trim(),
+      kind: kind,
+      coordinate: GeoPoint(
+        latitude: (latitude as num).toDouble(),
+        longitude: (longitude as num).toDouble(),
+      ),
+      arrivalDeadline: deadline,
+    );
+  }
+
+  PhotographyCorridor? _corridor(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map) {
+      throw const FormatException('Invalid photography corridor');
+    }
+    final value = Map<String, Object?>.from(raw);
+    final observations = value['observations'];
+    if (!_hasExactKeys(value, const {'routeId', 'observations'}) ||
+        value['routeId'] is! String ||
+        (value['routeId'] as String).isEmpty ||
+        (value['routeId'] as String).length > 160 ||
+        observations is! List ||
+        observations.length > 3) {
+      throw const FormatException('Invalid photography corridor');
+    }
+    final result = <PhotographyCorridorObservation>[];
+    for (final rawItem in observations) {
+      if (rawItem is! Map) {
+        throw const FormatException('Invalid corridor observation');
+      }
+      final item = Map<String, Object?>.from(rawItem);
+      const keys = {
+        'progress',
+        'expectedAt',
+        'condition',
+        'cloudCoverPercent',
+        'windSpeedMps',
+        'precipitationMm',
+        'thunder',
+        'sunAzimuthDegrees',
+        'opportunityId',
+      };
+      final expectedAt = DateTime.tryParse(
+        '${item['expectedAt'] ?? ''}',
+      )?.toUtc();
+      if (!_hasExactKeys(item, keys) ||
+          !_finiteIn(item['progress'], 0, 1) ||
+          expectedAt == null ||
+          item['condition'] is! String ||
+          (item['condition'] as String).trim().isEmpty ||
+          (item['condition'] as String).runes.length > 80 ||
+          !_finiteIn(item['windSpeedMps'], 0, 150) ||
+          !_finiteIn(item['precipitationMm'], 0, 500) ||
+          item['thunder'] is! bool ||
+          (item['cloudCoverPercent'] != null &&
+              !_finiteIn(item['cloudCoverPercent'], 0, 100)) ||
+          (item['sunAzimuthDegrees'] != null &&
+              !_finiteIn(item['sunAzimuthDegrees'], 0, 359.999)) ||
+          (item['opportunityId'] != null &&
+              (item['opportunityId'] is! String ||
+                  (item['opportunityId'] as String).isEmpty))) {
+        throw const FormatException('Invalid corridor observation');
+      }
+      result.add(
+        PhotographyCorridorObservation(
+          progress: (item['progress'] as num).toDouble(),
+          expectedAt: expectedAt,
+          condition: (item['condition'] as String).trim(),
+          windSpeedMps: (item['windSpeedMps'] as num).toDouble(),
+          precipitationMm: (item['precipitationMm'] as num).toDouble(),
+          thunder: item['thunder'] as bool,
+          cloudCoverPercent: (item['cloudCoverPercent'] as num?)?.toDouble(),
+          sunAzimuthDegrees: (item['sunAzimuthDegrees'] as num?)?.toDouble(),
+          opportunityId: item['opportunityId'] as String?,
+        ),
+      );
+    }
+    return PhotographyCorridor(
+      routeId: value['routeId'] as String,
+      observations: result,
+    );
+  }
+
+  PhotographyEvidenceKind _evidenceKind(String label) => switch (label) {
+    '时段' => PhotographyEvidenceKind.light,
+    '目录' => PhotographyEvidenceKind.astronomy,
+    '风速' || '云量' || '预报' => PhotographyEvidenceKind.weather,
+    _ => PhotographyEvidenceKind.weather,
+  };
+
+  String _titleFor(PhotographyOpportunityKind kind) => switch (kind) {
+    PhotographyOpportunityKind.blueHour => '蓝调窗口',
+    PhotographyOpportunityKind.reflection => '倒影窗口',
+    PhotographyOpportunityKind.alpenglow => '日照金山窗口',
+    PhotographyOpportunityKind.morningMist => '晨雾窗口',
+    PhotographyOpportunityKind.sunsetGlow => '晚霞窗口',
+    PhotographyOpportunityKind.astronomy => '天象窗口',
+  };
 }

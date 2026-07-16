@@ -6,12 +6,14 @@ class ExploreIntentState {
   const ExploreIntentState({
     required this.category,
     this.activeFocus,
+    this.creativeIntent,
     this.sceneCategory = NearbyPlaceCategory.viewpoint,
     this.followsScene = true,
   });
 
   final NearbyPlaceCategory category;
   final ExploreFocus? activeFocus;
+  final ExploreCreativeIntent? creativeIntent;
   final NearbyPlaceCategory sceneCategory;
   final bool followsScene;
 
@@ -47,6 +49,17 @@ class ExploreIntentController extends Notifier<ExploreIntentState> {
   void complete({required NearbyPlaceCategory category}) {
     state = ExploreIntentState(
       category: category,
+      sceneCategory: state.sceneCategory,
+      followsScene: false,
+    );
+  }
+
+  /// A local Explore choice. It only changes which existing nearby query is
+  /// used; it does not claim that a photographic condition exists.
+  void chooseCreativeIntent(ExploreCreativeIntent intent) {
+    state = ExploreIntentState(
+      category: intent.category,
+      creativeIntent: intent,
       sceneCategory: state.sceneCategory,
       followsScene: false,
     );

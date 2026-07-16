@@ -225,6 +225,83 @@ class WildlifeMapLayerCaches extends Table {
   ];
 }
 
+/// Deliberately local, user-initiated follows. This table has no coordinate
+/// columns: following an opportunity must not become a location history.
+@DataClassName('WatchedPhotographyOpportunityRow')
+class WatchedPhotographyOpportunities extends Table {
+  TextColumn get id => text()();
+  TextColumn get opportunityId => text()();
+  TextColumn get snapshotId => text()();
+  TextColumn get title => text()();
+  TextColumn get targetId => text().nullable()();
+  DateTimeColumn get watchedAt => dateTime()();
+  DateTimeColumn get expiresAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) = 64)',
+    'CHECK (length(opportunity_id) BETWEEN 1 AND 160)',
+    'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
+    'CHECK (length(title) BETWEEN 1 AND 160)',
+    'CHECK (expires_at >= watched_at)',
+  ];
+}
+
+@DataClassName('PhotographyOpportunityResultRow')
+class PhotographyOpportunityResults extends Table {
+  TextColumn get id => text()();
+  TextColumn get opportunityId => text()();
+  TextColumn get snapshotId => text()();
+  TextColumn get targetId => text().nullable()();
+  TextColumn get outcome => text()();
+  TextColumn get reason => text().nullable()();
+  DateTimeColumn get recordedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) = 64)',
+    'CHECK (length(opportunity_id) BETWEEN 1 AND 160)',
+    'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
+    "CHECK (outcome IN ('shot', 'missed', 'skipped'))",
+    'CHECK (reason IS NULL OR length(reason) BETWEEN 1 AND 280)',
+  ];
+}
+
+/// A pack is created only after an explicit user action. Its route and place
+/// snapshots are immutable JSON, so ordinary environment refreshes cannot add
+/// a covert movement trail to it.
+@DataClassName('OfflinePhotographyPackRow')
+class OfflinePhotographyPacks extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get dataTimestamp => dateTime()();
+  TextColumn get routeJson => text().nullable()();
+  TextColumn get placesJson => text()();
+  TextColumn get windowsJson => text()();
+  TextColumn get opportunityJson => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) = 64)',
+    'CHECK (length(name) BETWEEN 1 AND 160)',
+    'CHECK (data_timestamp <= created_at)',
+    'CHECK (route_json IS NULL OR length(route_json) BETWEEN 1 AND 131072)',
+    'CHECK (length(places_json) BETWEEN 2 AND 524288)',
+    'CHECK (length(windows_json) BETWEEN 2 AND 131072)',
+    'CHECK (length(opportunity_json) BETWEEN 2 AND 131072)',
+  ];
+}
+
 @DriftDatabase(
   tables: [
     SavedPlaces,
@@ -236,6 +313,9 @@ class WildlifeMapLayerCaches extends Table {
     BaseRegions,
     SavedInspirationNotes,
     WildlifeMapLayerCaches,
+    WatchedPhotographyOpportunities,
+    PhotographyOpportunityResults,
+    OfflinePhotographyPacks,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -245,7 +325,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -280,6 +360,21 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 9) {
         await migrator.createTable(wildlifeMapLayerCaches);
+      }
+      if (from < 10) {
+        await migrator.createTable(watchedPhotographyOpportunities);
+        await migrator.createTable(photographyOpportunityResults);
+        await migrator.createTable(offlinePhotographyPacks);
+      }
+      if (from >= 10 && from < 11) {
+        await migrator.addColumn(
+          watchedPhotographyOpportunities,
+          watchedPhotographyOpportunities.targetId,
+        );
+        await migrator.addColumn(
+          photographyOpportunityResults,
+          photographyOpportunityResults.targetId,
+        );
       }
     },
   );

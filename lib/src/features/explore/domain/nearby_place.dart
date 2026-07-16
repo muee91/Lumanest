@@ -16,6 +16,26 @@ enum NearbyPlaceCategory {
   final String keyword;
 }
 
+/// The small, photography-first vocabulary exposed by Explore.
+///
+/// Each intent resolves to one existing, privacy-preserving nearby query.  It
+/// deliberately does not invent a new POI type or turn the map into a
+/// navigation directory.
+enum ExploreCreativeIntent {
+  chaseLight('追光', NearbyPlaceCategory.viewpoint),
+  reflection('倒影', NearbyPlaceCategory.waterfront),
+  mountain('看山', NearbyPlaceCategory.viewpoint),
+  stargazing('星空', NearbyPlaceCategory.viewpoint),
+  humanity('人文', NearbyPlaceCategory.humanity),
+  supplies('补给', NearbyPlaceCategory.supply),
+  shelter('避雨', NearbyPlaceCategory.food);
+
+  const ExploreCreativeIntent(this.label, this.category);
+
+  final String label;
+  final NearbyPlaceCategory category;
+}
+
 enum ExploreFocus {
   photography('附近摄影线索'),
   water('正在寻找湖岸与水面线索'),

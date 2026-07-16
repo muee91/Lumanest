@@ -4,7 +4,9 @@ import hashlib
 import math
 from datetime import datetime, timedelta, timezone
 
-from .models import ContextEvent, Manifest, SceneEvidence, SceneType, SnapshotRequest, SnapshotResponse
+from .models import (ContextEvent, Manifest, PhotographyOpportunity, PhotographyTarget, SceneEvidence,
+                     SceneType, SnapshotRequest, SnapshotResponse, SnapshotResponseV3)
+from .route_corridor import build_opportunity_corridor
 from .solar import solar_state
 
 
@@ -53,6 +55,7 @@ def context_fingerprint(
     scene: SceneType,
     evidence: SceneEvidence | None = None,
     astronomy_events: list[dict] | None = None,
+    target: PhotographyTarget | None = None,
 ) -> str:
     facts = evidence or request.evidence
     solar = request.solar or solar_state(request.coordinate, request.observed_at)
@@ -62,15 +65,42 @@ def context_fingerprint(
         str(round(request.forecast.next_three_hours_max_wind_speed_mps or 0, 1)),
         str(request.forecast.thunder_next_three_hours),
     ))
+    # V3 opportunities are derived from the individual hourly records, rather
+    # than the aggregate forecast above.  Keep their bounded, non-identifying
+    # state in the fingerprint so a Redis hit cannot return a window generated
+    # from an earlier hourly forecast.
+    hourly_state = ",".join(sorted(
+        ":".join((
+            item.at.astimezone(timezone.utc).isoformat(timespec="minutes"),
+            item.condition,
+            str(round(item.cloud_cover_percent, 1)) if item.cloud_cover_percent is not None else "unknown",
+            str(round(item.wind_speed_mps, 1)),
+            str(round(item.precipitation_mm, 1)),
+            str(item.thunder),
+        ))
+        for item in request.forecast.hourly
+    ))
     air_state = f"{request.weather.air_quality_index}:{request.weather.air_quality_stale}"
+    corridor_state = ",".join(
+        ":".join((
+            request.route.route_id or "",
+            f"{sample.latitude:.4f}",
+            f"{sample.longitude:.4f}",
+            sample.expected_at.astimezone(timezone.utc).isoformat(timespec="minutes"),
+            f"{sample.progress:.4f}",
+        ))
+        for sample in request.route.corridor_samples
+    )
     grid = f"{request.coordinate.latitude:.2f},{request.coordinate.longitude:.2f}"
     raw = "|".join((
+        str(request.contract_version),
         grid,
         scene.value,
         solar.day_phase,
         request.weather.condition,
         request.weather.observed_at.astimezone(timezone.utc).isoformat(timespec="minutes"),
         forecast_state,
+        hourly_state,
         air_state,
         warning_ids,
         request.route.mode,
@@ -79,20 +109,95 @@ def context_fingerprint(
         str(facts.wildlife_opportunity),
         str(facts.wildlife_safety),
         ",".join(sorted(str(event.get("external_id", "")) for event in (astronomy_events or []))),
+        target.id if target is not None else "",
+        corridor_state,
     ))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _opportunities(
+    request: SnapshotRequest, scene: SceneType, solar, astronomy_events: list[dict], generated_at: datetime,
+    target: PhotographyTarget | None = None,
+) -> list[PhotographyOpportunity]:
+    """Create bounded, deterministic creative windows from fresh forecast facts only."""
+    if request.weather.stale:
+        return []
+    result: list[PhotographyOpportunity] = []
+
+    def add(kind: str, start: datetime, score: int, confidence: float, scope: str,
+            primary: str, evidence: list[tuple[str, str]], direction: float | None = None,
+            fallback: str | None = None, hints: list[str] | None = None,
+            end: datetime | None = None) -> None:
+        if len(result) >= 8 or start < generated_at or start > generated_at + timedelta(hours=6):
+            return
+        end = min(end or (start + timedelta(minutes=35)), start + timedelta(minutes=35))
+        if end <= start:
+            return
+        peak = min(start + timedelta(minutes=15), end)
+        bound_target = (
+            target.model_copy(update={"arrival_deadline": start})
+            if target is not None and scope == "point" else None
+        )
+        corridor = build_opportunity_corridor(
+            request.route,
+            request.forecast.hourly,
+            opportunity_id=f"photo-{kind}-{start.strftime('%Y%m%d%H')}",
+            geo_scope=scope,
+        ).corridor
+        result.append(PhotographyOpportunity.model_validate({
+            "id": f"photo-{kind}-{start.strftime('%Y%m%d%H')}", "kind": kind,
+            "startAt": start, "peakAt": peak, "endAt": end,
+            "score": score, "confidence": confidence, "geoScope": scope,
+            "directionDegrees": direction, "evidence": [{"label": label, "value": value} for label, value in evidence],
+            "primaryAction": primary, "fallbackAction": fallback, "equipmentHints": hints or [],
+            "target": bound_target,
+            "corridor": corridor,
+        }))
+
+    # Use the current solar result and each QWeather hour; no model inference and no coordinates.
+    hourly = request.forecast.hourly or []
+    if not hourly:
+        hourly = []
+    for item in hourly:
+        if item.thunder or item.precipitation_mm >= 5 or item.wind_speed_mps >= 15:
+            continue
+        hour_solar = solar_state(request.coordinate, item.at)
+        cloud = item.cloud_cover_percent if item.cloud_cover_percent is not None else 50
+        clear = item.condition in ("clear", "cloudy")
+        base = [("预报", item.condition), ("云量", f"{round(cloud)}%")]
+        if hour_solar.day_phase == "blueHour" and clear:
+            add("blueHour", item.at, 82, .82, "point", "openShootingWindow", base, hour_solar.azimuth_degrees, "openExplore", ["广角镜头", "三脚架"])
+        if hour_solar.day_phase == "sunset" and clear and 20 <= cloud <= 75:
+            add("sunsetGlow", item.at, 78, .72, "regional", "openShootingWindow", base + [("时段", "日落前后")], hour_solar.azimuth_degrees, "openExplore", ["广角镜头"])
+        if scene is SceneType.MOUNTAIN and hour_solar.day_phase in ("dawn", "sunset") and clear and cloud <= 60:
+            add("alpenglow", item.at, 76, .70, "regional", "openShootingWindow", base, hour_solar.azimuth_degrees, "openExplore", ["长焦镜头", "三脚架"])
+        if scene is SceneType.LAKE and item.wind_speed_mps <= 3 and item.precipitation_mm == 0 and clear:
+            add("reflection", item.at, 74, .76, "point", "openExplore", base + [("风速", f"{item.wind_speed_mps:.1f}m/s")], None, "openShootingWindow", ["偏振镜"])
+        if hour_solar.day_phase == "dawn" and item.condition in ("cloudy", "clear") and 65 <= cloud <= 100 and item.wind_speed_mps <= 4:
+            add("morningMist", item.at, 65, .58, "regional", "openExplore", base + [("风速", f"{item.wind_speed_mps:.1f}m/s")], None, "openWeather", ["中长焦镜头"])
+
+    for catalog in astronomy_events:
+        starts, ends = catalog.get("starts_at"), catalog.get("ends_at")
+        if not isinstance(starts, datetime) or not isinstance(ends, datetime):
+            continue
+        if ends <= generated_at or starts > generated_at + timedelta(hours=6):
+            continue
+        add("astronomy", max(starts, generated_at), 86, 1, "regional", "openAuthority",
+            [("目录", "已审核天象")], None, None, ["三脚架", "广角镜头"], ends)
+    return sorted(result, key=lambda item: (-item.score, item.start_at, item.id))
 
 
 def evaluate(
     request: SnapshotRequest,
     evidence: SceneEvidence | None = None,
     astronomy_events: list[dict] | None = None,
-) -> SnapshotResponse:
+    target: PhotographyTarget | None = None,
+) -> SnapshotResponse | SnapshotResponseV3:
     generated_at = request.observed_at.astimezone(timezone.utc)
     expires_at = generated_at + timedelta(minutes=15)
     scene = classify_scene(request, evidence)
     facts = evidence or request.evidence
-    fingerprint = context_fingerprint(request, scene, facts, astronomy_events)
+    fingerprint = context_fingerprint(request, scene, facts, astronomy_events, target)
     moon_phase, moon_illumination = moon_state(generated_at)
     solar = request.solar or solar_state(request.coordinate, generated_at)
     events: list[ContextEvent] = []
@@ -200,7 +305,6 @@ def evaluate(
 
     creative = [event.id for event in events if event.channel in ("opportunity", "wildlifeOpportunity")]
     safety = [event.id for event in events if event.channel in ("safety", "wildlifeSafety")]
-    allowed_actions = list(dict.fromkeys(event.allowed_action for event in events))
     layout = "safety" if safety else "opportunity" if creative else "quiet"
     manifest = Manifest.model_validate({
         "layoutMode": layout,
@@ -208,7 +312,14 @@ def evaluate(
         "secondaryEventIds": creative[1:3],
         "safetyEventIds": safety,
     })
-    return SnapshotResponse.model_validate({
+    opportunities = _opportunities(request, scene, solar, astronomy_events or [], generated_at, target) \
+        if request.contract_version == 3 else []
+    allowed_actions = list(dict.fromkeys(
+        [event.allowed_action for event in events] +
+        [action for opportunity in opportunities
+         for action in (opportunity.primary_action, opportunity.fallback_action) if action is not None]
+    ))
+    response = {
         "contextId": f"ctx_{fingerprint}",
         "generatedAt": generated_at,
         "expiresAt": expires_at,
@@ -250,4 +361,9 @@ def evaluate(
         "events": events,
         "allowedActions": allowed_actions,
         "manifest": manifest,
-    })
+    }
+    if request.contract_version == 3:
+        response["contractVersion"] = 3
+        response["opportunities"] = opportunities
+        return SnapshotResponseV3.model_validate(response)
+    return SnapshotResponse.model_validate(response)

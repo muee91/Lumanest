@@ -16,9 +16,11 @@ import '../../location/application/base_region_controller.dart';
 import '../../location/application/manual_location_providers.dart';
 import '../../location/presentation/manual_location_sheet.dart';
 import '../../notifications/application/route_reminder_service.dart';
+import '../../notifications/application/photography_watch_notification_service.dart';
 import '../../../shared/actions/manifest_action_handler.dart';
 import '../../../shared/widgets/luma_nest_surface.dart';
 import 'environment_diagnostics.dart';
+import 'local_photography_export.dart';
 
 /// Local profile settings surface.
 ///
@@ -45,6 +47,9 @@ class ProfilePage extends ConsumerWidget {
     final baseRegion = ref.watch(baseRegionProvider).asData?.value;
     final cacheStatus = ref.watch(environmentCacheStatusProvider);
     final routeReminderEnabled = ref.watch(routeReminderEnabledProvider);
+    final photographyWatchNotificationsEnabled = ref.watch(
+      photographyWatchNotificationsEnabledProvider,
+    );
     final hasLibraryContent =
         library != null &&
         (library.recentRoute != null ||
@@ -53,6 +58,11 @@ class ProfilePage extends ConsumerWidget {
             library.importedTracks.isNotEmpty ||
             library.savedNotes.isNotEmpty ||
             library.savedPlaces.isNotEmpty);
+    final hasPhotographyActivity =
+        library != null &&
+        (library.watchedOpportunities.isNotEmpty ||
+            library.opportunityResults.isNotEmpty ||
+            library.offlinePhotographyPacks.isNotEmpty);
 
     final liveActions = EnvironmentDiagnosticsActions(
       onRetry: () => ref.read(environmentSnapshotProvider.notifier).refresh(),
@@ -77,6 +87,16 @@ class ProfilePage extends ConsumerWidget {
               subtitle: '你留下的地点、路线与纸条',
             ),
             _LibraryShelf(library: availableLibrary),
+          ],
+          if (library case final availableLibrary?
+              when hasPhotographyActivity) ...[
+            const SizedBox(height: 18),
+            const _ProfileSectionTitle(
+              icon: Icons.camera_outlined,
+              title: '摄影活动',
+              subtitle: '关注、结果与离线包只留在本机',
+            ),
+            _PhotographyActivityShelf(library: availableLibrary),
           ],
           const SizedBox(height: 16),
           EnvironmentDiagnostics(
@@ -200,6 +220,45 @@ class ProfilePage extends ConsumerWidget {
                         },
                 ),
                 const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.camera_alt_outlined),
+                  title: const Text('拍摄窗口提醒'),
+                  subtitle: Text(
+                    photographyWatchNotificationsEnabled.when(
+                      data: (enabled) =>
+                          enabled ? '仅提醒你主动关注的拍摄窗口' : '关闭；不会在后台持续获取位置或天气',
+                      loading: () => '正在读取本机设置',
+                      error: (_, _) => '暂时无法读取通知设置',
+                    ),
+                  ),
+                  value:
+                      photographyWatchNotificationsEnabled.asData?.value ??
+                      false,
+                  onChanged: photographyWatchNotificationsEnabled.isLoading
+                      ? null
+                      : (value) async {
+                          try {
+                            final enabled = await ref
+                                .read(
+                                  photographyWatchNotificationsEnabledProvider
+                                      .notifier,
+                                )
+                                .setEnabled(value);
+                            if (!value || enabled || !context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('未获得系统通知权限，拍摄窗口提醒保持关闭'),
+                              ),
+                            );
+                          } on Object {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('通知设置未能更新，请稍后重试')),
+                            );
+                          }
+                        },
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip_outlined),
                   title: const Text('环境数据与定位'),
@@ -222,6 +281,18 @@ class ProfilePage extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _showDataSources(context),
                 ),
+                if (library case final availableLibrary?
+                    when hasPhotographyActivity) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.file_download_outlined),
+                    title: const Text('导出摄影数据'),
+                    subtitle: const Text('仅导出本机关注、结果与离线包'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        _exportPhotographyData(context, ref, availableLibrary),
+                  ),
+                ],
               ],
             ),
           ),
@@ -444,6 +515,11 @@ class ProfilePage extends ConsumerWidget {
                 },
               ),
           ],
+          if (library case final availableLibrary?
+              when hasPhotographyActivity) ...[
+            const SizedBox(height: 20),
+            _PhotographyActivityDetails(library: availableLibrary),
+          ],
         ],
       ),
     );
@@ -488,6 +564,27 @@ class ProfilePage extends ConsumerWidget {
       ref.read(routeContextStateProvider.notifier).end();
     }
     await ref.read(userLibraryProvider.notifier).deleteJourney(journey.id);
+  }
+
+  static Future<void> _exportPhotographyData(
+    BuildContext context,
+    WidgetRef ref,
+    UserLibraryState library,
+  ) async {
+    try {
+      final path = await ref
+          .read(localPhotographyExportServiceProvider)
+          .export(library);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('摄影数据已导出到 $path')));
+    } on Object {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('导出失败，请稍后重试')));
+    }
   }
 
   static Future<void> _confirmEnvironmentDataRemoval(
@@ -1147,6 +1244,217 @@ class _LibraryShelf extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PhotographyActivityShelf extends StatelessWidget {
+  const _PhotographyActivityShelf({required this.library});
+
+  final UserLibraryState library;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <_LibraryShelfEntry>[
+      if (library.watchedOpportunities.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.visibility_outlined,
+          '关注窗口',
+          '${library.watchedOpportunities.length} 个',
+        ),
+      if (library.opportunityResults.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.photo_camera_outlined,
+          '拍摄结果',
+          _outcomeSummary(library.opportunityResults),
+        ),
+      if (library.offlinePhotographyPacks.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.offline_pin_outlined,
+          '离线摄影包',
+          '${library.offlinePhotographyPacks.length} 个',
+        ),
+    ];
+    return LumaNestSurface(
+      tone: LumaNestSurfaceTone.paper,
+      child: Column(
+        children: [
+          for (var index = 0; index < entries.length; index++) ...[
+            _LibraryShelfRow(entry: entries[index]),
+            if (index < entries.length - 1) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _outcomeSummary(List<PhotographyOpportunityResult> values) {
+    final counts = <PhotographyOpportunityOutcome, int>{};
+    for (final value in values) {
+      counts[value.outcome] = (counts[value.outcome] ?? 0) + 1;
+    }
+    return PhotographyOpportunityOutcome.values
+        .where(counts.containsKey)
+        .map((outcome) => '${_outcomeLabel(outcome)} ${counts[outcome]}')
+        .join(' · ');
+  }
+}
+
+class _PhotographyActivityDetails extends StatelessWidget {
+  const _PhotographyActivityDetails({required this.library});
+
+  final UserLibraryState library;
+
+  @override
+  Widget build(BuildContext context) => _ProfileSurface(
+    child: Column(
+      children: [
+        if (library.watchedOpportunities.isNotEmpty) ...[
+          _ActivityHeader(
+            title: '关注窗口',
+            clearLabel: '清除摄影活动',
+            onClear: () => _confirmPhotographyActivityClear(context),
+          ),
+          for (final watched in library.watchedOpportunities)
+            ListTile(
+              leading: const Icon(Icons.visibility_outlined),
+              title: Text(watched.title),
+              subtitle: Text(
+                watched.expiresAt.isAfter(DateTime.now())
+                    ? '关注至 ${_dateTime(watched.expiresAt)}'
+                    : '已结束 · ${_dateTime(watched.expiresAt)}',
+              ),
+              trailing: IconButton(
+                tooltip: '取消关注',
+                icon: const Icon(Icons.close),
+                onPressed: () =>
+                    _controller(context).unwatchOpportunity(watched.id),
+              ),
+            ),
+        ],
+        if (library.opportunityResults.isNotEmpty) ...[
+          if (library.watchedOpportunities.isNotEmpty) const Divider(height: 1),
+          _ActivityHeader(
+            title: '拍摄结果',
+            clearLabel: library.watchedOpportunities.isEmpty ? '清除摄影活动' : null,
+            onClear: () => _confirmPhotographyActivityClear(context),
+          ),
+          for (final result in library.opportunityResults)
+            ListTile(
+              leading: Icon(_outcomeIcon(result.outcome)),
+              title: Text(_outcomeLabel(result.outcome)),
+              subtitle: Text(
+                [
+                  _dateTime(result.recordedAt),
+                  if (result.reason != null) result.reason!,
+                ].join(' · '),
+              ),
+            ),
+        ],
+        if (library.offlinePhotographyPacks.isNotEmpty) ...[
+          if (library.watchedOpportunities.isNotEmpty ||
+              library.opportunityResults.isNotEmpty)
+            const Divider(height: 1),
+          _ActivityHeader(
+            title: '离线摄影包',
+            clearLabel:
+                library.watchedOpportunities.isEmpty &&
+                    library.opportunityResults.isEmpty
+                ? '清除摄影活动'
+                : null,
+            onClear: () => _confirmPhotographyActivityClear(context),
+          ),
+          for (final pack in library.offlinePhotographyPacks)
+            ListTile(
+              leading: const Icon(Icons.offline_pin_outlined),
+              title: Text(pack.name),
+              subtitle: Text(
+                '${pack.places.length} 个地点 · ${pack.windows.length} 个窗口 · ${_dateTime(pack.dataTimestamp)}',
+              ),
+              trailing: IconButton(
+                tooltip: '删除离线摄影包',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () =>
+                    _controller(context).deleteOfflinePhotographyPack(pack.id),
+              ),
+            ),
+        ],
+      ],
+    ),
+  );
+
+  UserLibraryController _controller(BuildContext context) =>
+      ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(userLibraryProvider.notifier);
+
+  Future<void> _confirmPhotographyActivityClear(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('清除摄影活动？'),
+        content: const Text('将删除关注窗口、拍摄结果和离线摄影包；不会删除收藏、路线或环境缓存。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _controller(context).clearPhotographyActivity();
+  }
+}
+
+class _ActivityHeader extends StatelessWidget {
+  const _ActivityHeader({
+    required this.title,
+    this.clearLabel,
+    required this.onClear,
+  });
+
+  final String title;
+  final String? clearLabel;
+  final Future<void> Function() onClear;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 14, 8, 5),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        if (clearLabel != null)
+          TextButton(onPressed: onClear, child: Text(clearLabel!)),
+      ],
+    ),
+  );
+}
+
+String _outcomeLabel(PhotographyOpportunityOutcome outcome) =>
+    switch (outcome) {
+      PhotographyOpportunityOutcome.shot => '已拍摄',
+      PhotographyOpportunityOutcome.missed => '已错过',
+      PhotographyOpportunityOutcome.skipped => '已跳过',
+    };
+
+IconData _outcomeIcon(PhotographyOpportunityOutcome outcome) =>
+    switch (outcome) {
+      PhotographyOpportunityOutcome.shot => Icons.camera_alt_outlined,
+      PhotographyOpportunityOutcome.missed => Icons.schedule_outlined,
+      PhotographyOpportunityOutcome.skipped => Icons.remove_circle_outline,
+    };
+
+String _dateTime(DateTime value) {
+  final local = value.toLocal();
+  return '${local.month}月${local.day}日 '
+      '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
 }
 
 class _LibraryShelfEntry {
