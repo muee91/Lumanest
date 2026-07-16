@@ -10,12 +10,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('从当前位置开始'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byKey(const Key('app-bottom-navigation')), findsOneWidget);
 
     await tester.tap(find.text('探索'));
     await tester.pump();
     expect(find.text('地图尚未配置'), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byKey(const Key('app-bottom-navigation')), findsOneWidget);
 
     await tester.tap(find.text('路线'));
     await tester.pump();
@@ -24,7 +24,8 @@ void main() {
 
     await tester.tap(find.text('灵感'));
     await tester.pump();
-    expect(find.text('灵感瓶'), findsOneWidget);
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.text('灵感'), findsWidgets);
 
     await tester.tap(find.text('我的'));
     await tester.pump();

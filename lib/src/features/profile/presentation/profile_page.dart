@@ -17,6 +17,7 @@ import '../../location/application/manual_location_providers.dart';
 import '../../location/presentation/manual_location_sheet.dart';
 import '../../notifications/application/route_reminder_service.dart';
 import '../../../shared/actions/manifest_action_handler.dart';
+import '../../../shared/widgets/luma_nest_surface.dart';
 import 'environment_diagnostics.dart';
 
 /// Local profile settings surface.
@@ -779,12 +780,14 @@ class _ProfileSettingsEntry extends StatelessWidget {
   Widget build(BuildContext context) => ListTile(
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
     leading: Container(
-      width: 40,
-      height: 40,
+      width: 36,
+      height: 36,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(13),
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: .72),
+        shape: BoxShape.circle,
       ),
       child: Icon(
         icon,
@@ -1087,15 +1090,8 @@ class _ProfileHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    return LumaNestSurface(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer.withValues(alpha: .56),
-        border: Border.all(
-          color: theme.colorScheme.secondary.withValues(alpha: .22),
-        ),
-        borderRadius: BorderRadius.circular(22),
-      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
@@ -1204,16 +1200,9 @@ class _ProfileSurface extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Theme.of(
-      context,
-    ).colorScheme.surfaceContainerLow.withValues(alpha: .88),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(24),
-      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: child,
+  Widget build(BuildContext context) => LumaNestSurface(
+    tone: LumaNestSurfaceTone.solid,
+    child: ClipRRect(borderRadius: BorderRadius.circular(18), child: child),
   );
 }
 

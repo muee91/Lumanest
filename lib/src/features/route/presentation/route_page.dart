@@ -28,6 +28,7 @@ import 'package:luma_nest/src/features/library/application/user_library_controll
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/notifications/application/route_reminder_service.dart';
 import 'package:luma_nest/src/shared/widgets/responsive_action_group.dart';
+import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 
 class RoutePage extends ConsumerWidget {
   const RoutePage({
@@ -293,68 +294,28 @@ class _EmptyRouteViewState extends ConsumerState<_EmptyRouteView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: LumaNestSpacing.sm),
-                Text('路线', style: Theme.of(context).textTheme.displaySmall),
-                const Spacer(),
-                Text(
-                  'JOURNEY',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-              ],
-            ),
+            const LumaNestEyebrow(label: '路线规划'),
             const SizedBox(height: LumaNestSpacing.lg),
-            Container(
-              width: double.infinity,
+            LumaNestSurface(
               padding: const EdgeInsets.all(LumaNestSpacing.lg),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primaryContainer,
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: .2),
-                ),
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
                     Icons.alt_route_rounded,
-                    size: 34,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    size: 30,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(height: LumaNestSpacing.lg),
                   Text(
                     '下一段路，从一个目的地开始',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: LumaNestSpacing.xs),
                   Text(
                     '从探索页选择目的地生成路线，也可以导入已有 GPX 轨迹离线查看。',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onPrimaryContainer.withValues(alpha: .8),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -807,64 +768,50 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
         const SizedBox(height: 8),
         RouteMapPreview(route: route, mapBuilder: widget.routeMapBuilder),
         const SizedBox(height: 20),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                theme.colorScheme.primaryContainer,
-                theme.colorScheme.surfaceContainerHighest,
-              ],
-            ),
-            border: Border.all(
-              color: theme.colorScheme.primary.withValues(alpha: .22),
-            ),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _RouteMetric(label: '距离', value: distance),
+        LumaNestSurface(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Expanded(
+                child: _RouteMetric(label: '距离', value: distance),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _RouteMetric(
+                  label: route.source == RouteSource.importedGpx
+                      ? route.durationEstimated
+                            ? '估算用时'
+                            : '记录用时'
+                      : '预计',
+                  value: durationLabel,
                 ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: theme.colorScheme.outlineVariant,
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _RouteMetric(
+                  label: route.travelMode == RouteTravelMode.walking
+                      ? '累计爬升'
+                      : '过路费',
+                  value: route.travelMode == RouteTravelMode.walking
+                      ? route.ascentMeters == null
+                            ? '暂无高程'
+                            : '${route.ascentMeters} m'
+                      : route.tollsYuan > 0
+                      ? '¥${route.tollsYuan.toStringAsFixed(0)}'
+                      : '无',
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _RouteMetric(
-                    label: route.source == RouteSource.importedGpx
-                        ? route.durationEstimated
-                              ? '估算用时'
-                              : '记录用时'
-                        : '预计',
-                    value: durationLabel,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: theme.colorScheme.outlineVariant,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _RouteMetric(
-                    label: route.travelMode == RouteTravelMode.walking
-                        ? '累计爬升'
-                        : '过路费',
-                    value: route.travelMode == RouteTravelMode.walking
-                        ? route.ascentMeters == null
-                              ? '暂无高程'
-                              : '${route.ascentMeters} m'
-                        : route.tollsYuan > 0
-                        ? '¥${route.tollsYuan.toStringAsFixed(0)}'
-                        : '无',
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         if (route.elevationSource case final source?) ...[
@@ -886,39 +833,33 @@ class _RouteContentState extends ConsumerState<_RouteContent> {
           const SizedBox(height: 4),
           const Text('补给时间按路线进度估算；拍摄窗口使用当前地点日月数据，未推断沿途未来天气和地形遮挡。'),
           const SizedBox(height: 10),
-          Material(
-            color: theme.colorScheme.surfaceContainerLow.withValues(alpha: .9),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: theme.colorScheme.outlineVariant),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                children: [
-                  for (final entry in timeline)
-                    ListTile(
-                      leading: Container(
-                        width: 36,
-                        height: 36,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.secondaryContainer,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(_timelineIcon(entry.kind), size: 18),
+          LumaNestSurface(
+            tone: LumaNestSurfaceTone.solid,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              children: [
+                for (final entry in timeline)
+                  ListTile(
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer,
+                        shape: BoxShape.circle,
                       ),
-                      title: Text(entry.label),
-                      subtitle: Text(entry.description),
-                      trailing: Text(
-                        _timelineTime(entry),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
+                      child: Icon(_timelineIcon(entry.kind), size: 18),
+                    ),
+                    title: Text(entry.label),
+                    subtitle: Text(entry.description),
+                    trailing: Text(
+                      _timelineTime(entry),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ],

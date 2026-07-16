@@ -68,11 +68,11 @@ void main() {
       );
     });
 
-    test('applies the shared editorial component language', () {
+    test('applies the shared daylight component language', () {
       final theme = LumaNestTheme.light;
 
       expect(theme.scaffoldBackgroundColor, Colors.transparent);
-      expect(theme.navigationBarTheme.height, 72);
+      expect(theme.navigationBarTheme.height, 68);
       expect(theme.cardTheme.elevation, 0);
       expect(theme.inputDecorationTheme.filled, isTrue);
       expect(theme.snackBarTheme.behavior, SnackBarBehavior.floating);
