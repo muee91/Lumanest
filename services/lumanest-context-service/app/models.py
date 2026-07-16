@@ -110,6 +110,7 @@ class OfficialWarningInput(ApiModel):
     observed_at: datetime = Field(alias="observedAt")
     expires_at: datetime = Field(alias="expiresAt")
     severity: Literal["info", "caution", "warning", "critical"]
+    title: str = Field(min_length=1, max_length=80)
 
     @field_validator("observed_at", "expires_at")
     @classmethod

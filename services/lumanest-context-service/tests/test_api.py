@@ -312,6 +312,7 @@ def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(m
         "observedAt": "2026-07-14T09:55:00+08:00",
         "expiresAt": "2026-07-14T12:00:00+08:00",
         "severity": "critical",
+        "title": "雷电红色预警",
     }]
     with TestClient(app) as client:
         response = client.post(
@@ -324,6 +325,7 @@ def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(m
     warning = next(event for event in body["events"] if event["source"] == "official")
     assert warning["id"] == "weather-warning-abcdef123456"
     assert warning["severity"] == "critical"
+    assert warning["title"] == "雷电红色预警"
     assert warning["allowedAction"] == "openSafety"
     assert body["sunMoon"]["sunElevationDegrees"] is not None
 

@@ -9,6 +9,7 @@ Future<void> handleManifestAction(
   BuildContext context,
   ManifestItem item, {
   String? detailOverride,
+  List<String> guidance = const [],
 }) async {
   final resolution = ManifestActionResolver.resolve(item);
   if (resolution.route case final route?) {
@@ -52,6 +53,26 @@ Future<void> handleManifestAction(
             Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 12),
             Text(detailOverride ?? _detailFor(item.id, panel)),
+            if (guidance.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Text('现在做什么', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              for (final guidanceItem in guidance)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Icon(Icons.check_circle_outline, size: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(guidanceItem)),
+                    ],
+                  ),
+                ),
+            ],
             if (metadata.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(metadata.join(' · ')),

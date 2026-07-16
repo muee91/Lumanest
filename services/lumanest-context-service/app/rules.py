@@ -168,6 +168,7 @@ def evaluate(
             "regional",
             warning.observed_at,
             warning.expires_at,
+            warning.title,
         )
 
     if not request.weather.stale:

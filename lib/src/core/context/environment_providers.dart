@@ -11,6 +11,7 @@ import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
+import 'package:luma_nest/src/core/context/safety_detail.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/fixed_location_repository.dart';
 import 'package:luma_nest/src/core/monitoring/app_logger.dart';
@@ -21,6 +22,7 @@ import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart
 import 'package:luma_nest/src/infrastructure/location/amap_location_gateway.dart';
 import 'package:luma_nest/src/infrastructure/location/amap_scene_evidence_repository.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
+import 'package:luma_nest/src/infrastructure/context/data_broker_safety_detail_repository.dart';
 import 'package:luma_nest/src/infrastructure/solar/nrel_solar_service.dart';
 import 'package:luma_nest/src/infrastructure/weather/qweather_client.dart';
 import 'package:luma_nest/src/infrastructure/weather/qweather_repository.dart';
@@ -165,6 +167,24 @@ final remoteContextRepositoryProvider = Provider<RemoteContextRepository?>((
     brokerBaseUrl: config.dataBrokerBaseUrl,
     serviceToken: config.lumaNestServiceToken,
     transport: DioContextDataTransport(
+      Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 3),
+          receiveTimeout: const Duration(seconds: 3),
+          sendTimeout: const Duration(seconds: 3),
+        ),
+      ),
+    ),
+  );
+});
+
+final safetyDetailRepositoryProvider = Provider<SafetyDetailRepository?>((ref) {
+  final config = ref.watch(environmentConfigProvider);
+  if (!config.isDataBrokerConfigured) return null;
+  return DataBrokerSafetyDetailRepository(
+    brokerBaseUrl: config.dataBrokerBaseUrl,
+    serviceToken: config.lumaNestServiceToken,
+    transport: DioSafetyDetailTransport(
       Dio(
         BaseOptions(
           connectTimeout: const Duration(seconds: 3),

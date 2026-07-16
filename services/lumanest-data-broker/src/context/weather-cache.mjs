@@ -1,9 +1,11 @@
 import { createClient } from 'redis';
 
 const prefix = 'source:qweather:v1:';
+const safetyDetailPrefix = 'context:safety:v1:';
 
 export class MemoryWeatherCache {
   #entries = new Map();
+  #safetyDetails = new Map();
 
   async get(key) {
     return this.#entries.get(key) ?? null;
@@ -11,6 +13,19 @@ export class MemoryWeatherCache {
 
   async set(key, value) {
     this.#entries.set(key, structuredClone(value));
+  }
+
+  async setSafetyDetails(contextId, details, expiresAt) {
+    this.#safetyDetails.set(contextId, structuredClone({ details, expiresAt }));
+  }
+
+  async getSafetyDetail(contextId, eventId, now = new Date()) {
+    const entry = this.#safetyDetails.get(contextId);
+    if (entry == null || new Date(entry.expiresAt) <= now) {
+      this.#safetyDetails.delete(contextId);
+      return null;
+    }
+    return structuredClone(entry.details.find((detail) => detail.eventId === eventId) ?? null);
   }
 }
 
@@ -49,6 +64,36 @@ export class RedisWeatherCache {
       await this.client.set('source:qweather:last-updated', new Date(value.cachedAt).toISOString());
     } catch {
       // A cache outage must not take the authoritative source path down.
+    }
+  }
+
+  async setSafetyDetails(contextId, details, expiresAt) {
+    const ttlSeconds = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1_000);
+    if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0) return;
+    try {
+      await this.client.set(
+        `${safetyDetailPrefix}${contextId}`,
+        JSON.stringify({ details, expiresAt }),
+        { EX: Math.min(ttlSeconds, 900) },
+      );
+    } catch {
+      // Safety detail cache loss falls back to the local deterministic message.
+    }
+  }
+
+  async getSafetyDetail(contextId, eventId, now = new Date()) {
+    try {
+      const raw = await this.client.get(`${safetyDetailPrefix}${contextId}`);
+      if (raw == null) return null;
+      const entry = JSON.parse(raw);
+      if (entry == null || typeof entry !== 'object' ||
+          !Array.isArray(entry.details) || new Date(entry.expiresAt) <= now) {
+        return null;
+      }
+      const detail = entry.details.find((candidate) => candidate?.eventId === eventId);
+      return detail && typeof detail === 'object' ? detail : null;
+    } catch {
+      return null;
     }
   }
 }

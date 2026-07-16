@@ -10,6 +10,8 @@ import {
   createBrokerServices,
   createTokenBrokerServer,
 } from '../src/server.mjs';
+import { MemoryRequestRateLimiter } from '../src/context/request-rate-limiter.mjs';
+import { MemoryWeatherCache } from '../src/context/weather-cache.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 
@@ -23,6 +25,9 @@ async function withServer(run, {
   contextServiceUrl = '',
   contextInternalToken = '',
   qweatherApiHost = 'https://project.qweatherapi.com',
+  weatherCache,
+  requestRateLimiter,
+  now,
 } = {}) {
   const llmProfiles = aiApiKey ? [{
     id: 'test-profile', name: 'Test profile', providerId: 'custom_openai',
@@ -48,6 +53,9 @@ async function withServer(run, {
     contextServiceUrl,
     contextInternalToken,
     qweatherApiHost,
+    weatherCache,
+    requestRateLimiter,
+    now,
     fetcher,
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -199,6 +207,59 @@ test('context snapshot rejects identity fields without contacting the context se
     },
   });
   assert.equal(calls, 0);
+});
+
+test('safety detail is protected, bounded, and expires with its context', async () => {
+  const cache = new MemoryWeatherCache();
+  await cache.setSafetyDetails('ctx_1234567890abcdef12345678', [{
+    eventId: 'weather-warning-abcdef123456',
+    title: '雷电红色预警',
+    description: '未来两小时局地有强雷电活动。',
+    guidance: ['远离制高点和水边。'],
+    source: '和风天气 · 官方预警',
+    severity: 'critical',
+    observedAt: '2026-07-14T01:55:00Z',
+    expiresAt: '2026-07-14T04:00:00Z',
+    contextId: 'ctx_1234567890abcdef12345678',
+  }], '2026-07-14T04:00:00Z');
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/context/safety-detail`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contextId: 'ctx_1234567890abcdef12345678',
+        eventId: 'weather-warning-abcdef123456',
+      }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).title, '雷电红色预警');
+  }, {
+    weatherCache: cache,
+    now: () => new Date('2026-07-14T02:00:00Z'),
+    fetcher: async () => { throw new Error('detail must not contact upstream'); },
+  });
+});
+
+test('high-cost token issuance returns 429 after its bounded limit', async () => {
+  await withServer(async (baseUrl) => {
+    for (let index = 0; index < 8; index += 1) {
+      const response = await fetch(`${baseUrl}/v1/qweather/token`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-service-token' },
+      });
+      assert.equal(response.status, 200);
+    }
+    const limited = await fetch(`${baseUrl}/v1/qweather/token`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(limited.status, 429);
+    assert.equal((await limited.json()).error, 'rate_limited');
+    assert.match(limited.headers.get('retry-after') ?? '', /^\d+$/);
+  }, { requestRateLimiter: new MemoryRequestRateLimiter() });
 });
 
 test('starts isolated App and admin listeners without exposing admin on App API', async () => {

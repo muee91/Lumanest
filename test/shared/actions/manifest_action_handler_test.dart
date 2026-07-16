@@ -69,4 +69,38 @@ void main() {
     expect(find.textContaining('前有效'), findsOneWidget);
     expect(find.text('当前置信度 100%'), findsOneWidget);
   });
+
+  testWidgets('safety panel presents deterministic guidance separately', (
+    tester,
+  ) async {
+    const item = ManifestItem(
+      id: 'official-warning',
+      title: '雷电红色预警',
+      action: ManifestAction.openSafety,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () => handleManifestAction(
+                context,
+                item,
+                detailOverride: '未来两小时有强雷电活动。',
+                guidance: const ['远离制高点和水边。'],
+              ),
+              child: const Text('查看预警'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('查看预警'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('未来两小时有强雷电活动。'), findsOneWidget);
+    expect(find.text('现在做什么'), findsOneWidget);
+    expect(find.text('远离制高点和水边。'), findsOneWidget);
+  });
 }

@@ -24,6 +24,7 @@ function response(path) {
     '/v7/warning/now': { code: '200', warning: [{
       id: 'official-1', pubTime: '2026-07-14T09:55:00+08:00',
       endTime: '2026-07-14T12:00:00+08:00', level: 'Red', status: 'active',
+      title: '雷电红色预警', typeName: '雷电', text: '预计未来两小时局地有强雷电活动。',
     }] },
     '/v7/air/now': { code: '200', updateTime: '2026-07-14T10:00:00+08:00', now: {
       pubTime: '2026-07-14T10:00:00+08:00', aqi: '168', category: '中度污染',
@@ -61,6 +62,12 @@ test('authoritative weather normalizes all licensed QWeather sources and caches 
   assert.equal(first.body.forecast.nextThreeHoursMaxWindSpeedMps, 15);
   assert.equal(first.body.forecast.thunderNextThreeHours, true);
   assert.equal(first.body.officialWarnings[0].severity, 'critical');
+  assert.equal(first.body.officialWarnings[0].title, '雷电红色预警');
+  assert.equal(first.body.officialWarnings[0].description, '预计未来两小时局地有强雷电活动。');
+  assert.deepEqual(first.body.officialWarnings[0].guidance, [
+    '远离制高点、水边、孤立树木和金属设备。',
+    '关注当地气象部门的最新预警和现场管制信息。',
+  ]);
   assert.equal(first.body.weather.airQualityIndex, 168);
   assert.equal(first.body.weather.airQualityCategory, '中度污染');
   assert.equal(first.body.weather.primaryPollutant, 'PM2.5');

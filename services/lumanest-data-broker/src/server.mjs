@@ -1,4 +1,4 @@
-import { createPrivateKey, timingSafeEqual } from 'node:crypto';
+import { createHash, createPrivateKey, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -26,17 +26,23 @@ import {
 import { authoritativeWeather } from './context/qweather.mjs';
 import { fetchAmapSceneEvidence } from './context/amap-evidence.mjs';
 import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
+import {
+  FallbackRequestRateLimiter,
+  MemoryRequestRateLimiter,
+  RedisRequestRateLimiter,
+} from './context/request-rate-limiter.mjs';
 
 const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
 const gbifBaseUrl = 'https://api.gbif.org';
 const elevationBaseUrl = 'https://api.open-meteo.com';
 
-function writeJson(response, status, body) {
+function writeJson(response, status, body, headers = {}) {
   response.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
+    ...headers,
   });
   response.end(JSON.stringify(body));
 }
@@ -102,6 +108,62 @@ const narrativeRequestKeys = new Set([
 ]);
 
 const narrativeTones = new Set(['concise', 'balanced', 'detailed']);
+
+const ratePolicies = [
+  { path: '/v1/narrative', limit: 8, windowMs: 5 * 60 * 1_000, key: 'narrative' },
+  { path: '/v1/qweather/token', limit: 8, windowMs: 60 * 1_000, key: 'weather-token' },
+  { path: '/v1/wildlife/nearby', limit: 12, windowMs: 60 * 1_000, key: 'wildlife' },
+  { path: '/v1/wildlife/layers', limit: 12, windowMs: 60 * 1_000, key: 'wildlife-layer' },
+  { path: '/v1/elevation/profile', limit: 20, windowMs: 60 * 1_000, key: 'elevation' },
+  { path: '/v1/context/snapshot', limit: 30, windowMs: 60 * 1_000, key: 'context' },
+  { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
+];
+
+function ratePolicy(pathname) {
+  return ratePolicies.find((policy) => policy.path === pathname) ?? {
+    limit: 60,
+    windowMs: 60 * 1_000,
+    key: 'app',
+  };
+}
+
+function rateLimitKey(request, policy) {
+  const remoteAddress = request.socket?.remoteAddress ?? 'unknown';
+  const source = createHash('sha256').update(remoteAddress).digest('hex').slice(0, 24);
+  return `${policy.key}:${source}`;
+}
+
+function validSafetyDetailRequest(body) {
+  return body != null && typeof body === 'object' && !Array.isArray(body) &&
+    Object.keys(body).length === 2 &&
+    typeof body.contextId === 'string' && /^ctx_[a-f0-9]{24}$/.test(body.contextId) &&
+    typeof body.eventId === 'string' && /^weather-warning-[a-f0-9]{12}$/.test(body.eventId);
+}
+
+function safetyDetailsFor(contextId, warnings, eventIds) {
+  const allowed = new Set(eventIds);
+  return warnings.flatMap((warning) => {
+    const eventId = `weather-warning-${warning.id}`;
+    if (!allowed.has(eventId) || typeof warning.title !== 'string') return [];
+    const description = typeof warning.description === 'string' && warning.description.trim()
+      ? warning.description.trim()
+      : '此预警由官方气象来源发布，请结合当地管制和现场情况调整行程。';
+    const guidance = Array.isArray(warning.guidance)
+      ? warning.guidance.filter((entry) => typeof entry === 'string' && entry.trim()).slice(0, 3)
+      : [];
+    return [{
+      eventId,
+      title: warning.title,
+      description,
+      guidance,
+      source: '和风天气 · 官方预警',
+      severity: warning.severity,
+      observedAt: warning.observedAt,
+      expiresAt: warning.expiresAt,
+      contextId,
+    }];
+  });
+}
 
 function validNarrativeRequest(body) {
   if (Object.keys(body).some((key) => !narrativeRequestKeys.has(key))) return false;
@@ -585,6 +647,7 @@ export function createTokenBrokerServer({
   contextInternalToken = '',
   qweatherApiHost = '',
   weatherCache = new MemoryWeatherCache(),
+  requestRateLimiter = new MemoryRequestRateLimiter(),
   now = () => new Date(),
   fetcher = fetch,
 }) {
@@ -621,6 +684,37 @@ export function createTokenBrokerServer({
 
     if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken)) {
       writeJson(response, 401, { error: 'unauthorized' });
+      return;
+    }
+
+    const policy = ratePolicy(requestUrl.pathname);
+    const limit = await requestRateLimiter.consume({
+      key: rateLimitKey(request, policy),
+      limit: policy.limit,
+      windowMs: policy.windowMs,
+      now: now(),
+    });
+    if (!limit.allowed) {
+      writeJson(response, 429, { error: 'rate_limited' }, {
+        'Retry-After': String(limit.retryAfterSeconds),
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/safety-detail') {
+      const body = await readJsonBody(request, 512);
+      if (body == null || !validSafetyDetailRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_safety_detail_request' });
+        return;
+      }
+      const detail = typeof weatherCache.getSafetyDetail === 'function'
+        ? await weatherCache.getSafetyDetail(body.contextId, body.eventId, now())
+        : null;
+      if (detail == null) {
+        writeJson(response, 404, { error: 'safety_detail_unavailable' });
+        return;
+      }
+      writeJson(response, 200, detail);
       return;
     }
 
@@ -869,6 +963,18 @@ export function createTokenBrokerServer({
         });
         return;
       }
+      const details = safetyDetailsFor(
+        result.body.contextId,
+        weather.body.officialWarnings,
+        result.body.events.map((event) => event.id),
+      );
+      if (details.length > 0 && typeof weatherCache.setSafetyDetails === 'function') {
+        await weatherCache.setSafetyDetails(
+          result.body.contextId,
+          details,
+          result.body.expiresAt,
+        );
+      }
       writeJson(response, 200, result.body);
       return;
     }
@@ -943,7 +1049,17 @@ export async function createBrokerServices(environment = process.env, {
   const auditLog = new AuditLog();
   const weatherCache = await RedisWeatherCache.connect(environment.REDIS_URL?.trim() ?? '') ??
     new MemoryWeatherCache();
-  const appServer = createTokenBrokerServer({ runtimeConfig, weatherCache });
+  const redisRateLimiter = await RedisRequestRateLimiter.connect(
+    environment.REDIS_URL?.trim() ?? '',
+  );
+  const requestRateLimiter = redisRateLimiter == null
+    ? new MemoryRequestRateLimiter()
+    : new FallbackRequestRateLimiter(redisRateLimiter);
+  const appServer = createTokenBrokerServer({
+    runtimeConfig,
+    weatherCache,
+    requestRateLimiter,
+  });
   const adminServer = createAdminServer({
     authService,
     runtimeConfig,

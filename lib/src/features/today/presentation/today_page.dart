@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/environment_recovery.dart';
+import 'package:luma_nest/src/core/context/safety_detail.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/manifest_providers.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
@@ -602,6 +606,8 @@ class LiveTodayPage extends ConsumerWidget {
         snapshotAsync: AsyncData(snapshot),
         manifest: ref.watch(personalizedManifestProvider(snapshot)),
         narrativeAsync: ref.watch(manifestNarrativeProvider(snapshot)),
+        onManifestAction: (item) =>
+            unawaited(_handleAction(context, ref, snapshot, item)),
       );
     }
 
@@ -631,6 +637,40 @@ class LiveTodayPage extends ConsumerWidget {
         showDragHandle: true,
         builder: (_) => const ManualLocationSheet(),
       ),
+      onManifestAction: snapshot.asData == null
+          ? null
+          : (item) => unawaited(
+              _handleAction(context, ref, snapshot.requireValue, item),
+            ),
+    );
+  }
+
+  static Future<void> _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    ContextSnapshot snapshot,
+    ManifestItem item,
+  ) async {
+    if (item.action != ManifestAction.openSafety ||
+        item.source != ContextEventSource.official) {
+      await handleManifestAction(context, item);
+      return;
+    }
+
+    SafetyDetail? detail;
+    try {
+      detail = await ref
+          .read(safetyDetailRepositoryProvider)
+          ?.fetch(contextId: snapshot.id, eventId: item.id);
+    } on Object {
+      detail = null;
+    }
+    if (!context.mounted) return;
+    await handleManifestAction(
+      context,
+      item,
+      detailOverride: detail?.description,
+      guidance: detail?.guidance ?? const [],
     );
   }
 }

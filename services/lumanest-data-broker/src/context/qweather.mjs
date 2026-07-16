@@ -50,6 +50,37 @@ function warningSeverity(value) {
   return 'info';
 }
 
+function boundedWarningText(value, maximum) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  return [...normalized].slice(0, maximum).join('');
+}
+
+function warningGuidance(type, title, severity) {
+  const signal = `${type ?? ''} ${title ?? ''}`.toLowerCase();
+  const shared = ['关注当地气象部门的最新预警和现场管制信息。'];
+  if (/雷|thunder|lightning/.test(signal)) {
+    return ['远离制高点、水边、孤立树木和金属设备。', ...shared];
+  }
+  if (/台风|暴雨|rainstorm|洪|内涝|山洪/.test(signal)) {
+    return ['避免进入低洼地、沟谷、涉水路段和临水机位。', ...shared];
+  }
+  if (/大风|wind|沙尘|dust/.test(signal)) {
+    return ['停止无人机和高处架设，固定器材并避开危险树木和广告牌。', ...shared];
+  }
+  if (/高温|heat/.test(signal)) {
+    return ['减少高温时段户外停留，补水并避开无阴影的暴晒区域。', ...shared];
+  }
+  if (/低温|寒潮|cold|冰冻|道路结冰/.test(signal)) {
+    return ['注意保暖、防滑和道路结冰，不要单独进入偏远区域。', ...shared];
+  }
+  if (severity === 'critical') {
+    return ['暂停非必要户外拍摄，优先前往安全地点。', ...shared];
+  }
+  return ['减少户外暴露，避开风险区域并留意环境变化。', ...shared];
+}
+
 function normalizedCurrent(body, fetchedAt) {
   if (body?.code !== '200' || body.now == null || typeof body.now !== 'object') return null;
   const value = body.now;
@@ -143,11 +174,22 @@ function normalizedWarnings(body, fetchedAt) {
     if (!Number.isFinite(observedAt.getTime()) || !Number.isFinite(expiresAt.getTime()) ||
         expiresAt <= fetchedAt) return [];
     const rawId = String(warning.id ?? warning.title ?? `${observedAt.toISOString()}-${warning.type ?? ''}`);
+    const type = boundedWarningText(warning.typeName ?? warning.type, 60);
+    const level = boundedWarningText(warning.level, 20);
+    const title = boundedWarningText(
+      warning.title ?? [type, level, '预警'].filter(Boolean).join(' '),
+      80,
+    ) ?? '官方气象预警';
+    const description = boundedWarningText(warning.text ?? warning.description, 500);
+    const severity = warningSeverity(warning.level);
     return [{
       id: createHash('sha256').update(rawId).digest('hex').slice(0, 12),
       observedAt: observedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
-      severity: warningSeverity(warning.level),
+      severity,
+      title,
+      description,
+      guidance: warningGuidance(type, title, severity),
     }];
   }).slice(0, 8);
 }
