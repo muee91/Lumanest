@@ -72,7 +72,7 @@ void main() {
       ),
     );
 
-    expect(find.text('海宁市 · 手动地点 · 非实时'), findsOneWidget);
+    expect(find.text('海宁市'), findsOneWidget);
   });
 
   testWidgets('always exposes a manual location entry from Today', (

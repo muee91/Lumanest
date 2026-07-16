@@ -35,7 +35,7 @@ void main() {
     expect(reading.accuracyMeters, 1000);
     expect(
       container.read(environmentLocationDisplayProvider).description,
-      '上海 · 手动地点 · 非实时',
+      '上海',
     );
   });
 

@@ -22,7 +22,9 @@ class EnvironmentLocationDisplay {
     EnvironmentLocationSource.baseRegion => '常驻地区 · 非实时',
   };
 
-  String get description => isReference ? '$label · $sourceLabel' : sourceLabel;
+  /// The Today header is intentionally terse: source is conveyed by its icon
+  /// and action, while the visible line stays a single place name.
+  String get description => label;
 }
 
 final environmentLocationDisplayProvider = Provider<EnvironmentLocationDisplay>(

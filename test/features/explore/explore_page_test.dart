@@ -296,7 +296,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('海宁市 · 手动地点 · 非实时'), findsOneWidget);
+    expect(find.text('海宁市'), findsOneWidget);
   });
 
   testWidgets('location failure offers retry and manual location recovery', (
