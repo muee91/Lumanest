@@ -107,7 +107,7 @@ test('discovery worker endpoints require their own token, use reviewed sources a
     assert.equal(response.status, 200);
     assert.deepEqual(searchBody.include_domains, ['culture.example.gov.cn']);
     assert.deepEqual(await response.json(), { results: [{
-      title: '摄影展公告', snippet: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events',
+      title: '摄影展公告', snippet: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events?tracking=1',
       sourceId: 'culture', publisher: '文化发布', license: 'CC BY 4.0', version: '2026-07',
     }] });
 

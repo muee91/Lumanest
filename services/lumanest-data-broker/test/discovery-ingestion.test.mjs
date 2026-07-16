@@ -44,7 +44,7 @@ test('Tavily results are filtered to reviewed HTTPS sources and retain attributi
     { title: 'HTTP', content: '不应发布。', url: 'http://culture.example.gov.cn/old' },
   ] }, [policy]);
   assert.deepEqual(results, [{
-    title: '活动公告', snippet: '本周末在盐官举办摄影展。', url: 'https://culture.example.gov.cn/event',
+    title: '活动公告', snippet: '本周末在盐官举办摄影展。', url: 'https://culture.example.gov.cn/event?id=1',
     sourceId: 'haining-culture', publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
     publishedAt: '2026-07-14T00:00:00.000Z',
   }]);

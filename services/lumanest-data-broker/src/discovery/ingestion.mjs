@@ -19,11 +19,13 @@ function text(value, minimum, maximum) {
 }
 
 function parsedHttpsUrl(value) {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1_000) return null;
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:' || url.username || url.password) return null;
-    url.search = '';
+    // Keep meaningful query parameters: an official event or catalogue URL
+    // frequently uses one as its stable record identifier. Only fragments are
+    // presentation-only and would make provenance comparisons needlessly vary.
     url.hash = '';
     return url;
   } catch {
