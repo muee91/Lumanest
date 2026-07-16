@@ -26,6 +26,7 @@ services:
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
       DISCOVERY_INTERNAL_TOKEN: ${DISCOVERY_INTERNAL_TOKEN:?Set DISCOVERY_INTERNAL_TOKEN}
+      DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8787:8787"
@@ -111,7 +112,10 @@ services:
     container_name: lumanest-discovery-worker
     restart: unless-stopped
     environment:
+      DATABASE_URL: postgresql+asyncpg://lumanest:${LUMANEST_DATABASE_PASSWORD:?Set LUMANEST_DATABASE_PASSWORD}@postgres/lumanest
       REDIS_URL: redis://redis:6379/0
+      DISCOVERY_BROKER_URL: http://qweather-token-broker:8787
+      DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
     command: ["python", "-m", "app.worker"]
     read_only: true
     tmpfs:
