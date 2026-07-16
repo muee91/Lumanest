@@ -16,11 +16,17 @@ class Wgs84Coordinate(StrictModel):
     system: Literal["wgs84"]
 
 
+class ActiveSourcePolicy(StrictModel):
+    id: str = Field(min_length=1, max_length=80)
+    version: str = Field(min_length=1, max_length=80)
+
+
 class DiscoveryRequest(StrictModel):
     contract_version: Literal[1] = Field(alias="contractVersion")
     coordinate: Wgs84Coordinate
     locale: str = Field(min_length=2, max_length=16, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$")
     focus: Literal["photography", "water", "humanity"] = "photography"
+    source_policies: list[ActiveSourcePolicy] = Field(default_factory=list, alias="sourcePolicies", max_length=16)
 
 
 class DiscoveryEvidence(StrictModel):
@@ -89,6 +95,7 @@ class ExtractedCandidate(StrictModel):
     title: str = Field(min_length=1, max_length=120)
     summary: str | None = Field(default=None, max_length=280)
     coordinate: ExtractionCoordinate | None = None
+    coordinate_evidence: str | None = Field(default=None, alias="coordinateEvidence", min_length=3, max_length=120)
     starts_at: datetime | None = Field(default=None, alias="startsAt")
     ends_at: datetime | None = Field(default=None, alias="endsAt")
     source_indexes: list[int] = Field(alias="sourceIndexes", min_length=1, max_length=4)

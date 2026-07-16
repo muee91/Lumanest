@@ -164,7 +164,7 @@ export function validDiscoveryExtractRequest(body) {
 
 export function discoveryExtractionPrompt(body) {
   return {
-    system: '你是摄影探索资料的结构化编辑。只能从给定来源证据中提取候选观景点、景点或活动；不得补充事实、热度、许可、路线、安全、风险、野生动物、物种或个人信息。坐标仅可在来源明确给出且靠近指定区域时返回。只输出 JSON：{"candidates":[{"title":"不超过80字","kind":"candidate_viewpoint|attraction|event","summary":"不超过180字","sourceIndexes":[0],"coordinate":{"latitude":0,"longitude":0},"startsAt":"ISO 时间","endsAt":"ISO 时间"}]}。最多 6 项；sourceIndexes 必须引用证据数组索引，时间与坐标均可省略。',
+    system: '你是摄影探索资料的结构化编辑。只能从给定来源证据中提取候选观景点、景点或活动；不得补充事实、热度、许可、路线、安全、风险、野生动物、物种或个人信息。坐标仅可在来源明确给出且靠近指定区域时返回。若返回 coordinate，必须返回 coordinateEvidence：它必须是来源原文中可直接找到的“纬度,经度”或“经度,纬度”坐标文本，且数值必须与 coordinate 完全对应。只输出 JSON：{"candidates":[{"title":"不超过80字","kind":"candidate_viewpoint|attraction|event","summary":"不超过180字","sourceIndexes":[0],"coordinate":{"latitude":0,"longitude":0},"coordinateEvidence":"30.280,120.130","startsAt":"ISO 时间","endsAt":"ISO 时间"}]}。最多 6 项；sourceIndexes 必须引用证据数组索引，时间与坐标均可省略。',
     user: JSON.stringify({ focus: body.focus, locale: body.locale, region: body.region, evidence: body.evidence }),
   };
 }
@@ -179,6 +179,18 @@ function validCandidateTime(value) {
   return typeof value === 'string' && value.length <= 80 && Number.isFinite(Date.parse(value));
 }
 
+function coordinateEvidenceSupports(coordinate, coordinateEvidence, sources) {
+  if (typeof coordinateEvidence !== 'string' || coordinateEvidence.length > 120) return false;
+  const match = /^\s*(-?\d{1,2}(?:\.\d{1,6})?)\s*,\s*(-?\d{1,3}(?:\.\d{1,6})?)\s*$/.exec(coordinateEvidence);
+  if (match == null || !sources.some((source) =>
+    `${source.title}\n${source.snippet}`.includes(coordinateEvidence))) return false;
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  const tolerance = 0.00001;
+  return (Math.abs(first - coordinate.latitude) <= tolerance && Math.abs(second - coordinate.longitude) <= tolerance) ||
+    (Math.abs(second - coordinate.latitude) <= tolerance && Math.abs(first - coordinate.longitude) <= tolerance);
+}
+
 export function parseDiscoveryCandidates(value, evidence) {
   try {
     const parsed = JSON.parse(value);
@@ -187,14 +199,17 @@ export function parseDiscoveryCandidates(value, evidence) {
     const candidates = [];
     const seen = new Set();
     for (const item of parsed.candidates) {
-      if (!isPlainObject(item) || Object.keys(item).some((key) => !['title', 'kind', 'summary', 'sourceIndexes', 'coordinate', 'startsAt', 'endsAt'].includes(key))) return null;
+      if (!isPlainObject(item) || Object.keys(item).some((key) => !['title', 'kind', 'summary', 'sourceIndexes', 'coordinate', 'coordinateEvidence', 'startsAt', 'endsAt'].includes(key))) return null;
       const title = text(item.title, 1, 80);
       const summary = text(item.summary, 1, 180);
       if (!Array.isArray(item.sourceIndexes) || item.sourceIndexes.length === 0 || item.sourceIndexes.length > evidence.length ||
           item.sourceIndexes.some((index) => !Number.isInteger(index) || index < 0 || index >= evidence.length) ||
           new Set(item.sourceIndexes).size !== item.sourceIndexes.length ||
           title == null || summary == null || !allowedCategories.has(item.kind) ||
-          (item.coordinate !== undefined && !validCandidateCoordinate(item.coordinate)) ||
+          (item.coordinate !== undefined && (!validCandidateCoordinate(item.coordinate) ||
+            !coordinateEvidenceSupports(item.coordinate, item.coordinateEvidence,
+              item.sourceIndexes.map((index) => evidence[index])))) ||
+          (item.coordinate === undefined && item.coordinateEvidence !== undefined) ||
           (item.startsAt !== undefined && !validCandidateTime(item.startsAt)) ||
           (item.endsAt !== undefined && !validCandidateTime(item.endsAt)) ||
           (item.startsAt !== undefined && item.endsAt !== undefined && Date.parse(item.startsAt) > Date.parse(item.endsAt)) ||
@@ -202,7 +217,7 @@ export function parseDiscoveryCandidates(value, evidence) {
       seen.add(`${title}\n${item.kind}`);
       candidates.push({
         title, kind: item.kind, summary, sourceIndexes: item.sourceIndexes,
-        ...(item.coordinate === undefined ? {} : { coordinate: item.coordinate }),
+        ...(item.coordinate === undefined ? {} : { coordinate: item.coordinate, coordinateEvidence: item.coordinateEvidence }),
         ...(item.startsAt === undefined ? {} : { startsAt: new Date(Date.parse(item.startsAt)).toISOString() }),
         ...(item.endsAt === undefined ? {} : { endsAt: new Date(Date.parse(item.endsAt)).toISOString() }),
       });

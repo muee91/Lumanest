@@ -25,7 +25,7 @@ def source() -> BrokerSearchResult:
         "license": "CC-BY-4.0",
         "version": "2026-07",
         "title": "A documented viewpoint",
-        "snippet": "Public visitor information.",
+        "snippet": "Public visitor information. Coordinates: 30.280,120.130.",
         "url": "https://example.test/viewpoint",
         "publishedAt": "2026-07-20T00:00:00Z",
     })
@@ -37,6 +37,7 @@ def candidate(**overrides) -> ExtractedCandidate:
         "title": "候选观景点",
         "summary": "来源记录的拍摄方向。",
         "coordinate": {"latitude": 30.28, "longitude": 120.13},
+        "coordinateEvidence": "30.280,120.130",
         "sourceIndexes": [0],
     }
     value.update(overrides)
@@ -57,6 +58,10 @@ def test_job_contains_only_expiring_grid_center_not_the_request_coordinate():
 
 def test_candidate_without_linked_https_evidence_is_not_admitted():
     assert is_admissible(candidate(sourceIndexes=[1]), [source()], job()) is None
+
+
+def test_model_coordinate_without_exact_source_coordinate_text_is_not_admitted():
+    assert is_admissible(candidate(coordinateEvidence="30.281,120.131"), [source()], job()) is None
 
 
 def test_valid_vetted_evidence_admits_a_candidate_without_claiming_popularity():

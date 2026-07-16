@@ -103,6 +103,7 @@ class DiscoveryStore:
             "regionId": region.region_id,
             "locale": region.locale,
             "focus": region.focus,
+            "sourcePolicies": sorted((policy.id, policy.version) for policy in request.source_policies),
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -151,7 +152,13 @@ class DiscoveryStore:
         try:
             if not await self.redis.set(key, "pending", ex=PENDING_SECONDS, nx=True):
                 return False
-            await self.redis.xadd(REFRESH_STREAM, job.stream_values(), maxlen=10_000, approximate=True)
+            try:
+                await self.redis.xadd(REFRESH_STREAM, job.stream_values(), maxlen=10_000, approximate=True)
+            except Exception:
+                # Do not leave callers retrying a task that was never queued.
+                if await self.redis.get(key) == "pending":
+                    await self.redis.delete(key)
+                return False
             return True
         except Exception:
             return False
@@ -159,6 +166,11 @@ class DiscoveryStore:
     async def candidates(self, request: DiscoveryRequest) -> list[DiscoveryItem]:
         if self.engine is None:
             raise RuntimeError("storage_not_configured")
+        active_sources = {(policy.id, policy.version) for policy in request.source_policies}
+        # A disabled or removed policy revokes its prior search-derived records
+        # immediately, without waiting for their candidate expiry.
+        if not active_sources:
+            return []
         kind_filter = {
             "photography": ("candidate_viewpoint",),
             "water": ("attraction",),
@@ -174,15 +186,18 @@ class DiscoveryStore:
                    ))::integer AS distance_meters,
                    LEFT(places.address, 200) AS address, places.starts_at, places.ends_at,
                    evidence.provider, LEFT(evidence.title, 200) AS evidence_title, evidence.source_url,
-                   evidence.retrieved_at
+                   evidence.retrieved_at, source_document.source_id, source_document.source_version
             FROM discovery.places AS places
             JOIN LATERAL (
-                SELECT provider, title, source_url, retrieved_at
-                FROM discovery.evidence
-                WHERE place_id = places.id
-                  AND review_status = 'approved'
-                  AND title IS NOT NULL
-                  AND title <> ''
+                SELECT evidence.provider, evidence.title, evidence.source_url, evidence.retrieved_at,
+                       source_document.source_id, source_document.source_version
+                FROM discovery.evidence AS evidence
+                JOIN discovery.source_documents AS source_document
+                  ON source_document.id = evidence.source_document_id
+                WHERE evidence.place_id = places.id
+                  AND evidence.review_status = 'approved'
+                  AND evidence.title IS NOT NULL
+                  AND evidence.title <> ''
                 ORDER BY retrieved_at DESC
                 LIMIT 4
             ) AS evidence ON TRUE
@@ -212,6 +227,8 @@ class DiscoveryStore:
 
         grouped: dict[str, dict] = {}
         for row in rows:
+            if (row["source_id"], row["source_version"]) not in active_sources:
+                continue
             record = grouped.setdefault(str(row["id"]), {
                 "id": row["id"],
                 "kind": row["kind"],

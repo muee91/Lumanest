@@ -1070,6 +1070,7 @@ export function createTokenBrokerServer({
         body,
         serviceUrl: configuration.discoveryServiceUrl,
         internalToken: configuration.discoveryInternalToken,
+        sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
         fetcher,
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });

@@ -365,7 +365,10 @@ test('discovery endpoint authenticates and only forwards the bounded contract', 
   });
   assert.equal(upstreamRequest.url.pathname, '/internal/v1/discover');
   assert.equal(upstreamRequest.options.headers['X-Internal-Service-Token'], 'internal-discovery-token');
-  assert.deepEqual(JSON.parse(upstreamRequest.options.body), requestBody);
+  assert.deepEqual(JSON.parse(upstreamRequest.options.body), {
+    ...requestBody,
+    sourcePolicies: [],
+  });
 });
 
 test('discovery pending response becomes 202 without leaking upstream failure details', async () => {
