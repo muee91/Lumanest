@@ -145,7 +145,7 @@ function hasProhibitedTerms(value) {
 function validEvidence(value) {
   if (!isPlainObject(value) || Object.keys(value).some((key) => !evidenceKeys.has(key))) return false;
   if (text(value.title, 1, 200) == null || text(value.snippet, 1, 1_200) == null || httpsUrl(value.url) == null ||
-      text(value.sourceId, 1, 64) == null || text(value.publisher, 1, 160) == null ||
+      text(value.sourceId, 1, 64) == null || text(value.publisher, 1, 80) == null ||
       text(value.license, 1, 120) == null || text(value.version, 1, 80) == null) return false;
   return value.publishedAt === undefined || normalizedPublishedAt(value.publishedAt) != null;
 }

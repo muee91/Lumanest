@@ -32,7 +32,8 @@ function validatedSourcePolicies(value) {
     if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain) || domains.has(domain)) {
       throw new TypeError('source policy domain must be a unique hostname');
     }
-    const attribution = boundedString(policy.attribution, 'source policy attribution', { maximum: 160 });
+    // This label is persisted into the existing evidence.provider column.
+    const attribution = boundedString(policy.attribution, 'source policy attribution', { maximum: 80 });
     const license = boundedString(policy.license, 'source policy license', { maximum: 120 });
     const version = boundedString(policy.version, 'source policy version', { maximum: 80 });
     if (typeof policy.enabled !== 'boolean') throw new TypeError('source policy enabled must be a boolean');

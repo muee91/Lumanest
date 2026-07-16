@@ -27,6 +27,10 @@ test('reviewed Tavily profile requires an enabled attributable source and keeps 
   assert.equal(profile.baseUrl, 'https://api.tavily.com');
   assert.deepEqual(profile.sourcePolicies, [policy]);
   assert.throws(() => validateDiscoverySearchProfile({ ...profile, sourcePolicies: [{ ...policy, extra: true }] }), /Unknown/);
+  assert.throws(() => validateDiscoverySearchProfile({
+    ...profile,
+    sourcePolicies: [{ ...policy, attribution: 'a'.repeat(81) }],
+  }), /attribution/);
 });
 
 test('search accepts Chinese requests only for enabled reviewed domains', () => {
