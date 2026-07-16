@@ -948,7 +948,13 @@ export function createTokenBrokerServer({
         },
         weather: weather.body.weather,
         forecast: weather.body.forecast,
-        officialWarnings: weather.body.officialWarnings,
+        officialWarnings: weather.body.officialWarnings.map((warning) => ({
+          id: warning.id,
+          observedAt: warning.observedAt,
+          expiresAt: warning.expiresAt,
+          severity: warning.severity,
+          title: warning.title,
+        })),
       };
       const result = await forwardContextSnapshot({
         body: internalBody,

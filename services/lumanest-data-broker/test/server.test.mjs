@@ -118,6 +118,7 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
   }, {
     contextServiceUrl: 'http://context-service:8000',
     contextInternalToken: 'internal-context-token',
+    now: () => new Date('2026-07-14T02:02:00Z'),
     fetcher: async (url, options) => {
       if (url.hostname.endsWith('.qweatherapi.com')) {
         const bodies = {
@@ -127,7 +128,11 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
           } },
           '/v7/weather/24h': { code: '200', hourly: [] },
           '/v7/minutely/5m': { code: '200', minutely: [] },
-          '/v7/warning/now': { code: '200', warning: [] },
+          '/v7/warning/now': { code: '200', warning: [{
+            id: 'official-1', pubTime: '2026-07-14T09:55:00+08:00',
+            endTime: '2026-07-14T12:00:00+08:00', level: 'Red', status: 'active',
+            title: '雷电红色预警', typeName: '雷电', text: '预计未来两小时局地有强雷电活动。',
+          }] },
         };
         return new Response(JSON.stringify(bodies[url.pathname]), { status: 200 });
       }
@@ -182,7 +187,13 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
   assert.equal(internalBody.weather.windSpeedMps, 2);
   assert.equal(internalBody.weather.thunder, false);
   assert.equal(Object.hasOwn(internalBody, 'solar'), false);
-  assert.deepEqual(internalBody.officialWarnings, []);
+  assert.deepEqual(internalBody.officialWarnings, [{
+    id: '4b54699fa8b7',
+    observedAt: '2026-07-14T01:55:00.000Z',
+    expiresAt: '2026-07-14T04:00:00.000Z',
+    severity: 'critical',
+    title: '雷电红色预警',
+  }]);
 });
 
 test('context snapshot rejects identity fields without contacting the context service', async () => {
