@@ -20,6 +20,7 @@ import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
+import 'package:luma_nest/src/features/shooting_window/domain/shooting_window_timeline.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 import 'package:luma_nest/src/shared/widgets/luma_nest_brand_mark.dart';
@@ -146,8 +147,9 @@ class TodayPage extends StatelessWidget {
           onSelectManualLocation: onSelectManualLocation,
           onClearManualLocation: onClearManualLocation,
         ),
-        const SizedBox(height: LumaNestSpacing.lg),
+        const SizedBox(height: LumaNestSpacing.md),
         _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
+        _LightTimeline(snapshot: snapshot),
         if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
           const SizedBox(height: LumaNestSpacing.md),
           _EnvironmentStrip(snapshot: snapshot),
@@ -166,7 +168,8 @@ class TodayPage extends StatelessWidget {
             item: primary,
             onTap: () => performAction(primary),
           ),
-          const SizedBox(height: LumaNestSpacing.sm),
+          const _EditorialRule(label: '备用观察'),
+          const SizedBox(height: LumaNestSpacing.xs),
         ],
         if (effectiveManifest.secondary.isNotEmpty) ...[
           const SizedBox(height: LumaNestSpacing.sm),
@@ -375,8 +378,13 @@ class _DecisionHero extends StatelessWidget {
     return Semantics(
       container: true,
       label: '$label，$summary',
-      child: LumaNestSurface(
-        tone: LumaNestSurfaceTone.paper,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: .74),
+          border: Border(
+            left: BorderSide(color: theme.colorScheme.secondary, width: 3),
+          ),
+        ),
         padding: const EdgeInsets.all(LumaNestSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,10 +412,12 @@ class _DecisionHero extends StatelessWidget {
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_outward_rounded,
-                  size: 18,
-                  color: theme.colorScheme.primary,
+                Text(
+                  '此刻',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.secondary,
+                    letterSpacing: 1.1,
+                  ),
                 ),
               ],
             ),
@@ -433,6 +443,83 @@ class _DecisionHero extends StatelessWidget {
     DayPhase.blueHour => Icons.brightness_2_outlined,
     DayPhase.night => Icons.nightlight_round,
   };
+}
+
+class _EditorialRule extends StatelessWidget {
+  const _EditorialRule({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(letterSpacing: 1.2),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Divider(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    ],
+  );
+}
+
+class _LightTimeline extends StatelessWidget {
+  const _LightTimeline({required this.snapshot});
+  final ContextSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final windows = ShootingWindowTimeline.build(snapshot);
+    if (windows.isEmpty) return const SizedBox.shrink();
+    String time(DateTime value) =>
+        TimeOfDay.fromDateTime(value.toLocal()).format(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: LumaNestSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _EditorialRule(label: '今日光线'),
+          const SizedBox(height: LumaNestSpacing.xs),
+          Semantics(
+            label: '今日光线时间线',
+            child: Row(
+              children: [
+                for (var i = 0; i < windows.length; i++) ...[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          time(windows[i].start),
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          windows[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (i != windows.length - 1)
+                    Container(
+                      width: 1,
+                      height: 30,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _EnvironmentStrip extends StatelessWidget {
