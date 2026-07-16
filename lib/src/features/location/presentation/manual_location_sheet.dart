@@ -1,4 +1,6 @@
 import 'package:amap_map/amap_map.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:x_amap_base/x_amap_base.dart';
@@ -103,6 +105,8 @@ class _ManualLocationSheetState extends ConsumerState<ManualLocationSheet> {
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
+                enableDrag: false,
+                useSafeArea: true,
                 builder: (_) => _MapLocationPicker(onSelect: _select),
               ),
               icon: const Icon(Icons.map_outlined),
@@ -156,68 +160,104 @@ class _MapLocationPickerState extends State<_MapLocationPicker> {
   LatLng? _selection;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: SizedBox(
-      height: MediaQuery.sizeOf(context).height * .72,
-      child: Stack(
-        children: [
-          AMapWidget(
-            markers: _selection == null
-                ? const {}
-                : {
-                    Marker(
-                      position: _selection!,
-                      infoWindow: const InfoWindow(title: '手动地点'),
-                    ),
-                  },
-            onTap: (point) => setState(() => _selection = point),
-          ),
-          Positioned(
-            left: 16,
-            right: 16,
-            top: 16,
-            child: Material(
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(
-                  _selection == null ? '移动地图后轻点一个位置' : '已选点，确认后用于环境分析',
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.scaffoldBackgroundColor,
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height,
+        child: Stack(
+          children: [
+            AMapWidget(
+              gestureRecognizers: {
+                Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+              },
+              markers: _selection == null
+                  ? const {}
+                  : {
+                      Marker(
+                        position: _selection!,
+                        infoWindow: const InfoWindow(title: '手动地点'),
+                      ),
+                    },
+              onTap: (point) => setState(() => _selection = point),
+            ),
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 12,
+              child: Material(
+                color: theme.colorScheme.surface.withValues(alpha: .94),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: '返回',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('在地图上选点', style: theme.textTheme.titleMedium),
+                            Text(
+                              _selection == null
+                                  ? '拖动地图并轻点一个位置'
+                                  : '已选点，确认后用于环境分析',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: FilledButton.icon(
-              onPressed: _selection == null
-                  ? null
-                  : () async {
-                      final gcj02 = GeoPoint(
-                        latitude: _selection!.latitude,
-                        longitude: _selection!.longitude,
-                        coordinateSystem: CoordinateSystem.gcj02,
-                      );
-                      final wgs84 = ChinaCoordinateConverter.gcj02ToWgs84(
-                        gcj02,
-                      );
-                      await widget.onSelect(
-                        LocationSearchResult(
-                          id: 'map-${wgs84.latitude.toStringAsFixed(5)}-${wgs84.longitude.toStringAsFixed(5)}',
-                          name: '地图选点',
-                          point: wgs84,
-                        ),
-                      );
-                      if (!mounted) return;
-                      Navigator.of(this.context).pop();
-                    },
-              icon: const Icon(Icons.check),
-              label: const Text('使用此地点'),
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: Material(
+                color: theme.colorScheme.surface.withValues(alpha: .94),
+                borderRadius: BorderRadius.circular(18),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: FilledButton.icon(
+                    onPressed: _selection == null
+                        ? null
+                        : () async {
+                            final gcj02 = GeoPoint(
+                              latitude: _selection!.latitude,
+                              longitude: _selection!.longitude,
+                              coordinateSystem: CoordinateSystem.gcj02,
+                            );
+                            final wgs84 = ChinaCoordinateConverter.gcj02ToWgs84(
+                              gcj02,
+                            );
+                            await widget.onSelect(
+                              LocationSearchResult(
+                                id: 'map-${wgs84.latitude.toStringAsFixed(5)}-${wgs84.longitude.toStringAsFixed(5)}',
+                                name: '地图选点',
+                                point: wgs84,
+                              ),
+                            );
+                            if (!mounted) return;
+                            Navigator.of(this.context).pop();
+                          },
+                    icon: const Icon(Icons.check),
+                    label: const Text('使用此地点'),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
