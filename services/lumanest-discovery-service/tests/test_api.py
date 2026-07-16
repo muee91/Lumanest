@@ -16,6 +16,7 @@ def payload() -> dict:
         "coordinate": {"latitude": 30.25, "longitude": 120.15, "system": "wgs84"},
         "locale": "zh-CN",
         "focus": "photography",
+        "sourcePolicies": [{"id": "official-source", "version": "2026-07"}],
     }
 
 
@@ -137,6 +138,8 @@ async def test_store_returns_only_approved_evidence_with_a_nonempty_title():
                 "evidence_title": "公开目录记录",
                 "source_url": "https://example.test/evidence/a",
                 "retrieved_at": datetime(2026, 7, 19, tzinfo=timezone.utc),
+                "source_id": "official-source",
+                "source_version": "2026-07",
             }]
 
     class Connection:
@@ -164,6 +167,20 @@ async def test_store_returns_only_approved_evidence_with_a_nonempty_title():
     assert "review_status = 'approved'" in captured["sql"]
     assert "title IS NOT NULL" in captured["sql"]
     assert captured["parameters"]["kinds"] == ["candidate_viewpoint"]
+
+
+@pytest.mark.asyncio
+async def test_removed_source_policy_revokes_existing_search_candidates_before_any_query():
+    class Engine:
+        def connect(self):
+            raise AssertionError("revoked sources must not be queried or returned")
+
+    request = payload()
+    request["sourcePolicies"] = []
+    store = DiscoveryStore(None, None)
+    store.engine = Engine()
+
+    assert await store.candidates(DiscoveryRequest.model_validate(request)) == []
 
 
 def test_output_contract_caps_items_and_broker_text_limits():
@@ -202,3 +219,27 @@ async def test_refresh_stream_uses_only_a_ttl_bound_coarse_region_not_client_coo
     assert "30.25" not in str(values)
     assert "120.15" not in str(values)
     assert int(values["expiresAt"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_failed_stream_enqueue_clears_its_pending_dedupe_key():
+    deleted = []
+
+    class FakeRedis:
+        async def set(self, *_args, **_kwargs):
+            return True
+
+        async def xadd(self, *_args, **_kwargs):
+            raise RuntimeError("redis unavailable")
+
+        async def get(self, _key):
+            return "pending"
+
+        async def delete(self, key):
+            deleted.append(key)
+
+    store = DiscoveryStore(None, None)
+    store.redis = FakeRedis()
+
+    assert await store.schedule_refresh(DiscoveryRequest.model_validate(payload())) is False
+    assert deleted and deleted[0].startswith("discovery:refresh:")

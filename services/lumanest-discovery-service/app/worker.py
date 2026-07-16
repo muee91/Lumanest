@@ -68,7 +68,7 @@ class BrokerClient:
                 "title": item.title,
                 "snippet": item.snippet,
                 "url": str(item.url),
-                "publishedAt": item.published_at.isoformat() if item.published_at else None,
+                **({"publishedAt": item.published_at.isoformat()} if item.published_at else {}),
                 "sourceId": item.source_id,
                 "publisher": item.publisher,
                 "license": item.license,
@@ -151,6 +151,8 @@ def is_admissible(candidate: ExtractedCandidate, evidence: list[BrokerSearchResu
     """Admission gate: source-linked, nearby, creative discovery only."""
     if candidate.coordinate is None:
         return None
+    if not coordinate_evidence_supports(candidate, evidence):
+        return None
     if not has_normal_coordinate_precision(candidate.coordinate.latitude) or not has_normal_coordinate_precision(candidate.coordinate.longitude):
         return None
     content = " ".join(filter(None, (candidate.title, candidate.summary))).lower()
@@ -171,6 +173,27 @@ def is_admissible(candidate: ExtractedCandidate, evidence: list[BrokerSearchResu
     ) > 50:
         return None
     return linked
+
+
+def coordinate_evidence_supports(candidate: ExtractedCandidate, evidence: list[BrokerSearchResult]) -> bool:
+    """Do not publish a model coordinate unless source text contains the exact pair."""
+    import re
+
+    raw = candidate.coordinate_evidence
+    if raw is None or candidate.coordinate is None or len(raw) > 120:
+        return False
+    match = re.fullmatch(r"\s*(-?\d{1,2}(?:\.\d{1,6})?)\s*,\s*(-?\d{1,3}(?:\.\d{1,6})?)\s*", raw)
+    if match is None:
+        return False
+    linked = [evidence[index] for index in dict.fromkeys(candidate.source_indexes)
+              if 0 <= index < len(evidence)]
+    if not any(raw in f"{source.title}\n{source.snippet}" for source in linked):
+        return False
+    first, second = map(float, match.groups())
+    latitude, longitude = candidate.coordinate.latitude, candidate.coordinate.longitude
+    tolerance = 0.00001
+    return ((abs(first - latitude) <= tolerance and abs(second - longitude) <= tolerance) or
+            (abs(second - latitude) <= tolerance and abs(first - longitude) <= tolerance))
 
 
 def has_normal_coordinate_precision(value: float) -> bool:
@@ -234,22 +257,27 @@ async def handle_entry(
     if job is not None:
         await process_job(redis, store, broker, job)
     await redis.xack(REFRESH_STREAM, REFRESH_GROUP, entry_id)
+    # ACK alone retains the coarse region reference indefinitely in a Stream.
+    # Once retry/terminal state has been handed off, remove this processed entry.
+    await redis.xdel(REFRESH_STREAM, entry_id)
 
 
-async def reclaim_once(redis: Redis, store: DiscoveryStore, broker: BrokerClient) -> None:
-    """Recover a bounded number of crash-left messages before accepting new work."""
+async def reclaim_once(redis: Redis, store: DiscoveryStore, broker: BrokerClient, start_id: str) -> str:
+    """Recover a bounded page of crash-left messages and return its stream cursor."""
     reclaimed = await redis.xautoclaim(
         REFRESH_STREAM,
         REFRESH_GROUP,
         CONSUMER_NAME,
         min_idle_time=60_000,
-        start_id="0-0",
+        start_id=start_id,
         count=10,
     )
     # redis-py returns (next_start_id, [(id, values)], deleted_ids).
+    next_start_id = str(reclaimed[0]) if reclaimed else "0-0"
     entries = reclaimed[1] if reclaimed and len(reclaimed) > 1 else []
     for entry_id, values in entries:
         await handle_entry(redis, store, broker, entry_id, values)
+    return next_start_id
 
 
 async def run() -> None:
@@ -265,7 +293,7 @@ async def run() -> None:
         except ResponseError as error:
             if "BUSYGROUP" not in str(error):
                 raise
-        await reclaim_once(client, store, broker)
+        reclaim_cursor = await reclaim_once(client, store, broker, "0-0")
         while True:
             await client.set(HEARTBEAT_KEY, "ok", ex=20)
             batches = await client.xreadgroup(
@@ -276,6 +304,7 @@ async def run() -> None:
                 block=5000,
             )
             if not batches:
+                reclaim_cursor = await reclaim_once(client, store, broker, reclaim_cursor)
                 continue
             _, entries = batches[0]
             entry_id, values = entries[0]

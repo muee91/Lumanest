@@ -83,3 +83,17 @@ test('extract contract requires attributable evidence and rejects safety or wild
     title: '危险区域', kind: 'event', summary: '风险提示', sourceIndexes: [0],
   }] }), body.evidence), null);
 });
+
+test('model coordinates require an exact coordinate string in their linked evidence', () => {
+  const evidence = [{
+    title: '地点公告', snippet: '官方坐标：30.280,120.130。', url: 'https://culture.example.gov.cn/place',
+    sourceId: 'haining-culture', publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
+  }];
+  const valid = JSON.stringify({ candidates: [{
+    title: '候选观景点', kind: 'candidate_viewpoint', summary: '来源公布的地点。', sourceIndexes: [0],
+    coordinate: { latitude: 30.28, longitude: 120.13 }, coordinateEvidence: '30.280,120.130',
+  }] });
+  assert.deepEqual(parseDiscoveryCandidates(valid, evidence)?.candidates[0]?.coordinateEvidence, '30.280,120.130');
+  const invented = valid.replace('30.280,120.130', '30.281,120.131');
+  assert.equal(parseDiscoveryCandidates(invented, evidence), null);
+});

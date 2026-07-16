@@ -83,6 +83,7 @@ export async function forwardDiscovery({
   body,
   serviceUrl,
   internalToken,
+  sourcePolicies = [],
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
@@ -99,6 +100,10 @@ export async function forwardDiscovery({
         coordinate: body.coordinate,
         locale: body.locale,
         focus: body.focus,
+        sourcePolicies: sourcePolicies.filter((policy) => policy?.enabled).map((policy) => ({
+          id: policy.id,
+          version: policy.version,
+        })),
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });

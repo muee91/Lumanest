@@ -56,6 +56,10 @@ test('discovery proxy forwards only the bounded discovery contract', async () =>
     body: request,
     serviceUrl: 'http://discovery-api:8001',
     internalToken: 'internal-discovery-token',
+    sourcePolicies: [
+      { id: 'official-source', version: '2026-07', enabled: true, apiKey: 'must-not-forward' },
+      { id: 'revoked-source', version: '2026-06', enabled: false },
+    ],
     fetcher: async (url, options) => {
       captured = { url, options };
       return new Response(JSON.stringify(ready), {
@@ -71,6 +75,7 @@ test('discovery proxy forwards only the bounded discovery contract', async () =>
     coordinate: request.coordinate,
     locale: 'zh-CN',
     focus: 'photography',
+    sourcePolicies: [{ id: 'official-source', version: '2026-07' }],
   });
   assert.equal(captured.options.body.includes('internal-discovery-token'), false);
 });
