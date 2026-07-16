@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
@@ -78,17 +79,30 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
       throw const NearbyPlaceFailure(NearbyPlaceFailureKind.response);
     }
 
-    return (body['pois'] as List)
+    final places = (body['pois'] as List)
         .whereType<Map>()
-        .map((raw) => _parsePlace(Map<String, Object?>.from(raw), category))
+        .map(
+          (raw) => _parsePlace(
+            Map<String, Object?>.from(raw),
+            category,
+            center: mapCenter,
+            radiusMeters: radiusMeters.clamp(100, 50000),
+          ),
+        )
         .whereType<NearbyPlace>()
-        .toList(growable: false);
+        .toList();
+    places.sort(
+      (first, second) => first.distanceMeters.compareTo(second.distanceMeters),
+    );
+    return List.unmodifiable(places);
   }
 
   NearbyPlace? _parsePlace(
     Map<String, Object?> raw,
-    NearbyPlaceCategory category,
-  ) {
+    NearbyPlaceCategory category, {
+    required GeoPoint center,
+    required int radiusMeters,
+  }) {
     final name = raw['name'];
     final location = raw['location'];
     if (name is! String || name.isEmpty || location is! String) return null;
@@ -97,7 +111,13 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
     final longitude = double.tryParse(parts[0]);
     final latitude = double.tryParse(parts[1]);
     if (longitude == null || latitude == null) return null;
-    final distance = int.tryParse('${raw['distance'] ?? ''}') ?? 0;
+    final point = GeoPoint(
+      latitude: latitude,
+      longitude: longitude,
+      coordinateSystem: CoordinateSystem.gcj02,
+    ).validate();
+    final distance = GeoDistance.metersBetween(center, point).round();
+    if (distance > radiusMeters + 250) return null;
     final id = raw['id'] is String && (raw['id'] as String).isNotEmpty
         ? raw['id'] as String
         : '$name@$location';
@@ -106,11 +126,7 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
       id: id,
       name: name,
       category: category,
-      point: GeoPoint(
-        latitude: latitude,
-        longitude: longitude,
-        coordinateSystem: CoordinateSystem.gcj02,
-      ).validate(),
+      point: point,
       distanceMeters: distance,
       address: address is String && address.isNotEmpty ? address : null,
     );

@@ -56,6 +56,43 @@ void main() {
   });
 
   test(
+    'isolates location-aware results by center and keeps distance',
+    () async {
+      final cache = PersistentLocationSearchCache(
+        SharedPreferencesAsync(),
+        storageKey: 'location-search-center',
+        now: () => now,
+      );
+      const center = GeoPoint(latitude: 30.25, longitude: 120.16);
+      const results = [
+        LocationSearchResult(
+          id: 'nearby-west-lake',
+          name: '附近西湖',
+          point: GeoPoint(
+            latitude: 30.251,
+            longitude: 120.161,
+            coordinateSystem: CoordinateSystem.gcj02,
+          ),
+          distanceMeters: 146,
+        ),
+      ];
+
+      await cache.write('西湖', results, center: center);
+
+      final restored = await cache.readMatching('西湖', center: center);
+      expect(restored?.single.distanceMeters, 146);
+      expect(
+        await cache.readMatching(
+          '西湖',
+          center: const GeoPoint(latitude: 31.23, longitude: 121.47),
+        ),
+        isNull,
+      );
+      expect(await cache.readMatching('西湖'), isNull);
+    },
+  );
+
+  test(
     'uses cache for network failure but not configuration failure',
     () async {
       final primary = _MutableLocationSearchRepository(onlineResults);
@@ -108,7 +145,10 @@ class _MutableLocationSearchRepository implements LocationSearchRepository {
   LocationSearchFailureKind? failure;
 
   @override
-  Future<List<LocationSearchResult>> search(String keywords) async {
+  Future<List<LocationSearchResult>> search(
+    String keywords, {
+    GeoPoint? center,
+  }) async {
     if (failure case final kind?) throw LocationSearchFailure(kind);
     return results;
   }

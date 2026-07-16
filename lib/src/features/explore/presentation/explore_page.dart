@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/environment_recovery.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:luma_nest/src/design/luma_nest_spacing.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
@@ -222,6 +223,7 @@ class _MapViewState extends ConsumerState<_MapView> {
   Timer? _debounce;
   Timer? _intentTimer;
   AsyncValue<List<LocationSearchResult>>? _searchResults;
+  GeoPoint? _searchCenter;
   bool _mapInitialized = false;
   bool _searchFocused = false;
   int _searchRevision = 0;
@@ -284,7 +286,7 @@ class _MapViewState extends ConsumerState<_MapView> {
     try {
       final results = await ref
           .read(locationSearchRepositoryProvider)
-          .search(query);
+          .search(query, center: _searchCenter);
       if (!mounted || revision != _searchRevision) return;
       setState(() => _searchResults = AsyncData(results));
     } on Object catch (e, st) {
@@ -452,6 +454,7 @@ class _MapViewState extends ConsumerState<_MapView> {
                     : null),
           );
         }
+        _searchCenter = location;
         final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(location);
         final places = ref.watch(nearbyPlacesProvider);
         final AsyncValue<WildlifeMapLayer>? wildlifeLayer =
@@ -1222,6 +1225,9 @@ class _SearchResultPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locationPrioritized =
+        results.asData?.value.any((item) => item.distanceMeters != null) ==
+        true;
     return Material(
       color: Theme.of(context).colorScheme.surface.withValues(alpha: .96),
       elevation: 8,
@@ -1248,7 +1254,10 @@ class _SearchResultPanel extends StatelessWidget {
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
-                Text('搜索结果', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  locationPrioritized ? '搜索结果 · 附近优先' : '搜索结果',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ],
             ),
           ),
@@ -1326,6 +1335,10 @@ class _SearchResultPanel extends StatelessWidget {
   }
 
   static String _metadata(LocationSearchResult item) => [
+    if (item.distanceMeters case final distance?)
+      distance >= 1000
+          ? '${(distance / 1000).toStringAsFixed(1)} km'
+          : '$distance m',
     if (item.address case final address? when address.isNotEmpty) address,
     if (item.isOfflineCache) '离线缓存',
   ].join(' · ');

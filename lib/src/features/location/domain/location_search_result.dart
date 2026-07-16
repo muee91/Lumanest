@@ -6,6 +6,7 @@ class LocationSearchResult {
     required this.name,
     required this.point,
     this.address,
+    this.distanceMeters,
     this.cachedAt,
   });
 
@@ -13,13 +14,17 @@ class LocationSearchResult {
   final String name;
   final GeoPoint point;
   final String? address;
+  final int? distanceMeters;
   final DateTime? cachedAt;
 
   bool get isOfflineCache => cachedAt != null;
 }
 
 abstract interface class LocationSearchRepository {
-  Future<List<LocationSearchResult>> search(String keywords);
+  Future<List<LocationSearchResult>> search(
+    String keywords, {
+    GeoPoint? center,
+  });
 }
 
 enum LocationSearchFailureKind { configuration, network, response }

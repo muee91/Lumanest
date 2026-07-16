@@ -613,6 +613,7 @@ test('Amap nearby forwards the client-provided GCJ-02 location verbatim', async 
   assert.equal(upstreamUrl.searchParams.get('location'), '121.4782,31.2285');
   assert.equal(upstreamUrl.searchParams.get('keywords'), '观景台');
   assert.equal(upstreamUrl.searchParams.get('radius'), '5000');
+  assert.equal(upstreamUrl.searchParams.get('sortrule'), 'distance');
 });
 
 test('elevation profile returns only a same-length sanitized array', async () => {

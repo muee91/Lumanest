@@ -636,6 +636,7 @@ export function createTokenBrokerServer({
         types: requestUrl.searchParams.get('types') ?? '',
         radius: String(clampInteger(requestUrl.searchParams.get('radius'), { fallback: 5000, min: 100, max: 50000 })),
         offset: String(clampInteger(requestUrl.searchParams.get('offset'), { fallback: 20, min: 1, max: 25 })),
+        sortrule: 'distance',
         extensions: 'all',
       }, configuration.amapWebKey, fetcher, configuration.settings.upstreamTimeoutMs);
       return;

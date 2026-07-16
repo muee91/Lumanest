@@ -559,6 +559,60 @@ void main() {
     expect(find.text('杭州市西湖区 · 离线缓存'), findsOneWidget);
   });
 
+  testWidgets('search uses current snapshot location and explains local rank', (
+    tester,
+  ) async {
+    final repository = _DeferredLocationSearchRepository();
+    final now = DateTime.utc(2026, 7, 16, 8);
+    const currentLocation = GeoPoint(latitude: 30.25, longitude: 120.16);
+    final snapshot = ContextSnapshot(
+      id: 'local-search',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 15)),
+      primaryScene: SceneType.city,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      location: currentLocation,
+    );
+    await tester.pumpWidget(
+      wrapExplorePage(
+        amapKey: 'test-key',
+        snapshotAsync: AsyncData(snapshot),
+        nearbyPlaces: const [],
+        locationSearchRepository: repository,
+      ),
+    );
+    await tester.tap(find.text('同意并开启地图'));
+    await tester.pump();
+    await tester.tap(find.text('同意并获取位置'));
+    await tester.pump();
+
+    await tester.tap(find.text('搜索地点'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), '湖边');
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(repository.centerFor('湖边'), currentLocation);
+    repository.complete('湖边', const [
+      LocationSearchResult(
+        id: 'local-lake',
+        name: '附近湖岸',
+        point: GeoPoint(
+          latitude: 30.251,
+          longitude: 120.161,
+          coordinateSystem: CoordinateSystem.gcj02,
+        ),
+        address: '本地湖岸',
+        distanceMeters: 820,
+      ),
+    ]);
+    await tester.pump();
+
+    expect(find.text('搜索结果 · 附近优先'), findsOneWidget);
+    expect(find.text('820 m · 本地湖岸'), findsOneWidget);
+  });
+
   testWidgets('clearing search invalidates an in-flight response', (
     tester,
   ) async {
@@ -666,13 +720,20 @@ void main() {
 
 class _DeferredLocationSearchRepository implements LocationSearchRepository {
   final Map<String, Completer<List<LocationSearchResult>>> _requests = {};
+  final Map<String, GeoPoint?> _centers = {};
 
   @override
-  Future<List<LocationSearchResult>> search(String keywords) {
+  Future<List<LocationSearchResult>> search(
+    String keywords, {
+    GeoPoint? center,
+  }) {
     final completer = Completer<List<LocationSearchResult>>();
     _requests[keywords] = completer;
+    _centers[keywords] = center;
     return completer.future;
   }
+
+  GeoPoint? centerFor(String keywords) => _centers[keywords];
 
   void complete(String keywords, List<LocationSearchResult> results) {
     final request = _requests[keywords];

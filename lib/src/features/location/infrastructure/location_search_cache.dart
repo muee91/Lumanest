@@ -5,8 +5,15 @@ import 'package:luma_nest/src/features/location/domain/location_search_result.da
 import 'package:shared_preferences/shared_preferences.dart';
 
 abstract interface class LocationSearchCache {
-  Future<List<LocationSearchResult>?> readMatching(String keywords);
-  Future<void> write(String keywords, List<LocationSearchResult> results);
+  Future<List<LocationSearchResult>?> readMatching(
+    String keywords, {
+    GeoPoint? center,
+  });
+  Future<void> write(
+    String keywords,
+    List<LocationSearchResult> results, {
+    GeoPoint? center,
+  });
   Future<void> clear();
 }
 
@@ -27,12 +34,16 @@ class PersistentLocationSearchCache implements LocationSearchCache {
   Future<void> _writeQueue = Future.value();
 
   @override
-  Future<List<LocationSearchResult>?> readMatching(String keywords) async {
+  Future<List<LocationSearchResult>?> readMatching(
+    String keywords, {
+    GeoPoint? center,
+  }) async {
     final query = _normalize(keywords);
+    final centerKey = _centerKey(center);
     if (query.isEmpty) return null;
     final entries = await _readEntries();
     for (final entry in entries) {
-      if (entry['query'] != query) continue;
+      if (entry['query'] != query || entry['center'] != centerKey) continue;
       final savedAt = DateTime.tryParse('${entry['savedAt'] ?? ''}')?.toUtc();
       if (savedAt == null || !_isCurrent(savedAt)) return null;
       final rawResults = entry['results'];
@@ -53,17 +64,25 @@ class PersistentLocationSearchCache implements LocationSearchCache {
   }
 
   @override
-  Future<void> write(String keywords, List<LocationSearchResult> results) {
+  Future<void> write(
+    String keywords,
+    List<LocationSearchResult> results, {
+    GeoPoint? center,
+  }) {
     final query = _normalize(keywords);
+    final centerKey = _centerKey(center);
     if (query.isEmpty || query.length > 200 || results.isEmpty) {
       return Future.value();
     }
     final encodedResults = results.take(10).map(_encodeResult).toList();
     final operation = _writeQueue.then((_) async {
       final entries = await _readEntries();
-      entries.removeWhere((entry) => entry['query'] == query);
+      entries.removeWhere(
+        (entry) => entry['query'] == query && entry['center'] == centerKey,
+      );
       entries.insert(0, {
         'query': query,
+        'center': centerKey,
         'savedAt': now().toUtc().toIso8601String(),
         'results': encodedResults,
       });
@@ -112,6 +131,10 @@ class PersistentLocationSearchCache implements LocationSearchCache {
   static String _normalize(String value) =>
       value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
+  static String? _centerKey(GeoPoint? center) => center == null
+      ? null
+      : '${center.coordinateSystem.name}:${center.latitude.toStringAsFixed(2)},${center.longitude.toStringAsFixed(2)}';
+
   static Map<String, Object?> _encodeResult(LocationSearchResult result) => {
     'id': result.id,
     'name': result.name,
@@ -119,6 +142,7 @@ class PersistentLocationSearchCache implements LocationSearchCache {
     'longitude': result.point.longitude,
     'coordinateSystem': result.point.coordinateSystem.name,
     'address': result.address,
+    'distanceMeters': result.distanceMeters,
   };
 
   static LocationSearchResult? _decodeResult(Object? raw, DateTime savedAt) {
@@ -128,6 +152,7 @@ class PersistentLocationSearchCache implements LocationSearchCache {
     final latitude = raw['latitude'];
     final longitude = raw['longitude'];
     final address = raw['address'];
+    final distanceMeters = raw['distanceMeters'];
     final system = CoordinateSystem.values
         .where((value) => value.name == raw['coordinateSystem'])
         .firstOrNull;
@@ -142,6 +167,8 @@ class PersistentLocationSearchCache implements LocationSearchCache {
         longitude is! num ||
         !longitude.isFinite ||
         system == null ||
+        distanceMeters != null &&
+            (distanceMeters is! int || distanceMeters < 0) ||
         address != null && (address is! String || address.length > 300)) {
       return null;
     }
@@ -154,6 +181,7 @@ class PersistentLocationSearchCache implements LocationSearchCache {
         coordinateSystem: system,
       ).validate(),
       address: address as String?,
+      distanceMeters: distanceMeters as int?,
       cachedAt: savedAt,
     );
   }

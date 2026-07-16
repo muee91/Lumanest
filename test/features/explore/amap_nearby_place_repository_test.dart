@@ -33,7 +33,7 @@ void main() {
     expect(transport.query['location'], isNot('121.4737,31.2304'));
     expect(transport.headers['Authorization'], 'Bearer service-token');
     expect(places.single.name, '湖岸观景台');
-    expect(places.single.distanceMeters, 860);
+    expect(places.single.distanceMeters, inInclusiveRange(0, 1000));
     expect(places.single.point.coordinateSystem, CoordinateSystem.gcj02);
   });
 
@@ -79,6 +79,49 @@ void main() {
       expect(transport.query['location'], '121.4737,31.2304');
     },
   );
+
+  test('recomputes distance, sorts nearby first and drops outliers', () async {
+    final repository = AmapNearbyPlaceRepository(
+      brokerBaseUrl: 'https://broker.example.com',
+      serviceToken: 'service-token',
+      transport: _FakeTransport({
+        'status': '1',
+        'pois': [
+          {
+            'id': 'farther',
+            'name': '较远机位',
+            'location': '120.0100,30.0000',
+            'distance': '1',
+          },
+          {
+            'id': 'outlier',
+            'name': '省外异常点',
+            'location': '121.0000,31.0000',
+            'distance': '2',
+          },
+          {
+            'id': 'near',
+            'name': '最近机位',
+            'location': '120.0010,30.0000',
+            'distance': '99999',
+          },
+        ],
+      }),
+    );
+
+    final places = await repository.fetchNearby(
+      center: const GeoPoint(
+        latitude: 30,
+        longitude: 120,
+        coordinateSystem: CoordinateSystem.gcj02,
+      ),
+      category: NearbyPlaceCategory.viewpoint,
+      radiusMeters: 5000,
+    );
+
+    expect(places.map((place) => place.id), ['near', 'farther']);
+    expect(places.first.distanceMeters, lessThan(places.last.distanceMeters));
+  });
 }
 
 class _FakeTransport implements AmapDataTransport {

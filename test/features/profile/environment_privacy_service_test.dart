@@ -122,14 +122,17 @@ class _FakeLocationSearchCache implements LocationSearchCache {
   Future<void> clear() async => cleared = true;
 
   @override
-  Future<List<LocationSearchResult>?> readMatching(String keywords) async =>
-      null;
+  Future<List<LocationSearchResult>?> readMatching(
+    String keywords, {
+    GeoPoint? center,
+  }) async => null;
 
   @override
   Future<void> write(
     String keywords,
-    List<LocationSearchResult> results,
-  ) async {}
+    List<LocationSearchResult> results, {
+    GeoPoint? center,
+  }) async {}
 }
 
 class _FakeNearbyPlaceCache implements NearbyPlaceCache {
