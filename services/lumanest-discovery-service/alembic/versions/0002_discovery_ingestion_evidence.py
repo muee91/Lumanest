@@ -4,7 +4,10 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0002_discovery_ingestion_evidence"
+# Alembic's default version table stores revision identifiers in VARCHAR(32).
+# Keep this identifier under that limit so a clean production database can
+# record the head revision after the upgrade.
+revision = "0002_discovery_ingest_evidence"
 down_revision = "0001_discovery_foundation"
 branch_labels = None
 depends_on = None
