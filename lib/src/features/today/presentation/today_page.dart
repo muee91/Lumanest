@@ -197,14 +197,7 @@ class TodayPage extends StatelessWidget {
         ],
         if (primary == null) ...[
           const SizedBox(height: LumaNestSpacing.md),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => context.go('/explore'),
-              icon: const Icon(Icons.explore_outlined),
-              label: const Text('探索附近'),
-            ),
-          ),
+          _QuietContextAction(onExplore: () => context.go('/explore')),
         ],
       ],
     );
@@ -277,9 +270,9 @@ class _TodayMasthead extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const LumaNestBrandMark(size: 28),
-            const SizedBox(width: LumaNestSpacing.sm),
-            Expanded(child: Text('栖光', style: theme.textTheme.displaySmall)),
+            const LumaNestBrandMark(size: 21),
+            const SizedBox(width: 7),
+            Expanded(child: Text('栖光', style: theme.textTheme.titleLarge)),
             DecoratedBox(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest.withValues(
@@ -294,66 +287,52 @@ class _TodayMasthead extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 7,
+                  horizontal: 10,
+                  vertical: 5,
                 ),
                 child: Text(scene, style: theme.textTheme.labelLarge),
               ),
             ),
           ],
         ),
-        const SizedBox(height: LumaNestSpacing.xxs),
-        Padding(
-          padding: const EdgeInsets.only(left: 23),
-          child: Row(
-            children: [
-              Icon(
-                locationDisplay.isReference
-                    ? Icons.location_on_outlined
-                    : Icons.my_location_outlined,
-                size: 15,
-                color: theme.colorScheme.secondary,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  locationDisplay.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: locationDisplay.isReference
-                        ? theme.colorScheme.secondary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              if (onSelectManualLocation != null)
-                TextButton.icon(
-                  key: const Key('today-manual-location'),
-                  onPressed: locationDisplay.isReference
-                      ? onClearManualLocation
-                      : onSelectManualLocation,
-                  icon: Icon(
-                    locationDisplay.isReference
-                        ? Icons.my_location_outlined
-                        : Icons.edit_location_alt_outlined,
-                    size: 16,
-                  ),
-                  label: Text(locationDisplay.isReference ? '当前位置' : '手动地点'),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 2),
-        Padding(
-          padding: const EdgeInsets.only(left: 23),
-          child: Text(
-            '循光而行，择光而栖。',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: .8,
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(
+              locationDisplay.isReference
+                  ? Icons.location_on_outlined
+                  : Icons.my_location_outlined,
+              size: 15,
+              color: theme.colorScheme.secondary,
             ),
-          ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                locationDisplay.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: locationDisplay.isReference
+                      ? theme.colorScheme.secondary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (onSelectManualLocation != null)
+              TextButton.icon(
+                key: const Key('today-manual-location'),
+                onPressed: locationDisplay.isReference
+                    ? onClearManualLocation
+                    : onSelectManualLocation,
+                icon: Icon(
+                  locationDisplay.isReference
+                      ? Icons.my_location_outlined
+                      : Icons.edit_location_alt_outlined,
+                  size: 16,
+                ),
+                label: Text(locationDisplay.isReference ? '当前位置' : '手动地点'),
+              ),
+          ],
         ),
       ],
     );
@@ -378,32 +357,19 @@ class _DecisionHero extends StatelessWidget {
     return Semantics(
       container: true,
       label: '$label，$summary',
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface.withValues(alpha: .74),
-          border: Border(
-            left: BorderSide(color: theme.colorScheme.secondary, width: 3),
-          ),
-        ),
-        padding: const EdgeInsets.all(LumaNestSpacing.lg),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8, left: 2, right: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(
-                      alpha: .8,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(_dayPhaseIcon(dayPhase), size: 18),
+                Icon(
+                  _dayPhaseIcon(dayPhase),
+                  size: 17,
+                  color: theme.colorScheme.secondary,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     label,
@@ -421,9 +387,12 @@ class _DecisionHero extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: LumaNestSpacing.lg),
-            Text(summary, style: theme.textTheme.headlineSmall),
-            const SizedBox(height: LumaNestSpacing.sm),
+            const SizedBox(height: 12),
+            Text(
+              summary,
+              style: theme.textTheme.headlineMedium?.copyWith(height: 1.16),
+            ),
+            const SizedBox(height: 7),
             Text(
               '基于此刻环境与仍然有效的事件',
               style: theme.textTheme.bodySmall?.copyWith(
@@ -443,6 +412,34 @@ class _DecisionHero extends StatelessWidget {
     DayPhase.blueHour => Icons.brightness_2_outlined,
     DayPhase.night => Icons.nightlight_round,
   };
+}
+
+class _QuietContextAction extends StatelessWidget {
+  const _QuietContextAction({required this.onExplore});
+  final VoidCallback onExplore;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      border: Border(
+        top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.hourglass_empty_rounded, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            '此刻没有明确拍摄窗口，适合先观察附近的光线变化。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        TextButton(onPressed: onExplore, child: const Text('探索附近')),
+      ],
+    ),
+  );
 }
 
 class _EditorialRule extends StatelessWidget {
