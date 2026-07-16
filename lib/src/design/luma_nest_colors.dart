@@ -12,13 +12,13 @@ abstract final class LumaNestColors {
   static const Color onPrimaryDark = Color(0xFF102421);
 
   // ── Surface & background ──
-  static const Color surfaceLight = Color(0xFFF9FBF9); // clouded daylight
-  static const Color onSurfaceLight = Color(0xFF1D2B29);
-  static const Color surfaceDark = Color(0xFF13201F);
-  static const Color onSurfaceDark = Color(0xFFE6EFEC);
+  static const Color surfaceLight = Color(0xFFF7F5F0); // warm daylight paper
+  static const Color onSurfaceLight = Color(0xFF202724);
+  static const Color surfaceDark = Color(0xFF141B19);
+  static const Color onSurfaceDark = Color(0xFFE7ECE7);
 
-  static const Color backgroundLight = Color(0xFFEAF0EF); // mist and sky
-  static const Color backgroundDark = Color(0xFF0C1514);
+  static const Color backgroundLight = Color(0xFFE8EEEA); // mist and sky
+  static const Color backgroundDark = Color(0xFF0B1210);
 
   // ── Accent ──
   static const Color accentLight = Color(0xFF356C88); // distant water
@@ -34,10 +34,10 @@ abstract final class LumaNestColors {
   static const Color rockGrey = Color(0xFF66716D);
 
   // ── Editorial support ──
-  static const Color tertiaryLight = Color(0xFF5C6965);
-  static const Color tertiaryDark = Color(0xFFB8C7C2);
-  static const Color outlineLight = Color(0xFF778783);
-  static const Color outlineDark = Color(0xFF81928E);
+  static const Color tertiaryLight = Color(0xFF68716D);
+  static const Color tertiaryDark = Color(0xFFBBC5C0);
+  static const Color outlineLight = Color(0xFF9DA7A1);
+  static const Color outlineDark = Color(0xFF65716C);
 
   // ── Safety / alert ──
   static const Color safetyLight = Color(0xFFB44343);
@@ -48,4 +48,16 @@ abstract final class LumaNestColors {
   static const Color ambientBottomLight = Color(0xFFF1F3E8);
   static const Color ambientTopDark = Color(0xFF19302F);
   static const Color ambientBottomDark = Color(0xFF0C1514);
+}
+
+/// Shared geometry keeps the app calm and editorial instead of card-heavy.
+abstract final class LumaNestRadii {
+  /// Controls and compact metadata.
+  static const double compact = 10;
+
+  /// Standard content surfaces.
+  static const double regular = 16;
+
+  /// Navigation, sheets and deliberately prominent surfaces.
+  static const double expansive = 24;
 }

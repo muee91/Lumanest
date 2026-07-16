@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../design/luma_nest_colors.dart';
+
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -44,7 +46,7 @@ class AppShell extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(LumaNestRadii.expansive),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
               child: DecoratedBox(
@@ -54,12 +56,7 @@ class AppShell extends StatelessWidget {
                           context,
                         ).colorScheme.surface.withValues(alpha: .84)
                       : const Color(0xFFF3E9D9).withValues(alpha: .84),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: .64),
-                  ),
+                  borderRadius: BorderRadius.circular(LumaNestRadii.expansive),
                 ),
                 child: SizedBox(
                   key: const Key('app-bottom-navigation'),
@@ -123,37 +120,21 @@ class _NavigationButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.only(top: 7, bottom: 5),
+          padding: const EdgeInsets.only(top: 8, bottom: 7),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedSlide(
-                duration: const Duration(milliseconds: 180),
-                offset: selected ? const Offset(0, -.06) : Offset.zero,
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 180),
-                  scale: selected ? 1.09 : 1,
-                  child: Icon(
-                    selected ? item.selectedIcon : item.icon,
-                    color: color,
-                    size: selected ? 24 : 22,
-                  ),
-                ),
+              Icon(
+                selected ? item.selectedIcon : item.icon,
+                color: color,
+                size: 23,
               ),
+              const SizedBox(height: 3),
               Text(
                 item.label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: color,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: selected ? 15 : 4,
-                height: 2,
-                decoration: BoxDecoration(
-                  color: selected ? scheme.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ],

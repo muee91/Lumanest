@@ -74,12 +74,11 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('此刻还没有可靠的创作线索'), findsOneWidget);
-    expect(find.textContaining('当前规则没有成立'), findsOneWidget);
+    expect(find.text('此刻没有可抽取的纸条'), findsOneWidget);
     expect(find.byKey(const Key('inspiration-bottle')), findsNothing);
-    expect(find.text('去探索附近'), findsOneWidget);
+    expect(find.text('探索附近'), findsOneWidget);
 
-    await tester.tap(find.text('去探索附近'));
+    await tester.tap(find.text('探索附近'));
     expect(explorations, 1);
   });
 
@@ -106,17 +105,16 @@ void main() {
 
     expect(
       find.byKey(const Key('selected-inspiration-reflection')),
-      findsOneWidget,
+      findsNothing,
     );
     await tester.tap(find.byKey(const Key('inspiration-bottle')));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(
-      find.byKey(const Key('selected-inspiration-blue-hour')),
+      find.byKey(const Key('selected-inspiration-reflection')),
       findsOneWidget,
     );
     expect(find.text('找倒影🪞'), findsWidgets);
-    expect(find.text('蓝调了🌆'), findsWidgets);
   });
 
   testWidgets('saves only the selected creative note to the local library', (
@@ -137,13 +135,13 @@ void main() {
     );
     await tester.pump();
 
-    final saveButton = find.text('收藏这张纸条');
-    await tester.scrollUntilVisible(
-      saveButton,
-      200,
-      scrollable: find.byType(Scrollable).first,
+    await tester.tap(find.byKey(const Key('draw-inspiration-note')));
+    await tester.pump(const Duration(milliseconds: 600));
+    final saveButton = find.text('收藏纸条');
+    final saveControl = tester.widget<TextButton>(
+      find.ancestor(of: saveButton, matching: find.byType(TextButton)),
     );
-    await tester.tap(saveButton);
+    saveControl.onPressed!();
     await tester.pump();
 
     expect(store.value.savedNotes, hasLength(1));

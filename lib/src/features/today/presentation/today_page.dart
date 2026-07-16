@@ -22,8 +22,8 @@ import 'package:luma_nest/src/features/location/application/manual_location_prov
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/features/shooting_window/domain/shooting_window_timeline.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
-import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 import 'package:luma_nest/src/shared/widgets/luma_nest_brand_mark.dart';
+import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 import 'package:luma_nest/src/shared/widgets/manifest_event_metadata.dart';
 
 class TodayPage extends StatelessWidget {
@@ -118,8 +118,6 @@ class TodayPage extends StatelessWidget {
   Widget _buildContent(BuildContext context, ContextSnapshot snapshot) {
     final effectiveManifest = manifest ?? ManifestPolicy.build(snapshot);
     final primary = effectiveManifest.primary;
-    final summary =
-        narrativeAsync?.asData?.value.summary ?? effectiveManifest.summary;
     void performAction(ManifestItem item) {
       final injected = onManifestAction;
       if (injected != null) {
@@ -135,53 +133,55 @@ class TodayPage extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(
         LumaNestSpacing.md,
-        LumaNestSpacing.md,
+        LumaNestSpacing.sm,
         LumaNestSpacing.md,
         LumaNestSpacing.xl,
       ),
       children: [
-        if (snapshot.isStale) _StaleLabel(),
         _TodayMasthead(
           snapshot: snapshot,
           locationDisplay: locationDisplay,
           onSelectManualLocation: onSelectManualLocation,
           onClearManualLocation: onClearManualLocation,
         ),
-        const SizedBox(height: LumaNestSpacing.md),
-        _DecisionHero(summary: summary, dayPhase: snapshot.dayPhase),
-        _LightTimeline(snapshot: snapshot),
+        const SizedBox(height: LumaNestSpacing.sm),
+        _DecisionHero(
+          dayPhase: snapshot.dayPhase,
+          snapshot: snapshot,
+          primary: primary,
+        ),
         if (_shouldShowEnvironmentContext(snapshot, primary)) ...[
-          const SizedBox(height: LumaNestSpacing.md),
-          _EnvironmentStrip(snapshot: snapshot),
-        ],
-        const SizedBox(height: LumaNestSpacing.lg),
-        if (effectiveManifest.safety.isNotEmpty) ...[
-          _SafetyRegion(
-            items: effectiveManifest.safety,
-            onAction: performAction,
-          ),
-          const SizedBox(height: LumaNestSpacing.lg),
+          const SizedBox(height: LumaNestSpacing.sm),
+          _EvidenceMetrics(snapshot: snapshot, primary: primary),
         ],
         if (primary case final primary?) ...[
-          _OpportunityCard(
+          const SizedBox(height: LumaNestSpacing.md),
+          _PrimaryActionBar(
             key: const Key('primary-opportunity'),
             item: primary,
             onTap: () => performAction(primary),
           ),
-          const _EditorialRule(label: '备用观察'),
-          const SizedBox(height: LumaNestSpacing.xs),
+        ],
+        _LightTimeline(snapshot: snapshot),
+        if (effectiveManifest.safety.isNotEmpty) ...[
+          const SizedBox(height: LumaNestSpacing.md),
+          _SafetyRegion(
+            items: effectiveManifest.safety,
+            onAction: performAction,
+          ),
         ],
         if (effectiveManifest.secondary.isNotEmpty) ...[
           const SizedBox(height: LumaNestSpacing.sm),
+          _EditorialRule(label: '备用观察'),
+          const SizedBox(height: LumaNestSpacing.xs),
           Column(
             key: const Key('secondary-opportunities'),
             children: [
               for (final item in effectiveManifest.secondary)
                 Padding(
                   padding: const EdgeInsets.only(bottom: LumaNestSpacing.xs),
-                  child: _OpportunityCard(
+                  child: _AlternateOpportunity(
                     item: item,
-                    compact: true,
                     onTap: () => performAction(item),
                   ),
                 ),
@@ -264,6 +264,12 @@ class _TodayMasthead extends StatelessWidget {
       SceneType.unknown => '此刻环境',
     };
     final theme = Theme.of(context);
+    final hasPlaceName =
+        locationDisplay.label.trim().isNotEmpty &&
+        locationDisplay.label != '当前位置';
+    final date = MaterialLocalizations.of(
+      context,
+    ).formatMediumDate(snapshot.observedAt.toLocal());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -295,29 +301,41 @@ class _TodayMasthead extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
           children: [
-            Icon(
-              locationDisplay.isReference
-                  ? Icons.location_on_outlined
-                  : Icons.my_location_outlined,
-              size: 15,
-              color: theme.colorScheme.secondary,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                locationDisplay.description,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: locationDisplay.isReference
-                      ? theme.colorScheme.secondary
-                      : theme.colorScheme.onSurfaceVariant,
+            if (hasPlaceName) ...[
+              Icon(
+                locationDisplay.isReference
+                    ? Icons.location_on_outlined
+                    : Icons.my_location_outlined,
+                size: 15,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  locationDisplay.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: locationDisplay.isReference
+                        ? theme.colorScheme.secondary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
+            ] else
+              const Spacer(),
+            Text(
+              date,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
+            const SizedBox(width: 4),
             if (onSelectManualLocation != null)
               TextButton.icon(
                 key: const Key('today-manual-location'),
@@ -330,19 +348,29 @@ class _TodayMasthead extends StatelessWidget {
                       : Icons.edit_location_alt_outlined,
                   size: 16,
                 ),
-                label: Text(locationDisplay.isReference ? '当前位置' : '手动地点'),
+                label: Text(locationDisplay.isReference ? '恢复定位' : '选点'),
               ),
           ],
         ),
+        if (snapshot.isStale)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: _StaleLabel(compact: true),
+          ),
       ],
     );
   }
 }
 
 class _DecisionHero extends StatelessWidget {
-  const _DecisionHero({required this.summary, required this.dayPhase});
-  final String summary;
+  const _DecisionHero({
+    required this.dayPhase,
+    required this.snapshot,
+    required this.primary,
+  });
   final DayPhase dayPhase;
+  final ContextSnapshot snapshot;
+  final ManifestItem? primary;
 
   @override
   Widget build(BuildContext context) {
@@ -354,11 +382,14 @@ class _DecisionHero extends StatelessWidget {
       DayPhase.blueHour => '蓝调判断',
       DayPhase.night => '夜间判断',
     };
+    final window = _currentOrNextWindow(snapshot);
+    final verdict = primary?.title ?? '暂无明确拍摄窗口';
     return Semantics(
       container: true,
-      label: '$label，$summary',
+      label: '$label，$verdict',
       child: Padding(
-        padding: const EdgeInsets.only(top: 8, left: 2, right: 2),
+        key: const Key('today-environment-hero'),
+        padding: const EdgeInsets.fromLTRB(2, 18, 2, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -379,7 +410,7 @@ class _DecisionHero extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '此刻',
+                  window == null ? '此刻' : _windowCaption(window, context),
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.secondary,
                     letterSpacing: 1.1,
@@ -387,17 +418,12 @@ class _DecisionHero extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
-              summary,
-              style: theme.textTheme.headlineMedium?.copyWith(height: 1.16),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              '基于此刻环境与仍然有效的事件',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              verdict,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.headlineMedium?.copyWith(height: 1.08),
             ),
           ],
         ),
@@ -412,6 +438,18 @@ class _DecisionHero extends StatelessWidget {
     DayPhase.blueHour => Icons.brightness_2_outlined,
     DayPhase.night => Icons.nightlight_round,
   };
+
+  static ShootingWindow? _currentOrNextWindow(ContextSnapshot snapshot) {
+    final now = snapshot.observedAt;
+    final windows = ShootingWindowTimeline.build(snapshot);
+    for (final window in windows) {
+      if (window.isActiveAt(now) || window.end.isAfter(now)) return window;
+    }
+    return null;
+  }
+
+  static String _windowCaption(ShootingWindow window, BuildContext context) =>
+      '${TimeOfDay.fromDateTime(window.start.toLocal()).format(context)} ${window.label}';
 }
 
 class _QuietContextAction extends StatelessWidget {
@@ -431,10 +469,7 @@ class _QuietContextAction extends StatelessWidget {
         const Icon(Icons.hourglass_empty_rounded, size: 18),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(
-            '此刻没有明确拍摄窗口，适合先观察附近的光线变化。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          child: Text('暂无明确窗口', style: Theme.of(context).textTheme.bodyMedium),
         ),
         TextButton(onPressed: onExplore, child: const Text('探索附近')),
       ],
@@ -479,38 +514,49 @@ class _LightTimeline extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _EditorialRule(label: '今日光线'),
-          const SizedBox(height: LumaNestSpacing.xs),
+          const SizedBox(height: LumaNestSpacing.sm),
           Semantics(
             label: '今日光线时间线',
-            child: Row(
-              children: [
-                for (var i = 0; i < windows.length; i++) ...[
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          time(windows[i].start),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          windows[i].label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (i != windows.length - 1)
+            child: SingleChildScrollView(
+              key: const Key('today-light-timeline'),
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final window in windows)
                     Container(
-                      width: 1,
-                      height: 30,
-                      color: Theme.of(context).colorScheme.outlineVariant,
+                      width: 128,
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surface.withValues(alpha: .72),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.outlineVariant.withValues(alpha: .72),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            time(window.start),
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            window.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ],
+                      ),
                     ),
                 ],
-              ],
+              ),
             ),
           ),
         ],
@@ -519,50 +565,43 @@ class _LightTimeline extends StatelessWidget {
   }
 }
 
-class _EnvironmentStrip extends StatelessWidget {
-  const _EnvironmentStrip({required this.snapshot});
+class _EvidenceMetrics extends StatelessWidget {
+  const _EvidenceMetrics({required this.snapshot, required this.primary});
   final ContextSnapshot snapshot;
+  final ManifestItem? primary;
 
   @override
   Widget build(BuildContext context) {
-    final entries = <(IconData, String, String)>[
-      if (snapshot.temperatureCelsius case final value?)
-        (Icons.device_thermostat_outlined, '${value.round()}°', '气温'),
+    final entries = _relevantEvidence(snapshot, primary);
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return _EnvironmentMetrics(entries: entries);
+  }
+
+  static List<(IconData, String, String)> _relevantEvidence(
+    ContextSnapshot snapshot,
+    ManifestItem? primary,
+  ) {
+    final candidates = <(IconData, String, String)>[
       if (snapshot.windSpeedMetersPerSecond case final value?)
-        (Icons.air_outlined, '${value.toStringAsFixed(1)} m/s', '风速'),
+        (Icons.air_outlined, '${value.toStringAsFixed(1)} m/s', '风'),
       if (snapshot.visibilityKilometers case final value?)
         (Icons.visibility_outlined, '${value.round()} km', '能见度'),
-      if (snapshot.airQualityIndex case final value?
-          when !snapshot.airQualityStale)
-        (
-          Icons.eco_outlined,
-          '$value',
-          snapshot.airQualityCategory == null
-              ? 'AQI'
-              : 'AQI · ${snapshot.airQualityCategory}',
-        ),
+      if (snapshot.cloudCoverPercent case final value?)
+        (Icons.cloud_outlined, '${value.round()}%', '云量'),
+      if (snapshot.temperatureCelsius case final value?)
+        (Icons.device_thermostat_outlined, '${value.round()}°', '气温'),
     ];
-    if (entries.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    return LumaNestSurface(
-      tone: LumaNestSurfaceTone.solid,
-      padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
-      child: Column(
-        children: [
-          _EnvironmentMetrics(entries: entries),
-          const SizedBox(height: LumaNestSpacing.xs),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '天气数据：和风天气',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    final preferred = switch (primary?.id) {
+      'reflection' => const ['风', '能见度', '云量'],
+      'mist' => const ['能见度', '气温', '风'],
+      'dust-light' => const ['风', '能见度', '云量'],
+      'alpenglow' || 'blue-hour' => const ['云量', '能见度', '风'],
+      _ => const <String>[],
+    };
+    return [
+      for (final label in preferred)
+        ...candidates.where((entry) => entry.$3 == label),
+    ].take(3).toList(growable: false);
   }
 }
 
@@ -807,10 +846,14 @@ class _EnvironmentConsentPrompt extends StatelessWidget {
 }
 
 class _StaleLabel extends StatelessWidget {
+  const _StaleLabel({this.compact = false});
+
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: compact ? 0 : 12),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -902,83 +945,106 @@ class _SafetyRegion extends StatelessWidget {
   }
 }
 
-class _OpportunityCard extends StatelessWidget {
-  const _OpportunityCard({
-    super.key,
-    required this.item,
-    required this.onTap,
-    this.compact = false,
-  });
+class _PrimaryActionBar extends StatelessWidget {
+  const _PrimaryActionBar({super.key, required this.item, required this.onTap});
 
   final ManifestItem item;
   final VoidCallback onTap;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: compact
-          ? theme.colorScheme.surfaceContainerLow.withValues(alpha: .86)
-          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: .9),
+      color: theme.colorScheme.primary.withValues(alpha: .92),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(compact ? 18 : 24),
+        borderRadius: BorderRadius.circular(18),
         side: BorderSide(
-          color: compact
-              ? theme.colorScheme.outlineVariant.withValues(alpha: .72)
-              : theme.colorScheme.primary.withValues(alpha: .34),
+          color: theme.colorScheme.primary.withValues(alpha: .55),
         ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.all(compact ? 14 : 20),
+          padding: const EdgeInsets.fromLTRB(17, 14, 14, 14),
           child: Row(
             children: [
-              if (!compact) ...[
-                Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: .12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.camera_alt_outlined,
-                    size: 19,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-              ],
+              Icon(
+                Icons.camera_alt_outlined,
+                size: 19,
+                color: theme.colorScheme.onPrimary,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      compact ? '备选线索' : '此刻主行动',
+                      '现在去做',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: theme.colorScheme.onPrimary.withValues(
+                          alpha: .78,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       item.title,
-                      style: compact
-                          ? theme.textTheme.bodyLarge
-                          : theme.textTheme.titleLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.arrow_forward_rounded, size: 18),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: theme.colorScheme.onPrimary,
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _AlternateOpportunity extends StatelessWidget {
+  const _AlternateOpportunity({required this.item, required this.onTap});
+
+  final ManifestItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              Icons.add_circle_outline_rounded,
+              size: 17,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                item.title,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ),
+            const Icon(Icons.arrow_forward_rounded, size: 17),
+          ],
+        ),
+      ),
+    ),
+  );
 }

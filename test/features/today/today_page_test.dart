@@ -16,28 +16,30 @@ import 'package:luma_nest/src/features/today/presentation/today_page.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 
 void main() {
-  testWidgets('uses validated narrative summary when available', (
-    tester,
-  ) async {
-    final snapshot = ContextFixtures.lakeSunset();
-    final narrative = ManifestNarrative(
-      summary: '湖面正在安静下来，可以等等倒影。',
-      source: ManifestNarrativeSource.model,
-      generatedAt: DateTime.utc(2026, 7, 11, 10),
-      expiresAt: DateTime.utc(2026, 7, 11, 10, 10),
-    );
+  testWidgets(
+    'quiet context keeps a concise verdict instead of narrative copy',
+    (tester) async {
+      final snapshot = ContextFixtures.lakeSunset();
+      final narrative = ManifestNarrative(
+        summary: '湖面正在安静下来，可以等等倒影。',
+        source: ManifestNarrativeSource.model,
+        generatedAt: DateTime.utc(2026, 7, 11, 10),
+        expiresAt: DateTime.utc(2026, 7, 11, 10, 10),
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: TodayPage(
-          snapshotAsync: AsyncData(snapshot),
-          narrativeAsync: AsyncData(narrative),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncData(snapshot),
+            narrativeAsync: AsyncData(narrative),
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text(narrative.summary), findsOneWidget);
-  });
+      expect(find.text(narrative.summary), findsNothing);
+      expect(find.text('暂无明确拍摄窗口'), findsWidgets);
+    },
+  );
 
   testWidgets('decision hero keeps its label on the stable readable surface', (
     tester,
@@ -73,6 +75,18 @@ void main() {
     );
 
     expect(find.text('海宁市'), findsOneWidget);
+  });
+
+  testWidgets('does not render a generic current-location label as a place', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TodayPage(snapshotAsync: AsyncData(ContextFixtures.quietCity())),
+      ),
+    );
+
+    expect(find.text('当前位置'), findsNothing);
   });
 
   testWidgets('always exposes a manual location entry from Today', (
@@ -238,24 +252,29 @@ void main() {
       expect(find.text('数据已过期'), findsOneWidget);
     });
 
-    testWidgets('live manifest renders summary and no stale label', (
-      tester,
-    ) async {
-      final snapshot = ContextFixtures.quietCity();
+    testWidgets(
+      'live manifest renders a concise quiet verdict and no stale label',
+      (tester) async {
+        final snapshot = ContextFixtures.quietCity();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: TodayPage(
-            snapshotAsync: AsyncData(snapshot),
-            manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: TodayPage(
+              snapshotAsync: AsyncData(snapshot),
+              manifest: ManifestPolicy.build(
+                snapshot,
+                now: snapshot.observedAt,
+              ),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(find.text('数据已过期'), findsNothing);
-      expect(find.textContaining('光线平静'), findsOneWidget);
-      expect(find.text('天气数据：和风天气'), findsNothing);
-    });
+        expect(find.text('数据已过期'), findsNothing);
+        expect(find.textContaining('光线平静'), findsNothing);
+        expect(find.text('暂无明确拍摄窗口'), findsWidgets);
+        expect(find.text('天气数据：和风天气'), findsNothing);
+      },
+    );
 
     testWidgets('quiet context renders no opportunity placeholder', (
       tester,
@@ -365,7 +384,56 @@ void main() {
       );
 
       expect(find.byKey(const Key('primary-opportunity')), findsOneWidget);
-      expect(find.text('倒影条件改善'), findsOneWidget);
+      expect(find.text('倒影条件改善'), findsNWidgets(2));
+    });
+
+    testWidgets('uses the editorial hero and horizontal light timeline', (
+      tester,
+    ) async {
+      final now = DateTime.utc(2026, 7, 15, 8);
+      final snapshot = ContextSnapshot(
+        id: 'hero-timeline',
+        observedAt: now,
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+        sunrise: now.subtract(const Duration(hours: 2)),
+        sunset: now.add(const Duration(hours: 10)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncData(snapshot),
+            manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('today-environment-hero')), findsOneWidget);
+      expect(find.byKey(const Key('today-light-timeline')), findsOneWidget);
+    });
+
+    testWidgets('shows no more than three decision evidence metrics', (
+      tester,
+    ) async {
+      final snapshot = ContextFixtures.desertDusk();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TodayPage(
+            snapshotAsync: AsyncData(snapshot),
+            manifest: ManifestPolicy.build(snapshot, now: snapshot.observedAt),
+          ),
+        ),
+      );
+
+      expect(find.text('2.1 m/s'), findsOneWidget);
+      expect(find.text('30 km'), findsOneWidget);
+      expect(find.text('5%'), findsOneWidget);
+      expect(find.text('35°'), findsNothing);
     });
 
     testWidgets('tapping an opportunity invokes the whitelisted action', (

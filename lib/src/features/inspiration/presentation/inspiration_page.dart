@@ -16,8 +16,6 @@ import 'package:luma_nest/src/features/library/application/user_library_controll
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
-import 'package:luma_nest/src/shared/widgets/responsive_action_group.dart';
-import 'package:luma_nest/src/shared/widgets/luma_nest_surface.dart';
 import 'package:luma_nest/src/features/inspiration/presentation/widgets/inspiration_bottle.dart';
 
 class InspirationPage extends ConsumerWidget {
@@ -225,6 +223,7 @@ class _BottleScaffold extends StatefulWidget {
 
 class _BottleScaffoldState extends State<_BottleScaffold> {
   var _selectedIndex = 0;
+  var _hasDrawn = false;
 
   @override
   void didUpdateWidget(_BottleScaffold oldWidget) {
@@ -237,13 +236,50 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
   }
 
   void _draw() {
-    if (widget.notes.length < 2) return;
-    setState(() => _selectedIndex = (_selectedIndex + 1) % widget.notes.length);
+    if (widget.notes.isEmpty) return;
+    setState(() {
+      if (_hasDrawn) {
+        _selectedIndex = (_selectedIndex + 1) % widget.notes.length;
+      }
+      _hasDrawn = true;
+    });
+    _openSelectedNote();
   }
 
   void _select(InspirationNote note) {
     final index = widget.notes.indexWhere((item) => item.id == note.id);
-    if (index >= 0) setState(() => _selectedIndex = index);
+    if (index < 0) return;
+    setState(() => _selectedIndex = index);
+    _openSelectedNote();
+  }
+
+  void _openSelectedNote() {
+    final note = widget.notes[_selectedIndex % widget.notes.length];
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => _InspirationNoteSheet(
+        note: note,
+        isSaved: widget.isSaved?.call(note) == true,
+        onAction: () {
+          Navigator.pop(context);
+          widget.onAction(note);
+        },
+        onSave: widget.onSave == null || widget.isSaved?.call(note) == true
+            ? null
+            : () async {
+                await widget.onSave!(note);
+                if (context.mounted) Navigator.pop(context);
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    this.context,
+                  ).showSnackBar(const SnackBar(content: Text('已收藏')));
+                }
+              },
+      ),
+    );
   }
 
   @override
@@ -256,52 +292,24 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
             children: [
-              LumaNestSurface(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.hourglass_empty_rounded,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      '此刻还没有可靠的创作线索',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '当前规则没有成立的创作事件。环境变化后，新的纸条会按需出现。',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: widget.onExplore,
-                      icon: const Icon(Icons.explore_outlined),
-                      label: const Text('去探索附近'),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 72),
+              Icon(
+                Icons.hourglass_empty_rounded,
+                size: 38,
+                color: Theme.of(context).colorScheme.secondary,
               ),
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+              Center(
                 child: Text(
-                  '安全和风险始终留在独立通道，不会放进灵感瓶。',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                  '此刻没有可抽取的纸条',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: widget.onExplore,
+                  child: const Text('探索附近'),
                 ),
               ),
             ],
@@ -317,16 +325,19 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
-            LumaNestEyebrow(
-              label: '此时此地的创作线索',
-              trailing: Text(
-                '${notes.length} 张纸条',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Row(
+              children: [
+                Text('此刻灵感', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                Text(
+                  '${notes.length} 张',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Center(
               child: InspirationBottle(
                 snapshotId: widget.snapshotId,
@@ -338,75 +349,73 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
                 onSelect: _select,
               ),
             ),
-            const SizedBox(height: 18),
-            LumaNestSurface(
-              tone: LumaNestSurfaceTone.paper,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(
-                    '抽到的纸条',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      letterSpacing: .8,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  AnimatedSwitcher(
-                    duration: widget.reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 220),
-                    child: _Paper(
-                      key: Key('selected-inspiration-${note.id}'),
-                      text: note.displayLabel,
-                      large: true,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    note.detail,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            ResponsiveActionGroup(
-              actions: [
-                FilledButton.icon(
-                  onPressed: () => widget.onAction(note),
-                  icon: const Icon(Icons.arrow_outward),
-                  label: const Text('去看看'),
-                ),
-                if (widget.onSave case final onSave?) ...[
-                  OutlinedButton.icon(
-                    onPressed: widget.isSaved?.call(note) == true
-                        ? null
-                        : () => onSave(note),
-                    icon: Icon(
-                      widget.isSaved?.call(note) == true
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                    ),
-                    label: Text(
-                      widget.isSaved?.call(note) == true ? '已收藏' : '收藏这张纸条',
-                    ),
-                  ),
-                ],
-              ],
-            ),
             const SizedBox(height: 4),
-            TextButton.icon(
-              onPressed: _draw,
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text('再抽一张纸条'),
+            Center(
+              child: FilledButton.icon(
+                key: const Key('draw-inspiration-note'),
+                onPressed: _draw,
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('抽一张'),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _InspirationNoteSheet extends StatelessWidget {
+  const _InspirationNoteSheet({
+    required this.note,
+    required this.isSaved,
+    required this.onAction,
+    this.onSave,
+  });
+
+  final InspirationNote note;
+  final bool isSaved;
+  final VoidCallback onAction;
+  final Future<void> Function()? onSave;
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .72,
+    child: SingleChildScrollView(
+      key: const Key('inspiration-note-sheet-scroll'),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Paper(
+            key: Key('selected-inspiration-${note.id}'),
+            text: note.displayLabel,
+            large: true,
+          ),
+          if (onSave != null) ...[
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: onSave,
+              icon: const Icon(Icons.bookmark_border),
+              label: const Text('收藏纸条'),
+            ),
+          ] else if (isSaved)
+            const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Center(child: Text('已收藏')),
+            ),
+          const SizedBox(height: 18),
+          Text(note.detail, style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(height: 22),
+          FilledButton.icon(
+            onPressed: onAction,
+            icon: const Icon(Icons.arrow_outward),
+            label: const Text('查看'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _Paper extends StatelessWidget {
@@ -437,6 +446,7 @@ class _Paper extends StatelessWidget {
       ),
       child: Text(
         text,
+        textAlign: large ? TextAlign.center : null,
         style: TextStyle(
           fontSize: large ? 24 : 13,
           fontWeight: FontWeight.w600,

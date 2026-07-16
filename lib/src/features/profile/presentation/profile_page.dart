@@ -69,45 +69,53 @@ class ProfilePage extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
           const _ProfileHero(),
-          const SizedBox(height: 18),
+          if (library case final availableLibrary? when hasLibraryContent) ...[
+            const SizedBox(height: 18),
+            const _ProfileSectionTitle(
+              icon: Icons.bookmarks_outlined,
+              title: '本机收藏',
+              subtitle: '你留下的地点、路线与纸条',
+            ),
+            _LibraryShelf(library: availableLibrary),
+          ],
+          const SizedBox(height: 16),
           EnvironmentDiagnostics(
             status: diagnosticStatus,
             actions: effectiveActions,
           ),
+          const SizedBox(height: 14),
           const _ProfileSectionTitle(
             icon: Icons.tune_rounded,
             title: '个性设置',
-            subtitle: '按需调整显示、偏好与文案',
+            subtitle: '显示、创作与文案',
           ),
-          _ProfileSurface(
-            child: Column(
-              children: [
-                _ProfileSettingsEntry(
-                  key: const Key('open-appearance-settings'),
-                  icon: Icons.motion_photos_auto_outlined,
-                  title: '显示与动效',
-                  subtitle: _appearanceSummary(preferences),
-                  onTap: () => _showAppearanceSettings(context),
-                ),
-                const Divider(height: 1),
-                _ProfileSettingsEntry(
-                  key: const Key('open-creative-settings'),
-                  icon: Icons.tune_outlined,
-                  title: '创作偏好',
-                  subtitle: _creativeSummary(preferences),
-                  onTap: () => _showCreativeSettings(context),
-                ),
-                const Divider(height: 1),
-                _ProfileSettingsEntry(
-                  key: const Key('open-ai-settings'),
-                  icon: Icons.auto_awesome_outlined,
-                  title: 'AI 文案',
-                  subtitle:
-                      '${_toneLabel(preferences.aiTone)} · 推荐强度 ${(preferences.recommendationIntensity * 100).round()}%',
-                  onTap: () => _showAiSettings(context),
-                ),
-              ],
-            ),
+          Column(
+            children: [
+              _ProfileSettingsEntry(
+                key: const Key('open-appearance-settings'),
+                icon: Icons.motion_photos_auto_outlined,
+                title: '显示与动效',
+                subtitle: _appearanceSummary(preferences),
+                onTap: () => _showAppearanceSettings(context),
+              ),
+              const Divider(height: 1),
+              _ProfileSettingsEntry(
+                key: const Key('open-creative-settings'),
+                icon: Icons.tune_outlined,
+                title: '创作偏好',
+                subtitle: _creativeSummary(preferences),
+                onTap: () => _showCreativeSettings(context),
+              ),
+              const Divider(height: 1),
+              _ProfileSettingsEntry(
+                key: const Key('open-ai-settings'),
+                icon: Icons.auto_awesome_outlined,
+                title: 'AI 文案',
+                subtitle:
+                    '${_toneLabel(preferences.aiTone)} · ${(preferences.recommendationIntensity * 100).round()}%',
+                onTap: () => _showAiSettings(context),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           const _ProfileSectionTitle(
@@ -1084,6 +1092,103 @@ class _SettingValueBadge extends StatelessWidget {
   );
 }
 
+/// A quiet, content-first glimpse of real local items. Detailed management
+/// remains in the same page below, where destructive controls are available.
+class _LibraryShelf extends StatelessWidget {
+  const _LibraryShelf({required this.library});
+
+  final UserLibraryState library;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <_LibraryShelfEntry>[
+      if (library.recentRoute != null)
+        _LibraryShelfEntry(Icons.history_outlined, '最近路线', '已保留'),
+      if (library.savedPlaces.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.place_outlined,
+          '地点',
+          '${library.savedPlaces.length} 项',
+        ),
+      if (library.savedNotes.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.bookmark_border,
+          '纸条',
+          '${library.savedNotes.length} 张',
+        ),
+      if (library.savedRoutes.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.route_outlined,
+          '路线',
+          '${library.savedRoutes.length} 条',
+        ),
+      if (library.journeys.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.timeline_outlined,
+          '行程',
+          '${library.journeys.length} 条',
+        ),
+      if (library.importedTracks.isNotEmpty)
+        _LibraryShelfEntry(
+          Icons.hiking_outlined,
+          '轨迹',
+          '${library.importedTracks.length} 条',
+        ),
+    ];
+    return LumaNestSurface(
+      tone: LumaNestSurfaceTone.paper,
+      child: Column(
+        children: [
+          for (var index = 0; index < entries.length; index++) ...[
+            _LibraryShelfRow(entry: entries[index]),
+            if (index < entries.length - 1) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LibraryShelfEntry {
+  const _LibraryShelfEntry(this.icon, this.label, this.value);
+  final IconData icon;
+  final String label;
+  final String value;
+}
+
+class _LibraryShelfRow extends StatelessWidget {
+  const _LibraryShelfRow({required this.entry});
+  final _LibraryShelfEntry entry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Row(
+      children: [
+        Icon(
+          entry.icon,
+          size: 18,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 12),
+        Text(entry.label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            entry.value,
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _ProfileHero extends StatelessWidget {
   const _ProfileHero();
 
@@ -1092,7 +1197,7 @@ class _ProfileHero extends StatelessWidget {
     final theme = Theme.of(context);
     return LumaNestSurface(
       tone: LumaNestSurfaceTone.paper,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
@@ -1117,7 +1222,7 @@ class _ProfileHero extends StatelessWidget {
               Text('本机空间', style: theme.textTheme.titleMedium),
               const SizedBox(height: 2),
               Text(
-                '偏好、收藏与创作记录不需要账号。',
+                '收藏与偏好只留在这台设备。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSecondaryContainer.withValues(
                     alpha: .82,

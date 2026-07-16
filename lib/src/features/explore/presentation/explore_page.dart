@@ -652,27 +652,16 @@ class _CategoryBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(nearbyCategoryProvider);
     return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .84),
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: Theme.of(
-            context,
-          ).colorScheme.outlineVariant.withValues(alpha: .72),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
+      type: MaterialType.transparency,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
         child: Row(
           children: [
             for (final category in NearbyPlaceCategory.values)
               Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 7),
                 child: ChoiceChip(
+                  visualDensity: VisualDensity.compact,
                   label: Text(category.label),
                   selected: category == selected,
                   onSelected: (_) {
@@ -707,19 +696,9 @@ class _NearbyResultPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final category = ref.watch(nearbyCategoryProvider);
-    return Material(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .92),
-      elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: .08),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: Theme.of(
-            context,
-          ).colorScheme.outlineVariant.withValues(alpha: .74),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
+    return LumaNestSurface(
+      tone: LumaNestSurfaceTone.mapOverlay,
+      borderRadius: BorderRadius.circular(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -736,13 +715,6 @@ class _NearbyResultPanel extends ConsumerWidget {
                 Text(
                   '附近${category.label}',
                   style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const Spacer(),
-                Text(
-                  '点击地点规划路线',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
                 ),
               ],
             ),
@@ -797,19 +769,11 @@ class _NearbyResultPanel extends ConsumerWidget {
                     return SizedBox(
                       width: 224,
                       child: Material(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerLow,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          side: BorderSide(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outlineVariant.withValues(alpha: .65),
-                          ),
-                        ),
-                        clipBehavior: Clip.antiAlias,
+                        color: Colors.transparent,
                         child: ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           dense: true,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 10,
