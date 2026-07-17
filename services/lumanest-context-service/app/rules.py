@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import math
 from datetime import datetime, timedelta, timezone
 
@@ -124,6 +125,13 @@ def _opportunities(
         return []
     result: list[PhotographyOpportunity] = []
 
+    def opportunity_id(kind: str, start: datetime) -> str:
+        # Public contracts permit lower-case opaque IDs only. Rule kinds use
+        # camelCase for their bounded enum values, so normalize them once
+        # before they are reused by the corridor and response models.
+        normalized = re.sub(r"[^a-z0-9_-]", "", kind.lower())
+        return f"photo-{normalized}-{start.strftime('%Y%m%d%H')}"
+
     def add(kind: str, start: datetime, score: int, confidence: float, scope: str,
             primary: str, evidence: list[tuple[str, str]], direction: float | None = None,
             fallback: str | None = None, hints: list[str] | None = None,
@@ -138,14 +146,15 @@ def _opportunities(
             target.model_copy(update={"arrival_deadline": start})
             if target is not None and scope == "point" else None
         )
+        identifier = opportunity_id(kind, start)
         corridor = build_opportunity_corridor(
             request.route,
             request.forecast.hourly,
-            opportunity_id=f"photo-{kind}-{start.strftime('%Y%m%d%H')}",
+            opportunity_id=identifier,
             geo_scope=scope,
         ).corridor
         result.append(PhotographyOpportunity.model_validate({
-            "id": f"photo-{kind}-{start.strftime('%Y%m%d%H')}", "kind": kind,
+            "id": identifier, "kind": kind,
             "startAt": start, "peakAt": peak, "endAt": end,
             "score": score, "confidence": confidence, "geoScope": scope,
             "directionDegrees": direction, "evidence": [{"label": label, "value": value} for label, value in evidence],
