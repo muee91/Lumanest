@@ -27,20 +27,10 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // extendBody lets page content scroll beneath the floating navigation
+      // island; pages add their own bottom padding for the last items.
       extendBody: true,
-      body: Stack(
-        children: [
-          Positioned.fill(child: navigationShell),
-          // Reserve only the interactive island; the page itself remains
-          // visible beneath the blurred margins and rounded corners.
-          const IgnorePointer(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: SizedBox(height: 72),
-            ),
-          ),
-        ],
-      ),
+      body: navigationShell,
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
@@ -134,7 +124,9 @@ class _NavigationButton extends StatelessWidget {
                 item.label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: color,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  // Selection is conveyed by the filled icon + primary color;
+                  // the label keeps a single weight to stay quiet.
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

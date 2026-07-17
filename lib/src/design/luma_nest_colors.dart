@@ -51,13 +51,14 @@ abstract final class LumaNestColors {
 }
 
 /// Shared geometry keeps the app calm and editorial instead of card-heavy.
+/// Three tiers: compact controls, regular content, expansive sheets/navigation.
 abstract final class LumaNestRadii {
-  /// Controls and compact metadata.
-  static const double compact = 10;
+  /// Controls, chips and compact metadata.
+  static const double compact = 8;
 
-  /// Standard content surfaces.
+  /// Standard content surfaces and cards.
   static const double regular = 16;
 
-  /// Navigation, sheets and deliberately prominent surfaces.
-  static const double expansive = 24;
+  /// Navigation island, sheets and deliberately prominent surfaces.
+  static const double expansive = 28;
 }

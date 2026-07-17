@@ -79,6 +79,64 @@ void main() {
       expect(theme.textTheme.displaySmall?.fontWeight, FontWeight.w700);
     });
 
+    test('keeps page titles and body copy on the system sans-serif face', () {
+      final theme = LumaNestTheme.dark;
+
+      // The brand face (ZcoolXiaoWei) must not leak into titles or body copy;
+      // they stay on the platform sans-serif (e.g. Roboto).
+      for (final style in [
+        theme.textTheme.displayLarge,
+        theme.textTheme.displayMedium,
+        theme.textTheme.displaySmall,
+        theme.textTheme.headlineLarge,
+        theme.textTheme.headlineSmall,
+        theme.textTheme.titleLarge,
+        theme.textTheme.titleMedium,
+        theme.textTheme.bodyLarge,
+        theme.textTheme.bodyMedium,
+      ]) {
+        expect(
+          style?.fontFamily,
+          isNot('ZcoolXiaoWei'),
+          reason: 'titles must stay on the sans-serif face',
+        );
+      }
+    });
+
+    test('uses the three-tier radii tokens', () {
+      expect(LumaNestRadii.compact, 8);
+      expect(LumaNestRadii.regular, 16);
+      expect(LumaNestRadii.expansive, 28);
+
+      final theme = LumaNestTheme.light;
+      // Buttons and inputs use the compact tier.
+      expect(
+        (theme.filledButtonTheme.style!.shape!.resolve({})!
+                as RoundedRectangleBorder)
+            .borderRadius
+            .resolve(TextDirection.ltr)
+            .topLeft
+            .x,
+        LumaNestRadii.compact,
+      );
+      // Cards use the regular tier.
+      expect(
+        (theme.cardTheme.shape as RoundedRectangleBorder).borderRadius
+            .resolve(TextDirection.ltr)
+            .topLeft
+            .x,
+        LumaNestRadii.regular,
+      );
+      // Sheets use the expansive tier.
+      expect(
+        (theme.bottomSheetTheme.shape as RoundedRectangleBorder).borderRadius
+            .resolve(TextDirection.ltr)
+            .topLeft
+            .x,
+        LumaNestRadii.expansive,
+      );
+    });
+
     test('high contrast themes increase primary contrast', () {
       final normalLight = _contrastRatio(
         LumaNestTheme.light.colorScheme.primary,

@@ -19,27 +19,25 @@ abstract final class LumaNestTheme {
         ? Typography.material2021().white
         : Typography.material2021().black;
     final textTheme = typography.copyWith(
-      // The display face is reserved for brand and poetic scene statements.
+      // Page titles and body copy use the system sans-serif face. The brand
+      // face (ZcoolXiaoWei) is reserved for brand and paper-note surfaces via
+      // LumaNestTextStyles; it is never applied to titles or running text.
       displayLarge: typography.displayLarge?.copyWith(
-        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -1.4,
         height: 1.08,
       ),
       displayMedium: typography.displayMedium?.copyWith(
-        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -1,
         height: 1.1,
       ),
       displaySmall: typography.displaySmall?.copyWith(
-        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -.6,
         height: 1.14,
       ),
       headlineLarge: typography.headlineLarge?.copyWith(
-        fontFamily: 'ZcoolXiaoWei',
         fontWeight: FontWeight.w700,
         letterSpacing: -.4,
         height: 1.18,
