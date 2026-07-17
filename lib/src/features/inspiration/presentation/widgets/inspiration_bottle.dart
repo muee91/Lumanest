@@ -327,61 +327,75 @@ class _BottlePaper extends StatelessWidget {
   final GestureDragEndCallback onPanEnd;
 
   @override
-  Widget build(BuildContext context) => AnimatedPositioned(
-    duration: const Duration(milliseconds: 520),
-    curve: Curves.easeOutBack,
-    left: layout.leftFraction * _InspirationBottleState._interiorWidth,
-    top: entered
-        ? layout.topFraction * _InspirationBottleState._interiorHeight
-        : -_InspirationBottleState._paperHeight,
-    child: Transform.translate(
-      offset: dragOffset,
-      child: Transform.rotate(
-        angle: layout.rotation + (dragged ? .08 : 0),
-        child: GestureDetector(
-          onTap: onTap,
-          onPanStart: (_) => onPanStart(),
-          onPanUpdate: onPanUpdate,
-          onPanEnd: onPanEnd,
-          child: AnimatedScale(
-            duration: const Duration(milliseconds: 180),
-            scale: selected || dragged ? 1.07 : 1,
-            child: Container(
-              key: Key('bottle-paper-${note.id}'),
-              width: _InspirationBottleState._paperWidth,
-              height: _InspirationBottleState._paperHeight,
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              decoration: BoxDecoration(
-                color: const Color(
-                  0xFFF3E9D9,
-                ).withValues(alpha: selected ? .98 : .78),
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(
-                  color: const Color(0xFF806C55).withValues(alpha: .26),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: selected ? .18 : .08),
-                    blurRadius: selected ? 10 : 4,
-                    offset: const Offset(0, 3),
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      left: layout.leftFraction * _InspirationBottleState._interiorWidth,
+      top: entered
+          ? layout.topFraction * _InspirationBottleState._interiorHeight
+          : -_InspirationBottleState._paperHeight,
+      child: Transform.translate(
+        offset: dragOffset,
+        child: Transform.rotate(
+          angle: layout.rotation + (dragged ? .08 : 0),
+          child: GestureDetector(
+            onTap: onTap,
+            onPanStart: (_) => onPanStart(),
+            onPanUpdate: onPanUpdate,
+            onPanEnd: onPanEnd,
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              scale: selected || dragged ? 1.07 : 1,
+              child: Container(
+                key: Key('bottle-paper-${note.id}'),
+                width: _InspirationBottleState._paperWidth,
+                height: _InspirationBottleState._paperHeight,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: dark
+                        ? const <Color>[Color(0xFFF6ECDC), Color(0xFFEADFCB)]
+                        : const <Color>[Colors.white, Color(0xFFF3E9D9)],
                   ),
-                ],
-              ),
-              child: Text(
-                note.displayLabel,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFF3B3832),
-                  fontWeight: FontWeight.w700,
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(
+                    color: const Color(
+                      0xFF806C55,
+                    ).withValues(alpha: dark ? .45 : .26),
+                    width: dark ? 1.1 : 1,
+                  ),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: selected
+                            ? (dark ? .32 : .18)
+                            : (dark ? .18 : .08),
+                      ),
+                      blurRadius: selected ? 10 : 4,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  note.displayLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: const Color(0xFF3B3832),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

@@ -95,6 +95,24 @@ void main() {
     expect(tester.binding.transientCallbackCount, 0);
   });
 
+  testWidgets(
+    'first screen keeps the bottle and draw as the only protagonists',
+    (tester) async {
+      await tester.pumpWidget(_app(disableAnimations: true));
+      await tester.pump();
+
+      expect(find.byKey(const Key('inspiration-bottle')), findsOneWidget);
+      expect(find.text('抽一张'), findsOneWidget);
+      // The explanatory header row and note count are gone.
+      expect(find.textContaining(' 张'), findsNothing);
+      // No drawn note hero yet.
+      expect(
+        find.byKey(const Key('selected-inspiration-reflection')),
+        findsNothing,
+      );
+    },
+  );
+
   testWidgets('drawing changes the selected note without changing facts', (
     tester,
   ) async {
@@ -114,17 +132,54 @@ void main() {
     expect(find.text('找倒影🪞'), findsWidgets);
   });
 
-  testWidgets('saves only the selected creative note to the local library', (
+  testWidgets('details stay collapsed after drawing and expand on demand', (
     tester,
   ) async {
-    final store = _MemoryLibraryStore();
+    await tester.pumpWidget(_app(disableAnimations: true));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('draw-inspiration-note')));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // The peek affordance is visible, but the long detail and actions are not.
+    expect(find.text('详情'), findsOneWidget);
+    expect(find.text('风正在变小，去湖岸找一段干净的水面。'), findsNothing);
+    expect(find.text('收藏纸条'), findsNothing);
+
+    await tester.tap(find.text('详情'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('风正在变小，去湖岸找一段干净的水面。'), findsOneWidget);
+    expect(find.text('查看机会'), findsOneWidget);
+    expect(find.text('收藏纸条'), findsOneWidget);
+    expect(find.text('收起'), findsOneWidget);
+  });
+
+  testWidgets('a factual note is labelled as an established opportunity', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(disableAnimations: true));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('draw-inspiration-note')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('详情'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('已成立机会'), findsOneWidget);
+    expect(find.text('查看机会'), findsOneWidget);
+  });
+
+  testWidgets('a creative note is labelled as a creative direction', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [userLibraryStoreProvider.overrideWithValue(store)],
         child: MaterialApp(
-          home: InspirationPage(
-            snapshotAsync: AsyncValue.data(
-              ContextFixtures.lakeSunset(observedAt: DateTime.now()),
+          home: MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: InspirationPage(
+              snapshotAsync: AsyncValue.data(ContextFixtures.quietCity()),
             ),
           ),
         ),
@@ -133,7 +188,60 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.byKey(const Key('draw-inspiration-note')));
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('详情'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('创作方向'), findsOneWidget);
+    expect(find.text('去探索'), findsOneWidget);
+    // Creative prompts never claim an established opportunity.
+    expect(find.text('已成立机会'), findsNothing);
+  });
+
+  testWidgets('drawing again collapses the detail panel', (tester) async {
+    await tester.pumpWidget(_app(disableAnimations: true));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('draw-inspiration-note')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('详情'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('收起'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('draw-inspiration-note')));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('详情'), findsOneWidget);
+    expect(find.text('风正在变小，去湖岸找一段干净的水面。'), findsNothing);
+  });
+
+  testWidgets('saves only the selected note to the local library', (
+    tester,
+  ) async {
+    final store = _MemoryLibraryStore();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+        child: MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: InspirationPage(
+              snapshotAsync: AsyncValue.data(
+                ContextFixtures.lakeSunset(observedAt: DateTime.now()),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('draw-inspiration-note')));
+    await tester.pump(const Duration(milliseconds: 400));
+    // Details are on demand: expand before saving.
+    await tester.tap(find.text('详情'));
+    await tester.pump(const Duration(milliseconds: 300));
+
     final saveButton = find.text('收藏纸条');
     final saveControl = tester.widget<TextButton>(
       find.ancestor(of: saveButton, matching: find.byType(TextButton)),

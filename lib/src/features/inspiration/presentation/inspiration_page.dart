@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -99,6 +100,7 @@ class InspirationPage extends ConsumerWidget {
               preferences.ambientMotionMode == AmbientMotionMode.full &&
               !preferences.highContrast &&
               !conserveDeviceEnergy,
+          allowHaptics: !reduceMotion && !conserveDeviceEnergy,
           onExplore: onExplore ?? () => context.go('/explore'),
           onAction: (note) => _performAction(context, note),
           isSaved: (note) => savedNoteIds.contains(
@@ -207,6 +209,7 @@ class _BottleScaffold extends StatefulWidget {
     required this.snapshotId,
     required this.reduceMotion,
     required this.enableShake,
+    required this.allowHaptics,
     required this.onExplore,
     required this.onAction,
     this.onSave,
@@ -216,6 +219,7 @@ class _BottleScaffold extends StatefulWidget {
   final String snapshotId;
   final bool reduceMotion;
   final bool enableShake;
+  final bool allowHaptics;
   final VoidCallback onExplore;
   final void Function(InspirationNote note) onAction;
   final Future<void> Function(InspirationNote note)? onSave;
@@ -228,6 +232,7 @@ class _BottleScaffold extends StatefulWidget {
 class _BottleScaffoldState extends State<_BottleScaffold> {
   var _selectedIndex = 0;
   var _hasDrawn = false;
+  var _detailsExpanded = false;
 
   @override
   void didUpdateWidget(_BottleScaffold oldWidget) {
@@ -241,49 +246,29 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
 
   void _draw() {
     if (widget.notes.isEmpty) return;
+    if (widget.allowHaptics) HapticFeedback.selectionClick();
     setState(() {
       if (_hasDrawn) {
         _selectedIndex = (_selectedIndex + 1) % widget.notes.length;
       }
       _hasDrawn = true;
+      _detailsExpanded = false;
     });
-    _openSelectedNote();
   }
 
   void _select(InspirationNote note) {
     final index = widget.notes.indexWhere((item) => item.id == note.id);
     if (index < 0) return;
-    setState(() => _selectedIndex = index);
-    _openSelectedNote();
+    if (widget.allowHaptics) HapticFeedback.selectionClick();
+    setState(() {
+      _selectedIndex = index;
+      _hasDrawn = true;
+      _detailsExpanded = false;
+    });
   }
 
-  void _openSelectedNote() {
-    final note = widget.notes[_selectedIndex % widget.notes.length];
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) => _InspirationNoteSheet(
-        note: note,
-        isSaved: widget.isSaved?.call(note) == true,
-        onAction: () {
-          Navigator.pop(context);
-          widget.onAction(note);
-        },
-        onSave: widget.onSave == null || widget.isSaved?.call(note) == true
-            ? null
-            : () async {
-                await widget.onSave!(note);
-                if (context.mounted) Navigator.pop(context);
-                if (mounted) {
-                  ScaffoldMessenger.of(
-                    this.context,
-                  ).showSnackBar(const SnackBar(content: Text('已收藏')));
-                }
-              },
-      ),
-    );
+  void _toggleDetails() {
+    setState(() => _detailsExpanded = !_detailsExpanded);
   }
 
   @override
@@ -294,156 +279,287 @@ class _BottleScaffoldState extends State<_BottleScaffold> {
     if (notes.isEmpty) return _emptyBottleScaffold(context);
     final index = _selectedIndex % notes.length;
     final note = notes[index];
+    final saved = widget.isSaved?.call(note) == true;
     return Scaffold(
       appBar: AppBar(title: const Text('灵感')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            Row(
-              children: [
-                Text('灵感', style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                Text(
-                  '${notes.length} 张',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            children: <Widget>[
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: Duration(
+                    milliseconds: widget.reduceMotion ? 0 : 320,
                   ),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(
+                        begin: .94,
+                        end: 1,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: _hasDrawn
+                      ? _NoteHero(
+                          key: ValueKey(note.id),
+                          note: note,
+                          onTap: _toggleDetails,
+                        )
+                      : InspirationBottle(
+                          key: const ValueKey('inspiration-bottle-stage'),
+                          snapshotId: widget.snapshotId,
+                          notes: notes,
+                          selectedId: note.id,
+                          reduceMotion: widget.reduceMotion,
+                          enableShake: widget.enableShake,
+                          onDraw: _draw,
+                          onSelect: _select,
+                        ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: InspirationBottle(
-                snapshotId: widget.snapshotId,
-                notes: notes,
-                selectedId: note.id,
-                reduceMotion: widget.reduceMotion,
-                enableShake: widget.enableShake,
-                onDraw: _draw,
-                onSelect: _select,
               ),
-            ),
-            const SizedBox(height: 4),
-            Center(
-              child: FilledButton.icon(
-                key: const Key('draw-inspiration-note'),
-                onPressed: _draw,
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('抽一张'),
+              if (_hasDrawn)
+                _DetailPanel(
+                  note: note,
+                  expanded: _detailsExpanded,
+                  reduceMotion: widget.reduceMotion,
+                  onToggle: _toggleDetails,
+                  isSaved: saved,
+                  onAction: () => widget.onAction(note),
+                  onSave: widget.onSave == null || saved
+                      ? null
+                      : () async {
+                          await widget.onSave!(note);
+                          if (mounted) setState(() {});
+                        },
+                ),
+              const SizedBox(height: 4),
+              Center(
+                child: FilledButton.icon(
+                  key: const Key('draw-inspiration-note'),
+                  onPressed: _draw,
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('抽一张'),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  /// Quiet empty state. It never fabricates weather or safety facts; it only
+  /// offers the single forward action that already exists for this page.
+  Widget _emptyBottleScaffold(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('灵感')),
+    body: SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('暂时没有纸条', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              TextButton(onPressed: widget.onExplore, child: const Text('去探索')),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
-class _InspirationNoteSheet extends StatelessWidget {
-  const _InspirationNoteSheet({
+/// The drawn note as the centered subject. Tapping it toggles the on-demand
+/// detail panel; the long detail and action buttons are never dumped here.
+class _NoteHero extends StatelessWidget {
+  const _NoteHero({super.key, required this.note, required this.onTap});
+
+  final InspirationNote note;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Semantics(
+        button: true,
+        label:
+            '${note.displayLabel}，'
+            '${note.isFactual ? '已成立机会' : '创作方向'}，'
+            '双击查看详情',
+        child: GestureDetector(
+          onTap: onTap,
+          child: _Paper(
+            key: Key('selected-inspiration-${note.id}'),
+            text: note.displayLabel,
+            large: true,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Bottom, on-demand detail expansion. The peek row only states which kind of
+/// note this is; the detail text, action and save affordances stay collapsed
+/// until the user asks for them.
+class _DetailPanel extends StatelessWidget {
+  const _DetailPanel({
     required this.note,
+    required this.expanded,
+    required this.reduceMotion,
+    required this.onToggle,
     required this.isSaved,
     required this.onAction,
     this.onSave,
   });
 
   final InspirationNote note;
+  final bool expanded;
+  final bool reduceMotion;
+  final VoidCallback onToggle;
   final bool isSaved;
   final VoidCallback onAction;
   final Future<void> Function()? onSave;
 
   @override
-  Widget build(BuildContext context) => FractionallySizedBox(
-    heightFactor: .72,
-    child: SingleChildScrollView(
-      key: const Key('inspiration-note-sheet-scroll'),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Paper(
-            key: Key('selected-inspiration-${note.id}'),
-            text: note.displayLabel,
-            large: true,
-          ),
-          if (onSave != null) ...[
-            const SizedBox(height: 10),
-            TextButton.icon(
-              onPressed: onSave,
-              icon: const Icon(Icons.bookmark_border),
-              label: const Text('收藏纸条'),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  note.isFactual
+                      ? Icons.verified_outlined
+                      : Icons.brush_outlined,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  note.isFactual ? '已成立机会' : '创作方向',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  expanded ? '收起' : '详情',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
             ),
-          ] else if (isSaved)
-            const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: Center(child: Text('已收藏')),
-            ),
-          const SizedBox(height: 18),
-          Text(
-            note.isFactual ? '已成立机会' : '创作方向',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(note.detail, style: theme.textTheme.bodyLarge),
+                const SizedBox(height: 14),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onAction,
+                        icon: const Icon(Icons.arrow_outward),
+                        label: Text(note.isFactual ? '查看机会' : '去探索'),
+                      ),
+                    ),
+                    if (onSave != null) ...[
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: onSave,
+                        icon: const Icon(Icons.bookmark_border),
+                        label: const Text('收藏纸条'),
+                      ),
+                    ] else if (isSaved)
+                      TextButton.icon(
+                        onPressed: null,
+                        icon: const Icon(Icons.bookmark_added_outlined),
+                        label: const Text('已收藏'),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 7),
-          Text(note.detail, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 22),
-          FilledButton.icon(
-            onPressed: onAction,
-            icon: const Icon(Icons.arrow_outward),
-            label: Text(note.isFactual ? '查看机会' : '去探索'),
-          ),
-        ],
-      ),
-    ),
-  );
+      ],
+    );
+  }
 }
 
-Widget _emptyBottleScaffold(BuildContext context) => Scaffold(
-  appBar: AppBar(title: const Text('灵感')),
-  body: SafeArea(
-    child: Center(
-      child: Text('暂时没有纸条', style: Theme.of(context).textTheme.titleLarge),
-    ),
-  ),
-);
-
+/// Paper material with a warm gradient and a soft shadow. In dark mode the
+/// surface is solid (not a muddy overlay) so the card lifts cleanly off the
+/// dark background while dark ink stays legible.
 class _Paper extends StatelessWidget {
   const _Paper({super.key, required this.text, this.large = false});
   final String text;
   final bool large;
+
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color:
-          (Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFFF3E9D9)
-                  : Colors.white)
-              .withValues(alpha: .86),
-      borderRadius: BorderRadius.circular(6),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x22000000),
-          blurRadius: 8,
-          offset: Offset(1, 4),
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final gradient = dark
+        ? const <Color>[Color(0xFFF6ECDC), Color(0xFFEADFCB)]
+        : const <Color>[Colors.white, Color(0xFFF3E9D9)];
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradient,
         ),
-      ],
-    ),
-    child: Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: large ? 26 : 12,
-        vertical: large ? 18 : 9,
+        borderRadius: BorderRadius.circular(large ? 10 : 6),
+        border: Border.all(
+          color: const Color(0xFF806C55).withValues(alpha: dark ? .45 : .26),
+          width: dark ? 1.2 : 1,
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: dark ? .28 : .14),
+            blurRadius: dark ? 18 : 8,
+            offset: Offset(0, dark ? 8 : 4),
+          ),
+        ],
       ),
-      child: Text(
-        text,
-        textAlign: large ? TextAlign.center : null,
-        style: TextStyle(
-          fontSize: large ? 24 : 13,
-          fontWeight: FontWeight.w600,
-          color: const Color(0xFF2B2924),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: large ? 30 : 12,
+          vertical: large ? 22 : 9,
+        ),
+        child: Text(
+          text,
+          textAlign: large ? TextAlign.center : null,
+          style: TextStyle(
+            fontSize: large ? 26 : 13,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF2B2924),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
