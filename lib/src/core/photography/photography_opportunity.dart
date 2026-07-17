@@ -205,6 +205,8 @@ class PhotographyOpportunity {
       other.isReturnJourney == isReturnJourney &&
       _listEquals(other.equipmentHints, equipmentHints) &&
       _setEquals(other.requiredCapabilities, requiredCapabilities) &&
+      _targetEquals(other.target, target) &&
+      _corridorEquals(other.corridor, corridor) &&
       _listEquals(other.evidence, evidence);
 
   @override
@@ -226,6 +228,8 @@ class PhotographyOpportunity {
     Object.hashAllUnordered(requiredCapabilities),
     isAtCurrentLocation,
     isReturnJourney,
+    _targetHash(target),
+    _corridorHash(corridor),
   );
 }
 
@@ -343,3 +347,72 @@ bool _listEquals<T>(List<T> first, List<T> second) {
   }
   return true;
 }
+
+bool _targetEquals(PhotographyTarget? first, PhotographyTarget? second) {
+  if (identical(first, second)) return true;
+  if (first == null || second == null) return false;
+  return first.id == second.id &&
+      first.name == second.name &&
+      first.kind == second.kind &&
+      first.coordinate.latitude == second.coordinate.latitude &&
+      first.coordinate.longitude == second.coordinate.longitude &&
+      first.coordinate.coordinateSystem == second.coordinate.coordinateSystem &&
+      first.arrivalDeadline == second.arrivalDeadline;
+}
+
+int? _targetHash(PhotographyTarget? value) => value == null
+    ? null
+    : Object.hash(
+        value.id,
+        value.name,
+        value.kind,
+        value.coordinate.latitude,
+        value.coordinate.longitude,
+        value.coordinate.coordinateSystem,
+        value.arrivalDeadline,
+      );
+
+bool _corridorEquals(PhotographyCorridor? first, PhotographyCorridor? second) {
+  if (identical(first, second)) return true;
+  if (first == null || second == null || first.routeId != second.routeId) {
+    return false;
+  }
+  if (first.observations.length != second.observations.length) return false;
+  for (var index = 0; index < first.observations.length; index += 1) {
+    final left = first.observations[index];
+    final right = second.observations[index];
+    if (left.progress != right.progress ||
+        left.expectedAt != right.expectedAt ||
+        left.condition != right.condition ||
+        left.cloudCoverPercent != right.cloudCoverPercent ||
+        left.windSpeedMps != right.windSpeedMps ||
+        left.precipitationMm != right.precipitationMm ||
+        left.thunder != right.thunder ||
+        left.sunAzimuthDegrees != right.sunAzimuthDegrees ||
+        left.opportunityId != right.opportunityId) {
+      return false;
+    }
+  }
+  return true;
+}
+
+int? _corridorHash(PhotographyCorridor? value) => value == null
+    ? null
+    : Object.hash(
+        value.routeId,
+        Object.hashAll(
+          value.observations.map(
+            (item) => Object.hash(
+              item.progress,
+              item.expectedAt,
+              item.condition,
+              item.cloudCoverPercent,
+              item.windSpeedMps,
+              item.precipitationMm,
+              item.thunder,
+              item.sunAzimuthDegrees,
+              item.opportunityId,
+            ),
+          ),
+        ),
+      );

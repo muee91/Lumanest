@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
 
 void main() {
@@ -139,5 +140,69 @@ void main() {
       ),
       throwsUnsupportedError,
     );
+  });
+
+  test('target and route-corridor changes participate in value equality', () {
+    final target = PhotographyTarget(
+      id: 'target_123',
+      name: '湖东岸',
+      kind: PhotographyTargetKind.lakeshore,
+      coordinate: const GeoPoint(latitude: 30.1, longitude: 120.2),
+      arrivalDeadline: now.add(const Duration(minutes: 20)),
+    );
+    final corridor = PhotographyCorridor(
+      routeId: 'route_123',
+      observations: [
+        PhotographyCorridorObservation(
+          progress: .5,
+          expectedAt: now.add(const Duration(minutes: 12)),
+          condition: 'cloudy',
+          windSpeedMps: 2.2,
+          precipitationMm: 0,
+          thunder: false,
+          opportunityId: 'sunset',
+        ),
+      ],
+    );
+    final base = opportunity();
+    final targeted = PhotographyOpportunity(
+      id: 'sunset',
+      title: '晚霞窗口',
+      startsAt: now,
+      peaksAt: now.add(const Duration(minutes: 15)),
+      expiresAt: now.add(const Duration(minutes: 40)),
+      confidence: .9,
+      target: target,
+      evidence: const [
+        PhotographyEvidence(
+          id: 'clouds',
+          kind: PhotographyEvidenceKind.weather,
+          statement: '云层变化已成立。',
+          confidence: .8,
+        ),
+      ],
+    );
+    final routed = PhotographyOpportunity(
+      id: 'sunset',
+      title: '晚霞窗口',
+      startsAt: now,
+      peaksAt: now.add(const Duration(minutes: 15)),
+      expiresAt: now.add(const Duration(minutes: 40)),
+      confidence: .9,
+      corridor: corridor,
+      evidence: const [
+        PhotographyEvidence(
+          id: 'clouds',
+          kind: PhotographyEvidenceKind.weather,
+          statement: '云层变化已成立。',
+          confidence: .8,
+        ),
+      ],
+    );
+
+    expect(targeted, isNot(base));
+    expect(routed, isNot(base));
+    expect(targeted.hashCode, isNot(base.hashCode));
+    expect(routed.hashCode, isNot(base.hashCode));
   });
 }
