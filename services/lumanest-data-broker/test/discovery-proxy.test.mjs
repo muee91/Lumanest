@@ -8,14 +8,17 @@ import {
 } from '../src/discovery/proxy.mjs';
 
 const request = {
-  contractVersion: 1,
-  coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+  missionType: 'humanityEvents',
+  focus: '早市 夜市 展览',
   locale: 'zh-CN',
-  focus: 'photography',
+  region: { latitude: 30.25, longitude: 120.15, radiusMeters: 5000 },
+  timeRange: { startsAt: '2026-07-18T00:00:00Z', endsAt: '2026-07-25T00:00:00Z' },
+  routeCorridor: null,
+  interests: ['humanityStreet'],
 };
 
 const ready = {
-  contractVersion: 1,
+  missionType: 'humanityEvents',
   status: 'ready',
   generatedAt: '2026-07-20T02:00:00Z',
   expiresAt: '2026-07-20T08:00:00Z',
@@ -45,9 +48,10 @@ test('discovery request has an exact privacy-preserving public contract', () => 
   for (const forbidden of ['deviceId', 'userId', 'preferences', 'searchQuery', 'fingerprint']) {
     assert.equal(validDiscoveryRequest({ ...request, [forbidden]: 'forbidden' }), false);
   }
-  assert.equal(validDiscoveryRequest({ ...request, coordinate: {
-    ...request.coordinate, system: 'gcj02',
+  assert.equal(validDiscoveryRequest({ ...request, region: {
+    ...request.region, radiusMeters: 50,
   } }), false);
+  assert.equal(validDiscoveryRequest({ ...request, missionType: 'routeConditions' }), false);
 });
 
 test('discovery proxy forwards only the bounded discovery contract', async () => {
@@ -71,10 +75,7 @@ test('discovery proxy forwards only the bounded discovery contract', async () =>
   assert.equal(captured.url.toString(), 'http://discovery-api:8001/internal/v1/discover');
   assert.equal(captured.options.headers['X-Internal-Service-Token'], 'internal-discovery-token');
   assert.deepEqual(JSON.parse(captured.options.body), {
-    contractVersion: 1,
-    coordinate: request.coordinate,
-    locale: 'zh-CN',
-    focus: 'photography',
+    ...request,
     sourcePolicies: [{ id: 'official-source', version: '2026-07' }],
   });
   assert.equal(captured.options.body.includes('internal-discovery-token'), false);

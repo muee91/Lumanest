@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/weather/weather_observation.dart';
 import 'package:luma_nest/src/core/context/context_rule_engine.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
+import 'package:luma_nest/src/core/context/scene_context.dart';
 
 class ContextSnapshotBuilder {
   const ContextSnapshotBuilder({
@@ -24,13 +25,38 @@ class ContextSnapshotBuilder {
     SceneEvidence sceneEvidence = const SceneEvidence(),
     RouteContextState route = RouteContextState.none,
   }) {
-    final scene = sceneClassifier.classify(sceneEvidence, route: route);
+    final scene = sceneClassifier.classify(sceneEvidence);
+    final activity = route.isActive
+        ? route.mode == ContextRouteMode.hiking
+              ? ActivityState.hiking
+              : ActivityState.driving
+        : sceneEvidence.hiking
+        ? ActivityState.hiking
+        : sceneEvidence.driving
+        ? ActivityState.driving
+        : ActivityState.stationary;
+    final facets = <SceneFacet>{
+      if (sceneEvidence.urban) ...{SceneFacet.skyline, SceneFacet.architecture},
+      if (sceneEvidence.waterBody) ...{
+        SceneFacet.lake,
+        SceneFacet.reflectiveSurface,
+      },
+      if (sceneEvidence.mountainous) SceneFacet.reviewedViewpoint,
+      if (sceneEvidence.aridLand) ...{SceneFacet.dune, SceneFacet.openHorizon},
+      if (sceneEvidence.settlement) SceneFacet.villageStreet,
+      if (activity == ActivityState.driving) SceneFacet.openRoad,
+    };
+    final sceneContext = SceneContextClassifier.classify(
+      facets: facets,
+      activity: activity,
+    );
     final events = ruleEngine.evaluate(
       scene: scene,
       weather: weather,
       solar: solar,
       generatedAt: generatedAt,
       route: route,
+      sceneContext: sceneContext,
     );
     final activeRoute = route.isActive && route.hasRoute;
     return ContextSnapshot(
@@ -38,6 +64,7 @@ class ContextSnapshotBuilder {
       observedAt: weather.observedAt,
       expiresAt: generatedAt.add(const Duration(minutes: 15)),
       primaryScene: scene,
+      sceneContext: sceneContext,
       dayPhase: solar.dayPhase,
       weather: weather.contextWeatherType,
       activeRoute: activeRoute,

@@ -1,0 +1,2436 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": 1,
+  "items": [
+    {
+      "id": "session.water.morning",
+      "catalogTier": "core",
+      "coreCapability": "available",
+      "modelType": "shootingSession",
+      "family": "water",
+      "presentation": {
+        "zhCN": {
+          "name": "湖岸晨光会话",
+          "shortLabel": "晨光临水",
+          "emoji": "🌅",
+          "degradedName": "湖岸晨光观察",
+          "fallbackSummary": "晨间水面条件正在形成，先看风和光线的变化。"
+        }
+      },
+      "primaryScenes": [
+        "inlandWater",
+        "wetland",
+        "coast"
+      ],
+      "sceneFacets": [
+        "lake",
+        "river",
+        "reservoir",
+        "wetland",
+        "coast",
+        "reflectiveSurface",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "wind"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "visibility",
+        "terrain",
+        "lineOfSight"
+      ],
+      "timingPolicy": "timing.waterMorning",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.65,
+      "dedupeGroup": "water-morning",
+      "suppresses": [
+        "event.water.reflection"
+      ],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "session.water.evening",
+      "catalogTier": "core",
+      "coreCapability": "available",
+      "modelType": "shootingSession",
+      "family": "water",
+      "presentation": {
+        "zhCN": {
+          "name": "湖岸晚间会话",
+          "shortLabel": "湖岸晚光",
+          "emoji": "🌇",
+          "degradedName": "湖岸晚光观察",
+          "fallbackSummary": "日落、倒影和蓝调正在形成一个连续窗口。"
+        }
+      },
+      "primaryScenes": [
+        "inlandWater",
+        "wetland",
+        "coast"
+      ],
+      "sceneFacets": [
+        "lake",
+        "river",
+        "reservoir",
+        "wetland",
+        "coast",
+        "reflectiveSurface",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "wind"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "visibility",
+        "terrain",
+        "lineOfSight"
+      ],
+      "timingPolicy": "timing.waterEvening",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.65,
+      "dedupeGroup": "water-evening",
+      "suppresses": [
+        "event.water.reflection",
+        "event.sky.sunset_glow"
+      ],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "event.water.reflection",
+      "catalogTier": "legacyOnly",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "water",
+      "presentation": {
+        "zhCN": {
+          "name": "独立倒影窗口",
+          "shortLabel": "去看倒影",
+          "emoji": "🪞"
+        }
+      },
+      "primaryScenes": [
+        "inlandWater",
+        "wetland",
+        "coast"
+      ],
+      "sceneFacets": [
+        "lake",
+        "river",
+        "reservoir",
+        "wetland",
+        "coast",
+        "reflectiveSurface"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "wind"
+      ],
+      "optionalEvidence": [
+        "light",
+        "visibility"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "water-reflection",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "heavy-rain",
+        "thunderstorm"
+      ],
+      "preferenceAffinities": [
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "event.water.long_exposure",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "water",
+      "presentation": {
+        "zhCN": {
+          "name": "水域长曝光窗口",
+          "shortLabel": "让水变慢",
+          "emoji": "〰️"
+        }
+      },
+      "primaryScenes": [
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "river",
+        "waterfall",
+        "coast",
+        "reflectiveSurface"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "wind",
+        "legalStop"
+      ],
+      "optionalEvidence": [
+        "light",
+        "tide"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "water-long-exposure",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "session.coast.golden_hour",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "shootingSession",
+      "family": "water",
+      "presentation": {
+        "zhCN": {
+          "name": "海岸黄金时段会话",
+          "shortLabel": "海岸金光",
+          "emoji": "🌊"
+        }
+      },
+      "primaryScenes": [
+        "coast"
+      ],
+      "sceneFacets": [
+        "coast",
+        "tidalFlat",
+        "openHorizon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "tide"
+      ],
+      "optionalEvidence": [
+        "wind",
+        "cloudLayers",
+        "legalStop"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "coast-golden",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "event.coast.tide",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "water",
+      "presentation": {
+        "zhCN": {
+          "name": "海岸潮汐窗口",
+          "shortLabel": "潮水正好",
+          "emoji": "🌊"
+        }
+      },
+      "primaryScenes": [
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "coast",
+        "tidalFlat"
+      ],
+      "requiredEvidence": [
+        "place",
+        "tide",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "wind",
+        "light",
+        "legalStop"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "coast-tide",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "session.mountain.morning",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "shootingSession",
+      "family": "mountain",
+      "presentation": {
+        "zhCN": {
+          "name": "山地晨光会话",
+          "shortLabel": "山要亮了",
+          "emoji": "⛰️",
+          "degradedName": "山地晨光候选",
+          "fallbackSummary": "山体附近存在晨间暖光条件，当前不能承诺具体山峰受光。"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "snowCover",
+        "glacier",
+        "canyon",
+        "reviewedPeak",
+        "reviewedViewpoint",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "terrain",
+        "lineOfSight",
+        "cloudLayers"
+      ],
+      "timingPolicy": "timing.mountainMorning",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.65,
+      "dedupeGroup": "mountain-morning",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "heavy-rain",
+        "low-visibility",
+        "trail-return-risk",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "session.mountain.evening",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "shootingSession",
+      "family": "mountain",
+      "presentation": {
+        "zhCN": {
+          "name": "山地晚光会话",
+          "shortLabel": "晚光上山",
+          "emoji": "🏔️",
+          "degradedName": "山地晚光候选",
+          "fallbackSummary": "山地晚间光线正在变化，当前不能承诺日照金山。"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "snowCover",
+        "glacier",
+        "canyon",
+        "reviewedPeak",
+        "reviewedViewpoint",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "terrain",
+        "lineOfSight",
+        "cloudLayers",
+        "route"
+      ],
+      "timingPolicy": "timing.mountainEvening",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.65,
+      "dedupeGroup": "mountain-evening",
+      "suppresses": [
+        "event.sky.sunset_glow"
+      ],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "heavy-rain",
+        "low-visibility",
+        "trail-return-risk",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.mountain.alpenglow_verified",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "mountain",
+      "presentation": {
+        "zhCN": {
+          "name": "已验证山体金山",
+          "shortLabel": "山峰要亮",
+          "emoji": "🏔️"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "reviewedPeak",
+        "reviewedViewpoint",
+        "snowCover",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "terrain",
+        "lineOfSight"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "visibility"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "mountain-alpenglow",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "low-visibility",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.mountain.cloud_sea",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "mountain",
+      "presentation": {
+        "zhCN": {
+          "name": "山地云海",
+          "shortLabel": "云海候选",
+          "emoji": "☁️"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "canyon",
+        "reviewedViewpoint",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "cloudLayers",
+        "humidityDewPoint",
+        "terrain"
+      ],
+      "optionalEvidence": [
+        "visibility",
+        "wind"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "mountain-cloud-sea",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "low-visibility",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.mountain.post_snow_light",
+      "catalogTier": "core",
+      "coreCapability": "unavailable",
+      "modelType": "factualEvent",
+      "family": "mountain",
+      "presentation": {
+        "zhCN": {
+          "name": "雪后光影",
+          "shortLabel": "雪后见光",
+          "emoji": "❄️",
+          "degradedName": "不显示",
+          "fallbackSummary": "缺少降雪历史或积雪证据时不生成。"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau",
+        "forest"
+      ],
+      "sceneFacets": [
+        "snowCover",
+        "reviewedPeak",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "precipitation",
+        "light",
+        "snowCover"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "visibility"
+      ],
+      "timingPolicy": "timing.postSnow",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.72,
+      "dedupeGroup": "mountain-post-snow",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "heavy-rain",
+        "low-visibility",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.mountain.moon_alignment",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "mountain",
+      "presentation": {
+        "zhCN": {
+          "name": "山峰月出对位",
+          "shortLabel": "月上山峰",
+          "emoji": "🌕"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "reviewedPeak",
+        "reviewedViewpoint",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "moonTrajectory",
+        "terrain",
+        "lineOfSight",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "light",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "mountain-moon-alignment",
+      "suppresses": [],
+      "safetyConflicts": [
+        "low-visibility",
+        "official-closure",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "session.city.blue_hour",
+      "catalogTier": "core",
+      "coreCapability": "available",
+      "modelType": "shootingSession",
+      "family": "city",
+      "presentation": {
+        "zhCN": {
+          "name": "城市蓝调会话",
+          "shortLabel": "蓝调将至",
+          "emoji": "🌆",
+          "degradedName": "城市蓝调观察",
+          "fallbackSummary": "蓝调时间正在靠近，建筑灯光与天空亮度将逐渐平衡。"
+        }
+      },
+      "primaryScenes": [
+        "urban"
+      ],
+      "sceneFacets": [
+        "skyline",
+        "architecture",
+        "oldTown",
+        "river",
+        "reflectiveSurface",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "route"
+      ],
+      "timingPolicy": "timing.cityBlue",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.68,
+      "dedupeGroup": "city-blue",
+      "suppresses": [
+        "event.sky.sunset_glow"
+      ],
+      "safetyConflicts": [
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "session.city.after_rain",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "shootingSession",
+      "family": "city",
+      "presentation": {
+        "zhCN": {
+          "name": "雨后城市会话",
+          "shortLabel": "雨后有光",
+          "emoji": "🌧️",
+          "degradedName": "雨后城市候选",
+          "fallbackSummary": "降水正在减弱，湿地面和灯光可能形成反光。"
+        }
+      },
+      "primaryScenes": [
+        "urban"
+      ],
+      "sceneFacets": [
+        "skyline",
+        "architecture",
+        "oldTown",
+        "river",
+        "reflectiveSurface"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "precipitation",
+        "light"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "visibility",
+        "route"
+      ],
+      "timingPolicy": "timing.cityAfterRain",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.7,
+      "dedupeGroup": "city-after-rain",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "cityArchitecture",
+        "humanityStreet"
+      ]
+    },
+    {
+      "id": "event.city.sunrise_geometry",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "city",
+      "presentation": {
+        "zhCN": {
+          "name": "城市日出几何",
+          "shortLabel": "日光穿城",
+          "emoji": "🌇"
+        }
+      },
+      "primaryScenes": [
+        "urban"
+      ],
+      "sceneFacets": [
+        "skyline",
+        "architecture",
+        "oldTown",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "terrain",
+        "lineOfSight",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "city-sunrise",
+      "suppresses": [],
+      "safetyConflicts": [
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.city.sunset_skyline",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "city",
+      "presentation": {
+        "zhCN": {
+          "name": "天际线日落",
+          "shortLabel": "天际线晚霞",
+          "emoji": "🌇"
+        }
+      },
+      "primaryScenes": [
+        "urban"
+      ],
+      "sceneFacets": [
+        "skyline",
+        "architecture",
+        "reviewedViewpoint",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "cloudLayers"
+      ],
+      "optionalEvidence": [
+        "visibility",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "city-sunset",
+      "suppresses": [],
+      "safetyConflicts": [
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.city.light_trails",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "city",
+      "presentation": {
+        "zhCN": {
+          "name": "城市车流光轨",
+          "shortLabel": "车流亮了",
+          "emoji": "🚗"
+        }
+      },
+      "primaryScenes": [
+        "urban"
+      ],
+      "sceneFacets": [
+        "architecture",
+        "skyline",
+        "openRoad",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "legalStop"
+      ],
+      "optionalEvidence": [
+        "route",
+        "visibility"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "city-light-trails",
+      "suppresses": [],
+      "safetyConflicts": [
+        "heavy-rain",
+        "road-stop-unsafe",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.city.fog_layers",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "city",
+      "presentation": {
+        "zhCN": {
+          "name": "城市雾层",
+          "shortLabel": "城里起雾",
+          "emoji": "🌫️"
+        }
+      },
+      "primaryScenes": [
+        "urban"
+      ],
+      "sceneFacets": [
+        "skyline",
+        "architecture",
+        "river"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "humidityDewPoint",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "wind"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "city-fog",
+      "suppresses": [],
+      "safetyConflicts": [
+        "low-visibility",
+        "road-stop-unsafe"
+      ],
+      "preferenceAffinities": [
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "session.desert.side_light",
+      "catalogTier": "core",
+      "coreCapability": "available",
+      "modelType": "shootingSession",
+      "family": "landform",
+      "presentation": {
+        "zhCN": {
+          "name": "荒漠侧光会话",
+          "shortLabel": "侧光扫沙",
+          "emoji": "🏜️",
+          "degradedName": "荒漠侧光观察",
+          "fallbackSummary": "低角度光正在增强地表纹理，先确认风和能见度。"
+        }
+      },
+      "primaryScenes": [
+        "desert",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "dune",
+        "canyon",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "wind",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "route",
+        "legalStop"
+      ],
+      "timingPolicy": "timing.desertSide",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.68,
+      "dedupeGroup": "desert-side-light",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "dust-hazard",
+        "low-visibility",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.desert.dust_light",
+      "catalogTier": "legacyOnly",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "landform",
+      "presentation": {
+        "zhCN": {
+          "name": "风沙低角度光",
+          "shortLabel": "风沙有光",
+          "emoji": "🌬️"
+        }
+      },
+      "primaryScenes": [
+        "desert",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "dune",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "wind",
+        "visibility",
+        "light"
+      ],
+      "optionalEvidence": [
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "desert-dust-light",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "dust-hazard",
+        "low-visibility"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.desert.dune_shadow",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "landform",
+      "presentation": {
+        "zhCN": {
+          "name": "沙丘明暗纹理",
+          "shortLabel": "沙丘有线",
+          "emoji": "🏜️"
+        }
+      },
+      "primaryScenes": [
+        "desert"
+      ],
+      "sceneFacets": [
+        "dune",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "wind",
+        "terrain"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "desert-dune-shadow",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "dust-hazard",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.landform.texture",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "landform",
+      "presentation": {
+        "zhCN": {
+          "name": "地貌纹理窗口",
+          "shortLabel": "纹理出来了",
+          "emoji": "🪨"
+        }
+      },
+      "primaryScenes": [
+        "desert",
+        "plateau",
+        "mountain"
+      ],
+      "sceneFacets": [
+        "canyon",
+        "dune",
+        "grassland",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "terrain",
+        "wind"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "landform-texture",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "low-visibility",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.canyon.light_beam",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "landform",
+      "presentation": {
+        "zhCN": {
+          "name": "峡谷光束",
+          "shortLabel": "峡谷进光",
+          "emoji": "✨"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "desert",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "canyon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "terrain",
+        "lineOfSight",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "cloudLayers"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "canyon-light-beam",
+      "suppresses": [],
+      "safetyConflicts": [
+        "flash-flood",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.plateau.storm_clearance",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "landform",
+      "presentation": {
+        "zhCN": {
+          "name": "高原风暴后光线",
+          "shortLabel": "风暴后见光",
+          "emoji": "⛈️"
+        }
+      },
+      "primaryScenes": [
+        "plateau",
+        "mountain"
+      ],
+      "sceneFacets": [
+        "openHorizon",
+        "grassland"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "precipitation",
+        "light",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "cloudLayers",
+        "wind"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "plateau-storm-clearance",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "strong-wind",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform"
+      ]
+    },
+    {
+      "id": "event.sky.sunset_glow",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "factualEvent",
+      "family": "atmosphere",
+      "presentation": {
+        "zhCN": {
+          "name": "晚霞候选",
+          "shortLabel": "晚霞候选",
+          "emoji": "🌅",
+          "degradedName": "晚霞观察",
+          "fallbackSummary": "当前云层信息只支持继续观察，不构成强晚霞承诺。"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon",
+        "skyline",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "light",
+        "weather",
+        "cloudLayers"
+      ],
+      "optionalEvidence": [
+        "visibility",
+        "precipitation"
+      ],
+      "timingPolicy": "timing.sunsetGlow",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.68,
+      "dedupeGroup": "sunset-glow",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "heavy-rain",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "waterCoast",
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.weather.rainbow",
+      "catalogTier": "core",
+      "coreCapability": "unavailable",
+      "modelType": "factualEvent",
+      "family": "atmosphere",
+      "presentation": {
+        "zhCN": {
+          "name": "彩虹候选",
+          "shortLabel": "彩虹候选",
+          "emoji": "🌈",
+          "degradedName": "不显示",
+          "fallbackSummary": "缺少方向性降水时不生成事实机会。"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "precipitation",
+        "directionalRain",
+        "light",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "visibility"
+      ],
+      "timingPolicy": "timing.rainbow",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.75,
+      "dedupeGroup": "rainbow",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "heavy-rain",
+        "road-stop-unsafe"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "waterCoast",
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.atmosphere.morning_mist",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "factualEvent",
+      "family": "atmosphere",
+      "presentation": {
+        "zhCN": {
+          "name": "晨雾与低雾",
+          "shortLabel": "雾要起来",
+          "emoji": "🌫️",
+          "degradedName": "低雾观察候选",
+          "fallbackSummary": "能见度和风支持观察低雾，但缺少完整露点证据。"
+        }
+      },
+      "primaryScenes": [
+        "village",
+        "mountain",
+        "plateau",
+        "forest",
+        "inlandWater",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "lake",
+        "river",
+        "wetland",
+        "canyon",
+        "forest",
+        "villageStreet"
+      ],
+      "requiredEvidence": [
+        "weather",
+        "wind",
+        "visibility",
+        "humidityDewPoint"
+      ],
+      "optionalEvidence": [
+        "terrain",
+        "place"
+      ],
+      "timingPolicy": "timing.morningMist",
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.7,
+      "dedupeGroup": "morning-mist",
+      "suppresses": [],
+      "safetyConflicts": [
+        "low-visibility",
+        "road-stop-unsafe",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "waterCoast",
+        "forestDetail"
+      ]
+    },
+    {
+      "id": "event.atmosphere.tyndall_rays",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "atmosphere",
+      "presentation": {
+        "zhCN": {
+          "name": "丁达尔光候选",
+          "shortLabel": "光束出来了",
+          "emoji": "✨"
+        }
+      },
+      "primaryScenes": [
+        "forest",
+        "mountain",
+        "village",
+        "urban"
+      ],
+      "sceneFacets": [
+        "forest",
+        "bambooForest",
+        "canyon",
+        "architecture"
+      ],
+      "requiredEvidence": [
+        "light",
+        "cloudLayers",
+        "humidityDewPoint",
+        "place"
+      ],
+      "optionalEvidence": [
+        "weather",
+        "terrain"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "tyndall-rays",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "heavy-rain"
+      ],
+      "preferenceAffinities": [
+        "forestDetail",
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.weather.post_rain_light",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "atmosphere",
+      "presentation": {
+        "zhCN": {
+          "name": "雨后云隙光",
+          "shortLabel": "云缝开了",
+          "emoji": "🌤️"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "weather",
+        "precipitation",
+        "cloudLayers",
+        "light"
+      ],
+      "optionalEvidence": [
+        "visibility"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "post-rain-light",
+      "suppresses": [],
+      "safetyConflicts": [
+        "thunderstorm",
+        "heavy-rain"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "waterCoast",
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.weather.snowfall_layers",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "atmosphere",
+      "presentation": {
+        "zhCN": {
+          "name": "降雪层次",
+          "shortLabel": "雪里有层次",
+          "emoji": "🌨️"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau",
+        "forest",
+        "urban",
+        "village"
+      ],
+      "sceneFacets": [
+        "snowCover",
+        "forest",
+        "architecture"
+      ],
+      "requiredEvidence": [
+        "weather",
+        "precipitation",
+        "visibility",
+        "place"
+      ],
+      "optionalEvidence": [
+        "wind",
+        "light"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "snowfall-layers",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "low-visibility",
+        "road-stop-unsafe"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "forestDetail",
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.astro.milky_way",
+      "catalogTier": "core",
+      "coreCapability": "unavailable",
+      "modelType": "factualEvent",
+      "family": "astronomy",
+      "presentation": {
+        "zhCN": {
+          "name": "银河窗口",
+          "shortLabel": "银河窗口",
+          "emoji": "🌌",
+          "degradedName": "不显示",
+          "fallbackSummary": "缺少银河轨迹或光污染证据时不生成。"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "darkSky",
+        "openHorizon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "astronomy",
+        "moonTrajectory",
+        "weather",
+        "cloudLayers",
+        "lightPollution",
+        "place"
+      ],
+      "optionalEvidence": [
+        "route",
+        "legalStop"
+      ],
+      "timingPolicy": "timing.astroMilkyWay",
+      "primaryAction": "openAstronomyDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.75,
+      "dedupeGroup": "milky-way",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "event.astro.moon_window",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "factualEvent",
+      "family": "astronomy",
+      "presentation": {
+        "zhCN": {
+          "name": "月出与月落窗口",
+          "shortLabel": "月升东南",
+          "emoji": "🌙",
+          "degradedName": "月亮时间窗口",
+          "fallbackSummary": "当前只确认月亮时间范围，方位与地景对位仍需核实。"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon",
+        "skyline",
+        "reviewedPeak",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "astronomy",
+        "moonTrajectory",
+        "weather",
+        "place"
+      ],
+      "optionalEvidence": [
+        "terrain",
+        "lineOfSight",
+        "route"
+      ],
+      "timingPolicy": "timing.astroMoon",
+      "primaryAction": "openAstronomyDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.72,
+      "dedupeGroup": "moon-window",
+      "suppresses": [],
+      "safetyConflicts": [
+        "low-visibility",
+        "official-closure",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "event.astro.meteor_shower",
+      "catalogTier": "core",
+      "coreCapability": "available",
+      "modelType": "factualEvent",
+      "family": "astronomy",
+      "presentation": {
+        "zhCN": {
+          "name": "流星雨窗口",
+          "shortLabel": "流星雨",
+          "emoji": "☄️",
+          "degradedName": "流星雨天气观察",
+          "fallbackSummary": "权威事件存在；本地天气只决定是否值得守候。"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "darkSky",
+        "openHorizon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "authority",
+        "astronomy",
+        "moonTrajectory",
+        "weather",
+        "cloudLayers"
+      ],
+      "optionalEvidence": [
+        "lightPollution",
+        "route"
+      ],
+      "timingPolicy": "timing.astroMeteor",
+      "primaryAction": "openAstronomyDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.8,
+      "dedupeGroup": "meteor-shower",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "event.astro.special_authority",
+      "catalogTier": "core",
+      "coreCapability": "available",
+      "modelType": "factualEvent",
+      "family": "astronomy",
+      "presentation": {
+        "zhCN": {
+          "name": "权威特殊天象",
+          "shortLabel": "特殊天象",
+          "emoji": "🔭",
+          "degradedName": "特殊天象天气观察",
+          "fallbackSummary": "事件时间来自权威目录，本地只补充天气与安全要求。"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "authority",
+        "astronomy",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "moonTrajectory",
+        "equipment",
+        "route"
+      ],
+      "timingPolicy": "timing.astroAuthority",
+      "primaryAction": "openAstronomyDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.85,
+      "dedupeGroup": "special-astronomy",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure",
+        "unsafe-solar-viewing",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "event.astro.star_trails",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "astronomy",
+      "presentation": {
+        "zhCN": {
+          "name": "星轨窗口",
+          "shortLabel": "星轨窗口",
+          "emoji": "🌠"
+        }
+      },
+      "primaryScenes": [
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "darkSky",
+        "openHorizon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "astronomy",
+        "weather",
+        "cloudLayers",
+        "lightPollution",
+        "place"
+      ],
+      "optionalEvidence": [
+        "moonTrajectory",
+        "legalStop"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openAstronomyDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "star-trails",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure",
+        "trail-return-risk"
+      ],
+      "preferenceAffinities": [
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "event.astro.planetary_alignment",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "astronomy",
+      "presentation": {
+        "zhCN": {
+          "name": "行星与月亮对位",
+          "shortLabel": "行星同框",
+          "emoji": "🪐"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "authority",
+        "astronomy",
+        "moonTrajectory",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "terrain",
+        "lineOfSight"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openAstronomyDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "planetary-alignment",
+      "suppresses": [],
+      "safetyConflicts": [
+        "low-visibility",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "astroCelestial"
+      ]
+    },
+    {
+      "id": "session.wetland.dawn",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "shootingSession",
+      "family": "ecology",
+      "presentation": {
+        "zhCN": {
+          "name": "湿地晨间会话",
+          "shortLabel": "湿地醒了",
+          "emoji": "🦆"
+        }
+      },
+      "primaryScenes": [
+        "wetland",
+        "inlandWater"
+      ],
+      "sceneFacets": [
+        "wetland",
+        "lake",
+        "river",
+        "reflectiveSurface",
+        "reviewedViewpoint"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "light",
+        "ecology"
+      ],
+      "optionalEvidence": [
+        "wind",
+        "visibility"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "wetland-dawn",
+      "suppresses": [],
+      "safetyConflicts": [
+        "wildlife-safety",
+        "official-closure",
+        "heavy-rain"
+      ],
+      "preferenceAffinities": [
+        "wildlifeEcology",
+        "waterCoast"
+      ]
+    },
+    {
+      "id": "event.forest.light_beam",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "ecology",
+      "presentation": {
+        "zhCN": {
+          "name": "森林光束",
+          "shortLabel": "林间进光",
+          "emoji": "🌲"
+        }
+      },
+      "primaryScenes": [
+        "forest",
+        "mountain"
+      ],
+      "sceneFacets": [
+        "forest",
+        "bambooForest",
+        "canyon"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "cloudLayers",
+        "humidityDewPoint"
+      ],
+      "optionalEvidence": [
+        "weather",
+        "terrain"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "forest-light-beam",
+      "suppresses": [],
+      "safetyConflicts": [
+        "heavy-rain",
+        "official-closure",
+        "wildlife-safety"
+      ],
+      "preferenceAffinities": [
+        "forestDetail"
+      ]
+    },
+    {
+      "id": "event.forest.mist",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "ecology",
+      "presentation": {
+        "zhCN": {
+          "name": "森林雾气",
+          "shortLabel": "林子起雾",
+          "emoji": "🌫️"
+        }
+      },
+      "primaryScenes": [
+        "forest",
+        "mountain"
+      ],
+      "sceneFacets": [
+        "forest",
+        "bambooForest"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "humidityDewPoint",
+        "visibility"
+      ],
+      "optionalEvidence": [
+        "wind",
+        "terrain"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openShootingWindow",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "forest-mist",
+      "suppresses": [],
+      "safetyConflicts": [
+        "low-visibility",
+        "trail-return-risk",
+        "wildlife-safety"
+      ],
+      "preferenceAffinities": [
+        "forestDetail"
+      ]
+    },
+    {
+      "id": "event.flora.bloom",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "ecology",
+      "presentation": {
+        "zhCN": {
+          "name": "花期窗口",
+          "shortLabel": "花开正好",
+          "emoji": "🌸"
+        }
+      },
+      "primaryScenes": [
+        "forest",
+        "village",
+        "plateau",
+        "wetland",
+        "urban"
+      ],
+      "sceneFacets": [
+        "grassland",
+        "forest",
+        "wetland",
+        "villageStreet"
+      ],
+      "requiredEvidence": [
+        "ecology",
+        "place",
+        "authority"
+      ],
+      "optionalEvidence": [
+        "weather",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openPlaceDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "flora-bloom",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "forestDetail"
+      ]
+    },
+    {
+      "id": "event.wildlife.bird_migration",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "ecology",
+      "presentation": {
+        "zhCN": {
+          "name": "候鸟迁徙窗口",
+          "shortLabel": "候鸟来了",
+          "emoji": "🦅"
+        }
+      },
+      "primaryScenes": [
+        "wetland",
+        "inlandWater",
+        "coast",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "wetland",
+        "lake",
+        "river",
+        "coast"
+      ],
+      "requiredEvidence": [
+        "ecology",
+        "authority",
+        "place"
+      ],
+      "optionalEvidence": [
+        "weather",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openWildlifeDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "bird-migration",
+      "suppresses": [],
+      "safetyConflicts": [
+        "wildlife-safety",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "wildlifeEcology"
+      ]
+    },
+    {
+      "id": "event.wildlife.mammal_activity",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "ecology",
+      "presentation": {
+        "zhCN": {
+          "name": "野生动物活动窗口",
+          "shortLabel": "附近有踪迹",
+          "emoji": "🐾"
+        }
+      },
+      "primaryScenes": [
+        "forest",
+        "mountain",
+        "plateau",
+        "desert",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "forest",
+        "grassland",
+        "canyon"
+      ],
+      "requiredEvidence": [
+        "ecology",
+        "authority",
+        "place"
+      ],
+      "optionalEvidence": [
+        "weather",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openWildlifeDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "mammal-activity",
+      "suppresses": [],
+      "safetyConflicts": [
+        "wildlife-safety",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "wildlifeEcology"
+      ]
+    },
+    {
+      "id": "session.route.light_window",
+      "catalogTier": "core",
+      "coreCapability": "degraded",
+      "modelType": "shootingSession",
+      "family": "humanityRoute",
+      "presentation": {
+        "zhCN": {
+          "name": "沿途光窗会话",
+          "shortLabel": "沿途光窗",
+          "emoji": "🚗",
+          "degradedName": "沿途光线观察",
+          "fallbackSummary": "路线附近出现短时光线变化，但尚未确认合法停靠点。"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openRoad",
+        "reviewedViewpoint",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "route",
+        "weather",
+        "light",
+        "legalStop"
+      ],
+      "optionalEvidence": [
+        "place",
+        "visibility"
+      ],
+      "timingPolicy": "timing.routeWindow",
+      "primaryAction": "openRoute",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": 0.72,
+      "dedupeGroup": "route-light-window",
+      "suppresses": [],
+      "safetyConflicts": [
+        "road-stop-unsafe",
+        "thunderstorm",
+        "heavy-rain",
+        "low-visibility",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "mountainLandform",
+        "waterCoast",
+        "cityArchitecture"
+      ]
+    },
+    {
+      "id": "event.humanity.village_edge_light",
+      "catalogTier": "legacyOnly",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "humanityRoute",
+      "presentation": {
+        "zhCN": {
+          "name": "村落晨昏光线",
+          "shortLabel": "村口有光",
+          "emoji": "🏘️"
+        }
+      },
+      "primaryScenes": [
+        "village"
+      ],
+      "sceneFacets": [
+        "villageStreet",
+        "oldTown",
+        "architecture"
+      ],
+      "requiredEvidence": [
+        "place",
+        "light",
+        "weather"
+      ],
+      "optionalEvidence": [
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openPlaceDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "village-edge-light",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "humanityStreet"
+      ]
+    },
+    {
+      "id": "event.humanity.market_morning",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "humanityRoute",
+      "presentation": {
+        "zhCN": {
+          "name": "清晨市集",
+          "shortLabel": "去看早市",
+          "emoji": "🧺"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village"
+      ],
+      "sceneFacets": [
+        "oldTown",
+        "villageStreet"
+      ],
+      "requiredEvidence": [
+        "authority",
+        "place"
+      ],
+      "optionalEvidence": [
+        "route",
+        "weather"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openPlaceDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "market-morning",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "humanityStreet"
+      ]
+    },
+    {
+      "id": "event.humanity.festival",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "humanityRoute",
+      "presentation": {
+        "zhCN": {
+          "name": "节庆民俗",
+          "shortLabel": "今晚有节",
+          "emoji": "🏮"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "village",
+        "plateau"
+      ],
+      "sceneFacets": [
+        "oldTown",
+        "villageStreet",
+        "architecture"
+      ],
+      "requiredEvidence": [
+        "authority",
+        "place"
+      ],
+      "optionalEvidence": [
+        "route",
+        "weather"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openPlaceDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "humanity-festival",
+      "suppresses": [],
+      "safetyConflicts": [
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "humanityStreet"
+      ]
+    },
+    {
+      "id": "event.humanity.pastoral_migration",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "humanityRoute",
+      "presentation": {
+        "zhCN": {
+          "name": "牧群转场",
+          "shortLabel": "牧群回来了",
+          "emoji": "🐑"
+        }
+      },
+      "primaryScenes": [
+        "plateau",
+        "desert",
+        "village"
+      ],
+      "sceneFacets": [
+        "grassland",
+        "openRoad",
+        "openHorizon"
+      ],
+      "requiredEvidence": [
+        "authority",
+        "place",
+        "ecology"
+      ],
+      "optionalEvidence": [
+        "route",
+        "weather"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openPlaceDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "pastoral-migration",
+      "suppresses": [],
+      "safetyConflicts": [
+        "wildlife-safety",
+        "official-closure"
+      ],
+      "preferenceAffinities": [
+        "humanityStreet",
+        "wildlifeEcology"
+      ]
+    },
+    {
+      "id": "event.aerial.spatial_light",
+      "catalogTier": "reserved",
+      "coreCapability": null,
+      "modelType": "factualEvent",
+      "family": "humanityRoute",
+      "presentation": {
+        "zhCN": {
+          "name": "航拍空间光影",
+          "shortLabel": "从高处看看",
+          "emoji": "🚁"
+        }
+      },
+      "primaryScenes": [
+        "urban",
+        "mountain",
+        "plateau",
+        "desert",
+        "forest",
+        "inlandWater",
+        "coast",
+        "wetland"
+      ],
+      "sceneFacets": [
+        "openHorizon",
+        "skyline",
+        "dune",
+        "river",
+        "coast"
+      ],
+      "requiredEvidence": [
+        "place",
+        "weather",
+        "wind",
+        "authority",
+        "equipment"
+      ],
+      "optionalEvidence": [
+        "light",
+        "route"
+      ],
+      "timingPolicy": null,
+      "primaryAction": "openPlaceDetail",
+      "fallbackAction": "openExplore",
+      "minimumConfidence": null,
+      "dedupeGroup": "aerial-spatial-light",
+      "suppresses": [],
+      "safetyConflicts": [
+        "strong-wind",
+        "official-closure",
+        "no-fly-zone"
+      ],
+      "preferenceAffinities": [
+        "aerialSpatial"
+      ]
+    }
+  ]
+}

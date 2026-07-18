@@ -10,11 +10,11 @@ class Store {
   async write(value) { this.value = structuredClone(value); }
 }
 
-function defaults(aiApiKey = '') {
+function defaults() {
   return {
     privateKey: generateKeyPairSync('ed25519').privateKey,
     keyId: 'key', projectId: 'project', serviceToken: 'service', amapWebKey: 'amap',
-    aiApiKey, aiBaseUrl: 'https://legacy.example/v1', aiModel: 'legacy-model', port: 8787,
+    port: 8787,
   };
 }
 
@@ -35,7 +35,6 @@ test('LLM runtime starts empty without selecting or creating a provider', async 
   assert.deepEqual(snapshot.llmRouting, {
     primaryProfileId: null, fallbackEnabled: false, fallbackProfileIds: [], maximumAttempts: 3,
   });
-  assert.equal(snapshot.legacyLLMImportCandidate, null);
   assert.equal(Object.isFrozen(snapshot.llmProfiles), true);
   assert.equal(Object.isFrozen(snapshot.llmRouting), true);
 });
@@ -98,13 +97,4 @@ test('allows an unselected model draft but never routes it', async () => {
       fallbackProfileIds: [], maximumAttempts: 3,
     },
   }), /selected model/);
-});
-
-test('non-empty legacy credentials are only exposed as an unimported candidate', async () => {
-  const service = new RuntimeConfigService({ defaults: defaults('legacy-secret'), store: new Store() });
-  await service.initialize();
-  const snapshot = service.snapshot();
-  assert.deepEqual(snapshot.llmProfiles, []);
-  assert.equal(snapshot.llmRouting.primaryProfileId, null);
-  assert.equal(snapshot.legacyLLMImportCandidate.apiKey, 'legacy-secret');
 });

@@ -90,7 +90,7 @@ void main() {
       dayPhase: DayPhase.sunset,
       weather: WeatherType.clear,
       activeRoute: false,
-      opportunityIds: const ['reflection'],
+      opportunityIds: const ['session.water.evening'],
       safetyEventIds: const ['thunderstorm'],
     );
 
@@ -152,41 +152,45 @@ void main() {
       );
     });
 
-    test('active driving produces a driving scene and a route event', () {
-      final snapshot = buildWithRoute(
-        RouteContextState.active(ContextRouteMode.driving),
-      );
+    test(
+      'active driving does not invent a route opportunity without evidence',
+      () {
+        final snapshot = buildWithRoute(
+          RouteContextState.active(ContextRouteMode.driving),
+        );
 
-      expect(snapshot.primaryScene, SceneType.driving);
-      expect(snapshot.activeRoute, isTrue);
-      expect(snapshot.routeMode, ContextRouteMode.driving);
-      expect(snapshot.routeStage, ContextRouteStage.active);
-      expect(snapshot.allowedActions, contains(ContextAction.openRoute));
-      final routeEvents = snapshot.events
-          .where((event) => event.geoScope == ContextGeoScope.route)
-          .toList();
-      expect(routeEvents, hasLength(1));
-      expect(routeEvents.single.id, 'route-light-window');
-      expect(routeEvents.single.channel, ContextEventChannel.opportunity);
-    });
+        expect(snapshot.primaryScene, SceneType.unknown);
+        expect(snapshot.activeRoute, isTrue);
+        expect(snapshot.routeMode, ContextRouteMode.driving);
+        expect(snapshot.routeStage, ContextRouteStage.active);
+        expect(snapshot.allowedActions, isEmpty);
+        final routeEvents = snapshot.events
+            .where((event) => event.geoScope == ContextGeoScope.route)
+            .toList();
+        expect(routeEvents, isEmpty);
+      },
+    );
 
-    test('active hiking produces a hiking scene and a route safety event', () {
-      final snapshot = buildWithRoute(
-        RouteContextState.active(ContextRouteMode.hiking),
-      );
+    test(
+      'active hiking preserves the physical scene and adds route safety',
+      () {
+        final snapshot = buildWithRoute(
+          RouteContextState.active(ContextRouteMode.hiking),
+        );
 
-      expect(snapshot.primaryScene, SceneType.hiking);
-      expect(snapshot.activeRoute, isTrue);
-      expect(snapshot.routeMode, ContextRouteMode.hiking);
-      expect(snapshot.routeStage, ContextRouteStage.active);
-      expect(snapshot.allowedActions, contains(ContextAction.openRoute));
-      final routeEvents = snapshot.events
-          .where((event) => event.geoScope == ContextGeoScope.route)
-          .toList();
-      expect(routeEvents, hasLength(1));
-      expect(routeEvents.single.id, 'hiking-return-check');
-      expect(routeEvents.single.channel, ContextEventChannel.safety);
-    });
+        expect(snapshot.primaryScene, SceneType.unknown);
+        expect(snapshot.activeRoute, isTrue);
+        expect(snapshot.routeMode, ContextRouteMode.hiking);
+        expect(snapshot.routeStage, ContextRouteStage.active);
+        expect(snapshot.allowedActions, contains(ContextAction.openRoute));
+        final routeEvents = snapshot.events
+            .where((event) => event.geoScope == ContextGeoScope.route)
+            .toList();
+        expect(routeEvents, hasLength(1));
+        expect(routeEvents.single.id, 'trail-return-risk');
+        expect(routeEvents.single.channel, ContextEventChannel.safety);
+      },
+    );
 
     test('none route leaves the snapshot without route fields', () {
       final snapshot = buildWithRoute(RouteContextState.none);

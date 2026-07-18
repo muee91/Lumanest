@@ -47,10 +47,41 @@ async function loadLLM(){const [providerData,profileData]=await Promise.all([api
 function switchPage(name){
   $$('.nav-item[data-page]').forEach((button)=>button.classList.toggle('active',button.dataset.page===name));
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
-  const titles={overview:'概览',services:'密钥与服务',llm:'模型服务',runtime:'运行设置',simulation:'场景回放',security:'安全与维护'};$('#page-title').textContent=titles[name];
+  const titles={overview:'概览',services:'密钥与服务',llm:'模型服务',runtime:'运行设置',simulation:'场景回放',calibration:'反馈校准',security:'安全与维护'};$('#page-title').textContent=titles[name];
   if(name==='security')loadAudit();
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
   if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
+  if(name==='calibration')loadCalibration().catch(()=>status('反馈校准读数读取失败'));
+}
+
+const calibrationLabels={
+  band:{good:'较好',fair:'一般',limited:'受限'},
+  factor:{cloud:'云层',wind:'风况',precipitation:'降水',visibility:'能见度',dataCoverage:'数据完整性'},
+  effect:{supporting:'支持',neutral:'中性',limiting:'限制'},
+};
+
+function renderCalibration(report){
+  const summary=$('#calibration-summary');summary.replaceChildren();
+  const facts=[
+    ['统计起点',new Date(report.since).toLocaleString('zh-CN',{hour12:false})],
+    ['生成时间',new Date(report.generatedAt).toLocaleString('zh-CN',{hour12:false})],
+    ['隐私阈值',`每组至少 ${report.minimumSamples} 条`],
+  ];
+  for(const [label,value] of facts){const item=document.createElement('div');const small=document.createElement('small');small.textContent=label;const strong=document.createElement('strong');strong.textContent=value;item.append(small,strong);summary.append(item);}
+  const body=$('#calibration-rows');body.replaceChildren();
+  $('#calibration-empty').hidden=report.rows.length!==0;
+  for(const row of report.rows){
+    const tr=document.createElement('tr');
+    const values=[row.ruleVersion,calibrationLabels.band[row.conditionBand],calibrationLabels.factor[row.factorId],calibrationLabels.effect[row.factorEffect],String(row.evaluatedCount),String(row.capturedCount),String(row.conditionsDidNotAppearCount),`${Math.round(row.capturedRate*100)}%`];
+    for(const value of values){const cell=document.createElement('td');cell.textContent=value;tr.append(cell);}
+    body.append(tr);
+  }
+}
+
+async function loadCalibration(){
+  const form=$('#calibration-form');
+  const days=Number(form.elements.days.value);const minimumSamples=Number(form.elements.minimumSamples.value);
+  renderCalibration(await api(`context/shooting-calibration?days=${days}&minimumSamples=${minimumSamples}`));
 }
 
 async function loadSimulation(){
@@ -87,6 +118,7 @@ $('#login-form').addEventListener('submit',async(event)=>{
 });
 
 $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=>switchPage(button.dataset.page)));
+$('#calibration-form').addEventListener('submit',async(event)=>{event.preventDefault();try{status('正在读取匿名聚合…');await loadCalibration();status('反馈校准读数已更新');}catch{status('读取失败，请确认 Context Service 与数据库迁移已就绪');}});
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{method:'POST'});}finally{showLogin();}});
 
 $('#services-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const patch={};for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken']){const value=form.elements[name].value.trim();if(value)patch[name]=value;}try{status('正在加密并应用…');renderConfig(await api('config',{method:'PUT',body:patch}));for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken'])form.elements[name].value='';status('密钥与服务配置已生效');}catch{status('保存失败，请检查输入范围与格式');}});

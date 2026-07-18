@@ -2376,6 +2376,21 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
         type: DriftSqlType.double,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _shareAnonymousPhotographyFeedbackMeta =
+      const VerificationMeta('shareAnonymousPhotographyFeedback');
+  @override
+  late final GeneratedColumn<bool> shareAnonymousPhotographyFeedback =
+      GeneratedColumn<bool>(
+        'share_anonymous_photography_feedback',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("share_anonymous_photography_feedback" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2389,6 +2404,7 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
     equipmentList,
     aiTone,
     recommendationIntensity,
+    shareAnonymousPhotographyFeedback,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2512,6 +2528,15 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
     } else if (isInserting) {
       context.missing(_recommendationIntensityMeta);
     }
+    if (data.containsKey('share_anonymous_photography_feedback')) {
+      context.handle(
+        _shareAnonymousPhotographyFeedbackMeta,
+        shareAnonymousPhotographyFeedback.isAcceptableOrUnknown(
+          data['share_anonymous_photography_feedback']!,
+          _shareAnonymousPhotographyFeedbackMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2565,6 +2590,10 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
         DriftSqlType.double,
         data['${effectivePrefix}recommendation_intensity'],
       )!,
+      shareAnonymousPhotographyFeedback: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}share_anonymous_photography_feedback'],
+      )!,
     );
   }
 
@@ -2587,6 +2616,7 @@ class ProfilePreferenceRow extends DataClass
   final String equipmentList;
   final String aiTone;
   final double recommendationIntensity;
+  final bool shareAnonymousPhotographyFeedback;
   const ProfilePreferenceRow({
     required this.id,
     required this.ambientBackgroundEnabled,
@@ -2599,6 +2629,7 @@ class ProfilePreferenceRow extends DataClass
     required this.equipmentList,
     required this.aiTone,
     required this.recommendationIntensity,
+    required this.shareAnonymousPhotographyFeedback,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2620,6 +2651,9 @@ class ProfilePreferenceRow extends DataClass
     map['equipment_list'] = Variable<String>(equipmentList);
     map['ai_tone'] = Variable<String>(aiTone);
     map['recommendation_intensity'] = Variable<double>(recommendationIntensity);
+    map['share_anonymous_photography_feedback'] = Variable<bool>(
+      shareAnonymousPhotographyFeedback,
+    );
     return map;
   }
 
@@ -2636,6 +2670,9 @@ class ProfilePreferenceRow extends DataClass
       equipmentList: Value(equipmentList),
       aiTone: Value(aiTone),
       recommendationIntensity: Value(recommendationIntensity),
+      shareAnonymousPhotographyFeedback: Value(
+        shareAnonymousPhotographyFeedback,
+      ),
     );
   }
 
@@ -2664,6 +2701,9 @@ class ProfilePreferenceRow extends DataClass
       recommendationIntensity: serializer.fromJson<double>(
         json['recommendationIntensity'],
       ),
+      shareAnonymousPhotographyFeedback: serializer.fromJson<bool>(
+        json['shareAnonymousPhotographyFeedback'],
+      ),
     );
   }
   @override
@@ -2689,6 +2729,9 @@ class ProfilePreferenceRow extends DataClass
       'recommendationIntensity': serializer.toJson<double>(
         recommendationIntensity,
       ),
+      'shareAnonymousPhotographyFeedback': serializer.toJson<bool>(
+        shareAnonymousPhotographyFeedback,
+      ),
     };
   }
 
@@ -2704,6 +2747,7 @@ class ProfilePreferenceRow extends DataClass
     String? equipmentList,
     String? aiTone,
     double? recommendationIntensity,
+    bool? shareAnonymousPhotographyFeedback,
   }) => ProfilePreferenceRow(
     id: id ?? this.id,
     ambientBackgroundEnabled:
@@ -2720,6 +2764,9 @@ class ProfilePreferenceRow extends DataClass
     aiTone: aiTone ?? this.aiTone,
     recommendationIntensity:
         recommendationIntensity ?? this.recommendationIntensity,
+    shareAnonymousPhotographyFeedback:
+        shareAnonymousPhotographyFeedback ??
+        this.shareAnonymousPhotographyFeedback,
   );
   ProfilePreferenceRow copyWithCompanion(
     ProfilePreferenceRecordsCompanion data,
@@ -2754,6 +2801,10 @@ class ProfilePreferenceRow extends DataClass
       recommendationIntensity: data.recommendationIntensity.present
           ? data.recommendationIntensity.value
           : this.recommendationIntensity,
+      shareAnonymousPhotographyFeedback:
+          data.shareAnonymousPhotographyFeedback.present
+          ? data.shareAnonymousPhotographyFeedback.value
+          : this.shareAnonymousPhotographyFeedback,
     );
   }
 
@@ -2770,7 +2821,10 @@ class ProfilePreferenceRow extends DataClass
           ..write('activityPreferencesJson: $activityPreferencesJson, ')
           ..write('equipmentList: $equipmentList, ')
           ..write('aiTone: $aiTone, ')
-          ..write('recommendationIntensity: $recommendationIntensity')
+          ..write('recommendationIntensity: $recommendationIntensity, ')
+          ..write(
+            'shareAnonymousPhotographyFeedback: $shareAnonymousPhotographyFeedback',
+          )
           ..write(')'))
         .toString();
   }
@@ -2788,6 +2842,7 @@ class ProfilePreferenceRow extends DataClass
     equipmentList,
     aiTone,
     recommendationIntensity,
+    shareAnonymousPhotographyFeedback,
   );
   @override
   bool operator ==(Object other) =>
@@ -2803,7 +2858,9 @@ class ProfilePreferenceRow extends DataClass
           other.activityPreferencesJson == this.activityPreferencesJson &&
           other.equipmentList == this.equipmentList &&
           other.aiTone == this.aiTone &&
-          other.recommendationIntensity == this.recommendationIntensity);
+          other.recommendationIntensity == this.recommendationIntensity &&
+          other.shareAnonymousPhotographyFeedback ==
+              this.shareAnonymousPhotographyFeedback);
 }
 
 class ProfilePreferenceRecordsCompanion
@@ -2819,6 +2876,7 @@ class ProfilePreferenceRecordsCompanion
   final Value<String> equipmentList;
   final Value<String> aiTone;
   final Value<double> recommendationIntensity;
+  final Value<bool> shareAnonymousPhotographyFeedback;
   const ProfilePreferenceRecordsCompanion({
     this.id = const Value.absent(),
     this.ambientBackgroundEnabled = const Value.absent(),
@@ -2831,6 +2889,7 @@ class ProfilePreferenceRecordsCompanion
     this.equipmentList = const Value.absent(),
     this.aiTone = const Value.absent(),
     this.recommendationIntensity = const Value.absent(),
+    this.shareAnonymousPhotographyFeedback = const Value.absent(),
   });
   ProfilePreferenceRecordsCompanion.insert({
     this.id = const Value.absent(),
@@ -2844,6 +2903,7 @@ class ProfilePreferenceRecordsCompanion
     required String equipmentList,
     required String aiTone,
     required double recommendationIntensity,
+    this.shareAnonymousPhotographyFeedback = const Value.absent(),
   }) : ambientBackgroundEnabled = Value(ambientBackgroundEnabled),
        reduceMotion = Value(reduceMotion),
        reduceFlashing = Value(reduceFlashing),
@@ -2866,6 +2926,7 @@ class ProfilePreferenceRecordsCompanion
     Expression<String>? equipmentList,
     Expression<String>? aiTone,
     Expression<double>? recommendationIntensity,
+    Expression<bool>? shareAnonymousPhotographyFeedback,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2883,6 +2944,9 @@ class ProfilePreferenceRecordsCompanion
       if (aiTone != null) 'ai_tone': aiTone,
       if (recommendationIntensity != null)
         'recommendation_intensity': recommendationIntensity,
+      if (shareAnonymousPhotographyFeedback != null)
+        'share_anonymous_photography_feedback':
+            shareAnonymousPhotographyFeedback,
     });
   }
 
@@ -2898,6 +2962,7 @@ class ProfilePreferenceRecordsCompanion
     Value<String>? equipmentList,
     Value<String>? aiTone,
     Value<double>? recommendationIntensity,
+    Value<bool>? shareAnonymousPhotographyFeedback,
   }) {
     return ProfilePreferenceRecordsCompanion(
       id: id ?? this.id,
@@ -2915,6 +2980,9 @@ class ProfilePreferenceRecordsCompanion
       aiTone: aiTone ?? this.aiTone,
       recommendationIntensity:
           recommendationIntensity ?? this.recommendationIntensity,
+      shareAnonymousPhotographyFeedback:
+          shareAnonymousPhotographyFeedback ??
+          this.shareAnonymousPhotographyFeedback,
     );
   }
 
@@ -2962,6 +3030,11 @@ class ProfilePreferenceRecordsCompanion
         recommendationIntensity.value,
       );
     }
+    if (shareAnonymousPhotographyFeedback.present) {
+      map['share_anonymous_photography_feedback'] = Variable<bool>(
+        shareAnonymousPhotographyFeedback.value,
+      );
+    }
     return map;
   }
 
@@ -2978,7 +3051,10 @@ class ProfilePreferenceRecordsCompanion
           ..write('activityPreferencesJson: $activityPreferencesJson, ')
           ..write('equipmentList: $equipmentList, ')
           ..write('aiTone: $aiTone, ')
-          ..write('recommendationIntensity: $recommendationIntensity')
+          ..write('recommendationIntensity: $recommendationIntensity, ')
+          ..write(
+            'shareAnonymousPhotographyFeedback: $shareAnonymousPhotographyFeedback',
+          )
           ..write(')'))
         .toString();
   }
@@ -3371,6 +3447,405 @@ class BaseRegionsCompanion extends UpdateCompanion<BaseRegionRow> {
   @override
   String toString() {
     return (StringBuffer('BaseRegionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('address: $address, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('selectedAt: $selectedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ManualLocationsTable extends ManualLocations
+    with TableInfo<$ManualLocationsTable, ManualLocationRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ManualLocationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _addressMeta = const VerificationMeta(
+    'address',
+  );
+  @override
+  late final GeneratedColumn<String> address = GeneratedColumn<String>(
+    'address',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _selectedAtMeta = const VerificationMeta(
+    'selectedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> selectedAt = GeneratedColumn<DateTime>(
+    'selected_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    address,
+    latitude,
+    longitude,
+    selectedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'manual_locations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ManualLocationRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('address')) {
+      context.handle(
+        _addressMeta,
+        address.isAcceptableOrUnknown(data['address']!, _addressMeta),
+      );
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_latitudeMeta);
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_longitudeMeta);
+    }
+    if (data.containsKey('selected_at')) {
+      context.handle(
+        _selectedAtMeta,
+        selectedAt.isAcceptableOrUnknown(data['selected_at']!, _selectedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_selectedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ManualLocationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ManualLocationRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      address: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}address'],
+      ),
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      )!,
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      )!,
+      selectedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}selected_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ManualLocationsTable createAlias(String alias) {
+    return $ManualLocationsTable(attachedDatabase, alias);
+  }
+}
+
+class ManualLocationRow extends DataClass
+    implements Insertable<ManualLocationRow> {
+  final int id;
+  final String name;
+  final String? address;
+  final double latitude;
+  final double longitude;
+  final DateTime selectedAt;
+  const ManualLocationRow({
+    required this.id,
+    required this.name,
+    this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.selectedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || address != null) {
+      map['address'] = Variable<String>(address);
+    }
+    map['latitude'] = Variable<double>(latitude);
+    map['longitude'] = Variable<double>(longitude);
+    map['selected_at'] = Variable<DateTime>(selectedAt);
+    return map;
+  }
+
+  ManualLocationsCompanion toCompanion(bool nullToAbsent) {
+    return ManualLocationsCompanion(
+      id: Value(id),
+      name: Value(name),
+      address: address == null && nullToAbsent
+          ? const Value.absent()
+          : Value(address),
+      latitude: Value(latitude),
+      longitude: Value(longitude),
+      selectedAt: Value(selectedAt),
+    );
+  }
+
+  factory ManualLocationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ManualLocationRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      address: serializer.fromJson<String?>(json['address']),
+      latitude: serializer.fromJson<double>(json['latitude']),
+      longitude: serializer.fromJson<double>(json['longitude']),
+      selectedAt: serializer.fromJson<DateTime>(json['selectedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'address': serializer.toJson<String?>(address),
+      'latitude': serializer.toJson<double>(latitude),
+      'longitude': serializer.toJson<double>(longitude),
+      'selectedAt': serializer.toJson<DateTime>(selectedAt),
+    };
+  }
+
+  ManualLocationRow copyWith({
+    int? id,
+    String? name,
+    Value<String?> address = const Value.absent(),
+    double? latitude,
+    double? longitude,
+    DateTime? selectedAt,
+  }) => ManualLocationRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    address: address.present ? address.value : this.address,
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    selectedAt: selectedAt ?? this.selectedAt,
+  );
+  ManualLocationRow copyWithCompanion(ManualLocationsCompanion data) {
+    return ManualLocationRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      address: data.address.present ? data.address.value : this.address,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      selectedAt: data.selectedAt.present
+          ? data.selectedAt.value
+          : this.selectedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ManualLocationRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('address: $address, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
+          ..write('selectedAt: $selectedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, address, latitude, longitude, selectedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ManualLocationRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.address == this.address &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
+          other.selectedAt == this.selectedAt);
+}
+
+class ManualLocationsCompanion extends UpdateCompanion<ManualLocationRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String?> address;
+  final Value<double> latitude;
+  final Value<double> longitude;
+  final Value<DateTime> selectedAt;
+  const ManualLocationsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.address = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
+    this.selectedAt = const Value.absent(),
+  });
+  ManualLocationsCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.address = const Value.absent(),
+    required double latitude,
+    required double longitude,
+    required DateTime selectedAt,
+  }) : name = Value(name),
+       latitude = Value(latitude),
+       longitude = Value(longitude),
+       selectedAt = Value(selectedAt);
+  static Insertable<ManualLocationRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? address,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
+    Expression<DateTime>? selectedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (address != null) 'address': address,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (selectedAt != null) 'selected_at': selectedAt,
+    });
+  }
+
+  ManualLocationsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String?>? address,
+    Value<double>? latitude,
+    Value<double>? longitude,
+    Value<DateTime>? selectedAt,
+  }) {
+    return ManualLocationsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      selectedAt: selectedAt ?? this.selectedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (address.present) {
+      map['address'] = Variable<String>(address.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
+    }
+    if (selectedAt.present) {
+      map['selected_at'] = Variable<DateTime>(selectedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ManualLocationsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('address: $address, ')
@@ -4450,17 +4925,12 @@ class WildlifeMapLayerCachesCompanion
   }
 }
 
-class $WatchedPhotographyOpportunitiesTable
-    extends WatchedPhotographyOpportunities
-    with
-        TableInfo<
-          $WatchedPhotographyOpportunitiesTable,
-          WatchedPhotographyOpportunityRow
-        > {
+class $WatchedShootingSessionsTable extends WatchedShootingSessions
+    with TableInfo<$WatchedShootingSessionsTable, WatchedShootingSessionRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $WatchedPhotographyOpportunitiesTable(this.attachedDatabase, [this._alias]);
+  $WatchedShootingSessionsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -4470,12 +4940,12 @@ class $WatchedPhotographyOpportunitiesTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _opportunityIdMeta = const VerificationMeta(
-    'opportunityId',
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
   );
   @override
-  late final GeneratedColumn<String> opportunityId = GeneratedColumn<String>(
-    'opportunity_id',
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -4496,6 +4966,15 @@ class $WatchedPhotographyOpportunitiesTable
   @override
   late final GeneratedColumn<String> title = GeneratedColumn<String>(
     'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -4537,9 +5016,10 @@ class $WatchedPhotographyOpportunitiesTable
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    opportunityId,
+    sessionId,
     snapshotId,
     title,
+    kind,
     targetId,
     watchedAt,
     expiresAt,
@@ -4548,10 +5028,10 @@ class $WatchedPhotographyOpportunitiesTable
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'watched_photography_opportunities';
+  static const String $name = 'watched_shooting_sessions';
   @override
   VerificationContext validateIntegrity(
-    Insertable<WatchedPhotographyOpportunityRow> instance, {
+    Insertable<WatchedShootingSessionRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -4561,16 +5041,13 @@ class $WatchedPhotographyOpportunitiesTable
     } else if (isInserting) {
       context.missing(_idMeta);
     }
-    if (data.containsKey('opportunity_id')) {
+    if (data.containsKey('session_id')) {
       context.handle(
-        _opportunityIdMeta,
-        opportunityId.isAcceptableOrUnknown(
-          data['opportunity_id']!,
-          _opportunityIdMeta,
-        ),
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_opportunityIdMeta);
+      context.missing(_sessionIdMeta);
     }
     if (data.containsKey('snapshot_id')) {
       context.handle(
@@ -4587,6 +5064,14 @@ class $WatchedPhotographyOpportunitiesTable
       );
     } else if (isInserting) {
       context.missing(_titleMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
     }
     if (data.containsKey('target_id')) {
       context.handle(
@@ -4616,19 +5101,19 @@ class $WatchedPhotographyOpportunitiesTable
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  WatchedPhotographyOpportunityRow map(
+  WatchedShootingSessionRow map(
     Map<String, dynamic> data, {
     String? tablePrefix,
   }) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return WatchedPhotographyOpportunityRow(
+    return WatchedShootingSessionRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
-      opportunityId: attachedDatabase.typeMapping.read(
+      sessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}opportunity_id'],
+        data['${effectivePrefix}session_id'],
       )!,
       snapshotId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -4637,6 +5122,10 @@ class $WatchedPhotographyOpportunitiesTable
       title: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}title'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
       )!,
       targetId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -4654,25 +5143,27 @@ class $WatchedPhotographyOpportunitiesTable
   }
 
   @override
-  $WatchedPhotographyOpportunitiesTable createAlias(String alias) {
-    return $WatchedPhotographyOpportunitiesTable(attachedDatabase, alias);
+  $WatchedShootingSessionsTable createAlias(String alias) {
+    return $WatchedShootingSessionsTable(attachedDatabase, alias);
   }
 }
 
-class WatchedPhotographyOpportunityRow extends DataClass
-    implements Insertable<WatchedPhotographyOpportunityRow> {
+class WatchedShootingSessionRow extends DataClass
+    implements Insertable<WatchedShootingSessionRow> {
   final String id;
-  final String opportunityId;
+  final String sessionId;
   final String snapshotId;
   final String title;
+  final String kind;
   final String? targetId;
   final DateTime watchedAt;
   final DateTime expiresAt;
-  const WatchedPhotographyOpportunityRow({
+  const WatchedShootingSessionRow({
     required this.id,
-    required this.opportunityId,
+    required this.sessionId,
     required this.snapshotId,
     required this.title,
+    required this.kind,
     this.targetId,
     required this.watchedAt,
     required this.expiresAt,
@@ -4681,9 +5172,10 @@ class WatchedPhotographyOpportunityRow extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['opportunity_id'] = Variable<String>(opportunityId);
+    map['session_id'] = Variable<String>(sessionId);
     map['snapshot_id'] = Variable<String>(snapshotId);
     map['title'] = Variable<String>(title);
+    map['kind'] = Variable<String>(kind);
     if (!nullToAbsent || targetId != null) {
       map['target_id'] = Variable<String>(targetId);
     }
@@ -4692,12 +5184,13 @@ class WatchedPhotographyOpportunityRow extends DataClass
     return map;
   }
 
-  WatchedPhotographyOpportunitiesCompanion toCompanion(bool nullToAbsent) {
-    return WatchedPhotographyOpportunitiesCompanion(
+  WatchedShootingSessionsCompanion toCompanion(bool nullToAbsent) {
+    return WatchedShootingSessionsCompanion(
       id: Value(id),
-      opportunityId: Value(opportunityId),
+      sessionId: Value(sessionId),
       snapshotId: Value(snapshotId),
       title: Value(title),
+      kind: Value(kind),
       targetId: targetId == null && nullToAbsent
           ? const Value.absent()
           : Value(targetId),
@@ -4706,16 +5199,17 @@ class WatchedPhotographyOpportunityRow extends DataClass
     );
   }
 
-  factory WatchedPhotographyOpportunityRow.fromJson(
+  factory WatchedShootingSessionRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return WatchedPhotographyOpportunityRow(
+    return WatchedShootingSessionRow(
       id: serializer.fromJson<String>(json['id']),
-      opportunityId: serializer.fromJson<String>(json['opportunityId']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
       snapshotId: serializer.fromJson<String>(json['snapshotId']),
       title: serializer.fromJson<String>(json['title']),
+      kind: serializer.fromJson<String>(json['kind']),
       targetId: serializer.fromJson<String?>(json['targetId']),
       watchedAt: serializer.fromJson<DateTime>(json['watchedAt']),
       expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
@@ -4726,44 +5220,46 @@ class WatchedPhotographyOpportunityRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'opportunityId': serializer.toJson<String>(opportunityId),
+      'sessionId': serializer.toJson<String>(sessionId),
       'snapshotId': serializer.toJson<String>(snapshotId),
       'title': serializer.toJson<String>(title),
+      'kind': serializer.toJson<String>(kind),
       'targetId': serializer.toJson<String?>(targetId),
       'watchedAt': serializer.toJson<DateTime>(watchedAt),
       'expiresAt': serializer.toJson<DateTime>(expiresAt),
     };
   }
 
-  WatchedPhotographyOpportunityRow copyWith({
+  WatchedShootingSessionRow copyWith({
     String? id,
-    String? opportunityId,
+    String? sessionId,
     String? snapshotId,
     String? title,
+    String? kind,
     Value<String?> targetId = const Value.absent(),
     DateTime? watchedAt,
     DateTime? expiresAt,
-  }) => WatchedPhotographyOpportunityRow(
+  }) => WatchedShootingSessionRow(
     id: id ?? this.id,
-    opportunityId: opportunityId ?? this.opportunityId,
+    sessionId: sessionId ?? this.sessionId,
     snapshotId: snapshotId ?? this.snapshotId,
     title: title ?? this.title,
+    kind: kind ?? this.kind,
     targetId: targetId.present ? targetId.value : this.targetId,
     watchedAt: watchedAt ?? this.watchedAt,
     expiresAt: expiresAt ?? this.expiresAt,
   );
-  WatchedPhotographyOpportunityRow copyWithCompanion(
-    WatchedPhotographyOpportunitiesCompanion data,
+  WatchedShootingSessionRow copyWithCompanion(
+    WatchedShootingSessionsCompanion data,
   ) {
-    return WatchedPhotographyOpportunityRow(
+    return WatchedShootingSessionRow(
       id: data.id.present ? data.id.value : this.id,
-      opportunityId: data.opportunityId.present
-          ? data.opportunityId.value
-          : this.opportunityId,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       snapshotId: data.snapshotId.present
           ? data.snapshotId.value
           : this.snapshotId,
       title: data.title.present ? data.title.value : this.title,
+      kind: data.kind.present ? data.kind.value : this.kind,
       targetId: data.targetId.present ? data.targetId.value : this.targetId,
       watchedAt: data.watchedAt.present ? data.watchedAt.value : this.watchedAt,
       expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
@@ -4772,11 +5268,12 @@ class WatchedPhotographyOpportunityRow extends DataClass
 
   @override
   String toString() {
-    return (StringBuffer('WatchedPhotographyOpportunityRow(')
+    return (StringBuffer('WatchedShootingSessionRow(')
           ..write('id: $id, ')
-          ..write('opportunityId: $opportunityId, ')
+          ..write('sessionId: $sessionId, ')
           ..write('snapshotId: $snapshotId, ')
           ..write('title: $title, ')
+          ..write('kind: $kind, ')
           ..write('targetId: $targetId, ')
           ..write('watchedAt: $watchedAt, ')
           ..write('expiresAt: $expiresAt')
@@ -4787,9 +5284,10 @@ class WatchedPhotographyOpportunityRow extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
-    opportunityId,
+    sessionId,
     snapshotId,
     title,
+    kind,
     targetId,
     watchedAt,
     expiresAt,
@@ -4797,56 +5295,62 @@ class WatchedPhotographyOpportunityRow extends DataClass
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is WatchedPhotographyOpportunityRow &&
+      (other is WatchedShootingSessionRow &&
           other.id == this.id &&
-          other.opportunityId == this.opportunityId &&
+          other.sessionId == this.sessionId &&
           other.snapshotId == this.snapshotId &&
           other.title == this.title &&
+          other.kind == this.kind &&
           other.targetId == this.targetId &&
           other.watchedAt == this.watchedAt &&
           other.expiresAt == this.expiresAt);
 }
 
-class WatchedPhotographyOpportunitiesCompanion
-    extends UpdateCompanion<WatchedPhotographyOpportunityRow> {
+class WatchedShootingSessionsCompanion
+    extends UpdateCompanion<WatchedShootingSessionRow> {
   final Value<String> id;
-  final Value<String> opportunityId;
+  final Value<String> sessionId;
   final Value<String> snapshotId;
   final Value<String> title;
+  final Value<String> kind;
   final Value<String?> targetId;
   final Value<DateTime> watchedAt;
   final Value<DateTime> expiresAt;
   final Value<int> rowid;
-  const WatchedPhotographyOpportunitiesCompanion({
+  const WatchedShootingSessionsCompanion({
     this.id = const Value.absent(),
-    this.opportunityId = const Value.absent(),
+    this.sessionId = const Value.absent(),
     this.snapshotId = const Value.absent(),
     this.title = const Value.absent(),
+    this.kind = const Value.absent(),
     this.targetId = const Value.absent(),
     this.watchedAt = const Value.absent(),
     this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  WatchedPhotographyOpportunitiesCompanion.insert({
+  WatchedShootingSessionsCompanion.insert({
     required String id,
-    required String opportunityId,
+    required String sessionId,
     required String snapshotId,
     required String title,
+    required String kind,
     this.targetId = const Value.absent(),
     required DateTime watchedAt,
     required DateTime expiresAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
-       opportunityId = Value(opportunityId),
+       sessionId = Value(sessionId),
        snapshotId = Value(snapshotId),
        title = Value(title),
+       kind = Value(kind),
        watchedAt = Value(watchedAt),
        expiresAt = Value(expiresAt);
-  static Insertable<WatchedPhotographyOpportunityRow> custom({
+  static Insertable<WatchedShootingSessionRow> custom({
     Expression<String>? id,
-    Expression<String>? opportunityId,
+    Expression<String>? sessionId,
     Expression<String>? snapshotId,
     Expression<String>? title,
+    Expression<String>? kind,
     Expression<String>? targetId,
     Expression<DateTime>? watchedAt,
     Expression<DateTime>? expiresAt,
@@ -4854,9 +5358,10 @@ class WatchedPhotographyOpportunitiesCompanion
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (opportunityId != null) 'opportunity_id': opportunityId,
+      if (sessionId != null) 'session_id': sessionId,
       if (snapshotId != null) 'snapshot_id': snapshotId,
       if (title != null) 'title': title,
+      if (kind != null) 'kind': kind,
       if (targetId != null) 'target_id': targetId,
       if (watchedAt != null) 'watched_at': watchedAt,
       if (expiresAt != null) 'expires_at': expiresAt,
@@ -4864,21 +5369,23 @@ class WatchedPhotographyOpportunitiesCompanion
     });
   }
 
-  WatchedPhotographyOpportunitiesCompanion copyWith({
+  WatchedShootingSessionsCompanion copyWith({
     Value<String>? id,
-    Value<String>? opportunityId,
+    Value<String>? sessionId,
     Value<String>? snapshotId,
     Value<String>? title,
+    Value<String>? kind,
     Value<String?>? targetId,
     Value<DateTime>? watchedAt,
     Value<DateTime>? expiresAt,
     Value<int>? rowid,
   }) {
-    return WatchedPhotographyOpportunitiesCompanion(
+    return WatchedShootingSessionsCompanion(
       id: id ?? this.id,
-      opportunityId: opportunityId ?? this.opportunityId,
+      sessionId: sessionId ?? this.sessionId,
       snapshotId: snapshotId ?? this.snapshotId,
       title: title ?? this.title,
+      kind: kind ?? this.kind,
       targetId: targetId ?? this.targetId,
       watchedAt: watchedAt ?? this.watchedAt,
       expiresAt: expiresAt ?? this.expiresAt,
@@ -4892,14 +5399,17 @@ class WatchedPhotographyOpportunitiesCompanion
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
-    if (opportunityId.present) {
-      map['opportunity_id'] = Variable<String>(opportunityId.value);
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
     }
     if (snapshotId.present) {
       map['snapshot_id'] = Variable<String>(snapshotId.value);
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
     }
     if (targetId.present) {
       map['target_id'] = Variable<String>(targetId.value);
@@ -4918,11 +5428,12 @@ class WatchedPhotographyOpportunitiesCompanion
 
   @override
   String toString() {
-    return (StringBuffer('WatchedPhotographyOpportunitiesCompanion(')
+    return (StringBuffer('WatchedShootingSessionsCompanion(')
           ..write('id: $id, ')
-          ..write('opportunityId: $opportunityId, ')
+          ..write('sessionId: $sessionId, ')
           ..write('snapshotId: $snapshotId, ')
           ..write('title: $title, ')
+          ..write('kind: $kind, ')
           ..write('targetId: $targetId, ')
           ..write('watchedAt: $watchedAt, ')
           ..write('expiresAt: $expiresAt, ')
@@ -4932,16 +5443,12 @@ class WatchedPhotographyOpportunitiesCompanion
   }
 }
 
-class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
-    with
-        TableInfo<
-          $PhotographyOpportunityResultsTable,
-          PhotographyOpportunityResultRow
-        > {
+class $ShootingSessionResultsTable extends ShootingSessionResults
+    with TableInfo<$ShootingSessionResultsTable, ShootingSessionResultRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $PhotographyOpportunityResultsTable(this.attachedDatabase, [this._alias]);
+  $ShootingSessionResultsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -4951,12 +5458,12 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _opportunityIdMeta = const VerificationMeta(
-    'opportunityId',
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
   );
   @override
-  late final GeneratedColumn<String> opportunityId = GeneratedColumn<String>(
-    'opportunity_id',
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -4968,6 +5475,15 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
   @override
   late final GeneratedColumn<String> snapshotId = GeneratedColumn<String>(
     'snapshot_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -4995,14 +5511,16 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  static const VerificationMeta _reasonsJsonMeta = const VerificationMeta(
+    'reasonsJson',
+  );
   @override
-  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
-    'reason',
+  late final GeneratedColumn<String> reasonsJson = GeneratedColumn<String>(
+    'reasons_json',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _recordedAtMeta = const VerificationMeta(
     'recordedAt',
@@ -5018,21 +5536,22 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    opportunityId,
+    sessionId,
     snapshotId,
+    kind,
     targetId,
     outcome,
-    reason,
+    reasonsJson,
     recordedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'photography_opportunity_results';
+  static const String $name = 'shooting_session_results';
   @override
   VerificationContext validateIntegrity(
-    Insertable<PhotographyOpportunityResultRow> instance, {
+    Insertable<ShootingSessionResultRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -5042,16 +5561,13 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
     } else if (isInserting) {
       context.missing(_idMeta);
     }
-    if (data.containsKey('opportunity_id')) {
+    if (data.containsKey('session_id')) {
       context.handle(
-        _opportunityIdMeta,
-        opportunityId.isAcceptableOrUnknown(
-          data['opportunity_id']!,
-          _opportunityIdMeta,
-        ),
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_opportunityIdMeta);
+      context.missing(_sessionIdMeta);
     }
     if (data.containsKey('snapshot_id')) {
       context.handle(
@@ -5060,6 +5576,14 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
       );
     } else if (isInserting) {
       context.missing(_snapshotIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
     }
     if (data.containsKey('target_id')) {
       context.handle(
@@ -5075,11 +5599,16 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
     } else if (isInserting) {
       context.missing(_outcomeMeta);
     }
-    if (data.containsKey('reason')) {
+    if (data.containsKey('reasons_json')) {
       context.handle(
-        _reasonMeta,
-        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+        _reasonsJsonMeta,
+        reasonsJson.isAcceptableOrUnknown(
+          data['reasons_json']!,
+          _reasonsJsonMeta,
+        ),
       );
+    } else if (isInserting) {
+      context.missing(_reasonsJsonMeta);
     }
     if (data.containsKey('recorded_at')) {
       context.handle(
@@ -5095,23 +5624,27 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  PhotographyOpportunityResultRow map(
+  ShootingSessionResultRow map(
     Map<String, dynamic> data, {
     String? tablePrefix,
   }) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return PhotographyOpportunityResultRow(
+    return ShootingSessionResultRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
-      opportunityId: attachedDatabase.typeMapping.read(
+      sessionId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}opportunity_id'],
+        data['${effectivePrefix}session_id'],
       )!,
       snapshotId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}snapshot_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
       )!,
       targetId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -5121,10 +5654,10 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
         DriftSqlType.string,
         data['${effectivePrefix}outcome'],
       )!,
-      reason: attachedDatabase.typeMapping.read(
+      reasonsJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}reason'],
-      ),
+        data['${effectivePrefix}reasons_json'],
+      )!,
       recordedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}recorded_at'],
@@ -5133,74 +5666,75 @@ class $PhotographyOpportunityResultsTable extends PhotographyOpportunityResults
   }
 
   @override
-  $PhotographyOpportunityResultsTable createAlias(String alias) {
-    return $PhotographyOpportunityResultsTable(attachedDatabase, alias);
+  $ShootingSessionResultsTable createAlias(String alias) {
+    return $ShootingSessionResultsTable(attachedDatabase, alias);
   }
 }
 
-class PhotographyOpportunityResultRow extends DataClass
-    implements Insertable<PhotographyOpportunityResultRow> {
+class ShootingSessionResultRow extends DataClass
+    implements Insertable<ShootingSessionResultRow> {
   final String id;
-  final String opportunityId;
+  final String sessionId;
   final String snapshotId;
+  final String kind;
   final String? targetId;
   final String outcome;
-  final String? reason;
+  final String reasonsJson;
   final DateTime recordedAt;
-  const PhotographyOpportunityResultRow({
+  const ShootingSessionResultRow({
     required this.id,
-    required this.opportunityId,
+    required this.sessionId,
     required this.snapshotId,
+    required this.kind,
     this.targetId,
     required this.outcome,
-    this.reason,
+    required this.reasonsJson,
     required this.recordedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
-    map['opportunity_id'] = Variable<String>(opportunityId);
+    map['session_id'] = Variable<String>(sessionId);
     map['snapshot_id'] = Variable<String>(snapshotId);
+    map['kind'] = Variable<String>(kind);
     if (!nullToAbsent || targetId != null) {
       map['target_id'] = Variable<String>(targetId);
     }
     map['outcome'] = Variable<String>(outcome);
-    if (!nullToAbsent || reason != null) {
-      map['reason'] = Variable<String>(reason);
-    }
+    map['reasons_json'] = Variable<String>(reasonsJson);
     map['recorded_at'] = Variable<DateTime>(recordedAt);
     return map;
   }
 
-  PhotographyOpportunityResultsCompanion toCompanion(bool nullToAbsent) {
-    return PhotographyOpportunityResultsCompanion(
+  ShootingSessionResultsCompanion toCompanion(bool nullToAbsent) {
+    return ShootingSessionResultsCompanion(
       id: Value(id),
-      opportunityId: Value(opportunityId),
+      sessionId: Value(sessionId),
       snapshotId: Value(snapshotId),
+      kind: Value(kind),
       targetId: targetId == null && nullToAbsent
           ? const Value.absent()
           : Value(targetId),
       outcome: Value(outcome),
-      reason: reason == null && nullToAbsent
-          ? const Value.absent()
-          : Value(reason),
+      reasonsJson: Value(reasonsJson),
       recordedAt: Value(recordedAt),
     );
   }
 
-  factory PhotographyOpportunityResultRow.fromJson(
+  factory ShootingSessionResultRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return PhotographyOpportunityResultRow(
+    return ShootingSessionResultRow(
       id: serializer.fromJson<String>(json['id']),
-      opportunityId: serializer.fromJson<String>(json['opportunityId']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
       snapshotId: serializer.fromJson<String>(json['snapshotId']),
+      kind: serializer.fromJson<String>(json['kind']),
       targetId: serializer.fromJson<String?>(json['targetId']),
       outcome: serializer.fromJson<String>(json['outcome']),
-      reason: serializer.fromJson<String?>(json['reason']),
+      reasonsJson: serializer.fromJson<String>(json['reasonsJson']),
       recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
     );
   }
@@ -5209,46 +5743,50 @@ class PhotographyOpportunityResultRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
-      'opportunityId': serializer.toJson<String>(opportunityId),
+      'sessionId': serializer.toJson<String>(sessionId),
       'snapshotId': serializer.toJson<String>(snapshotId),
+      'kind': serializer.toJson<String>(kind),
       'targetId': serializer.toJson<String?>(targetId),
       'outcome': serializer.toJson<String>(outcome),
-      'reason': serializer.toJson<String?>(reason),
+      'reasonsJson': serializer.toJson<String>(reasonsJson),
       'recordedAt': serializer.toJson<DateTime>(recordedAt),
     };
   }
 
-  PhotographyOpportunityResultRow copyWith({
+  ShootingSessionResultRow copyWith({
     String? id,
-    String? opportunityId,
+    String? sessionId,
     String? snapshotId,
+    String? kind,
     Value<String?> targetId = const Value.absent(),
     String? outcome,
-    Value<String?> reason = const Value.absent(),
+    String? reasonsJson,
     DateTime? recordedAt,
-  }) => PhotographyOpportunityResultRow(
+  }) => ShootingSessionResultRow(
     id: id ?? this.id,
-    opportunityId: opportunityId ?? this.opportunityId,
+    sessionId: sessionId ?? this.sessionId,
     snapshotId: snapshotId ?? this.snapshotId,
+    kind: kind ?? this.kind,
     targetId: targetId.present ? targetId.value : this.targetId,
     outcome: outcome ?? this.outcome,
-    reason: reason.present ? reason.value : this.reason,
+    reasonsJson: reasonsJson ?? this.reasonsJson,
     recordedAt: recordedAt ?? this.recordedAt,
   );
-  PhotographyOpportunityResultRow copyWithCompanion(
-    PhotographyOpportunityResultsCompanion data,
+  ShootingSessionResultRow copyWithCompanion(
+    ShootingSessionResultsCompanion data,
   ) {
-    return PhotographyOpportunityResultRow(
+    return ShootingSessionResultRow(
       id: data.id.present ? data.id.value : this.id,
-      opportunityId: data.opportunityId.present
-          ? data.opportunityId.value
-          : this.opportunityId,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       snapshotId: data.snapshotId.present
           ? data.snapshotId.value
           : this.snapshotId,
+      kind: data.kind.present ? data.kind.value : this.kind,
       targetId: data.targetId.present ? data.targetId.value : this.targetId,
       outcome: data.outcome.present ? data.outcome.value : this.outcome,
-      reason: data.reason.present ? data.reason.value : this.reason,
+      reasonsJson: data.reasonsJson.present
+          ? data.reasonsJson.value
+          : this.reasonsJson,
       recordedAt: data.recordedAt.present
           ? data.recordedAt.value
           : this.recordedAt,
@@ -5257,13 +5795,14 @@ class PhotographyOpportunityResultRow extends DataClass
 
   @override
   String toString() {
-    return (StringBuffer('PhotographyOpportunityResultRow(')
+    return (StringBuffer('ShootingSessionResultRow(')
           ..write('id: $id, ')
-          ..write('opportunityId: $opportunityId, ')
+          ..write('sessionId: $sessionId, ')
           ..write('snapshotId: $snapshotId, ')
+          ..write('kind: $kind, ')
           ..write('targetId: $targetId, ')
           ..write('outcome: $outcome, ')
-          ..write('reason: $reason, ')
+          ..write('reasonsJson: $reasonsJson, ')
           ..write('recordedAt: $recordedAt')
           ..write(')'))
         .toString();
@@ -5272,99 +5811,110 @@ class PhotographyOpportunityResultRow extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
-    opportunityId,
+    sessionId,
     snapshotId,
+    kind,
     targetId,
     outcome,
-    reason,
+    reasonsJson,
     recordedAt,
   );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is PhotographyOpportunityResultRow &&
+      (other is ShootingSessionResultRow &&
           other.id == this.id &&
-          other.opportunityId == this.opportunityId &&
+          other.sessionId == this.sessionId &&
           other.snapshotId == this.snapshotId &&
+          other.kind == this.kind &&
           other.targetId == this.targetId &&
           other.outcome == this.outcome &&
-          other.reason == this.reason &&
+          other.reasonsJson == this.reasonsJson &&
           other.recordedAt == this.recordedAt);
 }
 
-class PhotographyOpportunityResultsCompanion
-    extends UpdateCompanion<PhotographyOpportunityResultRow> {
+class ShootingSessionResultsCompanion
+    extends UpdateCompanion<ShootingSessionResultRow> {
   final Value<String> id;
-  final Value<String> opportunityId;
+  final Value<String> sessionId;
   final Value<String> snapshotId;
+  final Value<String> kind;
   final Value<String?> targetId;
   final Value<String> outcome;
-  final Value<String?> reason;
+  final Value<String> reasonsJson;
   final Value<DateTime> recordedAt;
   final Value<int> rowid;
-  const PhotographyOpportunityResultsCompanion({
+  const ShootingSessionResultsCompanion({
     this.id = const Value.absent(),
-    this.opportunityId = const Value.absent(),
+    this.sessionId = const Value.absent(),
     this.snapshotId = const Value.absent(),
+    this.kind = const Value.absent(),
     this.targetId = const Value.absent(),
     this.outcome = const Value.absent(),
-    this.reason = const Value.absent(),
+    this.reasonsJson = const Value.absent(),
     this.recordedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
-  PhotographyOpportunityResultsCompanion.insert({
+  ShootingSessionResultsCompanion.insert({
     required String id,
-    required String opportunityId,
+    required String sessionId,
     required String snapshotId,
+    required String kind,
     this.targetId = const Value.absent(),
     required String outcome,
-    this.reason = const Value.absent(),
+    required String reasonsJson,
     required DateTime recordedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
-       opportunityId = Value(opportunityId),
+       sessionId = Value(sessionId),
        snapshotId = Value(snapshotId),
+       kind = Value(kind),
        outcome = Value(outcome),
+       reasonsJson = Value(reasonsJson),
        recordedAt = Value(recordedAt);
-  static Insertable<PhotographyOpportunityResultRow> custom({
+  static Insertable<ShootingSessionResultRow> custom({
     Expression<String>? id,
-    Expression<String>? opportunityId,
+    Expression<String>? sessionId,
     Expression<String>? snapshotId,
+    Expression<String>? kind,
     Expression<String>? targetId,
     Expression<String>? outcome,
-    Expression<String>? reason,
+    Expression<String>? reasonsJson,
     Expression<DateTime>? recordedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (opportunityId != null) 'opportunity_id': opportunityId,
+      if (sessionId != null) 'session_id': sessionId,
       if (snapshotId != null) 'snapshot_id': snapshotId,
+      if (kind != null) 'kind': kind,
       if (targetId != null) 'target_id': targetId,
       if (outcome != null) 'outcome': outcome,
-      if (reason != null) 'reason': reason,
+      if (reasonsJson != null) 'reasons_json': reasonsJson,
       if (recordedAt != null) 'recorded_at': recordedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
 
-  PhotographyOpportunityResultsCompanion copyWith({
+  ShootingSessionResultsCompanion copyWith({
     Value<String>? id,
-    Value<String>? opportunityId,
+    Value<String>? sessionId,
     Value<String>? snapshotId,
+    Value<String>? kind,
     Value<String?>? targetId,
     Value<String>? outcome,
-    Value<String?>? reason,
+    Value<String>? reasonsJson,
     Value<DateTime>? recordedAt,
     Value<int>? rowid,
   }) {
-    return PhotographyOpportunityResultsCompanion(
+    return ShootingSessionResultsCompanion(
       id: id ?? this.id,
-      opportunityId: opportunityId ?? this.opportunityId,
+      sessionId: sessionId ?? this.sessionId,
       snapshotId: snapshotId ?? this.snapshotId,
+      kind: kind ?? this.kind,
       targetId: targetId ?? this.targetId,
       outcome: outcome ?? this.outcome,
-      reason: reason ?? this.reason,
+      reasonsJson: reasonsJson ?? this.reasonsJson,
       recordedAt: recordedAt ?? this.recordedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -5376,11 +5926,14 @@ class PhotographyOpportunityResultsCompanion
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
-    if (opportunityId.present) {
-      map['opportunity_id'] = Variable<String>(opportunityId.value);
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
     }
     if (snapshotId.present) {
       map['snapshot_id'] = Variable<String>(snapshotId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
     }
     if (targetId.present) {
       map['target_id'] = Variable<String>(targetId.value);
@@ -5388,8 +5941,8 @@ class PhotographyOpportunityResultsCompanion
     if (outcome.present) {
       map['outcome'] = Variable<String>(outcome.value);
     }
-    if (reason.present) {
-      map['reason'] = Variable<String>(reason.value);
+    if (reasonsJson.present) {
+      map['reasons_json'] = Variable<String>(reasonsJson.value);
     }
     if (recordedAt.present) {
       map['recorded_at'] = Variable<DateTime>(recordedAt.value);
@@ -5402,13 +5955,14 @@ class PhotographyOpportunityResultsCompanion
 
   @override
   String toString() {
-    return (StringBuffer('PhotographyOpportunityResultsCompanion(')
+    return (StringBuffer('ShootingSessionResultsCompanion(')
           ..write('id: $id, ')
-          ..write('opportunityId: $opportunityId, ')
+          ..write('sessionId: $sessionId, ')
           ..write('snapshotId: $snapshotId, ')
+          ..write('kind: $kind, ')
           ..write('targetId: $targetId, ')
           ..write('outcome: $outcome, ')
-          ..write('reason: $reason, ')
+          ..write('reasonsJson: $reasonsJson, ')
           ..write('recordedAt: $recordedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -5496,12 +6050,12 @@ class $OfflinePhotographyPacksTable extends OfflinePhotographyPacks
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _opportunityJsonMeta = const VerificationMeta(
-    'opportunityJson',
+  static const VerificationMeta _sessionJsonMeta = const VerificationMeta(
+    'sessionJson',
   );
   @override
-  late final GeneratedColumn<String> opportunityJson = GeneratedColumn<String>(
-    'opportunity_json',
+  late final GeneratedColumn<String> sessionJson = GeneratedColumn<String>(
+    'session_json',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -5516,7 +6070,7 @@ class $OfflinePhotographyPacksTable extends OfflinePhotographyPacks
     routeJson,
     placesJson,
     windowsJson,
-    opportunityJson,
+    sessionJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5587,16 +6141,16 @@ class $OfflinePhotographyPacksTable extends OfflinePhotographyPacks
     } else if (isInserting) {
       context.missing(_windowsJsonMeta);
     }
-    if (data.containsKey('opportunity_json')) {
+    if (data.containsKey('session_json')) {
       context.handle(
-        _opportunityJsonMeta,
-        opportunityJson.isAcceptableOrUnknown(
-          data['opportunity_json']!,
-          _opportunityJsonMeta,
+        _sessionJsonMeta,
+        sessionJson.isAcceptableOrUnknown(
+          data['session_json']!,
+          _sessionJsonMeta,
         ),
       );
     } else if (isInserting) {
-      context.missing(_opportunityJsonMeta);
+      context.missing(_sessionJsonMeta);
     }
     return context;
   }
@@ -5638,9 +6192,9 @@ class $OfflinePhotographyPacksTable extends OfflinePhotographyPacks
         DriftSqlType.string,
         data['${effectivePrefix}windows_json'],
       )!,
-      opportunityJson: attachedDatabase.typeMapping.read(
+      sessionJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}opportunity_json'],
+        data['${effectivePrefix}session_json'],
       )!,
     );
   }
@@ -5660,7 +6214,7 @@ class OfflinePhotographyPackRow extends DataClass
   final String? routeJson;
   final String placesJson;
   final String windowsJson;
-  final String opportunityJson;
+  final String sessionJson;
   const OfflinePhotographyPackRow({
     required this.id,
     required this.name,
@@ -5669,7 +6223,7 @@ class OfflinePhotographyPackRow extends DataClass
     this.routeJson,
     required this.placesJson,
     required this.windowsJson,
-    required this.opportunityJson,
+    required this.sessionJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5683,7 +6237,7 @@ class OfflinePhotographyPackRow extends DataClass
     }
     map['places_json'] = Variable<String>(placesJson);
     map['windows_json'] = Variable<String>(windowsJson);
-    map['opportunity_json'] = Variable<String>(opportunityJson);
+    map['session_json'] = Variable<String>(sessionJson);
     return map;
   }
 
@@ -5698,7 +6252,7 @@ class OfflinePhotographyPackRow extends DataClass
           : Value(routeJson),
       placesJson: Value(placesJson),
       windowsJson: Value(windowsJson),
-      opportunityJson: Value(opportunityJson),
+      sessionJson: Value(sessionJson),
     );
   }
 
@@ -5715,7 +6269,7 @@ class OfflinePhotographyPackRow extends DataClass
       routeJson: serializer.fromJson<String?>(json['routeJson']),
       placesJson: serializer.fromJson<String>(json['placesJson']),
       windowsJson: serializer.fromJson<String>(json['windowsJson']),
-      opportunityJson: serializer.fromJson<String>(json['opportunityJson']),
+      sessionJson: serializer.fromJson<String>(json['sessionJson']),
     );
   }
   @override
@@ -5729,7 +6283,7 @@ class OfflinePhotographyPackRow extends DataClass
       'routeJson': serializer.toJson<String?>(routeJson),
       'placesJson': serializer.toJson<String>(placesJson),
       'windowsJson': serializer.toJson<String>(windowsJson),
-      'opportunityJson': serializer.toJson<String>(opportunityJson),
+      'sessionJson': serializer.toJson<String>(sessionJson),
     };
   }
 
@@ -5741,7 +6295,7 @@ class OfflinePhotographyPackRow extends DataClass
     Value<String?> routeJson = const Value.absent(),
     String? placesJson,
     String? windowsJson,
-    String? opportunityJson,
+    String? sessionJson,
   }) => OfflinePhotographyPackRow(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -5750,7 +6304,7 @@ class OfflinePhotographyPackRow extends DataClass
     routeJson: routeJson.present ? routeJson.value : this.routeJson,
     placesJson: placesJson ?? this.placesJson,
     windowsJson: windowsJson ?? this.windowsJson,
-    opportunityJson: opportunityJson ?? this.opportunityJson,
+    sessionJson: sessionJson ?? this.sessionJson,
   );
   OfflinePhotographyPackRow copyWithCompanion(
     OfflinePhotographyPacksCompanion data,
@@ -5769,9 +6323,9 @@ class OfflinePhotographyPackRow extends DataClass
       windowsJson: data.windowsJson.present
           ? data.windowsJson.value
           : this.windowsJson,
-      opportunityJson: data.opportunityJson.present
-          ? data.opportunityJson.value
-          : this.opportunityJson,
+      sessionJson: data.sessionJson.present
+          ? data.sessionJson.value
+          : this.sessionJson,
     );
   }
 
@@ -5785,7 +6339,7 @@ class OfflinePhotographyPackRow extends DataClass
           ..write('routeJson: $routeJson, ')
           ..write('placesJson: $placesJson, ')
           ..write('windowsJson: $windowsJson, ')
-          ..write('opportunityJson: $opportunityJson')
+          ..write('sessionJson: $sessionJson')
           ..write(')'))
         .toString();
   }
@@ -5799,7 +6353,7 @@ class OfflinePhotographyPackRow extends DataClass
     routeJson,
     placesJson,
     windowsJson,
-    opportunityJson,
+    sessionJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -5812,7 +6366,7 @@ class OfflinePhotographyPackRow extends DataClass
           other.routeJson == this.routeJson &&
           other.placesJson == this.placesJson &&
           other.windowsJson == this.windowsJson &&
-          other.opportunityJson == this.opportunityJson);
+          other.sessionJson == this.sessionJson);
 }
 
 class OfflinePhotographyPacksCompanion
@@ -5824,7 +6378,7 @@ class OfflinePhotographyPacksCompanion
   final Value<String?> routeJson;
   final Value<String> placesJson;
   final Value<String> windowsJson;
-  final Value<String> opportunityJson;
+  final Value<String> sessionJson;
   final Value<int> rowid;
   const OfflinePhotographyPacksCompanion({
     this.id = const Value.absent(),
@@ -5834,7 +6388,7 @@ class OfflinePhotographyPacksCompanion
     this.routeJson = const Value.absent(),
     this.placesJson = const Value.absent(),
     this.windowsJson = const Value.absent(),
-    this.opportunityJson = const Value.absent(),
+    this.sessionJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   OfflinePhotographyPacksCompanion.insert({
@@ -5845,7 +6399,7 @@ class OfflinePhotographyPacksCompanion
     this.routeJson = const Value.absent(),
     required String placesJson,
     required String windowsJson,
-    required String opportunityJson,
+    required String sessionJson,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -5853,7 +6407,7 @@ class OfflinePhotographyPacksCompanion
        dataTimestamp = Value(dataTimestamp),
        placesJson = Value(placesJson),
        windowsJson = Value(windowsJson),
-       opportunityJson = Value(opportunityJson);
+       sessionJson = Value(sessionJson);
   static Insertable<OfflinePhotographyPackRow> custom({
     Expression<String>? id,
     Expression<String>? name,
@@ -5862,7 +6416,7 @@ class OfflinePhotographyPacksCompanion
     Expression<String>? routeJson,
     Expression<String>? placesJson,
     Expression<String>? windowsJson,
-    Expression<String>? opportunityJson,
+    Expression<String>? sessionJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5873,7 +6427,7 @@ class OfflinePhotographyPacksCompanion
       if (routeJson != null) 'route_json': routeJson,
       if (placesJson != null) 'places_json': placesJson,
       if (windowsJson != null) 'windows_json': windowsJson,
-      if (opportunityJson != null) 'opportunity_json': opportunityJson,
+      if (sessionJson != null) 'session_json': sessionJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5886,7 +6440,7 @@ class OfflinePhotographyPacksCompanion
     Value<String?>? routeJson,
     Value<String>? placesJson,
     Value<String>? windowsJson,
-    Value<String>? opportunityJson,
+    Value<String>? sessionJson,
     Value<int>? rowid,
   }) {
     return OfflinePhotographyPacksCompanion(
@@ -5897,7 +6451,7 @@ class OfflinePhotographyPacksCompanion
       routeJson: routeJson ?? this.routeJson,
       placesJson: placesJson ?? this.placesJson,
       windowsJson: windowsJson ?? this.windowsJson,
-      opportunityJson: opportunityJson ?? this.opportunityJson,
+      sessionJson: sessionJson ?? this.sessionJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5926,8 +6480,8 @@ class OfflinePhotographyPacksCompanion
     if (windowsJson.present) {
       map['windows_json'] = Variable<String>(windowsJson.value);
     }
-    if (opportunityJson.present) {
-      map['opportunity_json'] = Variable<String>(opportunityJson.value);
+    if (sessionJson.present) {
+      map['session_json'] = Variable<String>(sessionJson.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -5945,7 +6499,7 @@ class OfflinePhotographyPacksCompanion
           ..write('routeJson: $routeJson, ')
           ..write('placesJson: $placesJson, ')
           ..write('windowsJson: $windowsJson, ')
-          ..write('opportunityJson: $opportunityJson, ')
+          ..write('sessionJson: $sessionJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5965,14 +6519,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
       $ProfilePreferenceRecordsTable(this);
   late final $BaseRegionsTable baseRegions = $BaseRegionsTable(this);
+  late final $ManualLocationsTable manualLocations = $ManualLocationsTable(
+    this,
+  );
   late final $SavedInspirationNotesTable savedInspirationNotes =
       $SavedInspirationNotesTable(this);
   late final $WildlifeMapLayerCachesTable wildlifeMapLayerCaches =
       $WildlifeMapLayerCachesTable(this);
-  late final $WatchedPhotographyOpportunitiesTable
-  watchedPhotographyOpportunities = $WatchedPhotographyOpportunitiesTable(this);
-  late final $PhotographyOpportunityResultsTable photographyOpportunityResults =
-      $PhotographyOpportunityResultsTable(this);
+  late final $WatchedShootingSessionsTable watchedShootingSessions =
+      $WatchedShootingSessionsTable(this);
+  late final $ShootingSessionResultsTable shootingSessionResults =
+      $ShootingSessionResultsTable(this);
   late final $OfflinePhotographyPacksTable offlinePhotographyPacks =
       $OfflinePhotographyPacksTable(this);
   @override
@@ -5987,10 +6544,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     importedRouteTracks,
     profilePreferenceRecords,
     baseRegions,
+    manualLocations,
     savedInspirationNotes,
     wildlifeMapLayerCaches,
-    watchedPhotographyOpportunities,
-    photographyOpportunityResults,
+    watchedShootingSessions,
+    shootingSessionResults,
     offlinePhotographyPacks,
   ];
 }
@@ -7209,6 +7767,7 @@ typedef $$ProfilePreferenceRecordsTableCreateCompanionBuilder =
       required String equipmentList,
       required String aiTone,
       required double recommendationIntensity,
+      Value<bool> shareAnonymousPhotographyFeedback,
     });
 typedef $$ProfilePreferenceRecordsTableUpdateCompanionBuilder =
     ProfilePreferenceRecordsCompanion Function({
@@ -7223,6 +7782,7 @@ typedef $$ProfilePreferenceRecordsTableUpdateCompanionBuilder =
       Value<String> equipmentList,
       Value<String> aiTone,
       Value<double> recommendationIntensity,
+      Value<bool> shareAnonymousPhotographyFeedback,
     });
 
 class $$ProfilePreferenceRecordsTableFilterComposer
@@ -7288,6 +7848,12 @@ class $$ProfilePreferenceRecordsTableFilterComposer
     column: $table.recommendationIntensity,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<bool> get shareAnonymousPhotographyFeedback =>
+      $composableBuilder(
+        column: $table.shareAnonymousPhotographyFeedback,
+        builder: (column) => ColumnFilters(column),
+      );
 }
 
 class $$ProfilePreferenceRecordsTableOrderingComposer
@@ -7353,6 +7919,12 @@ class $$ProfilePreferenceRecordsTableOrderingComposer
     column: $table.recommendationIntensity,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get shareAnonymousPhotographyFeedback =>
+      $composableBuilder(
+        column: $table.shareAnonymousPhotographyFeedback,
+        builder: (column) => ColumnOrderings(column),
+      );
 }
 
 class $$ProfilePreferenceRecordsTableAnnotationComposer
@@ -7414,6 +7986,12 @@ class $$ProfilePreferenceRecordsTableAnnotationComposer
     column: $table.recommendationIntensity,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get shareAnonymousPhotographyFeedback =>
+      $composableBuilder(
+        column: $table.shareAnonymousPhotographyFeedback,
+        builder: (column) => column,
+      );
 }
 
 class $$ProfilePreferenceRecordsTableTableManager
@@ -7473,6 +8051,8 @@ class $$ProfilePreferenceRecordsTableTableManager
                 Value<String> equipmentList = const Value.absent(),
                 Value<String> aiTone = const Value.absent(),
                 Value<double> recommendationIntensity = const Value.absent(),
+                Value<bool> shareAnonymousPhotographyFeedback =
+                    const Value.absent(),
               }) => ProfilePreferenceRecordsCompanion(
                 id: id,
                 ambientBackgroundEnabled: ambientBackgroundEnabled,
@@ -7485,6 +8065,8 @@ class $$ProfilePreferenceRecordsTableTableManager
                 equipmentList: equipmentList,
                 aiTone: aiTone,
                 recommendationIntensity: recommendationIntensity,
+                shareAnonymousPhotographyFeedback:
+                    shareAnonymousPhotographyFeedback,
               ),
           createCompanionCallback:
               ({
@@ -7499,6 +8081,8 @@ class $$ProfilePreferenceRecordsTableTableManager
                 required String equipmentList,
                 required String aiTone,
                 required double recommendationIntensity,
+                Value<bool> shareAnonymousPhotographyFeedback =
+                    const Value.absent(),
               }) => ProfilePreferenceRecordsCompanion.insert(
                 id: id,
                 ambientBackgroundEnabled: ambientBackgroundEnabled,
@@ -7511,6 +8095,8 @@ class $$ProfilePreferenceRecordsTableTableManager
                 equipmentList: equipmentList,
                 aiTone: aiTone,
                 recommendationIntensity: recommendationIntensity,
+                shareAnonymousPhotographyFeedback:
+                    shareAnonymousPhotographyFeedback,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -7754,6 +8340,227 @@ typedef $$BaseRegionsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $BaseRegionsTable, BaseRegionRow>,
       ),
       BaseRegionRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ManualLocationsTableCreateCompanionBuilder =
+    ManualLocationsCompanion Function({
+      Value<int> id,
+      required String name,
+      Value<String?> address,
+      required double latitude,
+      required double longitude,
+      required DateTime selectedAt,
+    });
+typedef $$ManualLocationsTableUpdateCompanionBuilder =
+    ManualLocationsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String?> address,
+      Value<double> latitude,
+      Value<double> longitude,
+      Value<DateTime> selectedAt,
+    });
+
+class $$ManualLocationsTableFilterComposer
+    extends Composer<_$AppDatabase, $ManualLocationsTable> {
+  $$ManualLocationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get address => $composableBuilder(
+    column: $table.address,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get selectedAt => $composableBuilder(
+    column: $table.selectedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ManualLocationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ManualLocationsTable> {
+  $$ManualLocationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get address => $composableBuilder(
+    column: $table.address,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get selectedAt => $composableBuilder(
+    column: $table.selectedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ManualLocationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ManualLocationsTable> {
+  $$ManualLocationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get address =>
+      $composableBuilder(column: $table.address, builder: (column) => column);
+
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get selectedAt => $composableBuilder(
+    column: $table.selectedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$ManualLocationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ManualLocationsTable,
+          ManualLocationRow,
+          $$ManualLocationsTableFilterComposer,
+          $$ManualLocationsTableOrderingComposer,
+          $$ManualLocationsTableAnnotationComposer,
+          $$ManualLocationsTableCreateCompanionBuilder,
+          $$ManualLocationsTableUpdateCompanionBuilder,
+          (
+            ManualLocationRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ManualLocationsTable,
+              ManualLocationRow
+            >,
+          ),
+          ManualLocationRow,
+          PrefetchHooks Function()
+        > {
+  $$ManualLocationsTableTableManager(
+    _$AppDatabase db,
+    $ManualLocationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ManualLocationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ManualLocationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ManualLocationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> address = const Value.absent(),
+                Value<double> latitude = const Value.absent(),
+                Value<double> longitude = const Value.absent(),
+                Value<DateTime> selectedAt = const Value.absent(),
+              }) => ManualLocationsCompanion(
+                id: id,
+                name: name,
+                address: address,
+                latitude: latitude,
+                longitude: longitude,
+                selectedAt: selectedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<String?> address = const Value.absent(),
+                required double latitude,
+                required double longitude,
+                required DateTime selectedAt,
+              }) => ManualLocationsCompanion.insert(
+                id: id,
+                name: name,
+                address: address,
+                latitude: latitude,
+                longitude: longitude,
+                selectedAt: selectedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ManualLocationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ManualLocationsTable,
+      ManualLocationRow,
+      $$ManualLocationsTableFilterComposer,
+      $$ManualLocationsTableOrderingComposer,
+      $$ManualLocationsTableAnnotationComposer,
+      $$ManualLocationsTableCreateCompanionBuilder,
+      $$ManualLocationsTableUpdateCompanionBuilder,
+      (
+        ManualLocationRow,
+        BaseReferences<_$AppDatabase, $ManualLocationsTable, ManualLocationRow>,
+      ),
+      ManualLocationRow,
       PrefetchHooks Function()
     >;
 typedef $$SavedInspirationNotesTableCreateCompanionBuilder =
@@ -8324,32 +9131,34 @@ typedef $$WildlifeMapLayerCachesTableProcessedTableManager =
       WildlifeMapLayerCacheRow,
       PrefetchHooks Function()
     >;
-typedef $$WatchedPhotographyOpportunitiesTableCreateCompanionBuilder =
-    WatchedPhotographyOpportunitiesCompanion Function({
+typedef $$WatchedShootingSessionsTableCreateCompanionBuilder =
+    WatchedShootingSessionsCompanion Function({
       required String id,
-      required String opportunityId,
+      required String sessionId,
       required String snapshotId,
       required String title,
+      required String kind,
       Value<String?> targetId,
       required DateTime watchedAt,
       required DateTime expiresAt,
       Value<int> rowid,
     });
-typedef $$WatchedPhotographyOpportunitiesTableUpdateCompanionBuilder =
-    WatchedPhotographyOpportunitiesCompanion Function({
+typedef $$WatchedShootingSessionsTableUpdateCompanionBuilder =
+    WatchedShootingSessionsCompanion Function({
       Value<String> id,
-      Value<String> opportunityId,
+      Value<String> sessionId,
       Value<String> snapshotId,
       Value<String> title,
+      Value<String> kind,
       Value<String?> targetId,
       Value<DateTime> watchedAt,
       Value<DateTime> expiresAt,
       Value<int> rowid,
     });
 
-class $$WatchedPhotographyOpportunitiesTableFilterComposer
-    extends Composer<_$AppDatabase, $WatchedPhotographyOpportunitiesTable> {
-  $$WatchedPhotographyOpportunitiesTableFilterComposer({
+class $$WatchedShootingSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $WatchedShootingSessionsTable> {
+  $$WatchedShootingSessionsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -8361,8 +9170,8 @@ class $$WatchedPhotographyOpportunitiesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get opportunityId => $composableBuilder(
-    column: $table.opportunityId,
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8373,6 +9182,11 @@ class $$WatchedPhotographyOpportunitiesTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8392,9 +9206,9 @@ class $$WatchedPhotographyOpportunitiesTableFilterComposer
   );
 }
 
-class $$WatchedPhotographyOpportunitiesTableOrderingComposer
-    extends Composer<_$AppDatabase, $WatchedPhotographyOpportunitiesTable> {
-  $$WatchedPhotographyOpportunitiesTableOrderingComposer({
+class $$WatchedShootingSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WatchedShootingSessionsTable> {
+  $$WatchedShootingSessionsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -8406,8 +9220,8 @@ class $$WatchedPhotographyOpportunitiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get opportunityId => $composableBuilder(
-    column: $table.opportunityId,
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8418,6 +9232,11 @@ class $$WatchedPhotographyOpportunitiesTableOrderingComposer
 
   ColumnOrderings<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8437,9 +9256,9 @@ class $$WatchedPhotographyOpportunitiesTableOrderingComposer
   );
 }
 
-class $$WatchedPhotographyOpportunitiesTableAnnotationComposer
-    extends Composer<_$AppDatabase, $WatchedPhotographyOpportunitiesTable> {
-  $$WatchedPhotographyOpportunitiesTableAnnotationComposer({
+class $$WatchedShootingSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WatchedShootingSessionsTable> {
+  $$WatchedShootingSessionsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -8449,10 +9268,8 @@ class $$WatchedPhotographyOpportunitiesTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get opportunityId => $composableBuilder(
-    column: $table.opportunityId,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
 
   GeneratedColumn<String> get snapshotId => $composableBuilder(
     column: $table.snapshotId,
@@ -8461,6 +9278,9 @@ class $$WatchedPhotographyOpportunitiesTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   GeneratedColumn<String> get targetId =>
       $composableBuilder(column: $table.targetId, builder: (column) => column);
@@ -8472,65 +9292,67 @@ class $$WatchedPhotographyOpportunitiesTableAnnotationComposer
       $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
-class $$WatchedPhotographyOpportunitiesTableTableManager
+class $$WatchedShootingSessionsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $WatchedPhotographyOpportunitiesTable,
-          WatchedPhotographyOpportunityRow,
-          $$WatchedPhotographyOpportunitiesTableFilterComposer,
-          $$WatchedPhotographyOpportunitiesTableOrderingComposer,
-          $$WatchedPhotographyOpportunitiesTableAnnotationComposer,
-          $$WatchedPhotographyOpportunitiesTableCreateCompanionBuilder,
-          $$WatchedPhotographyOpportunitiesTableUpdateCompanionBuilder,
+          $WatchedShootingSessionsTable,
+          WatchedShootingSessionRow,
+          $$WatchedShootingSessionsTableFilterComposer,
+          $$WatchedShootingSessionsTableOrderingComposer,
+          $$WatchedShootingSessionsTableAnnotationComposer,
+          $$WatchedShootingSessionsTableCreateCompanionBuilder,
+          $$WatchedShootingSessionsTableUpdateCompanionBuilder,
           (
-            WatchedPhotographyOpportunityRow,
+            WatchedShootingSessionRow,
             BaseReferences<
               _$AppDatabase,
-              $WatchedPhotographyOpportunitiesTable,
-              WatchedPhotographyOpportunityRow
+              $WatchedShootingSessionsTable,
+              WatchedShootingSessionRow
             >,
           ),
-          WatchedPhotographyOpportunityRow,
+          WatchedShootingSessionRow,
           PrefetchHooks Function()
         > {
-  $$WatchedPhotographyOpportunitiesTableTableManager(
+  $$WatchedShootingSessionsTableTableManager(
     _$AppDatabase db,
-    $WatchedPhotographyOpportunitiesTable table,
+    $WatchedShootingSessionsTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$WatchedPhotographyOpportunitiesTableFilterComposer(
+              $$WatchedShootingSessionsTableFilterComposer(
                 $db: db,
                 $table: table,
               ),
           createOrderingComposer: () =>
-              $$WatchedPhotographyOpportunitiesTableOrderingComposer(
+              $$WatchedShootingSessionsTableOrderingComposer(
                 $db: db,
                 $table: table,
               ),
           createComputedFieldComposer: () =>
-              $$WatchedPhotographyOpportunitiesTableAnnotationComposer(
+              $$WatchedShootingSessionsTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> opportunityId = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
                 Value<String> snapshotId = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<String?> targetId = const Value.absent(),
                 Value<DateTime> watchedAt = const Value.absent(),
                 Value<DateTime> expiresAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => WatchedPhotographyOpportunitiesCompanion(
+              }) => WatchedShootingSessionsCompanion(
                 id: id,
-                opportunityId: opportunityId,
+                sessionId: sessionId,
                 snapshotId: snapshotId,
                 title: title,
+                kind: kind,
                 targetId: targetId,
                 watchedAt: watchedAt,
                 expiresAt: expiresAt,
@@ -8539,18 +9361,20 @@ class $$WatchedPhotographyOpportunitiesTableTableManager
           createCompanionCallback:
               ({
                 required String id,
-                required String opportunityId,
+                required String sessionId,
                 required String snapshotId,
                 required String title,
+                required String kind,
                 Value<String?> targetId = const Value.absent(),
                 required DateTime watchedAt,
                 required DateTime expiresAt,
                 Value<int> rowid = const Value.absent(),
-              }) => WatchedPhotographyOpportunitiesCompanion.insert(
+              }) => WatchedShootingSessionsCompanion.insert(
                 id: id,
-                opportunityId: opportunityId,
+                sessionId: sessionId,
                 snapshotId: snapshotId,
                 title: title,
+                kind: kind,
                 targetId: targetId,
                 watchedAt: watchedAt,
                 expiresAt: expiresAt,
@@ -8564,53 +9388,55 @@ class $$WatchedPhotographyOpportunitiesTableTableManager
       );
 }
 
-typedef $$WatchedPhotographyOpportunitiesTableProcessedTableManager =
+typedef $$WatchedShootingSessionsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $WatchedPhotographyOpportunitiesTable,
-      WatchedPhotographyOpportunityRow,
-      $$WatchedPhotographyOpportunitiesTableFilterComposer,
-      $$WatchedPhotographyOpportunitiesTableOrderingComposer,
-      $$WatchedPhotographyOpportunitiesTableAnnotationComposer,
-      $$WatchedPhotographyOpportunitiesTableCreateCompanionBuilder,
-      $$WatchedPhotographyOpportunitiesTableUpdateCompanionBuilder,
+      $WatchedShootingSessionsTable,
+      WatchedShootingSessionRow,
+      $$WatchedShootingSessionsTableFilterComposer,
+      $$WatchedShootingSessionsTableOrderingComposer,
+      $$WatchedShootingSessionsTableAnnotationComposer,
+      $$WatchedShootingSessionsTableCreateCompanionBuilder,
+      $$WatchedShootingSessionsTableUpdateCompanionBuilder,
       (
-        WatchedPhotographyOpportunityRow,
+        WatchedShootingSessionRow,
         BaseReferences<
           _$AppDatabase,
-          $WatchedPhotographyOpportunitiesTable,
-          WatchedPhotographyOpportunityRow
+          $WatchedShootingSessionsTable,
+          WatchedShootingSessionRow
         >,
       ),
-      WatchedPhotographyOpportunityRow,
+      WatchedShootingSessionRow,
       PrefetchHooks Function()
     >;
-typedef $$PhotographyOpportunityResultsTableCreateCompanionBuilder =
-    PhotographyOpportunityResultsCompanion Function({
+typedef $$ShootingSessionResultsTableCreateCompanionBuilder =
+    ShootingSessionResultsCompanion Function({
       required String id,
-      required String opportunityId,
+      required String sessionId,
       required String snapshotId,
+      required String kind,
       Value<String?> targetId,
       required String outcome,
-      Value<String?> reason,
+      required String reasonsJson,
       required DateTime recordedAt,
       Value<int> rowid,
     });
-typedef $$PhotographyOpportunityResultsTableUpdateCompanionBuilder =
-    PhotographyOpportunityResultsCompanion Function({
+typedef $$ShootingSessionResultsTableUpdateCompanionBuilder =
+    ShootingSessionResultsCompanion Function({
       Value<String> id,
-      Value<String> opportunityId,
+      Value<String> sessionId,
       Value<String> snapshotId,
+      Value<String> kind,
       Value<String?> targetId,
       Value<String> outcome,
-      Value<String?> reason,
+      Value<String> reasonsJson,
       Value<DateTime> recordedAt,
       Value<int> rowid,
     });
 
-class $$PhotographyOpportunityResultsTableFilterComposer
-    extends Composer<_$AppDatabase, $PhotographyOpportunityResultsTable> {
-  $$PhotographyOpportunityResultsTableFilterComposer({
+class $$ShootingSessionResultsTableFilterComposer
+    extends Composer<_$AppDatabase, $ShootingSessionResultsTable> {
+  $$ShootingSessionResultsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -8622,13 +9448,18 @@ class $$PhotographyOpportunityResultsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get opportunityId => $composableBuilder(
-    column: $table.opportunityId,
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
   ColumnFilters<String> get snapshotId => $composableBuilder(
     column: $table.snapshotId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8642,8 +9473,8 @@ class $$PhotographyOpportunityResultsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get reason => $composableBuilder(
-    column: $table.reason,
+  ColumnFilters<String> get reasonsJson => $composableBuilder(
+    column: $table.reasonsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8653,9 +9484,9 @@ class $$PhotographyOpportunityResultsTableFilterComposer
   );
 }
 
-class $$PhotographyOpportunityResultsTableOrderingComposer
-    extends Composer<_$AppDatabase, $PhotographyOpportunityResultsTable> {
-  $$PhotographyOpportunityResultsTableOrderingComposer({
+class $$ShootingSessionResultsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ShootingSessionResultsTable> {
+  $$ShootingSessionResultsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -8667,13 +9498,18 @@ class $$PhotographyOpportunityResultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get opportunityId => $composableBuilder(
-    column: $table.opportunityId,
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
     builder: (column) => ColumnOrderings(column),
   );
 
   ColumnOrderings<String> get snapshotId => $composableBuilder(
     column: $table.snapshotId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8687,8 +9523,8 @@ class $$PhotographyOpportunityResultsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get reason => $composableBuilder(
-    column: $table.reason,
+  ColumnOrderings<String> get reasonsJson => $composableBuilder(
+    column: $table.reasonsJson,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8698,9 +9534,9 @@ class $$PhotographyOpportunityResultsTableOrderingComposer
   );
 }
 
-class $$PhotographyOpportunityResultsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $PhotographyOpportunityResultsTable> {
-  $$PhotographyOpportunityResultsTableAnnotationComposer({
+class $$ShootingSessionResultsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ShootingSessionResultsTable> {
+  $$ShootingSessionResultsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -8710,15 +9546,16 @@ class $$PhotographyOpportunityResultsTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get opportunityId => $composableBuilder(
-    column: $table.opportunityId,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
 
   GeneratedColumn<String> get snapshotId => $composableBuilder(
     column: $table.snapshotId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   GeneratedColumn<String> get targetId =>
       $composableBuilder(column: $table.targetId, builder: (column) => column);
@@ -8726,8 +9563,10 @@ class $$PhotographyOpportunityResultsTableAnnotationComposer
   GeneratedColumn<String> get outcome =>
       $composableBuilder(column: $table.outcome, builder: (column) => column);
 
-  GeneratedColumn<String> get reason =>
-      $composableBuilder(column: $table.reason, builder: (column) => column);
+  GeneratedColumn<String> get reasonsJson => $composableBuilder(
+    column: $table.reasonsJson,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
     column: $table.recordedAt,
@@ -8735,87 +9574,91 @@ class $$PhotographyOpportunityResultsTableAnnotationComposer
   );
 }
 
-class $$PhotographyOpportunityResultsTableTableManager
+class $$ShootingSessionResultsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $PhotographyOpportunityResultsTable,
-          PhotographyOpportunityResultRow,
-          $$PhotographyOpportunityResultsTableFilterComposer,
-          $$PhotographyOpportunityResultsTableOrderingComposer,
-          $$PhotographyOpportunityResultsTableAnnotationComposer,
-          $$PhotographyOpportunityResultsTableCreateCompanionBuilder,
-          $$PhotographyOpportunityResultsTableUpdateCompanionBuilder,
+          $ShootingSessionResultsTable,
+          ShootingSessionResultRow,
+          $$ShootingSessionResultsTableFilterComposer,
+          $$ShootingSessionResultsTableOrderingComposer,
+          $$ShootingSessionResultsTableAnnotationComposer,
+          $$ShootingSessionResultsTableCreateCompanionBuilder,
+          $$ShootingSessionResultsTableUpdateCompanionBuilder,
           (
-            PhotographyOpportunityResultRow,
+            ShootingSessionResultRow,
             BaseReferences<
               _$AppDatabase,
-              $PhotographyOpportunityResultsTable,
-              PhotographyOpportunityResultRow
+              $ShootingSessionResultsTable,
+              ShootingSessionResultRow
             >,
           ),
-          PhotographyOpportunityResultRow,
+          ShootingSessionResultRow,
           PrefetchHooks Function()
         > {
-  $$PhotographyOpportunityResultsTableTableManager(
+  $$ShootingSessionResultsTableTableManager(
     _$AppDatabase db,
-    $PhotographyOpportunityResultsTable table,
+    $ShootingSessionResultsTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$PhotographyOpportunityResultsTableFilterComposer(
+              $$ShootingSessionResultsTableFilterComposer(
                 $db: db,
                 $table: table,
               ),
           createOrderingComposer: () =>
-              $$PhotographyOpportunityResultsTableOrderingComposer(
+              $$ShootingSessionResultsTableOrderingComposer(
                 $db: db,
                 $table: table,
               ),
           createComputedFieldComposer: () =>
-              $$PhotographyOpportunityResultsTableAnnotationComposer(
+              $$ShootingSessionResultsTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
-                Value<String> opportunityId = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
                 Value<String> snapshotId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<String?> targetId = const Value.absent(),
                 Value<String> outcome = const Value.absent(),
-                Value<String?> reason = const Value.absent(),
+                Value<String> reasonsJson = const Value.absent(),
                 Value<DateTime> recordedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => PhotographyOpportunityResultsCompanion(
+              }) => ShootingSessionResultsCompanion(
                 id: id,
-                opportunityId: opportunityId,
+                sessionId: sessionId,
                 snapshotId: snapshotId,
+                kind: kind,
                 targetId: targetId,
                 outcome: outcome,
-                reason: reason,
+                reasonsJson: reasonsJson,
                 recordedAt: recordedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
                 required String id,
-                required String opportunityId,
+                required String sessionId,
                 required String snapshotId,
+                required String kind,
                 Value<String?> targetId = const Value.absent(),
                 required String outcome,
-                Value<String?> reason = const Value.absent(),
+                required String reasonsJson,
                 required DateTime recordedAt,
                 Value<int> rowid = const Value.absent(),
-              }) => PhotographyOpportunityResultsCompanion.insert(
+              }) => ShootingSessionResultsCompanion.insert(
                 id: id,
-                opportunityId: opportunityId,
+                sessionId: sessionId,
                 snapshotId: snapshotId,
+                kind: kind,
                 targetId: targetId,
                 outcome: outcome,
-                reason: reason,
+                reasonsJson: reasonsJson,
                 recordedAt: recordedAt,
                 rowid: rowid,
               ),
@@ -8827,25 +9670,25 @@ class $$PhotographyOpportunityResultsTableTableManager
       );
 }
 
-typedef $$PhotographyOpportunityResultsTableProcessedTableManager =
+typedef $$ShootingSessionResultsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $PhotographyOpportunityResultsTable,
-      PhotographyOpportunityResultRow,
-      $$PhotographyOpportunityResultsTableFilterComposer,
-      $$PhotographyOpportunityResultsTableOrderingComposer,
-      $$PhotographyOpportunityResultsTableAnnotationComposer,
-      $$PhotographyOpportunityResultsTableCreateCompanionBuilder,
-      $$PhotographyOpportunityResultsTableUpdateCompanionBuilder,
+      $ShootingSessionResultsTable,
+      ShootingSessionResultRow,
+      $$ShootingSessionResultsTableFilterComposer,
+      $$ShootingSessionResultsTableOrderingComposer,
+      $$ShootingSessionResultsTableAnnotationComposer,
+      $$ShootingSessionResultsTableCreateCompanionBuilder,
+      $$ShootingSessionResultsTableUpdateCompanionBuilder,
       (
-        PhotographyOpportunityResultRow,
+        ShootingSessionResultRow,
         BaseReferences<
           _$AppDatabase,
-          $PhotographyOpportunityResultsTable,
-          PhotographyOpportunityResultRow
+          $ShootingSessionResultsTable,
+          ShootingSessionResultRow
         >,
       ),
-      PhotographyOpportunityResultRow,
+      ShootingSessionResultRow,
       PrefetchHooks Function()
     >;
 typedef $$OfflinePhotographyPacksTableCreateCompanionBuilder =
@@ -8857,7 +9700,7 @@ typedef $$OfflinePhotographyPacksTableCreateCompanionBuilder =
       Value<String?> routeJson,
       required String placesJson,
       required String windowsJson,
-      required String opportunityJson,
+      required String sessionJson,
       Value<int> rowid,
     });
 typedef $$OfflinePhotographyPacksTableUpdateCompanionBuilder =
@@ -8869,7 +9712,7 @@ typedef $$OfflinePhotographyPacksTableUpdateCompanionBuilder =
       Value<String?> routeJson,
       Value<String> placesJson,
       Value<String> windowsJson,
-      Value<String> opportunityJson,
+      Value<String> sessionJson,
       Value<int> rowid,
     });
 
@@ -8917,8 +9760,8 @@ class $$OfflinePhotographyPacksTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get opportunityJson => $composableBuilder(
-    column: $table.opportunityJson,
+  ColumnFilters<String> get sessionJson => $composableBuilder(
+    column: $table.sessionJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8967,8 +9810,8 @@ class $$OfflinePhotographyPacksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get opportunityJson => $composableBuilder(
-    column: $table.opportunityJson,
+  ColumnOrderings<String> get sessionJson => $composableBuilder(
+    column: $table.sessionJson,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -9009,8 +9852,8 @@ class $$OfflinePhotographyPacksTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get opportunityJson => $composableBuilder(
-    column: $table.opportunityJson,
+  GeneratedColumn<String> get sessionJson => $composableBuilder(
+    column: $table.sessionJson,
     builder: (column) => column,
   );
 }
@@ -9068,7 +9911,7 @@ class $$OfflinePhotographyPacksTableTableManager
                 Value<String?> routeJson = const Value.absent(),
                 Value<String> placesJson = const Value.absent(),
                 Value<String> windowsJson = const Value.absent(),
-                Value<String> opportunityJson = const Value.absent(),
+                Value<String> sessionJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => OfflinePhotographyPacksCompanion(
                 id: id,
@@ -9078,7 +9921,7 @@ class $$OfflinePhotographyPacksTableTableManager
                 routeJson: routeJson,
                 placesJson: placesJson,
                 windowsJson: windowsJson,
-                opportunityJson: opportunityJson,
+                sessionJson: sessionJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9090,7 +9933,7 @@ class $$OfflinePhotographyPacksTableTableManager
                 Value<String?> routeJson = const Value.absent(),
                 required String placesJson,
                 required String windowsJson,
-                required String opportunityJson,
+                required String sessionJson,
                 Value<int> rowid = const Value.absent(),
               }) => OfflinePhotographyPacksCompanion.insert(
                 id: id,
@@ -9100,7 +9943,7 @@ class $$OfflinePhotographyPacksTableTableManager
                 routeJson: routeJson,
                 placesJson: placesJson,
                 windowsJson: windowsJson,
-                opportunityJson: opportunityJson,
+                sessionJson: sessionJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9156,6 +9999,8 @@ class $AppDatabaseManager {
       );
   $$BaseRegionsTableTableManager get baseRegions =>
       $$BaseRegionsTableTableManager(_db, _db.baseRegions);
+  $$ManualLocationsTableTableManager get manualLocations =>
+      $$ManualLocationsTableTableManager(_db, _db.manualLocations);
   $$SavedInspirationNotesTableTableManager get savedInspirationNotes =>
       $$SavedInspirationNotesTableTableManager(_db, _db.savedInspirationNotes);
   $$WildlifeMapLayerCachesTableTableManager get wildlifeMapLayerCaches =>
@@ -9163,17 +10008,15 @@ class $AppDatabaseManager {
         _db,
         _db.wildlifeMapLayerCaches,
       );
-  $$WatchedPhotographyOpportunitiesTableTableManager
-  get watchedPhotographyOpportunities =>
-      $$WatchedPhotographyOpportunitiesTableTableManager(
+  $$WatchedShootingSessionsTableTableManager get watchedShootingSessions =>
+      $$WatchedShootingSessionsTableTableManager(
         _db,
-        _db.watchedPhotographyOpportunities,
+        _db.watchedShootingSessions,
       );
-  $$PhotographyOpportunityResultsTableTableManager
-  get photographyOpportunityResults =>
-      $$PhotographyOpportunityResultsTableTableManager(
+  $$ShootingSessionResultsTableTableManager get shootingSessionResults =>
+      $$ShootingSessionResultsTableTableManager(
         _db,
-        _db.photographyOpportunityResults,
+        _db.shootingSessionResults,
       );
   $$OfflinePhotographyPacksTableTableManager get offlinePhotographyPacks =>
       $$OfflinePhotographyPacksTableTableManager(

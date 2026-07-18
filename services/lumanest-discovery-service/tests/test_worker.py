@@ -6,15 +6,42 @@ import pytest
 
 from app.models import BrokerSearchResult, ExtractedCandidate
 from app.store import RefreshJob, RegionReference
-from app.worker import BrokerClient, MAX_RETRIES, is_admissible, parse_job, process_job
+from app.worker import (
+    BrokerClient,
+    MAX_RETRIES,
+    is_admissible,
+    is_deterministic_admissible,
+    parse_job,
+    process_job,
+)
 
 
 def job(attempt: int = 0) -> RefreshJob:
     return RefreshJob(
         fingerprint="a" * 64,
-        region=RegionReference("g605:2402", 30.275, 120.125, "zh-cn", "photography"),
+        region=RegionReference(
+            "g605:2402", 30.275, 120.125, "zh-cn",
+            "humanityEvents", "早市 夜市 展览", 5000,
+        ),
         expires_at=int(time.time()) + 600,
         attempt=attempt,
+    )
+
+
+def mission_job(mission_type: str) -> RefreshJob:
+    value = job()
+    return RefreshJob(
+        value.fingerprint,
+        RegionReference(
+            value.region.region_id,
+            value.region.latitude,
+            value.region.longitude,
+            value.region.locale,
+            mission_type,
+            "环湖路线" if mission_type == "routeConditions" else "博物馆",
+            value.region.radius_meters,
+        ),
+        value.expires_at,
     )
 
 
@@ -44,6 +71,19 @@ def candidate(**overrides) -> ExtractedCandidate:
     return ExtractedCandidate.model_validate(value)
 
 
+def amap_source(source_id: str) -> BrokerSearchResult:
+    return BrokerSearchResult.model_validate({
+        "sourceId": source_id,
+        "publisher": "高德地图",
+        "license": "高德开放平台服务",
+        "version": "amap-web-service-v1",
+        "title": "高德结构化资料",
+        "snippet": "当前资料。坐标：30.28000,120.13000",
+        "url": "https://ditu.amap.com/",
+        "publishedAt": "2026-07-20T00:00:00Z",
+    })
+
+
 def test_job_contains_only_expiring_grid_center_not_the_request_coordinate():
     values = job().stream_values()
     parsed = parse_job(values)
@@ -70,6 +110,21 @@ def test_valid_vetted_evidence_admits_a_candidate_without_claiming_popularity():
     assert admitted == [source()]
     assert candidate().kind == "candidate_viewpoint"
     assert "popular" not in candidate().title.lower()
+
+
+def test_deterministic_missions_accept_only_the_matching_amap_product():
+    route = candidate(kind="candidate_viewpoint", coordinateEvidence="30.28000,120.13000")
+    opening = candidate(kind="attraction", coordinateEvidence="30.28000,120.13000")
+
+    assert is_deterministic_admissible(
+        route, [amap_source("amap-traffic")], mission_job("routeConditions")
+    ) == [amap_source("amap-traffic")]
+    assert is_deterministic_admissible(
+        opening, [amap_source("amap-poi")], mission_job("openingAndClosure")
+    ) == [amap_source("amap-poi")]
+    assert is_deterministic_admissible(
+        route, [amap_source("amap-poi")], mission_job("routeConditions")
+    ) is None
 
 
 @pytest.mark.asyncio
@@ -129,3 +184,53 @@ async def test_broker_failure_has_a_bounded_retry_state_and_persists_no_item():
     assert exhausted_store.persisted == []
     assert exhausted_redis.added == []
     assert exhausted_redis.sets[0][0][1] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_route_and_opening_jobs_use_deterministic_adapter_without_search_or_llm():
+    class Redis:
+        def __init__(self):
+            self.sets = []
+
+        async def set(self, *args, **kwargs):
+            self.sets.append((args, kwargs))
+
+    class Store:
+        def __init__(self):
+            self.persisted = []
+
+        async def record_refresh(self, *_args):
+            pass
+
+        async def persist_candidates(self, _job, candidates):
+            self.persisted.extend(candidates)
+
+    class Broker:
+        def __init__(self, mission_type):
+            self.mission_type = mission_type
+            self.search_called = False
+            self.extract_called = False
+
+        async def search(self, _job):
+            self.search_called = True
+            raise AssertionError("deterministic mission must not search Tavily")
+
+        async def extract(self, _job, _evidence):
+            self.extract_called = True
+            raise AssertionError("deterministic mission must not call the LLM")
+
+        async def deterministic(self, _job, evidence):
+            assert evidence == []
+            source_id = "amap-traffic" if self.mission_type == "routeConditions" else "amap-poi"
+            kind = "candidate_viewpoint" if self.mission_type == "routeConditions" else "attraction"
+            return [candidate(kind=kind, coordinateEvidence="30.28000,120.13000")], [amap_source(source_id)]
+
+    for mission_type in ("routeConditions", "openingAndClosure"):
+        redis = Redis()
+        store = Store()
+        broker = Broker(mission_type)
+        await process_job(redis, store, broker, mission_job(mission_type))
+        assert len(store.persisted) == 1
+        assert broker.search_called is False
+        assert broker.extract_called is False
+        assert redis.sets[-1][0][1] == "completed"

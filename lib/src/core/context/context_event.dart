@@ -14,17 +14,20 @@ enum ContextEventSource {
   astronomyCatalog,
 }
 
-enum ContextGeoScope { point, regional, route }
+enum ContextGeoScope { point, region, route }
 
 enum ContextSafetyLevel { info, caution, warning, critical }
 
 enum ContextAction {
-  openExplore,
   openShootingWindow,
-  openWeather,
-  openSafety,
+  openExplore,
   openRoute,
-  openAuthority,
+  openPlaceDetail,
+  openAstronomyDetail,
+  openWildlifeDetail,
+  openSafetyDetail,
+  openCreativeDetail,
+  dismiss,
 }
 
 class ContextEvent {

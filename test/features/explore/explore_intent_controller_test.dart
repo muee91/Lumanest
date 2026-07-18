@@ -63,8 +63,8 @@ void main() {
       SceneType.city,
       SceneType.mountain,
       SceneType.desert,
-      SceneType.driving,
-      SceneType.hiking,
+      SceneType.unknown,
+      SceneType.mountain,
     ]) {
       controller().syncScene(scene);
       expect(state().category, NearbyPlaceCategory.viewpoint);
@@ -90,12 +90,12 @@ void main() {
   });
 
   test('creative intent resolves to its existing nearby category', () {
-    controller().chooseCreativeIntent(ExploreCreativeIntent.reflection);
+    controller().chooseCreativeIntent(ExploreCreativeIntent.water);
 
-    expect(state().creativeIntent, ExploreCreativeIntent.reflection);
+    expect(state().creativeIntent, ExploreCreativeIntent.water);
     expect(state().category, NearbyPlaceCategory.waterfront);
 
-    controller().chooseCreativeIntent(ExploreCreativeIntent.shelter);
-    expect(state().category, NearbyPlaceCategory.food);
+    controller().chooseCreativeIntent(ExploreCreativeIntent.supplies);
+    expect(state().category, NearbyPlaceCategory.supply);
   });
 }

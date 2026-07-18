@@ -32,7 +32,7 @@ class RouteCorridorContext {
     required this.routeId,
     required Iterable<RouteCorridorSample> samples,
   }) : samples = List.unmodifiable(samples) {
-    if (routeId.isEmpty || routeId.length > 160 || this.samples.length > 3) {
+    if (routeId.isEmpty || routeId.length > 160 || this.samples.length > 5) {
       throw ArgumentError('invalid transient route corridor');
     }
   }
@@ -55,13 +55,19 @@ class RouteCorridorContext {
     required int durationSeconds,
     required DateTime departureAt,
     required String routeSeed,
+    int maximumSamples = 3,
   }) {
-    if (polyline.length < 2 || durationSeconds < 1) {
+    if (polyline.length < 2 ||
+        durationSeconds < 1 ||
+        maximumSamples < 2 ||
+        maximumSamples > 5) {
       throw ArgumentError(
         'a loaded route with duration and at least two points is required',
       );
     }
-    final samples = _sampleIndexes(polyline).map((entry) {
+    final samples = _sampleIndexes(polyline, maximum: maximumSamples).map((
+      entry,
+    ) {
       final point = polyline[entry.index];
       final wgs84 = point.coordinateSystem == CoordinateSystem.gcj02
           ? ChinaCoordinateConverter.gcj02ToWgs84(point)
@@ -86,7 +92,10 @@ class RouteCorridorContext {
     );
   }
 
-  static List<_RouteProgress> _sampleIndexes(List<GeoPoint> points) {
+  static List<_RouteProgress> _sampleIndexes(
+    List<GeoPoint> points, {
+    required int maximum,
+  }) {
     final cumulative = <double>[0];
     for (var index = 1; index < points.length; index += 1) {
       cumulative.add(
@@ -96,7 +105,6 @@ class RouteCorridorContext {
     final total = cumulative.last;
     double progress(int index) =>
         total > 0 ? cumulative[index] / total : index / (points.length - 1);
-    const maximum = 3;
     if (points.length <= maximum) {
       return List.generate(
         points.length,

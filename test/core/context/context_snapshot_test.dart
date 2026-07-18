@@ -13,20 +13,20 @@ void main() {
     expect(snapshot.opportunityIds, isEmpty);
   });
 
-  test('lake sunset fixture exposes a reflection opportunity', () {
+  test('lake sunset fixture exposes the current water session', () {
     final snapshot = ContextFixtures.lakeSunset();
 
     expect(snapshot.primaryScene, SceneType.lake);
     expect(snapshot.dayPhase, DayPhase.sunset);
-    expect(snapshot.opportunityIds, contains('reflection'));
+    expect(snapshot.opportunityIds, contains('session.water.evening'));
   });
 
-  test('mountain dawn fixture exposes an alpenglow opportunity', () {
+  test('mountain dawn fixture exposes the current mountain session', () {
     final snapshot = ContextFixtures.mountainDawn();
 
     expect(snapshot.primaryScene, SceneType.mountain);
     expect(snapshot.dayPhase, DayPhase.dawn);
-    expect(snapshot.opportunityIds, contains('alpenglow'));
+    expect(snapshot.opportunityIds, contains('session.mountain.morning'));
   });
 
   test('snapshot event collections cannot be mutated', () {
@@ -64,12 +64,12 @@ void main() {
             observedAt: observedAt,
             expiresAt: expiresAt,
             confidence: 0.7,
-            geoScope: ContextGeoScope.regional,
+            geoScope: ContextGeoScope.region,
             safetyLevel: ContextSafetyLevel.warning,
-            allowedAction: ContextAction.openSafety,
+            allowedAction: ContextAction.openSafetyDetail,
           ),
         ],
-        allowedActions: const [ContextAction.openSafety],
+        allowedActions: const [ContextAction.openSafetyDetail],
       );
     }
 
@@ -160,7 +160,7 @@ void main() {
       expect(bearEvent.channel, ContextEventChannel.wildlifeSafety);
       expect(bearEvent.source, ContextEventSource.official);
       expect(bearEvent.safetyLevel, ContextSafetyLevel.warning);
-      expect(bearEvent.allowedAction, ContextAction.openSafety);
+      expect(bearEvent.allowedAction, ContextAction.openSafetyDetail);
 
       // safetyEventIds preserved.
       expect(updated.safetyEventIds, base.safetyEventIds);
@@ -168,7 +168,7 @@ void main() {
 
       // allowedActions preserved.
       expect(updated.allowedActions, base.allowedActions);
-      expect(updated.allowedActions, [ContextAction.openSafety]);
+      expect(updated.allowedActions, [ContextAction.openSafetyDetail]);
     });
 
     test('without activity preserves pre-existing wildlifeSafety event, '

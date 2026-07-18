@@ -5,29 +5,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/context/context_snapshot_builder.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/route_corridor_context.dart';
-import 'package:luma_nest/src/core/context/scene_evidence_repository.dart';
 import 'package:luma_nest/src/core/context/safety_detail.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/fixed_location_repository.dart';
 import 'package:luma_nest/src/core/monitoring/app_logger.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
-import 'package:luma_nest/src/core/weather/weather_repository.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
 import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart';
 import 'package:luma_nest/src/infrastructure/location/amap_location_gateway.dart';
-import 'package:luma_nest/src/infrastructure/location/amap_scene_evidence_repository.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
 import 'package:luma_nest/src/core/context/debug_simulation_session.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_safety_detail_repository.dart';
 import 'package:luma_nest/src/infrastructure/solar/nrel_solar_service.dart';
-import 'package:luma_nest/src/infrastructure/weather/qweather_client.dart';
-import 'package:luma_nest/src/infrastructure/weather/qweather_repository.dart';
 import 'package:luma_nest/src/infrastructure/wildlife/data_broker_wildlife_repository.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
@@ -55,7 +50,7 @@ final locationRepositoryProvider = Provider<LocationRepository>((ref) {
 });
 
 final effectiveLocationRepositoryProvider = Provider<LocationRepository>((ref) {
-  final manual = ref.watch(manualLocationProvider);
+  final manual = ref.watch(manualLocationProvider).asData?.value;
   // A base region is an explicit, local fallback. A one-off manual selection
   // still wins for the active session and neither source is sent as a profile.
   final baseRegion = ref.watch(baseRegionProvider).asData?.value;
@@ -63,25 +58,6 @@ final effectiveLocationRepositoryProvider = Provider<LocationRepository>((ref) {
   return selectedLocation == null
       ? ref.watch(locationRepositoryProvider)
       : FixedLocationRepository(selectedLocation);
-});
-
-final weatherRepositoryProvider = Provider<WeatherRepository>((ref) {
-  final config = ref.watch(environmentConfigProvider);
-  final dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-      sendTimeout: const Duration(seconds: 10),
-    ),
-  );
-  return QWeatherRepository(
-    QWeatherClient(
-      apiHost: config.qweatherApiHost,
-      tokenEndpoint: config.qweatherTokenEndpoint,
-      serviceToken: config.lumaNestServiceToken,
-      transport: DioQWeatherTransport(dio),
-    ),
-  );
 });
 
 final solarServiceProvider = Provider<SolarService>((ref) {
@@ -132,26 +108,6 @@ final wildlifeRepositoryProvider = Provider<WildlifeRepository?>((ref) {
   );
 });
 
-final sceneEvidenceRepositoryProvider = Provider<SceneEvidenceRepository?>((
-  ref,
-) {
-  final config = ref.watch(environmentConfigProvider);
-  if (!config.isDataBrokerConfigured) return null;
-  return AmapSceneEvidenceRepository(
-    brokerBaseUrl: config.dataBrokerBaseUrl,
-    serviceToken: config.lumaNestServiceToken,
-    transport: DioSceneEvidenceTransport(
-      Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 3),
-          receiveTimeout: const Duration(seconds: 3),
-          sendTimeout: const Duration(seconds: 3),
-        ),
-      ),
-    ),
-  );
-});
-
 final contextCacheProvider = Provider<ContextCache>((ref) {
   return PersistentContextCache(SharedPreferencesAsync());
 });
@@ -181,6 +137,24 @@ final remoteContextRepositoryProvider = Provider<RemoteContextRepository?>((
   );
 });
 
+final shootingTargetSessionRepositoryProvider =
+    Provider<ShootingTargetSessionRepository?>((ref) {
+      final repository = ref.watch(remoteContextRepositoryProvider);
+      return switch (repository) {
+        ShootingTargetSessionRepository value => value,
+        _ => null,
+      };
+    });
+
+final shootingFeedbackRepositoryProvider =
+    Provider<ShootingFeedbackRepository?>((ref) {
+      final repository = ref.watch(remoteContextRepositoryProvider);
+      return switch (repository) {
+        ShootingFeedbackRepository value => value,
+        _ => null,
+      };
+    });
+
 final safetyDetailRepositoryProvider = Provider<SafetyDetailRepository?>((ref) {
   final config = ref.watch(environmentConfigProvider);
   if (!config.isDataBrokerConfigured) return null;
@@ -200,16 +174,11 @@ final safetyDetailRepositoryProvider = Provider<SafetyDetailRepository?>((ref) {
 });
 
 final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
-  final config = ref.watch(environmentConfigProvider);
   return EnvironmentLoader(
-    qweatherConfigured: config.isQWeatherConfigured,
     locationRepository: ref.watch(effectiveLocationRepositoryProvider),
-    weatherRepository: ref.watch(weatherRepositoryProvider),
     solarService: ref.watch(solarServiceProvider),
-    snapshotBuilder: const ContextSnapshotBuilder(),
     cache: ref.watch(contextCacheProvider),
     wildlifeRepository: ref.watch(wildlifeRepositoryProvider),
-    sceneEvidenceRepository: ref.watch(sceneEvidenceRepositoryProvider),
     remoteContextRepository: ref.watch(remoteContextRepositoryProvider),
     route: ref.watch(routeContextStateProvider),
     corridor: ref.watch(routeCorridorContextProvider),

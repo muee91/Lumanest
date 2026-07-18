@@ -30,7 +30,9 @@ class RegionReference:
     latitude: float
     longitude: float
     locale: str
+    mission_type: str
     focus: str
+    radius_meters: int
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,9 @@ class RefreshJob:
             "latitude": f"{self.region.latitude:.3f}",
             "longitude": f"{self.region.longitude:.3f}",
             "locale": self.region.locale,
+            "missionType": self.region.mission_type,
             "focus": self.region.focus,
+            "radiusMeters": str(self.region.radius_meters),
             "expiresAt": str(self.expires_at),
             "attempt": str(self.attempt),
         }
@@ -83,8 +87,8 @@ class DiscoveryStore:
     @staticmethod
     def region_reference(request: DiscoveryRequest) -> RegionReference:
         """Return a fixed roughly-5 km grid centre rather than the input point."""
-        latitude_cell = math.floor(request.coordinate.latitude / REGION_GRID_DEGREES)
-        longitude_cell = math.floor(request.coordinate.longitude / REGION_GRID_DEGREES)
+        latitude_cell = math.floor(request.region.latitude / REGION_GRID_DEGREES)
+        longitude_cell = math.floor(request.region.longitude / REGION_GRID_DEGREES)
         latitude = round((latitude_cell + 0.5) * REGION_GRID_DEGREES, 3)
         longitude = round((longitude_cell + 0.5) * REGION_GRID_DEGREES, 3)
         region_id = f"g{latitude_cell}:{longitude_cell}"
@@ -93,7 +97,9 @@ class DiscoveryStore:
             latitude=latitude,
             longitude=longitude,
             locale=request.locale.lower(),
+            mission_type=request.mission_type,
             focus=request.focus,
+            radius_meters=request.region.radius_meters,
         )
 
     @classmethod
@@ -102,7 +108,15 @@ class DiscoveryStore:
         payload = {
             "regionId": region.region_id,
             "locale": region.locale,
+            "missionType": region.mission_type,
             "focus": region.focus,
+            "radiusMeters": region.radius_meters,
+            "timeRange": (
+                request.time_range.starts_at.isoformat(),
+                request.time_range.ends_at.isoformat(),
+            ),
+            "routeId": request.route_corridor.route_id if request.route_corridor else None,
+            "interests": sorted(request.interests),
             "sourcePolicies": sorted((policy.id, policy.version) for policy in request.source_policies),
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -167,15 +181,23 @@ class DiscoveryStore:
         if self.engine is None:
             raise RuntimeError("storage_not_configured")
         active_sources = {(policy.id, policy.version) for policy in request.source_policies}
+        if request.mission_type == "routeConditions":
+            active_sources.add(("amap-traffic", "amap-web-service-v1"))
+        elif request.mission_type == "openingAndClosure":
+            active_sources.add(("amap-poi", "amap-web-service-v1"))
         # A disabled or removed policy revokes its prior search-derived records
         # immediately, without waiting for their candidate expiry.
         if not active_sources:
             return []
         kind_filter = {
-            "photography": ("candidate_viewpoint",),
-            "water": ("attraction",),
-            "humanity": ("event",),
-        }[request.focus]
+            "popularPlaces": ("candidate_viewpoint", "attraction"),
+            "hiddenPlaces": ("candidate_viewpoint", "attraction"),
+            "humanityEvents": ("event",),
+            "localStories": ("attraction",),
+            "routeConditions": ("candidate_viewpoint",),
+            "openingAndClosure": ("attraction",),
+            "seasonalSignals": ("attraction", "event"),
+        }[request.mission_type]
         query = text("""
             SELECT places.id, places.kind, LEFT(places.name, 120) AS name,
                    LEFT(places.summary, 280) AS summary, places.verification,
@@ -207,7 +229,7 @@ class DiscoveryStore:
               AND ST_DWithin(
                     places.geometry::geography,
                     ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography,
-                    20000
+                    :radius_meters
               )
             ORDER BY distance_meters ASC, places.updated_at DESC
             LIMIT 80
@@ -217,8 +239,9 @@ class DiscoveryStore:
                 rows = (await connection.execute(
                     query,
                     {
-                        "latitude": request.coordinate.latitude,
-                        "longitude": request.coordinate.longitude,
+                        "latitude": request.region.latitude,
+                        "longitude": request.region.longitude,
+                        "radius_meters": request.region.radius_meters,
                         "kinds": list(kind_filter),
                     },
                 )).mappings().all()
@@ -260,6 +283,7 @@ class DiscoveryStore:
         now = datetime.now(timezone.utc)
         if refresh_state == "pending":
             return DiscoveryResponse(
+                missionType=request.mission_type,
                 status="pending",
                 generatedAt=now,
                 expiresAt=None,
@@ -269,6 +293,7 @@ class DiscoveryStore:
 
         items = await self.candidates(request)
         response = DiscoveryResponse(
+            missionType=request.mission_type,
             status="ready" if items else "refreshing",
             generatedAt=now,
             expiresAt=now + timedelta(seconds=CACHE_SECONDS) if items else None,

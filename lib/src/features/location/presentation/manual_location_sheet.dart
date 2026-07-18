@@ -56,7 +56,7 @@ class _ManualLocationSheetState extends ConsumerState<ManualLocationSheet> {
     if (widget.saveAsBaseRegion) {
       await ref.read(baseRegionProvider.notifier).select(result);
     }
-    ref.read(manualLocationProvider.notifier).select(result);
+    await ref.read(manualLocationProvider.notifier).select(result);
     ref.read(environmentSnapshotProvider.notifier).refresh();
     if (mounted) Navigator.of(context).pop();
   }
@@ -221,7 +221,7 @@ class _MapLocationPickerState extends State<_MapLocationPicker> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: 16,
+              bottom: MediaQuery.paddingOf(context).bottom + 16,
               child: Material(
                 color: theme.colorScheme.surface.withValues(alpha: .94),
                 borderRadius: BorderRadius.circular(18),

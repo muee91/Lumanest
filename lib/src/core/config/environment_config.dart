@@ -1,15 +1,13 @@
 class EnvironmentConfig {
   factory EnvironmentConfig({
     String amapAndroidKey = '',
-    String qweatherApiHost = '',
-    String qweatherTokenEndpoint = '',
+    String dataBrokerBaseUrl = '',
     String lumaNestServiceToken = '',
     String sentryDsn = '',
   }) {
     return EnvironmentConfig._(
       amapAndroidKey: amapAndroidKey.trim(),
-      qweatherApiHost: _normalizeHost(qweatherApiHost),
-      qweatherTokenEndpoint: _normalizeHost(qweatherTokenEndpoint),
+      dataBrokerBaseUrl: _normalizeHost(dataBrokerBaseUrl),
       lumaNestServiceToken: lumaNestServiceToken.trim(),
       sentryDsn: sentryDsn.trim(),
     );
@@ -17,64 +15,39 @@ class EnvironmentConfig {
 
   const EnvironmentConfig._({
     required this.amapAndroidKey,
-    required this.qweatherApiHost,
-    required this.qweatherTokenEndpoint,
+    required this.dataBrokerBaseUrl,
     required this.lumaNestServiceToken,
     required this.sentryDsn,
   });
 
-  factory EnvironmentConfig.fromEnvironment() {
-    return EnvironmentConfig(
-      amapAndroidKey: const String.fromEnvironment('AMAP_ANDROID_KEY'),
-      qweatherApiHost: const String.fromEnvironment('QWEATHER_API_HOST'),
-      qweatherTokenEndpoint: const String.fromEnvironment(
-        'QWEATHER_TOKEN_ENDPOINT',
-      ),
-      lumaNestServiceToken: const String.fromEnvironment(
-        'LUMANEST_SERVICE_TOKEN',
-      ),
-      sentryDsn: const String.fromEnvironment('SENTRY_DSN'),
-    );
-  }
+  factory EnvironmentConfig.fromEnvironment() => EnvironmentConfig(
+    amapAndroidKey: const String.fromEnvironment('AMAP_ANDROID_KEY'),
+    dataBrokerBaseUrl: const String.fromEnvironment('LUMANEST_BROKER_BASE_URL'),
+    lumaNestServiceToken: const String.fromEnvironment(
+      'LUMANEST_SERVICE_TOKEN',
+    ),
+    sentryDsn: const String.fromEnvironment('SENTRY_DSN'),
+  );
 
   final String amapAndroidKey;
-  final String qweatherApiHost;
-  final String qweatherTokenEndpoint;
+  final String dataBrokerBaseUrl;
   final String lumaNestServiceToken;
   final String sentryDsn;
 
   bool get isAmapConfigured => amapAndroidKey.isNotEmpty;
-
-  bool get isQWeatherConfigured =>
-      qweatherApiHost.isNotEmpty &&
-      qweatherTokenEndpoint.isNotEmpty &&
-      lumaNestServiceToken.isNotEmpty;
-
-  /// The QWeather JWT and AMap proxy share the same trusted NAS origin.
-  /// Deriving the origin avoids adding another duplicated configuration value.
-  String get dataBrokerBaseUrl {
-    final uri = Uri.tryParse(qweatherTokenEndpoint);
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return '';
-    return uri
-        .replace(path: '', query: null, fragment: null)
-        .toString()
-        .replaceFirst(RegExp(r'/$'), '');
-  }
 
   bool get isDataBrokerConfigured =>
       dataBrokerBaseUrl.isNotEmpty && lumaNestServiceToken.isNotEmpty;
 
   bool get isSentryConfigured => sentryDsn.isNotEmpty;
 
-  static String _normalizeHost(String value) {
-    return value.trim().replaceFirst(RegExp(r'/+$'), '');
-  }
+  static String _normalizeHost(String value) =>
+      value.trim().replaceFirst(RegExp(r'/+$'), '');
 
   @override
-  String toString() {
-    return 'EnvironmentConfig('
-        'amapConfigured: $isAmapConfigured, '
-        'qweatherConfigured: $isQWeatherConfigured, '
-        'sentryConfigured: $isSentryConfigured)';
-  }
+  String toString() =>
+      'EnvironmentConfig('
+      'amapConfigured: $isAmapConfigured, '
+      'brokerConfigured: $isDataBrokerConfigured, '
+      'sentryConfigured: $isSentryConfigured)';
 }

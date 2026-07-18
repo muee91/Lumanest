@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from .models import Coordinate, SolarInput
+
+
+@dataclass(frozen=True)
+class EveningSolarWindow:
+    sunset: datetime
+    blue_hour_start: datetime
+    blue_hour_end: datetime
+
+
+@dataclass(frozen=True)
+class MorningSolarWindow:
+    blue_hour_start: datetime
+    blue_hour_end: datetime
+    sunrise: datetime
 
 
 def solar_state(coordinate: Coordinate, moment: datetime) -> SolarInput:
@@ -59,3 +74,160 @@ def solar_state(coordinate: Coordinate, moment: datetime) -> SolarInput:
             "azimuthDegrees": round(azimuth, 4),
         }
     )
+
+
+def next_evening_window(
+    coordinate: Coordinate, observed_at: datetime
+) -> EveningSolarWindow | None:
+    """Return the current or next photographic evening using solar elevation.
+
+    Sunset is the descending -0.833 degree crossing. LumaNest's published
+    photographic blue-hour convention is the descending -4 to -8 degree span.
+    The search includes the current evening when the app opens after sunset.
+    """
+    if observed_at.tzinfo is None:
+        raise ValueError("observed_at must include a timezone")
+    search_start = observed_at - timedelta(hours=12)
+    search_end = observed_at + timedelta(hours=30)
+    sunsets = _descending_crossings(coordinate, search_start, search_end, -0.833)
+    blue_starts = _descending_crossings(coordinate, search_start, search_end, -4.0)
+    blue_ends = _descending_crossings(coordinate, search_start, search_end, -8.0)
+    for blue_end in blue_ends:
+        if blue_end <= observed_at:
+            continue
+        blue_start = next(
+            (value for value in reversed(blue_starts) if value < blue_end), None
+        )
+        sunset = next((value for value in reversed(sunsets) if value < blue_end), None)
+        if (
+            sunset is not None
+            and blue_start is not None
+            and sunset < blue_start < blue_end
+            and blue_end - sunset <= timedelta(hours=3)
+        ):
+            return EveningSolarWindow(
+                sunset=sunset,
+                blue_hour_start=blue_start,
+                blue_hour_end=blue_end,
+            )
+    return None
+
+
+def next_morning_window(
+    coordinate: Coordinate, observed_at: datetime
+) -> MorningSolarWindow | None:
+    """Return the active or next photographic morning from solar crossings.
+
+    Morning blue hour uses the ascending -8 to -4 degree span. Sunrise is the
+    ascending -0.833 degree crossing. The current morning remains eligible
+    until 45 minutes after sunrise so an active warm-light phase is not
+    replaced by tomorrow's forecast.
+    """
+    if observed_at.tzinfo is None:
+        raise ValueError("observed_at must include a timezone")
+    search_start = observed_at - timedelta(hours=12)
+    search_end = observed_at + timedelta(hours=30)
+    blue_starts = _ascending_crossings(coordinate, search_start, search_end, -8.0)
+    blue_ends = _ascending_crossings(coordinate, search_start, search_end, -4.0)
+    sunrises = _ascending_crossings(coordinate, search_start, search_end, -0.833)
+    for sunrise in sunrises:
+        if sunrise + timedelta(minutes=45) <= observed_at:
+            continue
+        blue_end = next(
+            (value for value in reversed(blue_ends) if value < sunrise), None
+        )
+        blue_start = next(
+            (value for value in reversed(blue_starts) if value < sunrise), None
+        )
+        if (
+            blue_start is not None
+            and blue_end is not None
+            and blue_start < blue_end < sunrise
+            and sunrise - blue_start <= timedelta(hours=3)
+        ):
+            return MorningSolarWindow(
+                blue_hour_start=blue_start,
+                blue_hour_end=blue_end,
+                sunrise=sunrise,
+            )
+    return None
+
+
+def _descending_crossings(
+    coordinate: Coordinate,
+    start: datetime,
+    end: datetime,
+    threshold: float,
+) -> list[datetime]:
+    step = timedelta(minutes=10)
+    result: list[datetime] = []
+    left = start
+    left_value = _elevation(coordinate, left) - threshold
+    while left < end:
+        right = min(left + step, end)
+        right_value = _elevation(coordinate, right) - threshold
+        if left_value >= 0 and right_value < 0:
+            result.append(
+                _bisect_descending_crossing(
+                    coordinate, left, right, threshold
+                )
+            )
+        left, left_value = right, right_value
+    return result
+
+
+def _ascending_crossings(
+    coordinate: Coordinate,
+    start: datetime,
+    end: datetime,
+    threshold: float,
+) -> list[datetime]:
+    step = timedelta(minutes=10)
+    result: list[datetime] = []
+    left = start
+    left_value = _elevation(coordinate, left) - threshold
+    while left < end:
+        right = min(left + step, end)
+        right_value = _elevation(coordinate, right) - threshold
+        if left_value < 0 and right_value >= 0:
+            result.append(
+                _bisect_ascending_crossing(
+                    coordinate, left, right, threshold
+                )
+            )
+        left, left_value = right, right_value
+    return result
+
+
+def _bisect_descending_crossing(
+    coordinate: Coordinate,
+    left: datetime,
+    right: datetime,
+    threshold: float,
+) -> datetime:
+    for _ in range(24):
+        midpoint = left + (right - left) / 2
+        if _elevation(coordinate, midpoint) >= threshold:
+            left = midpoint
+        else:
+            right = midpoint
+    return right.replace(microsecond=0)
+
+
+def _bisect_ascending_crossing(
+    coordinate: Coordinate,
+    left: datetime,
+    right: datetime,
+    threshold: float,
+) -> datetime:
+    for _ in range(24):
+        midpoint = left + (right - left) / 2
+        if _elevation(coordinate, midpoint) < threshold:
+            left = midpoint
+        else:
+            right = midpoint
+    return right.replace(microsecond=0)
+
+
+def _elevation(coordinate: Coordinate, moment: datetime) -> float:
+    return solar_state(coordinate, moment).elevation_degrees or 0.0

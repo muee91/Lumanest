@@ -166,7 +166,7 @@ void main() {
       }
     });
 
-    test('all seven V1 scenes produce distinct subtle background accents', () {
+    test('all physical display scenes produce distinct subtle accents', () {
       final palettes = <AmbientPalette>{};
       for (final scene in SceneType.values.where(
         (scene) => scene != SceneType.unknown,
@@ -181,8 +181,7 @@ void main() {
                   primaryScene: scene,
                   dayPhase: DayPhase.day,
                   weather: WeatherType.clear,
-                  activeRoute:
-                      scene == SceneType.driving || scene == SceneType.hiking,
+                  activeRoute: false,
                 ),
                 Brightness.light,
               )
@@ -190,7 +189,7 @@ void main() {
         );
       }
 
-      expect(palettes, hasLength(7));
+      expect(palettes, hasLength(5));
     });
 
     test('snapshot maps wind, rain and thunder into visual parameters', () {
@@ -199,7 +198,7 @@ void main() {
           id: 'storm',
           observedAt: DateTime.utc(2026, 7, 12),
           expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
-          primaryScene: SceneType.hiking,
+          primaryScene: SceneType.mountain,
           dayPhase: DayPhase.sunset,
           weather: WeatherType.rain,
           activeRoute: true,

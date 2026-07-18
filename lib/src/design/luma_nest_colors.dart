@@ -6,23 +6,25 @@ import 'package:flutter/material.dart';
 /// supplies atmosphere; static UI remains legible in direct sunlight.
 abstract final class LumaNestColors {
   // ── Primary ──
-  static const Color primaryLight = Color(0xFF285C55); // deep pine
-  static const Color onPrimaryLight = Color(0xFFFFFFFF);
-  static const Color primaryDark = Color(0xFF9AD7C8); // mineral mint
-  static const Color onPrimaryDark = Color(0xFF102421);
+  static const Color primaryLight = Color(0xFF00A5E9);
+  static const Color onPrimaryLight = Color(0xFF061E29);
+  static const Color primaryDark = Color(0xFF37B5EA);
+  static const Color onPrimaryDark = Color(0xFF061E29);
 
   // ── Surface & background ──
-  static const Color surfaceLight = Color(0xFFF7F5F0); // warm daylight paper
-  static const Color onSurfaceLight = Color(0xFF202724);
-  static const Color surfaceDark = Color(0xFF141B19);
-  static const Color onSurfaceDark = Color(0xFFE7ECE7);
+  static const Color surfaceLight = Color(0xFFF6F6F5);
+  static const Color onSurfaceLight = Color(0xFF25292D);
+  static const Color surfaceDark = Color(0xFF12161A);
+  static const Color onSurfaceDark = Color(0xFFF5F7F8);
 
-  static const Color backgroundLight = Color(0xFFE8EEEA); // mist and sky
-  static const Color backgroundDark = Color(0xFF0B1210);
+  static const Color backgroundLight = Color(0xFFF6F6F5);
+  static const Color backgroundDark = Color(0xFF12161A);
 
   // ── Accent ──
-  static const Color accentLight = Color(0xFF356C88); // distant water
-  static const Color accentDark = Color(0xFF82C5E7);
+  static const Color accentLight = Color(0xFF91A86B);
+  static const Color accentDark = Color(0xFFA6BB7D);
+  static const Color warmLight = Color(0xFFFF8754);
+  static const Color warmDark = Color(0xFFFF956A);
 
   // ── 山野胶片材质 ──
   static const Color paperLight = Color(0xFFF3E9D9);
@@ -34,14 +36,14 @@ abstract final class LumaNestColors {
   static const Color rockGrey = Color(0xFF66716D);
 
   // ── Editorial support ──
-  static const Color tertiaryLight = Color(0xFF68716D);
-  static const Color tertiaryDark = Color(0xFFBBC5C0);
-  static const Color outlineLight = Color(0xFF9DA7A1);
-  static const Color outlineDark = Color(0xFF65716C);
+  static const Color tertiaryLight = Color(0xFF8B949C);
+  static const Color tertiaryDark = Color(0xFF86919A);
+  static const Color outlineLight = Color(0xFF8B949C);
+  static const Color outlineDark = Color(0xFF86919A);
 
   // ── Safety / alert ──
-  static const Color safetyLight = Color(0xFFB44343);
-  static const Color safetyDark = Color(0xFFFFB4AC);
+  static const Color safetyLight = Color(0xFFED6C72);
+  static const Color safetyDark = Color(0xFFFF858A);
 
   // ── Ambient gradient stops ──
   static const Color ambientTopLight = Color(0xFFDDEBF0);
@@ -53,12 +55,16 @@ abstract final class LumaNestColors {
 /// Shared geometry keeps the app calm and editorial instead of card-heavy.
 /// Three tiers: compact controls, regular content, expansive sheets/navigation.
 abstract final class LumaNestRadii {
-  /// Controls, chips and compact metadata.
-  static const double compact = 8;
+  static const double label = 12;
+  static const double icon = 14;
+  static const double input = 16;
+  static const double button = 18;
+  static const double card = 22;
+  static const double navigation = 24;
+  static const double primaryContainer = 28;
+  static const double sheetTop = 30;
 
-  /// Standard content surfaces and cards.
-  static const double regular = 16;
-
-  /// Navigation island, sheets and deliberately prominent surfaces.
-  static const double expansive = 28;
+  static const double compact = button;
+  static const double regular = card;
+  static const double expansive = primaryContainer;
 }

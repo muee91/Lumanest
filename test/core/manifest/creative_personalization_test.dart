@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
+import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 
 void main() {
   test('fingerprint is stable for set order and clamps intensity', () {
@@ -36,41 +37,56 @@ void main() {
   test('every approved preference maps only to its explicit creative IDs', () {
     final expected = <Object, Set<String>>{
       PhotographyPreference.landscape: {
-        'reflection',
-        'blue-hour',
-        'alpenglow',
-        'mist',
-        'dust-light',
-        'route-light-window',
+        'session.water.morning',
+        'session.water.evening',
+        'session.mountain.morning',
+        'session.mountain.evening',
+        'session.desert.side_light',
+        'event.sky.sunset_glow',
+        'event.atmosphere.morning_mist',
+        'session.route.light_window',
       },
-      PhotographyPreference.humanities: {'humanity-light'},
-      PhotographyPreference.astro: {},
-      PhotographyPreference.city: {'blue-hour', 'humanity-light'},
-      ActivityPreference.driving: {'route-light-window'},
+      PhotographyPreference.humanities: {'session.city.after_rain'},
+      PhotographyPreference.astro: {
+        'event.astro.moon_window',
+        'event.astro.meteor_shower',
+        'event.astro.special_authority',
+      },
+      PhotographyPreference.city: {
+        'session.city.blue_hour',
+        'session.city.after_rain',
+        'event.sky.sunset_glow',
+        'session.route.light_window',
+      },
+      ActivityPreference.driving: {'session.route.light_window'},
       ActivityPreference.lightHiking: {
-        'alpenglow',
-        'mist',
+        'session.mountain.morning',
+        'session.mountain.evening',
+        'session.desert.side_light',
+        'event.sky.sunset_glow',
+        'event.atmosphere.morning_mist',
+        'session.route.light_window',
         'regional-wildlife',
       },
       ActivityPreference.backpacking: {
-        'alpenglow',
-        'mist',
+        'session.mountain.morning',
+        'session.mountain.evening',
+        'session.desert.side_light',
+        'event.sky.sunset_glow',
+        'event.atmosphere.morning_mist',
+        'session.route.light_window',
         'regional-wildlife',
       },
       ActivityPreference.nicheExploration: {
-        'dust-light',
-        'humanity-light',
+        'session.desert.side_light',
+        'session.route.light_window',
         'regional-wildlife',
       },
     };
-    const allKnownIds = {
-      'reflection',
-      'blue-hour',
-      'alpenglow',
-      'mist',
-      'dust-light',
-      'route-light-window',
-      'humanity-light',
+    final allKnownIds = {
+      ...OpportunityCatalog.current.definitions
+          .where((item) => item.isActiveCore)
+          .map((item) => item.id),
       'regional-wildlife',
       'unknown-event',
     };

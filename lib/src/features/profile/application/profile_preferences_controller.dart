@@ -66,6 +66,10 @@ class ProfilePreferencesController extends Notifier<ProfilePreferences> {
     _update(state.copyWith(recommendationIntensity: value));
   }
 
+  void setShareAnonymousPhotographyFeedback(bool value) {
+    _update(state.copyWith(shareAnonymousPhotographyFeedback: value));
+  }
+
   void _update(ProfilePreferences value) {
     _changedThisSession = true;
     state = value;

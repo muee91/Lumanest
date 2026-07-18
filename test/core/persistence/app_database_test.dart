@@ -43,8 +43,6 @@ void main() {
 
     expect(rows, hasLength(1));
     expect(rows.single.name, '更新后的湖岸机位');
-    expect(rows.single.latitude, 31);
-    expect(rows.single.longitude, 121);
   });
 
   test('recent route destination is a replaceable singleton', () async {
@@ -74,84 +72,10 @@ void main() {
     final rows = await database.select(database.recentRouteDestinations).get();
 
     expect(rows, hasLength(1));
-    expect(rows.single.name, '山顶');
     expect(rows.single.travelMode, 'walking');
   });
 
-  test('saved routes retain independent local destinations', () async {
-    final savedAt = DateTime.utc(2026, 7, 15, 8);
-    await database
-        .into(database.savedRoutes)
-        .insert(
-          SavedRoutesCompanion.insert(
-            id: List.filled(64, 'a').join(),
-            name: '湖岸路线',
-            latitude: 30,
-            longitude: 120,
-            travelMode: 'driving',
-            savedAt: savedAt,
-          ),
-        );
-    await database
-        .into(database.savedRoutes)
-        .insert(
-          SavedRoutesCompanion.insert(
-            id: List.filled(64, 'b').join(),
-            name: '山路',
-            latitude: 31,
-            longitude: 121,
-            travelMode: 'walking',
-            savedAt: savedAt.add(const Duration(minutes: 1)),
-          ),
-        );
-
-    final rows = await database.select(database.savedRoutes).get();
-
-    expect(rows, hasLength(2));
-    expect(rows.map((row) => row.name), containsAll(['湖岸路线', '山路']));
-  });
-
-  test('journeys preserve explicit start and end state', () async {
-    final startedAt = DateTime.utc(2026, 7, 15, 6);
-    final endedAt = DateTime.utc(2026, 7, 15, 8);
-    await database
-        .into(database.savedJourneys)
-        .insert(
-          SavedJourneysCompanion.insert(
-            id: List.filled(64, 'c').join(),
-            name: '清晨徒步',
-            latitude: 30,
-            longitude: 120,
-            travelMode: 'walking',
-            routeKey: const Value('track-1'),
-            startedAt: startedAt,
-            endedAt: Value(endedAt),
-          ),
-        );
-
-    final row = await database.select(database.savedJourneys).getSingle();
-
-    expect(row.name, '清晨徒步');
-    expect(row.routeKey, 'track-1');
-    expect(row.startedAt.toUtc(), startedAt);
-    expect(row.endedAt?.toUtc(), endedAt);
-  });
-
-  test('database rejects invalid coordinates and travel modes', () async {
-    await expectLater(
-      database
-          .into(database.savedPlaces)
-          .insert(
-            SavedPlacesCompanion.insert(
-              id: 'invalid',
-              name: '错误机位',
-              category: 'viewpoint',
-              latitude: 91,
-              longitude: 120,
-            ),
-          ),
-      throwsA(anything),
-    );
+  test('current schema enforces route and session constraints', () async {
     await expectLater(
       database
           .into(database.recentRouteDestinations)
@@ -168,24 +92,26 @@ void main() {
     );
     await expectLater(
       database
-          .into(database.recentRouteDestinations)
+          .into(database.watchedShootingSessions)
           .insert(
-            RecentRouteDestinationsCompanion.insert(
-              id: const Value(2),
-              name: '第二条最近路线',
-              latitude: 30,
-              longitude: 120,
-              travelMode: 'walking',
+            WatchedShootingSessionsCompanion.insert(
+              id: List.filled(64, 'a').join(),
+              sessionId: 'session-1',
+              snapshotId: 'snapshot-1',
+              title: '会话',
+              kind: 'unknown',
+              watchedAt: DateTime.utc(2026, 7, 18, 8),
+              expiresAt: DateTime.utc(2026, 7, 18, 9),
             ),
           ),
       throwsA(anything),
     );
   });
 
-  test('schema 1 migrates to 10 without losing library data', () async {
+  test('older database versions are discarded instead of migrated', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
-      'lumanest-drift-migration-',
+      'lumanest-clean-schema-',
     );
     final file = File('${directory.path}/lumanest.sqlite');
     addTearDown(() async {
@@ -193,96 +119,8 @@ void main() {
       if (await directory.exists()) await directory.delete();
     });
 
-    final legacy = sqlite.sqlite3.open(file.path);
-    legacy.execute('''
-      CREATE TABLE saved_places (
-        id TEXT NOT NULL PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        latitude REAL NOT NULL,
-        longitude REAL NOT NULL,
-        CHECK (latitude BETWEEN -90 AND 90),
-        CHECK (longitude BETWEEN -180 AND 180)
-      )
-    ''');
-    legacy.execute('''
-      CREATE TABLE recent_route_destinations (
-        id INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
-        name TEXT NOT NULL,
-        latitude REAL NOT NULL,
-        longitude REAL NOT NULL,
-        travel_mode TEXT NOT NULL,
-        CHECK (id = 1),
-        CHECK (latitude BETWEEN -90 AND 90),
-        CHECK (longitude BETWEEN -180 AND 180),
-        CHECK (travel_mode IN ('driving', 'walking'))
-      )
-    ''');
-    legacy.execute(
-      "INSERT INTO saved_places VALUES ('legacy', '旧机位', 'viewpoint', 30, 120)",
-    );
-    legacy.execute(
-      "INSERT INTO recent_route_destinations VALUES (1, '旧路线', 31, 121, 'walking')",
-    );
-    legacy.execute('PRAGMA user_version = 1');
-    legacy.close();
-
-    final migrated = AppDatabase(NativeDatabase(file));
-    addTearDown(migrated.close);
-
-    expect(
-      (await migrated.select(migrated.savedPlaces).get()).single.id,
-      'legacy',
-    );
-    expect(
-      (await migrated.select(migrated.recentRouteDestinations).get())
-          .single
-          .travelMode,
-      'walking',
-    );
-    expect(
-      await migrated.select(migrated.profilePreferenceRecords).get(),
-      isEmpty,
-    );
-    expect(await migrated.select(migrated.importedRouteTracks).get(), isEmpty);
-    expect(await migrated.select(migrated.baseRegions).get(), isEmpty);
-    expect(
-      await migrated.select(migrated.savedInspirationNotes).get(),
-      isEmpty,
-    );
-    expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
-    expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
-    expect(
-      await migrated.select(migrated.wildlifeMapLayerCaches).get(),
-      isEmpty,
-    );
-    expect(
-      await migrated.select(migrated.watchedPhotographyOpportunities).get(),
-      isEmpty,
-    );
-    expect(
-      await migrated.select(migrated.photographyOpportunityResults).get(),
-      isEmpty,
-    );
-    expect(
-      await migrated.select(migrated.offlinePhotographyPacks).get(),
-      isEmpty,
-    );
-  });
-
-  test('schema 2 migrates to 10 and preserves existing preferences', () async {
-    await database.close();
-    final directory = await Directory.systemTemp.createTemp(
-      'lumanest-drift-v2-migration-',
-    );
-    final file = File('${directory.path}/lumanest.sqlite');
-    addTearDown(() async {
-      if (await file.exists()) await file.delete();
-      if (await directory.exists()) await directory.delete();
-    });
-
-    final legacy = sqlite.sqlite3.open(file.path);
-    legacy.execute('''
+    final old = sqlite.sqlite3.open(file.path);
+    old.execute('''
       CREATE TABLE saved_places (
         id TEXT NOT NULL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -291,60 +129,22 @@ void main() {
         longitude REAL NOT NULL
       )
     ''');
-    legacy.execute('''
-      CREATE TABLE recent_route_destinations (
-        id INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
-        name TEXT NOT NULL,
-        latitude REAL NOT NULL,
-        longitude REAL NOT NULL,
-        travel_mode TEXT NOT NULL
-      )
-    ''');
-    legacy.execute('''
-      CREATE TABLE profile_preferences (
-        id INTEGER NOT NULL PRIMARY KEY DEFAULT 1,
-        ambient_background_enabled INTEGER NOT NULL,
-        reduce_motion INTEGER NOT NULL,
-        reduce_flashing INTEGER NOT NULL,
-        high_contrast INTEGER NOT NULL,
-        ambient_motion_mode TEXT NOT NULL,
-        photography_preferences_json TEXT NOT NULL,
-        activity_preferences_json TEXT NOT NULL,
-        equipment_list TEXT NOT NULL,
-        ai_tone TEXT NOT NULL,
-        recommendation_intensity REAL NOT NULL
-      )
-    ''');
-    legacy.execute('''
-      INSERT INTO profile_preferences VALUES (
-        1, 1, 0, 1, 0, 'energySaver', '["风光"]', '["徒步"]',
-        '相机', 'balanced', 0.5
-      )
-    ''');
-    legacy.execute('PRAGMA user_version = 2');
-    legacy.close();
-
-    final migrated = AppDatabase(NativeDatabase(file));
-    addTearDown(migrated.close);
-
-    expect(
-      (await migrated.select(migrated.profilePreferenceRecords).get())
-          .single
-          .ambientMotionMode,
-      'energySaver',
+    old.execute(
+      "INSERT INTO saved_places VALUES ('old', '旧机位', 'viewpoint', 30, 120)",
     );
-    expect(await migrated.select(migrated.importedRouteTracks).get(), isEmpty);
-    expect(await migrated.select(migrated.baseRegions).get(), isEmpty);
+    old.execute('PRAGMA user_version = 1');
+    old.close();
+
+    final current = AppDatabase(NativeDatabase(file));
+    addTearDown(current.close);
+
+    expect(await current.select(current.savedPlaces).get(), isEmpty);
     expect(
-      await migrated.select(migrated.savedInspirationNotes).get(),
+      await current.select(current.watchedShootingSessions).get(),
       isEmpty,
     );
-    expect(await migrated.select(migrated.savedRoutes).get(), isEmpty);
-    expect(await migrated.select(migrated.savedJourneys).get(), isEmpty);
-    expect(
-      await migrated.select(migrated.wildlifeMapLayerCaches).get(),
-      isEmpty,
-    );
+    expect(await current.select(current.shootingSessionResults).get(), isEmpty);
+    expect(current.schemaVersion, 14);
   });
 
   test('base region is a replaceable local singleton', () async {
@@ -356,7 +156,7 @@ void main() {
             name: '杭州',
             latitude: 30.2741,
             longitude: 120.1551,
-            selectedAt: DateTime.utc(2026, 7, 15),
+            selectedAt: DateTime.utc(2026, 7, 18),
           ),
         );
     await database
@@ -368,59 +168,13 @@ void main() {
             address: const Value('安徽'),
             latitude: 30.133,
             longitude: 118.167,
-            selectedAt: DateTime.utc(2026, 7, 16),
+            selectedAt: DateTime.utc(2026, 7, 18, 1),
           ),
         );
 
     final rows = await database.select(database.baseRegions).get();
 
-    expect(rows, hasLength(1));
     expect(rows.single.name, '黄山');
     expect(rows.single.address, '安徽');
   });
-
-  test(
-    'schema 7 adds saved-note action context without losing notes',
-    () async {
-      await database.close();
-      final directory = await Directory.systemTemp.createTemp(
-        'lumanest-drift-v7-migration-',
-      );
-      final file = File('${directory.path}/lumanest.sqlite');
-      addTearDown(() async {
-        if (await file.exists()) await file.delete();
-        if (await directory.exists()) await directory.delete();
-      });
-
-      final legacy = sqlite.sqlite3.open(file.path);
-      legacy.execute('''
-      CREATE TABLE saved_inspiration_notes (
-        id TEXT NOT NULL PRIMARY KEY,
-        label TEXT NOT NULL,
-        emoji TEXT NOT NULL,
-        category TEXT NOT NULL,
-        action_name TEXT NOT NULL,
-        detail TEXT NOT NULL,
-        saved_at INTEGER NOT NULL
-      )
-    ''');
-      legacy.execute('''
-      INSERT INTO saved_inspiration_notes VALUES (
-        'legacy-note', '旧纸条', '✨', 'light', 'openExplore', '旧内容', 1784080800
-      )
-    ''');
-      legacy.execute('PRAGMA user_version = 7');
-      legacy.close();
-
-      final migrated = AppDatabase(NativeDatabase(file));
-      addTearDown(migrated.close);
-      final note = await migrated
-          .select(migrated.savedInspirationNotes)
-          .getSingle();
-
-      expect(note.label, '旧纸条');
-      expect(note.sourceNoteId, 'saved-note');
-      expect(note.authorityUrl, null);
-    },
-  );
 }

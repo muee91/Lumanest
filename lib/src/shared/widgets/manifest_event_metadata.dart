@@ -27,7 +27,7 @@ String _safetyLevelLabel(ContextSafetyLevel level) => switch (level) {
 
 String _geoScopeLabel(ContextGeoScope scope) => switch (scope) {
   ContextGeoScope.point => '当前地点',
-  ContextGeoScope.regional => '附近区域',
+  ContextGeoScope.region => '附近区域',
   ContextGeoScope.route => '当前路线',
 };
 

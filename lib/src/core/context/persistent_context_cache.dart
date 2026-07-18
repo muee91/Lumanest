@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
-import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
+import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,7 +21,7 @@ class PersistentContextCache implements ContextCache {
     this.storageKey = 'environment_context_snapshot_v1',
   });
 
-  static const _version = 3;
+  static const _version = 5;
   final SharedPreferencesAsync _preferences;
   final String storageKey;
 
@@ -33,8 +36,7 @@ class PersistentContextCache implements ContextCache {
     if (raw == null) return null;
     try {
       final body = jsonDecode(raw);
-      if (body is! Map ||
-          (body['version'] != 2 && body['version'] != _version)) {
+      if (body is! Map || body['version'] != _version) {
         return null;
       }
       return _decodeSnapshot(body['snapshot']);
@@ -80,6 +82,8 @@ class PersistentContextCache implements ContextCache {
     'observedAt': value.observedAt.toUtc().toIso8601String(),
     'expiresAt': value.expiresAt.toUtc().toIso8601String(),
     'primaryScene': value.primaryScene.name,
+    'sceneContext': _encodeSceneContext(value.resolvedSceneContext),
+    'opportunityCatalogVersion': OpportunityCatalog.current.version,
     'dayPhase': value.dayPhase.name,
     'weather': value.weather.name,
     'activeRoute': value.activeRoute,
@@ -87,12 +91,10 @@ class PersistentContextCache implements ContextCache {
     'safetyEventIds': value.safetyEventIds,
     'wildlifeEventIds': value.wildlifeEventIds,
     'events': value.events.map(_encodeEvent).toList(),
-    'photographyOpportunities':
+    'shootingSessions':
         value.isStale || value.dataFreshness == ContextDataFreshness.stale
         ? const <Object?>[]
-        : value.photographyOpportunities
-              .map(_encodePhotographyOpportunity)
-              .toList(growable: false),
+        : value.shootingSessions.map(_encodeShootingSession).toList(),
     'wildlifeActivity': value.wildlifeActivity == null
         ? null
         : _encodeWildlife(value.wildlifeActivity!),
@@ -163,6 +165,7 @@ class PersistentContextCache implements ContextCache {
       observedAt: observedAt,
       expiresAt: expiresAt,
       primaryScene: scene,
+      sceneContext: _decodeSceneContext(raw['sceneContext']),
       dayPhase: phase,
       weather: weather,
       activeRoute: activeRoute,
@@ -170,10 +173,10 @@ class PersistentContextCache implements ContextCache {
       safetyEventIds: _stringList(raw['safetyEventIds']),
       wildlifeEventIds: _stringList(raw['wildlifeEventIds']),
       events: events.toList(growable: false),
-      photographyOpportunities:
+      shootingSessions:
           raw['isStale'] == true || dataFreshness == ContextDataFreshness.stale
           ? const []
-          : _decodePhotographyOpportunities(raw['photographyOpportunities']),
+          : _decodeShootingSessions(raw['shootingSessions']),
       wildlifeActivity: _decodeWildlife(raw['wildlifeActivity']),
       location: _decodePoint(raw['location']),
       temperatureCelsius: _double(raw['temperatureCelsius']),
@@ -209,6 +212,251 @@ class PersistentContextCache implements ContextCache {
     );
   }
 
+  Map<String, Object?> _encodeSceneContext(SceneContext value) => {
+    'primaryScene': value.primaryScene.name,
+    'facets': value.facets.map((item) => item.name).toList(growable: false),
+    'activity': value.activity.name,
+    'scores': {
+      for (final entry in value.scores.entries) entry.key.name: entry.value,
+    },
+    'reviewedOverride': value.reviewedOverride,
+  };
+
+  SceneContext? _decodeSceneContext(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map ||
+        !_hasExactKeys(raw, const {
+          'primaryScene',
+          'facets',
+          'activity',
+          'scores',
+          'reviewedOverride',
+        })) {
+      return null;
+    }
+    final primary = _enumByName(PrimaryScene.values, raw['primaryScene']);
+    final activity = _enumByName(ActivityState.values, raw['activity']);
+    final facets = _enumList(SceneFacet.values, raw['facets']);
+    final rawScores = raw['scores'];
+    if (primary == null ||
+        activity == null ||
+        rawScores is! Map ||
+        raw['reviewedOverride'] is! bool) {
+      return null;
+    }
+    final scores = <PrimaryScene, int>{};
+    for (final entry in rawScores.entries) {
+      final scene = _enumByName(PrimaryScene.values, entry.key);
+      if (scene == null || entry.value is! int) return null;
+      scores[scene] = entry.value! as int;
+    }
+    return SceneContext(
+      primaryScene: primary,
+      facets: facets,
+      activity: activity,
+      scores: scores,
+      reviewedOverride: raw['reviewedOverride']! as bool,
+    );
+  }
+
+  Map<String, Object?> _encodeShootingSession(ShootingSession value) => {
+    'id': value.id,
+    'kind': value.kind.name,
+    'title': value.title,
+    'startsAt': value.startsAt.toUtc().toIso8601String(),
+    'endsAt': value.endsAt.toUtc().toIso8601String(),
+    'primaryPhase': value.primaryPhase.name,
+    'conditionBand': value.conditionBand.name,
+    'confidenceBand': value.confidenceBand.name,
+    'trend': value.trend.name,
+    'phases': value.phases
+        .map(
+          (phase) => {
+            'kind': phase.kind.name,
+            'startsAt': phase.startsAt.toUtc().toIso8601String(),
+            'peaksAt': phase.peaksAt.toUtc().toIso8601String(),
+            'endsAt': phase.endsAt.toUtc().toIso8601String(),
+            'conditionBand': phase.conditionBand.name,
+            'directionDegrees': phase.directionDegrees,
+          },
+        )
+        .toList(),
+    'factors': value.factors
+        .map(
+          (factor) => {
+            'id': factor.id,
+            'effect': factor.effect.name,
+            'label': factor.label,
+            'value': factor.value,
+            'sourceAt': factor.sourceAt.toUtc().toIso8601String(),
+          },
+        )
+        .toList(),
+    'trendSamples': value.trendSamples
+        .map(
+          (sample) => {
+            'at': sample.at.toUtc().toIso8601String(),
+            'conditionIndex': sample.conditionIndex,
+            'cloudCoverPercent': sample.cloudCoverPercent,
+            'windSpeedMps': sample.windSpeedMps,
+            'precipitationMm': sample.precipitationMm,
+          },
+        )
+        .toList(),
+    'targetCandidates': value.targetCandidates
+        .map(
+          (target) => {
+            'id': target.id,
+            'name': target.name,
+            'coordinate': _encodePoint(target.coordinate),
+            'supportedSessions': target.supportedSessions
+                .map((item) => item.name)
+                .toList(),
+            'viewBearingDegrees': target.viewBearingDegrees,
+            'bearingToleranceDegrees': target.bearingToleranceDegrees,
+            'accessModes': target.accessModes.map((item) => item.name).toList(),
+            'leadTimeMinutes': target.leadTimeMinutes,
+            'arrivalRadiusMeters': target.arrivalRadiusMeters,
+            'shorelineSide': target.shorelineSide.name,
+            'reviewedAt': target.reviewedAt.toUtc().toIso8601String(),
+            'reviewReference': target.reviewReference.toString(),
+            'sourceAttribution': target.sourceAttribution,
+            'sourceLicense': target.sourceLicense,
+            'sourceUrl': target.sourceUrl.toString(),
+          },
+        )
+        .toList(),
+    'recommendedCapabilities': value.recommendedCapabilities
+        .map((capability) => capability.id)
+        .toList(),
+    'ruleVersion': value.ruleVersion,
+    'expiresAt': value.expiresAt.toUtc().toIso8601String(),
+  };
+
+  List<ShootingSession> _decodeShootingSessions(Object? raw) {
+    if (raw is! List || raw.length > 2) return const [];
+    try {
+      return List.unmodifiable(
+        raw.map((entry) {
+          if (entry is! Map) throw const FormatException();
+          final item = Map<String, Object?>.from(entry);
+          final phases = _list(item['phases']).map((entry) {
+            if (entry is! Map) throw const FormatException();
+            final value = Map<String, Object?>.from(entry);
+            return ShootingSessionPhase(
+              kind: _enumByName(ShootingPhaseKind.values, value['kind'])!,
+              startsAt: _date(value['startsAt'])!,
+              peaksAt: _date(value['peaksAt'])!,
+              endsAt: _date(value['endsAt'])!,
+              conditionBand: _enumByName(
+                ShootingConditionBand.values,
+                value['conditionBand'],
+              )!,
+              directionDegrees: _double(value['directionDegrees'])!,
+            );
+          }).toList();
+          final factors = _list(item['factors']).map((entry) {
+            if (entry is! Map) throw const FormatException();
+            final value = Map<String, Object?>.from(entry);
+            return ShootingSessionFactor(
+              id: value['id']! as String,
+              effect: _enumByName(
+                ShootingFactorEffect.values,
+                value['effect'],
+              )!,
+              label: value['label']! as String,
+              value: value['value']! as String,
+              sourceAt: _date(value['sourceAt'])!,
+            );
+          }).toList();
+          final samples = _list(item['trendSamples']).map((entry) {
+            if (entry is! Map) throw const FormatException();
+            final value = Map<String, Object?>.from(entry);
+            return ShootingSessionTrendSample(
+              at: _date(value['at'])!,
+              conditionIndex: value['conditionIndex']! as int,
+              cloudCoverPercent: _double(value['cloudCoverPercent']),
+              windSpeedMps: _double(value['windSpeedMps'])!,
+              precipitationMm: _double(value['precipitationMm'])!,
+            );
+          }).toList();
+          final targets = _list(item['targetCandidates']).map((entry) {
+            if (entry is! Map) throw const FormatException();
+            final value = Map<String, Object?>.from(entry);
+            return ShootingTarget(
+              id: value['id']! as String,
+              name: value['name']! as String,
+              coordinate: _decodePoint(value['coordinate'])!,
+              supportedSessions: _enumList(
+                ShootingSessionKind.values,
+                value['supportedSessions'],
+              ),
+              viewBearingDegrees: _double(value['viewBearingDegrees'])!,
+              bearingToleranceDegrees: _double(
+                value['bearingToleranceDegrees'],
+              )!,
+              accessModes: _enumList(
+                ShootingTravelMode.values,
+                value['accessModes'],
+              ),
+              leadTimeMinutes: value['leadTimeMinutes']! as int,
+              arrivalRadiusMeters: value['arrivalRadiusMeters']! as int,
+              shorelineSide: _enumByName(
+                ShootingShorelineSide.values,
+                value['shorelineSide'],
+              )!,
+              reviewedAt: _date(value['reviewedAt'])!,
+              reviewReference: Uri.parse(value['reviewReference']! as String),
+              sourceAttribution: value['sourceAttribution']! as String,
+              sourceLicense: value['sourceLicense']! as String,
+              sourceUrl: Uri.parse(value['sourceUrl']! as String),
+            );
+          }).toList();
+          final capabilities = _list(item['recommendedCapabilities']).map((
+            entry,
+          ) {
+            if (entry is! String) throw const FormatException();
+            return EquipmentCapability.values
+                .where((capability) => capability.id == entry)
+                .firstOrNull;
+          }).toList();
+          if (capabilities.any((capability) => capability == null)) {
+            throw const FormatException();
+          }
+          return ShootingSession(
+            id: item['id']! as String,
+            kind: _enumByName(ShootingSessionKind.values, item['kind'])!,
+            title: item['title']! as String,
+            startsAt: _date(item['startsAt'])!,
+            endsAt: _date(item['endsAt'])!,
+            primaryPhase: _enumByName(
+              ShootingPhaseKind.values,
+              item['primaryPhase'],
+            )!,
+            conditionBand: _enumByName(
+              ShootingConditionBand.values,
+              item['conditionBand'],
+            )!,
+            confidenceBand: _enumByName(
+              ShootingConfidenceBand.values,
+              item['confidenceBand'],
+            )!,
+            trend: _enumByName(ShootingTrend.values, item['trend'])!,
+            phases: phases,
+            factors: factors,
+            trendSamples: samples,
+            targetCandidates: targets,
+            recommendedCapabilities: capabilities.cast<EquipmentCapability>(),
+            ruleVersion: item['ruleVersion']! as String,
+            expiresAt: _date(item['expiresAt'])!,
+          );
+        }),
+      );
+    } on Object {
+      return const [];
+    }
+  }
+
   Map<String, Object?> _encodeEvent(ContextEvent event) => {
     'id': event.id,
     'channel': event.channel.name,
@@ -222,178 +470,6 @@ class PersistentContextCache implements ContextCache {
     'title': event.title,
     'sourceUrl': event.sourceUri?.toString(),
   };
-
-  Map<String, Object?> _encodePhotographyOpportunity(
-    PhotographyOpportunity opportunity,
-  ) => {
-    'id': opportunity.id,
-    'kind': opportunity.kind.name,
-    'title': opportunity.title,
-    'startsAt': opportunity.startsAt.toUtc().toIso8601String(),
-    'peaksAt': opportunity.peaksAt.toUtc().toIso8601String(),
-    'expiresAt': opportunity.expiresAt.toUtc().toIso8601String(),
-    'score': opportunity.score,
-    'confidence': opportunity.confidence,
-    'geoScope': opportunity.geoScope.name,
-    'directionDegrees': opportunity.directionDegrees,
-    'primaryAction': opportunity.primaryAction?.name,
-    'fallbackAction': opportunity.fallbackAction?.name,
-    'equipmentHints': opportunity.equipmentHints,
-    'evidence': opportunity.evidence
-        .map(
-          (item) => {
-            'id': item.id,
-            'kind': item.kind.name,
-            'statement': item.statement,
-            'confidence': item.confidence,
-            'supports': item.supports,
-          },
-        )
-        .toList(growable: false),
-  };
-
-  List<PhotographyOpportunity> _decodePhotographyOpportunities(Object? raw) {
-    if (raw == null) return const [];
-    if (raw is! List || raw.length > 8) return const [];
-    final opportunities = <PhotographyOpportunity>[];
-    final ids = <String>{};
-    for (final value in raw) {
-      if (value is! Map) return const [];
-      final item = Map<String, Object?>.from(value);
-      const keys = {
-        'id',
-        'kind',
-        'title',
-        'startsAt',
-        'peaksAt',
-        'expiresAt',
-        'score',
-        'confidence',
-        'geoScope',
-        'directionDegrees',
-        'primaryAction',
-        'fallbackAction',
-        'equipmentHints',
-        'evidence',
-      };
-      final id = item['id'];
-      final kind = _enumByName(PhotographyOpportunityKind.values, item['kind']);
-      final scope = _enumByName(
-        PhotographyOpportunityGeoScope.values,
-        item['geoScope'],
-      );
-      final startsAt = _date(item['startsAt']);
-      final peaksAt = _date(item['peaksAt']);
-      final expiresAt = _date(item['expiresAt']);
-      final score = item['score'];
-      final confidence = _double(item['confidence']);
-      final direction = item['directionDegrees'];
-      final primaryAction = item['primaryAction'] == null
-          ? null
-          : _enumByName(ContextAction.values, item['primaryAction']);
-      final fallbackAction = item['fallbackAction'] == null
-          ? null
-          : _enumByName(ContextAction.values, item['fallbackAction']);
-      final evidence = _decodePhotographyEvidence(item['evidence']);
-      final hints = item['equipmentHints'];
-      if (!_hasExactKeys(item, keys) ||
-          id is! String ||
-          !RegExp(r'^photo-[a-z0-9_-]{1,58}$').hasMatch(id) ||
-          item['title'] is! String ||
-          (item['title'] as String).trim().isEmpty ||
-          (item['title'] as String).runes.length > 80 ||
-          kind == null ||
-          scope == null ||
-          startsAt == null ||
-          peaksAt == null ||
-          expiresAt == null ||
-          peaksAt.isBefore(startsAt) ||
-          expiresAt.isBefore(peaksAt) ||
-          score is! int ||
-          score < 0 ||
-          score > 100 ||
-          confidence == null ||
-          confidence < 0 ||
-          confidence > 1 ||
-          (direction != null &&
-              (direction is! num ||
-                  !direction.isFinite ||
-                  direction < 0 ||
-                  direction >= 360)) ||
-          (item['primaryAction'] != null && primaryAction == null) ||
-          (item['fallbackAction'] != null && fallbackAction == null) ||
-          hints is! List ||
-          hints.length > 4 ||
-          hints.any(
-            (hint) =>
-                hint is! String ||
-                hint.trim().isEmpty ||
-                hint.runes.length > 40 ||
-                hint.contains(RegExp(r'[\r\n]')),
-          ) ||
-          evidence == null ||
-          !ids.add(id)) {
-        return const [];
-      }
-      opportunities.add(
-        PhotographyOpportunity(
-          id: id,
-          kind: kind,
-          title: (item['title'] as String).trim(),
-          startsAt: startsAt,
-          peaksAt: peaksAt,
-          expiresAt: expiresAt,
-          score: score,
-          confidence: confidence,
-          geoScope: scope,
-          directionDegrees: (direction as num?)?.toDouble(),
-          primaryAction: primaryAction,
-          fallbackAction: fallbackAction,
-          equipmentHints: hints.cast<String>(),
-          evidence: evidence,
-        ),
-      );
-    }
-    return List.unmodifiable(opportunities);
-  }
-
-  List<PhotographyEvidence>? _decodePhotographyEvidence(Object? raw) {
-    if (raw is! List || raw.isEmpty || raw.length > 4) return null;
-    final result = <PhotographyEvidence>[];
-    for (final value in raw) {
-      if (value is! Map) return null;
-      final item = Map<String, Object?>.from(value);
-      if (!_hasExactKeys(item, const {
-            'id',
-            'kind',
-            'statement',
-            'confidence',
-            'supports',
-          }) ||
-          item['id'] is! String ||
-          item['id'].toString().isEmpty ||
-          item['statement'] is! String ||
-          (item['statement'] as String).trim().isEmpty ||
-          (item['statement'] as String).runes.length > 120 ||
-          _enumByName(PhotographyEvidenceKind.values, item['kind']) == null ||
-          _double(item['confidence']) == null ||
-          _double(item['confidence'])! < 0 ||
-          _double(item['confidence'])! > 1 ||
-          item['supports'] is! bool) {
-        return null;
-      }
-      result.add(
-        PhotographyEvidence(
-          id: item['id'] as String,
-          kind: _enumByName(PhotographyEvidenceKind.values, item['kind'])!,
-          statement: (item['statement'] as String).trim(),
-          confidence: _double(item['confidence'])!,
-          supports: item['supports'] as bool,
-        ),
-      );
-    }
-    return List.unmodifiable(result);
-  }
 
   ContextEvent? _decodeEvent(Object? raw) {
     if (raw is! Map) return null;
@@ -425,11 +501,11 @@ class PersistentContextCache implements ContextCache {
             (sourceUri == null ||
                 sourceUri.scheme != 'https' ||
                 sourceUri.host.isEmpty)) ||
-        (action == ContextAction.openAuthority &&
+        (action == ContextAction.openAstronomyDetail &&
             (source != ContextEventSource.astronomyCatalog ||
                 rawTitle is! String ||
                 sourceUri == null)) ||
-        (action != ContextAction.openAuthority && rawSourceUrl != null)) {
+        (action != ContextAction.openAstronomyDetail && rawSourceUrl != null)) {
       return null;
     }
     return ContextEvent(
@@ -701,8 +777,8 @@ class PersistentContextCache implements ContextCache {
 
   /// Decodes a [ServerManifest] from raw cache data.
   ///
-  /// Returns `null` when the key is absent (`raw` is null or not a [Map]),
-  /// meaning "no manifest" — compatible with old cache entries. Returns
+  /// Returns `null` when the key is absent (`raw` is null), meaning the current
+  /// snapshot has no server manifest. Returns
   /// [_manifestDecodeFailure] when the data is structurally present but
   /// cannot form a valid manifest (unknown layout, wrong types, or
   /// construction-rule violations). The caller must propagate this sentinel

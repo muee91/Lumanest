@@ -16,7 +16,8 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    container
+    await container.read(manualLocationProvider.future);
+    await container
         .read(manualLocationProvider.notifier)
         .select(
           const LocationSearchResult(

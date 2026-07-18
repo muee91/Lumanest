@@ -16,7 +16,7 @@ Every import includes a source ID, license status, attribution, version, and an
 explicit enabled flag. A source can be enabled only when its license status is
 `approved`; pending or disabled sources remain inert in spatial rules.
 
-Imports are transactional per source and invalidate `context:v2:*` Redis
+Imports are transactional per source and invalidate `context:v5:*` Redis
 snapshots after commit. Sensitive spatial records must be coarse polygons;
 exact points and polygons smaller than 0.01 degrees in either dimension are
 rejected. Astronomy records require timezone-aware intervals and HTTPS source

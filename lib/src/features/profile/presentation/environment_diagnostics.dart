@@ -143,10 +143,9 @@ class EnvironmentDiagnostics extends StatelessWidget {
 /// Computes the current sanitized diagnostic status from the environment
 /// configuration and snapshot providers.
 ///
-/// Configuration is checked first. The Broker is now the primary environment
-/// source; legacy direct QWeather configuration is sufficient only as a
-/// migration fallback. AMap config is surfaced only when the snapshot itself
-/// is healthy. The provider never exposes secret values.
+/// Configuration is checked first. The Broker is the only environment source;
+/// AMap config is surfaced only when the snapshot itself is healthy. The
+/// provider never exposes secret values.
 final environmentDiagnosticStatusProvider =
     Provider<EnvironmentDiagnosticStatus>((ref) {
       final EnvironmentConfig config;
@@ -156,7 +155,7 @@ final environmentDiagnosticStatusProvider =
         return EnvironmentDiagnosticStatus.qweatherConfigMissing;
       }
 
-      if (!config.isDataBrokerConfigured && !config.isQWeatherConfigured) {
+      if (!config.isDataBrokerConfigured) {
         return EnvironmentDiagnosticStatus.qweatherConfigMissing;
       }
 

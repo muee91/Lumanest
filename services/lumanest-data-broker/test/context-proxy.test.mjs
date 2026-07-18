@@ -3,10 +3,14 @@ import test from 'node:test';
 
 import {
   forwardContextSnapshot,
+  forwardShootingFeedback,
+  fetchShootingCalibration,
   fetchWildlifeLayers,
   importContextDataset,
-  isLegacyContextRequest,
+  resolveShootingTarget,
   validContextRequest,
+  validShootingFeedbackRequest,
+  validTargetSessionRequest,
 } from '../src/context/proxy.mjs';
 
 const wildlifeLayerResponse = {
@@ -29,43 +33,61 @@ const wildlifeLayerResponse = {
 };
 
 const minimalRequest = {
-  contractVersion: 2,
+  contractVersion: 4,
   coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
   observedAt: '2026-07-14T10:00:00+08:00',
   locale: 'zh-CN',
   intent: 'photography',
-  route: { mode: 'none', stage: 'none' },
+  route: { mode: 'none', stage: 'none', routeId: null, corridorSamples: [] },
 };
 
-test('public context validator accepts canonical input and complete legacy input only', () => {
+test('public context validator accepts only the current canonical contract', () => {
   assert.equal(validContextRequest(minimalRequest), true);
-  assert.equal(validContextRequest({ ...minimalRequest, contractVersion: 3 }), true);
-  assert.equal(isLegacyContextRequest(minimalRequest), false);
-  const legacy = {
-    ...minimalRequest,
-    evidence: { urban: false, waterBody: false, mountainous: false, aridLand: false, settlement: false },
-    weather: {
-      observedAt: '2026-07-14T10:00:00+08:00', condition: 'clear', windSpeedMps: 2,
-      precipitationMm: 0, visibilityKm: 20, thunder: false, stale: false,
-      temperatureCelsius: 26, windDirectionDegrees: 90, cloudCoverPercent: null,
-    },
-    solar: { dayPhase: 'day', elevationDegrees: 60, azimuthDegrees: 180 },
-  };
-  assert.equal(validContextRequest(legacy), true);
-  assert.equal(isLegacyContextRequest(legacy), true);
-  assert.equal(validContextRequest({ ...minimalRequest, weather: legacy.weather }), false);
+  assert.equal(validContextRequest({ ...minimalRequest, contractVersion: 3 }), false);
+  assert.equal(validContextRequest({ ...minimalRequest, evidence: {} }), false);
   assert.equal(validContextRequest({ ...minimalRequest, deviceId: 'forbidden' }), false);
 });
 
+test('target-session and feedback requests keep exact privacy boundaries', () => {
+  const targetRequest = {
+    contractVersion: 1,
+    targetId: 'target_0123456789abcdef01234567',
+    targetCoordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
+    observedAt: '2026-07-14T02:00:00Z',
+    locale: 'zh-CN',
+  };
+  assert.equal(validTargetSessionRequest(targetRequest), true);
+  assert.equal(validTargetSessionRequest({ ...targetRequest, userCoordinate: targetRequest.targetCoordinate }), false);
+
+  const feedback = {
+    contractVersion: 2,
+    ruleVersion: 'water-evening.1',
+    conditionBand: 'good',
+    factors: [{ id: 'wind', effect: 'limiting' }],
+    outcome: 'conditionsDidNotAppear',
+    reasons: ['wind'],
+    targetId: null,
+  };
+  assert.equal(validShootingFeedbackRequest(feedback), true);
+  assert.equal(validShootingFeedbackRequest({ ...feedback, contractVersion: 1 }), false);
+  for (const field of ['coordinate', 'deviceId', 'photo', 'exif']) {
+    assert.equal(validShootingFeedbackRequest({ ...feedback, [field]: 'forbidden' }), false);
+  }
+  assert.equal(validShootingFeedbackRequest({ ...feedback, reasons: ['wind', 'wind'] }), false);
+  assert.equal(validShootingFeedbackRequest({
+    ...feedback, contractVersion: 2, conditionBand: 'unknown',
+  }), false);
+});
+
 test('route invariant rejects none/active and driving/none but accepts planned/active/paused', () => {
-  assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'none', stage: 'active' } }), false);
-  assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'driving', stage: 'none' } }), false);
+  assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'none', stage: 'active', routeId: null, corridorSamples: [] } }), false);
+  assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'driving', stage: 'none', routeId: null, corridorSamples: [] } }), false);
   for (const stage of ['planned', 'active', 'paused']) {
-    assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'driving', stage } }), true);
+    assert.equal(validContextRequest({ ...minimalRequest, route: { mode: 'driving', stage, routeId: null, corridorSamples: [] } }), true);
   }
 });
 
-test('V3 accepts only bounded ordered WGS84 corridor samples with an opaque route ID', () => {
+test('current contract accepts only bounded ordered WGS84 corridor samples', () => {
   const route = {
     mode: 'driving',
     stage: 'planned',
@@ -78,18 +100,17 @@ test('V3 accepts only bounded ordered WGS84 corridor samples with an opaque rout
       progress,
     })),
   };
-  assert.equal(validContextRequest({ ...minimalRequest, contractVersion: 3, route }), true);
-  assert.equal(validContextRequest({ ...minimalRequest, route }), false);
+  assert.equal(validContextRequest({ ...minimalRequest, route }), true);
   assert.equal(validContextRequest({
-    ...minimalRequest, contractVersion: 3,
+    ...minimalRequest,
     route: { ...route, routeId: undefined },
   }), false);
   assert.equal(validContextRequest({
-    ...minimalRequest, contractVersion: 3,
+    ...minimalRequest,
     route: { ...route, corridorSamples: [...route.corridorSamples].reverse() },
   }), false);
   assert.equal(validContextRequest({
-    ...minimalRequest, contractVersion: 3,
+    ...minimalRequest,
     route: {
       ...route,
       corridorSamples: [{ ...route.corridorSamples[0], system: 'gcj02' }],
@@ -97,13 +118,18 @@ test('V3 accepts only bounded ordered WGS84 corridor samples with an opaque rout
   }), false);
 });
 
-test('context snapshot rejects a response where active disagrees with stage', async () => {
+test('current context response validates composite scene and route invariants', async () => {
   const base = {
-    contractVersion: 2,
+    contractVersion: 4,
     contextId: 'ctx_1234567890abcdef12345678',
     generatedAt: '2026-07-14T02:00:00Z',
-    expiresAt: '2026-07-14T02:15:00Z',
+    expiresAt: '2026-07-14T02:10:00Z',
     scene: 'lake',
+    sceneContext: {
+      primaryScene: 'inlandWater', facets: ['lake', 'reflectiveSurface'],
+      activity: 'stationary', scores: { inlandWater: 55 }, reviewedOverride: false,
+    },
+    opportunityCatalogVersion: 1,
     fingerprint: '1234567890abcdef12345678',
     stale: false,
     dataFreshness: { context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z' },
@@ -118,144 +144,104 @@ test('context snapshot rejects a response where active disagrees with stage', as
       moonPhase: 'fullMoon', moonIllumination: 0.5,
     },
     route: { mode: 'driving', stage: 'planned', active: false },
-    events: [],
-    allowedActions: [],
+    events: [], allowedActions: [],
     manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
+    shootingSessions: [],
   };
-
-  const ok = await forwardContextSnapshot({
-    body: {},
-    serviceUrl: 'http://context-service:8000',
-    internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify(base), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    }),
-  });
-  assert.equal(ok.ok, true);
-
-  const v3 = {
-    ...base, contractVersion: 3, allowedActions: ['openExplore', 'openShootingWindow'], opportunities: [{
-      id: 'photo-reflection-2026071410', kind: 'reflection',
-      startAt: '2026-07-14T02:00:00Z', peakAt: '2026-07-14T02:15:00Z', endAt: '2026-07-14T02:35:00Z',
-      score: 74, confidence: .76, geoScope: 'point', directionDegrees: null,
-      evidence: [{ label: '风速', value: '1.5m/s' }], primaryAction: 'openExplore',
-      fallbackAction: 'openShootingWindow', equipmentHints: ['偏振镜'],
-    }],
-  };
-  const acceptedV3 = await forwardContextSnapshot({
+  const accepted = await forwardContextSnapshot({
     body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify(v3), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    }),
+    fetcher: async () => new Response(JSON.stringify(base), { status: 200 }),
   });
-  assert.equal(acceptedV3.ok, true);
+  assert.equal(accepted.ok, true);
 
-  const v3WithReviewedTarget = {
-    ...v3,
-    opportunities: [{ ...v3.opportunities[0], target: {
-      id: 'target_0123456789abcdef01234567', name: '东岸观景台', kind: 'lakeshore',
-      coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
-      arrivalDeadline: '2026-07-14T02:00:00Z',
-    } }],
-  };
-  const acceptedTarget = await forwardContextSnapshot({
+  const rejected = await forwardContextSnapshot({
     body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify(v3WithReviewedTarget), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    }),
-  });
-  assert.equal(acceptedTarget.ok, true);
-
-  const v3WithCorridor = {
-    ...v3,
-    opportunities: [{ ...v3.opportunities[0], geoScope: 'regional', corridor: {
-      routeId: 'client_route_hash_123',
-      observations: [{
-        progress: .5, expectedAt: '2026-07-14T02:30:00Z', condition: 'clear',
-        cloudCoverPercent: 25, windSpeedMps: 1.5, precipitationMm: 0,
-        thunder: false, sunAzimuthDegrees: 240,
-        opportunityId: v3.opportunities[0].id,
-      }],
-    } }],
-  };
-  const acceptedCorridor = await forwardContextSnapshot({
-    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify(v3WithCorridor), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    }),
-  });
-  assert.equal(acceptedCorridor.ok, true);
-
-  const rejectedPointCorridor = await forwardContextSnapshot({
-    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify({
-      ...v3WithCorridor,
-      opportunities: [{ ...v3WithCorridor.opportunities[0], geoScope: 'point' }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
-  });
-  assert.equal(rejectedPointCorridor.ok, false);
-
-  const rejectedTarget = await forwardContextSnapshot({
-    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify({
-      ...v3WithReviewedTarget,
-      opportunities: [{ ...v3WithReviewedTarget.opportunities[0], target: {
-        ...v3WithReviewedTarget.opportunities[0].target,
-        coordinate: { latitude: 30.251, longitude: 120.151, system: 'gcj02' },
-      } }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
-  });
-  assert.equal(rejectedTarget.ok, false);
-
-  const unapprovedOpportunityAction = await forwardContextSnapshot({
-    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify({ ...v3, allowedActions: [] }), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    }),
-  });
-  assert.equal(unapprovedOpportunityAction.ok, false);
-
-  const astronomyEvent = {
-    id: 'astronomy-123456789abc', channel: 'opportunity', source: 'astronomyCatalog',
-    observedAt: '2026-07-14T01:00:00Z', expiresAt: '2026-07-14T04:00:00Z',
-    confidence: 1, geoScope: 'regional', severity: 'info', allowedAction: 'openAuthority',
-    title: '英仙座流星雨极大期', sourceUrl: 'https://science.nasa.gov/meteor-showers/',
-  };
-  const astronomy = {
-    ...base,
-    events: [astronomyEvent],
-    allowedActions: ['openAuthority'],
-    manifest: {
-      layoutMode: 'opportunity', primaryEventId: astronomyEvent.id,
-      secondaryEventIds: [], safetyEventIds: [],
-    },
-  };
-  const acceptedAstronomy = await forwardContextSnapshot({
-    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify(astronomy), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    }),
-  });
-  assert.equal(acceptedAstronomy.ok, true);
-
-  const rejectedHttpAuthority = await forwardContextSnapshot({
-    body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify({
-      ...astronomy,
-      events: [{ ...astronomyEvent, sourceUrl: 'http://example.test/catalog' }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
-  });
-  assert.deepEqual(rejectedHttpAuthority, { ok: false, error: 'upstream_unavailable' });
-
-  const bad = await forwardContextSnapshot({
-    body: {},
-    serviceUrl: 'http://context-service:8000',
-    internalToken: 'internal-secret',
     fetcher: async () => new Response(JSON.stringify({
       ...base, route: { mode: 'driving', stage: 'planned', active: true },
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    }), { status: 200 }),
   });
-  assert.deepEqual(bad, { ok: false, error: 'upstream_unavailable' });
+  assert.equal(rejected.ok, false);
+});
+
+test('target resolution and feedback forwarding use only the internal token', async () => {
+  const requests = [];
+  const fetcher = async (url, options) => {
+    requests.push({ url, options });
+    if (url.pathname.endsWith('/resolve')) {
+      return new Response(JSON.stringify({
+        id: 'target_0123456789abcdef01234567', name: '东岸审核湖岸', kind: 'lakeshore',
+        coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
+        supportedSessions: ['waterEvening'], viewBearingDegrees: 286,
+        bearingToleranceDegrees: 25, accessModes: ['driving'], leadTimeMinutes: 12,
+        arrivalRadiusMeters: 100, shorelineSide: 'east', reviewedAt: '2026-07-01T00:00:00Z',
+        reviewReference: 'https://review.example/targets/east-bank', sourceAttribution: '审核目录',
+        sourceLicense: 'CC-BY-4.0', sourceUrl: 'https://source.example/lakes/east-bank',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ accepted: true }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  };
+  const target = await resolveShootingTarget({
+    targetId: 'target_0123456789abcdef01234567',
+    coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
+    serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret', fetcher,
+  });
+  const feedback = await forwardShootingFeedback({
+    body: {
+      contractVersion: 1, ruleVersion: 'water-evening.1',
+      factors: [{ id: 'wind', effect: 'supporting' }], outcome: 'captured', reasons: [], targetId: null,
+    },
+    serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret', fetcher,
+  });
+
+  assert.equal(target.ok, true);
+  assert.equal(feedback.ok, true);
+  assert.deepEqual(requests.map((request) => request.url.pathname), [
+    '/internal/v1/shooting-targets/resolve', '/internal/v1/shooting-feedback',
+  ]);
+  assert.equal(requests.every((request) =>
+    request.options.headers['X-Internal-Service-Token'] === 'internal-secret'), true);
+});
+
+test('calibration proxy returns only bounded aggregate rows', async () => {
+  let requestedUrl;
+  const result = await fetchShootingCalibration({
+    days: 90,
+    minimumSamples: 5,
+    serviceUrl: 'http://context-service:8000',
+    internalToken: 'internal-secret',
+    fetcher: async (url, options) => {
+      requestedUrl = url;
+      assert.equal(options.headers['X-Internal-Service-Token'], 'internal-secret');
+      return new Response(JSON.stringify({
+        generatedAt: '2026-07-18T02:00:00Z',
+        since: '2026-04-19T02:00:00Z',
+        minimumSamples: 5,
+        rows: [{
+          ruleVersion: 'water-evening.1', conditionBand: 'good',
+          factorId: 'wind', factorEffect: 'supporting', evaluatedCount: 10,
+          capturedCount: 7, conditionsDidNotAppearCount: 3, capturedRate: .7,
+        }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(requestedUrl.searchParams.get('days'), '90');
+  assert.equal(requestedUrl.searchParams.get('minimumSamples'), '5');
+  assert.equal(JSON.stringify(result).includes('targetId'), false);
+
+  const rejected = await fetchShootingCalibration({
+    days: 90,
+    minimumSamples: 5,
+    serviceUrl: 'http://context-service:8000',
+    internalToken: 'internal-secret',
+    fetcher: async () => new Response(JSON.stringify({
+      generatedAt: '2026-07-18T02:00:00Z', since: '2026-04-19T02:00:00Z',
+      minimumSamples: 5, rows: [{ targetId: 'forbidden' }],
+    }), { status: 200 }),
+  });
+  assert.deepEqual(rejected, { ok: false, error: 'upstream_unavailable' });
 });
 
 test('context import uses only the internal service token and bounded endpoint', async () => {
@@ -350,7 +336,7 @@ test('context import converts validation details into a safe error', async () =>
   assert.deepEqual(result, { ok: false, error: 'invalid_import' });
 });
 
-test('context snapshot refuses an incomplete internal v2 response', async () => {
+test('context snapshot refuses an incomplete current response', async () => {
   const result = await forwardContextSnapshot({
     body: {},
     serviceUrl: 'http://context-service:8000',

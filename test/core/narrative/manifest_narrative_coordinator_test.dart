@@ -19,7 +19,7 @@ void main() {
       final model = _FakeModel(
         const ManifestNarrativeCandidate(
           summary: '湖面正在安静下来，可以等等倒影。',
-          noteLabels: {'reflection': '等倒影'},
+          noteLabels: {'session.water.evening': '等倒影'},
         ),
       );
       final coordinator = ManifestNarrativeCoordinator(
@@ -30,10 +30,7 @@ void main() {
       await coordinator.resolve(snapshot: snapshot, manifest: manifest);
 
       expect(model.requests.single.scene, snapshot.primaryScene);
-      expect(model.requests.single.creativeEventIds, [
-        'reflection',
-        'blue-hour',
-      ]);
+      expect(model.requests.single.creativeEventIds, ['session.water.evening']);
       expect(model.requests.single.toString(), isNot(contains('latitude')));
       expect(model.requests.single.toString(), isNot(contains('longitude')));
     },
@@ -46,7 +43,7 @@ void main() {
         model: _FakeModel(
           const ManifestNarrativeCandidate(
             summary: '湖面正在安静下来，可以等等倒影。',
-            noteLabels: {'reflection': '等倒影', 'blue-hour': '等蓝调'},
+            noteLabels: {'session.water.evening': '等倒影'},
           ),
         ),
         now: () => now,
@@ -59,7 +56,7 @@ void main() {
 
       expect(narrative.source, ManifestNarrativeSource.model);
       expect(narrative.summary, '湖面正在安静下来，可以等等倒影。');
-      expect(narrative.noteLabels['reflection'], '等倒影');
+      expect(narrative.noteLabels['session.water.evening'], '等倒影');
     },
   );
 
@@ -150,7 +147,7 @@ void main() {
       completer.complete(
         const ManifestNarrativeCandidate(
           summary: '风停下来时，倒影会更完整。',
-          noteLabels: {'reflection': '等风停'},
+          noteLabels: {'session.water.evening': '等风停'},
         ),
       );
 

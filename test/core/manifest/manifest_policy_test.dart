@@ -20,17 +20,17 @@ void main() {
     expect(manifest.secondary, isEmpty);
   });
 
-  test('lake sunset prioritizes reflection and limits secondary cards', () {
+  test('lake sunset prioritizes the water session', () {
     final snapshot = ContextFixtures.lakeSunset();
     final manifest = ManifestPolicy.build(snapshot, now: snapshot.observedAt);
 
     expect(manifest.layoutMode, LayoutMode.opportunity);
-    expect(manifest.primary?.id, 'reflection');
-    expect(manifest.secondary, hasLength(1));
+    expect(manifest.primary?.id, 'session.water.evening');
+    expect(manifest.secondary, isEmpty);
     expect(manifest.secondary.length, lessThanOrEqualTo(2));
   });
 
-  test('mountain dawn emits alpenglow only when present in context', () {
+  test('mountain dawn emits the Core session only when present', () {
     final mountainDawn = ContextFixtures.mountainDawn();
     final withAlpenglow = ManifestPolicy.build(
       mountainDawn,
@@ -48,7 +48,7 @@ void main() {
       ),
     );
 
-    expect(withAlpenglow.primary?.id, 'alpenglow');
+    expect(withAlpenglow.primary?.id, 'session.mountain.morning');
     expect(withoutAlpenglow.primary, isNull);
   });
 
@@ -59,11 +59,11 @@ void main() {
         id: 'storm-safety',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 10)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.day,
         weather: WeatherType.rain,
         activeRoute: true,
-        opportunityIds: const ['mist'],
+        opportunityIds: const ['event.atmosphere.morning_mist'],
         safetyEventIds: const ['thunderstorm'],
         events: [
           ContextEvent(
@@ -74,7 +74,7 @@ void main() {
             expiresAt: now.add(const Duration(minutes: 10)),
             confidence: 0.9,
             safetyLevel: ContextSafetyLevel.warning,
-            allowedAction: ContextAction.openSafety,
+            allowedAction: ContextAction.openSafetyDetail,
           ),
         ],
       ),
@@ -98,7 +98,7 @@ void main() {
           id: 'wildlife-context',
           observedAt: now,
           expiresAt: now.add(const Duration(minutes: 10)),
-          primaryScene: SceneType.hiking,
+          primaryScene: SceneType.mountain,
           dayPhase: DayPhase.dawn,
           weather: WeatherType.clear,
           activeRoute: true,
@@ -111,7 +111,7 @@ void main() {
               observedAt: now,
               expiresAt: now.add(const Duration(minutes: 10)),
               confidence: 0.7,
-              allowedAction: ContextAction.openSafety,
+              allowedAction: ContextAction.openSafetyDetail,
             ),
           ],
         ),
@@ -140,10 +140,10 @@ void main() {
       dayPhase: DayPhase.blueHour,
       weather: WeatherType.clear,
       activeRoute: false,
-      opportunityIds: const ['blue-hour', 'reflection'],
+      opportunityIds: const ['session.city.blue_hour', 'session.water.evening'],
       events: [
         ContextEvent(
-          id: 'blue-hour',
+          id: 'session.city.blue_hour',
           channel: ContextEventChannel.opportunity,
           source: ContextEventSource.solar,
           observedAt: now,
@@ -151,7 +151,7 @@ void main() {
           confidence: .9,
         ),
         ContextEvent(
-          id: 'reflection',
+          id: 'session.water.evening',
           channel: ContextEventChannel.opportunity,
           source: ContextEventSource.rule,
           observedAt: now.subtract(const Duration(hours: 1)),
@@ -163,36 +163,38 @@ void main() {
 
     final manifest = ManifestPolicy.build(snapshot, now: now);
 
-    expect(manifest.primary?.id, 'blue-hour');
+    expect(manifest.primary?.id, 'session.city.blue_hour');
     expect(manifest.primary?.source, ContextEventSource.solar);
     expect(manifest.primary?.confidence, .9);
     expect(
       manifest.secondary.map((item) => item.id),
-      isNot(contains('reflection')),
+      isNot(contains('session.water.evening')),
     );
   });
 
-  test('no serverManifest old creative fallback does not regress', () {
+  test('current catalog fallback works without a server manifest', () {
     final now = DateTime.utc(2026, 7, 11, 10);
     final manifest = ManifestPolicy.build(
       ContextSnapshot(
-        id: 'legacy-local-opportunities',
+        id: 'current-local-opportunities',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 20)),
         primaryScene: SceneType.lake,
         dayPhase: DayPhase.sunset,
         weather: WeatherType.cloudy,
         activeRoute: false,
-        opportunityIds: const ['reflection', 'blue-hour'],
+        opportunityIds: const [
+          'session.water.evening',
+          'session.city.blue_hour',
+        ],
       ),
       now: now,
     );
 
-    // Local fallback still works without a server manifest: known opportunity
-    // IDs produce creative items even without structured events.
+    // Current catalog IDs can render locally without structured events.
     expect(manifest.layoutMode, LayoutMode.opportunity);
-    expect(manifest.primary?.id, 'reflection');
-    expect(manifest.secondary.first.id, 'blue-hour');
+    expect(manifest.primary?.id, 'session.water.evening');
+    expect(manifest.secondary.first.id, 'session.city.blue_hour');
   });
 
   // ---------------------------------------------------------------------------
@@ -228,7 +230,7 @@ void main() {
       expiresAt: expiresAt ?? now.add(const Duration(minutes: 30)),
       confidence: 0.85,
       safetyLevel: ContextSafetyLevel.warning,
-      allowedAction: action ?? ContextAction.openSafety,
+      allowedAction: action ?? ContextAction.openSafetyDetail,
     );
 
     ContextEvent wildlifeSafetyEvent({
@@ -241,7 +243,7 @@ void main() {
       observedAt: now,
       expiresAt: now.add(const Duration(minutes: 30)),
       confidence: 0.7,
-      allowedAction: action ?? ContextAction.openSafety,
+      allowedAction: action ?? ContextAction.openSafetyDetail,
     );
 
     test('server layout and creative order follow manifest', () {
@@ -254,24 +256,27 @@ void main() {
         weather: WeatherType.cloudy,
         activeRoute: false,
         events: [
-          opportunityEvent(id: 'reflection'),
-          opportunityEvent(id: 'blue-hour'),
-          opportunityEvent(id: 'mist'),
+          opportunityEvent(id: 'session.water.evening'),
+          opportunityEvent(id: 'session.city.blue_hour'),
+          opportunityEvent(id: 'event.atmosphere.morning_mist'),
         ],
         serverManifest: ServerManifest(
           layout: ServerManifestLayout.opportunity,
-          primaryEventId: 'mist',
-          secondaryEventIds: const ['reflection', 'blue-hour'],
+          primaryEventId: 'event.atmosphere.morning_mist',
+          secondaryEventIds: const [
+            'session.water.evening',
+            'session.city.blue_hour',
+          ],
         ),
       );
 
       final manifest = ManifestPolicy.build(snapshot, now: now);
 
       expect(manifest.layoutMode, LayoutMode.opportunity);
-      expect(manifest.primary?.id, 'mist');
+      expect(manifest.primary?.id, 'event.atmosphere.morning_mist');
       expect(manifest.secondary.map((item) => item.id), [
-        'reflection',
-        'blue-hour',
+        'session.water.evening',
+        'session.city.blue_hour',
       ]);
     });
 
@@ -280,7 +285,7 @@ void main() {
         id: 'server-safety-layout',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 30)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.day,
         weather: WeatherType.rain,
         activeRoute: false,
@@ -307,7 +312,10 @@ void main() {
         weather: WeatherType.clear,
         activeRoute: false,
         events: [
-          safetyEvent(id: 'unhealthy-air', action: ContextAction.openWeather),
+          safetyEvent(
+            id: 'unhealthy-air',
+            action: ContextAction.openSafetyDetail,
+          ),
         ],
         serverManifest: ServerManifest(
           layout: ServerManifestLayout.safety,
@@ -318,7 +326,7 @@ void main() {
       final manifest = ManifestPolicy.build(snapshot, now: now);
       final item = manifest.safety.single;
       expect(item.title, '当前空气质量不适合长时间户外拍摄');
-      expect(item.action, ManifestAction.openWeather);
+      expect(item.action, ManifestAction.openSafetyDetail);
     });
 
     test('missing structured safety in server list still shows', () {
@@ -355,7 +363,7 @@ void main() {
         id: 'server-unknown-official-safety',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 30)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.day,
         weather: WeatherType.rain,
         activeRoute: false,
@@ -395,32 +403,32 @@ void main() {
         activeRoute: false,
         events: [
           ContextEvent(
-            id: 'astronomy-123456789abc',
+            id: 'event.astro.meteor_shower',
             channel: ContextEventChannel.opportunity,
             source: ContextEventSource.astronomyCatalog,
             observedAt: now.subtract(const Duration(hours: 1)),
             expiresAt: now.add(const Duration(hours: 2)),
             confidence: 1,
-            geoScope: ContextGeoScope.regional,
+            geoScope: ContextGeoScope.region,
             safetyLevel: ContextSafetyLevel.info,
-            allowedAction: ContextAction.openAuthority,
+            allowedAction: ContextAction.openAstronomyDetail,
             title: '英仙座流星雨极大期',
             sourceUri: authority,
           ),
         ],
         serverManifest: ServerManifest(
           layout: ServerManifestLayout.opportunity,
-          primaryEventId: 'astronomy-123456789abc',
+          primaryEventId: 'event.astro.meteor_shower',
         ),
       );
 
       final manifest = ManifestPolicy.build(snapshot, now: now);
 
       expect(manifest.primary?.title, '英仙座流星雨极大期');
-      expect(manifest.primary?.action, ManifestAction.openAuthority);
+      expect(manifest.primary?.action, ManifestAction.openAstronomyDetail);
       expect(manifest.primary?.authorityUri, authority);
-      expect(manifest.summary, contains('实际可见性'));
-      expect(manifest.inspirationPreview, '看天象✨');
+      expect(manifest.summary, contains('权威事件存在'));
+      expect(manifest.inspirationPreview, '流星雨☄️');
     });
 
     test('unknown non-official safety event gets generic title', () {
@@ -428,7 +436,7 @@ void main() {
         id: 'server-unknown-env-safety',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 30)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.day,
         weather: WeatherType.rain,
         activeRoute: false,
@@ -457,7 +465,7 @@ void main() {
         id: 'server-openroute-action',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 30)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.day,
         weather: WeatherType.cloudy,
         activeRoute: true,
@@ -500,10 +508,10 @@ void main() {
         weather: WeatherType.cloudy,
         activeRoute: false,
         events: [
-          opportunityEvent(id: 'reflection'),
-          // 'blue-hour' is expired
+          opportunityEvent(id: 'session.water.evening'),
+          // city blue-hour session is expired
           ContextEvent(
-            id: 'blue-hour',
+            id: 'session.city.blue_hour',
             channel: ContextEventChannel.opportunity,
             source: ContextEventSource.solar,
             observedAt: now.subtract(const Duration(hours: 2)),
@@ -513,18 +521,17 @@ void main() {
         ],
         serverManifest: ServerManifest(
           layout: ServerManifestLayout.opportunity,
-          primaryEventId: 'blue-hour', // expired — must not appear
-          secondaryEventIds: const ['reflection'],
+          primaryEventId: 'session.city.blue_hour', // expired — must not appear
+          secondaryEventIds: const ['session.water.evening'],
         ),
       );
 
       final manifest = ManifestPolicy.build(snapshot, now: now);
 
-      // Expired primary (blue-hour) is dropped; reflection becomes primary.
-      expect(manifest.primary?.id, 'reflection');
+      expect(manifest.primary?.id, 'session.water.evening');
       expect(
         manifest.creativeItems.map((item) => item.id),
-        isNot(contains('blue-hour')),
+        isNot(contains('session.city.blue_hour')),
       );
     });
 
@@ -535,7 +542,7 @@ void main() {
         id: 'bare-bear-risk',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 10)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.dawn,
         weather: WeatherType.clear,
         activeRoute: true,
@@ -552,7 +559,7 @@ void main() {
         id: 'structured-bear-risk',
         observedAt: now,
         expiresAt: now.add(const Duration(minutes: 30)),
-        primaryScene: SceneType.hiking,
+        primaryScene: SceneType.mountain,
         dayPhase: DayPhase.dawn,
         weather: WeatherType.clear,
         activeRoute: true,
@@ -577,20 +584,19 @@ void main() {
         dayPhase: DayPhase.sunset,
         weather: WeatherType.cloudy,
         activeRoute: false,
-        events: [
-          opportunityEvent(id: 'reflection'),
-          // 'mist' is referenced by server manifest but has no structured event
-        ],
+        events: [opportunityEvent(id: 'session.water.evening')],
         serverManifest: ServerManifest(
           layout: ServerManifestLayout.opportunity,
-          primaryEventId: 'reflection',
-          secondaryEventIds: const ['mist'], // no event — must not appear
+          primaryEventId: 'session.water.evening',
+          secondaryEventIds: const [
+            'event.atmosphere.morning_mist',
+          ], // no event — must not appear
         ),
       );
 
       final manifest = ManifestPolicy.build(snapshot, now: now);
 
-      expect(manifest.primary?.id, 'reflection');
+      expect(manifest.primary?.id, 'session.water.evening');
       expect(manifest.secondary, isEmpty);
     });
 

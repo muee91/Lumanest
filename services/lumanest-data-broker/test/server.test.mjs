@@ -12,6 +12,7 @@ import {
 } from '../src/server.mjs';
 import { MemoryRequestRateLimiter } from '../src/context/request-rate-limiter.mjs';
 import { MemoryWeatherCache } from '../src/context/weather-cache.mjs';
+import { CompanionStore } from '../src/companion/orchestrator.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 
@@ -31,6 +32,7 @@ async function withServer(run, {
   qweatherApiHost = 'https://project.qweatherapi.com',
   weatherCache,
   requestRateLimiter,
+  companionStore,
   now,
 } = {}) {
   const llmProfiles = aiApiKey ? [{
@@ -63,6 +65,7 @@ async function withServer(run, {
     qweatherApiHost,
     weatherCache,
     requestRateLimiter,
+    companionStore,
     now,
     fetcher,
   });
@@ -75,12 +78,133 @@ async function withServer(run, {
   }
 }
 
+function v4SnapshotBody() {
+  return {
+    contractVersion: 4,
+    contextId: 'ctx_1234567890abcdef12345678',
+    generatedAt: '2026-07-14T02:00:00Z',
+    expiresAt: '2026-07-14T02:15:00Z',
+    scene: 'lake', fingerprint: '1234567890abcdef12345678', stale: false,
+    sceneContext: {
+      primaryScene: 'inlandWater', facets: ['lake', 'reflectiveSurface'],
+      activity: 'stationary', scores: { inlandWater: 55 }, reviewedOverride: false,
+    },
+    opportunityCatalogVersion: 1,
+    dataFreshness: { context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z' },
+    weather: {
+      condition: 'cloudy', temperatureCelsius: 26, windSpeedMps: 1.8,
+      windDirectionDegrees: 90, precipitationMm: 0, visibilityKm: 20,
+      cloudCoverPercent: 55, thunder: false, airQualityIndex: null,
+      airQualityCategory: null, primaryPollutant: null,
+      airQualityObservedAt: null, airQualityStale: true,
+    },
+    sunMoon: {
+      dayPhase: 'sunset', sunElevationDegrees: 4, sunAzimuthDegrees: 286,
+      moonPhase: 'waxingCrescent', moonIllumination: .2,
+    },
+    route: { mode: 'none', stage: 'none', active: false },
+    events: [], allowedActions: [],
+    manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
+    shootingSessions: [{
+      id: 'session_0123456789abcdef01234567', kind: 'waterEvening', title: '湖岸晚间窗口',
+      startAt: '2026-07-14T02:10:00Z', endAt: '2026-07-14T03:10:00Z',
+      primaryPhase: 'reflection', conditionBand: 'good', confidenceBand: 'high', trend: 'improving',
+      phases: [{
+        kind: 'reflection', startAt: '2026-07-14T02:20:00Z', peakAt: '2026-07-14T02:35:00Z',
+        endAt: '2026-07-14T02:50:00Z', conditionBand: 'good', directionDegrees: 286,
+      }],
+      factors: [{
+        id: 'wind', effect: 'supporting', label: '风速', value: '1.8m/s', sourceAt: '2026-07-14T02:00:00Z',
+      }],
+      trendSamples: [
+        { at: '2026-07-14T02:10:00Z', conditionIndex: 60, cloudCoverPercent: 60, windSpeedMps: 3, precipitationMm: 0 },
+        { at: '2026-07-14T02:50:00Z', conditionIndex: 80, cloudCoverPercent: 50, windSpeedMps: 1.8, precipitationMm: 0 },
+      ],
+      targetCandidates: [], ruleVersion: 'water-evening.1', expiresAt: '2026-07-14T02:15:00Z',
+      recommendedCapabilities: ['tripod'],
+    }],
+  };
+}
+
+function discoveryRequestBody(overrides = {}) {
+  return {
+    missionType: 'humanityEvents',
+    focus: '早市 夜市 展览',
+    locale: 'zh-CN',
+    region: { latitude: 30.25, longitude: 120.15, radiusMeters: 5000 },
+    timeRange: {
+      startsAt: '2026-07-18T00:00:00Z',
+      endsAt: '2026-07-25T00:00:00Z',
+    },
+    routeCorridor: null,
+    interests: ['humanityStreet'],
+    ...overrides,
+  };
+}
+
 test('health check never requires a service token', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/healthz`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { status: 'ok' });
   });
+});
+
+test('companion refresh, inventory and feedback enforce current contracts', async () => {
+  const now = new Date('2026-07-18T10:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v4SnapshotBody();
+  snapshot.contextId = 'ctx_1234567890abcdef12345678';
+  snapshot.generatedAt = now.toISOString();
+  snapshot.events = [{
+    id: 'session.water.evening', channel: 'opportunity', source: 'rule',
+    observedAt: now.toISOString(), expiresAt: '2026-07-18T11:00:00Z',
+    confidence: .82, geoScope: 'point', severity: 'info',
+    allowedAction: 'openShootingWindow', title: null, sourceUrl: null,
+  }];
+  companionStore.rememberSnapshot(snapshot);
+
+  await withServer(async (baseUrl) => {
+    const refresh = await fetch(`${baseUrl}/v1/companion/refresh`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'refresh:12345678',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        reason: 'manual_refresh',
+        routeId: null,
+        visiblePage: 'today',
+        localTimeZone: 'Asia/Shanghai',
+      }),
+    });
+    assert.equal(refresh.status, 200);
+    const refreshed = await refresh.json();
+    assert.equal(refreshed.primaryInsight.channel, 'photographyOpportunity');
+    assert.equal(refreshed.partial, false);
+
+    const inventory = await fetch(`${baseUrl}/v1/inspiration/inventory?limit=20`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(inventory.status, 200);
+    const listed = await inventory.json();
+    assert.equal(listed.items.length, 20);
+    assert.equal(listed.items.some((item) => item.channel === 'safety'), false);
+
+    const feedback = await fetch(`${baseUrl}/v1/insights/${listed.items[0].id}/feedback`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'feedback:12345678',
+      },
+      body: JSON.stringify({ action: 'saved' }),
+    });
+    assert.equal(feedback.status, 200);
+    assert.equal((await feedback.json()).accepted, true);
+  }, { companionStore, now: () => now });
 });
 
 test('discovery worker endpoints require their own token, use reviewed sources and hide provider failures', async () => {
@@ -146,14 +270,14 @@ test('discovery extract rejects unsafe schema abuse and never falls back to arbi
       method: 'POST', headers: {
         'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ focus: '风险区域', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
+      body: JSON.stringify({ missionType: 'humanityEvents', focus: '风险区域', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
     });
     assert.equal(unsafe.status, 400);
     const response = await fetch(`${baseUrl}/internal/v1/discovery/extract`, {
       method: 'POST', headers: {
         'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ focus: '近期摄影活动', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
+      body: JSON.stringify({ missionType: 'humanityEvents', focus: '近期摄影活动', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
     });
     assert.equal(response.status, 502);
     assert.deepEqual(await response.json(), { error: 'upstream_unavailable' });
@@ -165,15 +289,15 @@ test('discovery extract rejects unsafe schema abuse and never falls back to arbi
   });
 });
 
-test('context snapshot accepts only the bounded v2 contract and forwards with an internal token', async () => {
+test('context snapshot accepts only the current bounded contract and forwards with an internal token', async () => {
   let upstreamRequest;
   const requestBody = {
-    contractVersion: 2,
+    contractVersion: 4,
     coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
     observedAt: '2026-07-14T10:00:00+08:00',
     locale: 'zh-CN',
     intent: 'photography',
-    route: { mode: 'none', stage: 'none' },
+    route: { mode: 'none', stage: 'none', routeId: null, corridorSamples: [] },
   };
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/context/snapshot`, {
@@ -186,25 +310,6 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).scene, 'lake');
-    const legacyResponse = await fetch(`${baseUrl}/v1/context/snapshot`, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer test-service-token',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ...requestBody,
-        evidence: { urban: false, waterBody: false, mountainous: true, aridLand: false, settlement: false },
-        weather: {
-          observedAt: '2026-07-14T10:00:00+08:00', condition: 'rain',
-          windSpeedMps: 100, precipitationMm: 100, visibilityKm: 1,
-          thunder: true, stale: false,
-          temperatureCelsius: 5, windDirectionDegrees: 180, cloudCoverPercent: 100,
-        },
-        solar: { dayPhase: 'night', elevationDegrees: -30, azimuthDegrees: 1 },
-      }),
-    });
-    assert.equal(legacyResponse.status, 200);
   }, {
     contextServiceUrl: 'http://context-service:8000',
     contextInternalToken: 'internal-context-token',
@@ -237,30 +342,7 @@ test('context snapshot accepts only the bounded v2 contract and forwards with an
         }), { status: 200 });
       }
       upstreamRequest = { url, options };
-      return new Response(JSON.stringify({
-        contractVersion: 2,
-        contextId: 'ctx_1234567890abcdef12345678',
-        generatedAt: '2026-07-14T02:00:00Z',
-        expiresAt: '2026-07-14T02:15:00Z',
-        scene: 'lake', fingerprint: '1234567890abcdef12345678', stale: false,
-        dataFreshness: {
-          context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z',
-        },
-        weather: {
-          condition: 'clear', temperatureCelsius: 26, windSpeedMps: 2,
-          windDirectionDegrees: 90, precipitationMm: 0, visibilityKm: 20,
-          cloudCoverPercent: null, thunder: false, airQualityIndex: 42,
-          airQualityCategory: '优', primaryPollutant: null,
-          airQualityObservedAt: '2026-07-14T02:00:00Z', airQualityStale: false,
-        },
-        sunMoon: {
-          dayPhase: 'sunset', sunElevationDegrees: 4, sunAzimuthDegrees: 280,
-          moonPhase: 'waxingCrescent', moonIllumination: 0.2,
-        },
-        route: { mode: 'none', stage: 'none', active: false },
-        events: [], allowedActions: [],
-        manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
-      }), { status: 200 });
+      return new Response(JSON.stringify(v4SnapshotBody()), { status: 200 });
     },
   });
   assert.equal(upstreamRequest.url.pathname, '/internal/v1/evaluate');
@@ -310,14 +392,99 @@ test('context snapshot rejects identity fields without contacting the context se
   assert.equal(calls, 0);
 });
 
+test('target session verifies the reviewed target before fetching target weather', async () => {
+  const target = {
+    id: 'target_0123456789abcdef01234567', name: '东岸审核湖岸', kind: 'lakeshore',
+    coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
+    supportedSessions: ['waterEvening'], viewBearingDegrees: 286,
+    bearingToleranceDegrees: 25, accessModes: ['driving'], leadTimeMinutes: 12,
+    arrivalRadiusMeters: 100, shorelineSide: 'east', reviewedAt: '2026-07-01T00:00:00Z',
+    reviewReference: 'https://review.example/targets/east-bank', sourceAttribution: '审核目录',
+    sourceLicense: 'CC-BY-4.0', sourceUrl: 'https://source.example/lakes/east-bank',
+  };
+  let evaluatedBody;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/context/target-session`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contractVersion: 1, targetId: target.id, targetCoordinate: target.coordinate,
+        observedAt: '2026-07-14T02:00:00Z', locale: 'zh-CN',
+      }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).shootingSessions[0].conditionBand, 'good');
+  }, {
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    now: () => new Date('2026-07-14T02:02:00Z'),
+    fetcher: async (url, options) => {
+      if (url.pathname === '/internal/v1/shooting-targets/resolve') {
+        assert.deepEqual(JSON.parse(options.body), { targetId: target.id, coordinate: target.coordinate });
+        return new Response(JSON.stringify(target), { status: 200 });
+      }
+      if (url.hostname.endsWith('.qweatherapi.com')) {
+        if (url.pathname === '/v7/weather/now') return new Response(JSON.stringify({
+          code: '200', now: { obsTime: '2026-07-14T10:00:00+08:00', temp: '26', icon: '101', windSpeed: '6.48', wind360: '90', vis: '20', precip: '0', cloud: '55' },
+        }), { status: 200 });
+        if (url.pathname === '/v7/weather/24h') return new Response(JSON.stringify({
+          code: '200', hourly: Array.from({ length: 24 }, (_, index) => ({
+            fxTime: new Date(Date.UTC(2026, 6, 14, 2 + index)).toISOString(), icon: '101',
+            windSpeed: '6.48', precip: '0', cloud: '55',
+          })),
+        }), { status: 200 });
+        if (url.pathname === '/v7/minutely/5m') return new Response(JSON.stringify({ code: '200', minutely: [] }), { status: 200 });
+        if (url.pathname === '/v7/warning/now') return new Response(JSON.stringify({ code: '200', warning: [] }), { status: 200 });
+        return new Response(JSON.stringify({ code: '404' }), { status: 200 });
+      }
+      assert.equal(url.pathname, '/internal/v1/evaluate');
+      evaluatedBody = JSON.parse(options.body);
+      return new Response(JSON.stringify(v4SnapshotBody()), { status: 200 });
+    },
+  });
+  assert.deepEqual(evaluatedBody.coordinate, target.coordinate);
+  assert.equal(evaluatedBody.evidence.waterBody, true);
+});
+
+test('shooting feedback accepts only the anonymous bounded contract', async () => {
+  let upstreamCalls = 0;
+  const body = {
+    contractVersion: 2, ruleVersion: 'water-evening.1', conditionBand: 'good',
+    factors: [{ id: 'wind', effect: 'limiting' }],
+    outcome: 'conditionsDidNotAppear', reasons: ['wind'], targetId: null,
+  };
+  await withServer(async (baseUrl) => {
+    const accepted = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    assert.equal(accepted.status, 202);
+    assert.deepEqual(await accepted.json(), { accepted: true });
+    for (const field of ['coordinate', 'deviceId', 'photo', 'exif']) {
+      const rejected = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, [field]: 'forbidden' }),
+      });
+      assert.equal(rejected.status, 400);
+    }
+  }, {
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    fetcher: async (url, options) => {
+      upstreamCalls += 1;
+      assert.equal(url.pathname, '/internal/v1/shooting-feedback');
+      assert.deepEqual(JSON.parse(options.body), body);
+      return new Response(JSON.stringify({ accepted: true }), { status: 200 });
+    },
+  });
+  assert.equal(upstreamCalls, 1);
+});
+
 test('discovery endpoint authenticates and only forwards the bounded contract', async () => {
   let upstreamRequest;
-  const requestBody = {
-    contractVersion: 1,
-    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
-    locale: 'zh-CN',
-    focus: 'photography',
-  };
+  const requestBody = discoveryRequestBody();
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/explore/discover`, {
       method: 'POST',
@@ -345,7 +512,7 @@ test('discovery endpoint authenticates and only forwards the bounded contract', 
     fetcher: async (url, options) => {
       upstreamRequest = { url, options };
       return new Response(JSON.stringify({
-        contractVersion: 1,
+        missionType: 'humanityEvents',
         status: 'ready',
         generatedAt: '2026-07-20T02:00:00Z',
         expiresAt: '2026-07-20T08:00:00Z',
@@ -379,22 +546,18 @@ test('discovery pending response becomes 202 without leaking upstream failure de
         Authorization: 'Bearer test-service-token',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        contractVersion: 1,
-        coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
-        locale: 'zh-CN', focus: 'water',
-      }),
+      body: JSON.stringify(discoveryRequestBody({ missionType: 'hiddenPlaces', focus: '水岸小众地点', interests: ['waterCoast'] })),
     });
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), {
-      contractVersion: 1, status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
+      missionType: 'hiddenPlaces', status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
       expiresAt: null, retryAfterSeconds: 30, items: [],
     });
   }, {
     discoveryServiceUrl: 'http://discovery-api:8001',
     discoveryInternalToken: 'internal-discovery-token',
     fetcher: async () => new Response(JSON.stringify({
-      contractVersion: 1, status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
+      missionType: 'hiddenPlaces', status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
       expiresAt: null, retryAfterSeconds: 30, items: [],
     }), { status: 202, headers: { 'Content-Type': 'application/json' } }),
   });
@@ -408,11 +571,7 @@ test('discovery uses its own bounded rate-limit policy', async () => {
         Authorization: 'Bearer test-service-token',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        contractVersion: 1,
-        coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
-        locale: 'zh-CN', focus: 'humanity',
-      }),
+      body: JSON.stringify(discoveryRequestBody()),
     };
     for (let index = 0; index < 6; index += 1) {
       assert.equal((await fetch(`${baseUrl}/v1/explore/discover`, options)).status, 202);
@@ -424,7 +583,7 @@ test('discovery uses its own bounded rate-limit policy', async () => {
     discoveryServiceUrl: 'http://discovery-api:8001',
     discoveryInternalToken: 'internal-discovery-token',
     fetcher: async () => new Response(JSON.stringify({
-      contractVersion: 1, status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
+      missionType: 'humanityEvents', status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
       expiresAt: null, retryAfterSeconds: 30, items: [],
     }), { status: 202, headers: { 'Content-Type': 'application/json' } }),
   });
@@ -464,22 +623,14 @@ test('safety detail is protected, bounded, and expires with its context', async 
   });
 });
 
-test('high-cost token issuance returns 429 after its bounded limit', async () => {
+test('removed client weather-token endpoint stays unavailable', async () => {
   await withServer(async (baseUrl) => {
-    for (let index = 0; index < 8; index += 1) {
-      const response = await fetch(`${baseUrl}/v1/qweather/token`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer test-service-token' },
-      });
-      assert.equal(response.status, 200);
-    }
-    const limited = await fetch(`${baseUrl}/v1/qweather/token`, {
+    const response = await fetch(`${baseUrl}/v1/qweather/token`, {
       method: 'POST',
       headers: { Authorization: 'Bearer test-service-token' },
     });
-    assert.equal(limited.status, 429);
-    assert.equal((await limited.json()).error, 'rate_limited');
-    assert.match(limited.headers.get('retry-after') ?? '', /^\d+$/);
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: 'not_found' });
   }, { requestRateLimiter: new MemoryRequestRateLimiter() });
 });
 
@@ -515,7 +666,7 @@ test('starts isolated App and admin listeners without exposing admin on App API'
   }
 });
 
-test('empty legacy AI environment has no provider-specific defaults', async () => {
+test('environment configuration has no single-provider AI fields', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-environment-'));
   const privateKeyPath = join(directory, 'qweather.pem');
   const { privateKey } = generateKeyPairSync('ed25519');
@@ -525,11 +676,10 @@ test('empty legacy AI environment has no provider-specific defaults', async () =
       QWEATHER_PRIVATE_KEY_PATH: privateKeyPath,
       QWEATHER_KEY_ID: 'key-id', QWEATHER_PROJECT_ID: 'project-id',
       LUMANEST_SERVICE_TOKEN: 'service-token', AMAP_WEB_KEY: 'amap-key',
-      AI_API_KEY: '', AI_BASE_URL: '', AI_MODEL: '',
     });
-    assert.equal(configuration.aiApiKey, '');
-    assert.equal(configuration.aiBaseUrl, '');
-    assert.equal(configuration.aiModel, '');
+    assert.equal(Object.hasOwn(configuration, 'aiApiKey'), false);
+    assert.equal(Object.hasOwn(configuration, 'aiBaseUrl'), false);
+    assert.equal(Object.hasOwn(configuration, 'aiModel'), false);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -938,6 +1088,91 @@ test('elevation profile rejects malformed or excessive coordinates', async () =>
   });
 });
 
+test('route weather fetches each WGS84 sample and returns only forecast progress', async () => {
+  const requestedLocations = new Set();
+  const now = new Date('2026-07-18T02:00:00Z');
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/route/weather`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        routeId: 'r1234abcd',
+        samples: [
+          {
+            latitude: 30.25, longitude: 120.15, system: 'wgs84', progress: 0,
+            expectedAt: '2026-07-18T02:10:00Z',
+          },
+          {
+            latitude: 30.5, longitude: 120.5, system: 'wgs84', progress: 1,
+            expectedAt: '2026-07-18T03:10:00Z',
+          },
+        ],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.source, 'QWeather');
+    assert.equal(body.coverage, 'full');
+    assert.deepEqual(body.samples.map((sample) => sample.progress), [0, 1]);
+    assert.equal(JSON.stringify(body).includes('latitude'), false);
+    assert.equal(JSON.stringify(body).includes('longitude'), false);
+  }, {
+    now: () => now,
+    fetcher: async (url) => {
+      requestedLocations.add(url.searchParams.get('location'));
+      const bodies = {
+        '/v7/weather/now': { code: '200', now: {
+          obsTime: '2026-07-18T10:00:00+08:00', temp: '26', icon: '101',
+          windSpeed: '7.2', wind360: '90', vis: '20', precip: '0', cloud: '50',
+        } },
+        '/v7/weather/24h': { code: '200', hourly: [
+          { fxTime: '2026-07-18T10:00:00+08:00', icon: '100', windSpeed: '5.4', precip: '0', vis: '25', cloud: '20' },
+          { fxTime: '2026-07-18T11:00:00+08:00', icon: '305', windSpeed: '14.4', precip: '2.5', vis: '8', cloud: '90' },
+        ] },
+        '/v7/minutely/5m': { code: '200', minutely: [] },
+        '/v7/warning/now': { code: '200', warning: [] },
+        '/v7/air/now': { code: '200', updateTime: '2026-07-18T10:00:00+08:00', now: {
+          pubTime: '2026-07-18T10:00:00+08:00', aqi: '40', category: '优', primary: 'NA',
+        } },
+      };
+      return new Response(JSON.stringify(bodies[url.pathname]), { status: 200 });
+    },
+  });
+  assert.deepEqual([...requestedLocations].sort(), ['120.15,30.25', '120.5,30.5']);
+});
+
+test('route weather rejects unbounded or non-WGS84 samples before upstream traffic', async () => {
+  let upstreamCalls = 0;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/route/weather`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        routeId: 'r1234abcd',
+        samples: [
+          { latitude: 30, longitude: 120, system: 'gcj02', progress: 0, expectedAt: '2026-07-18T02:10:00Z' },
+          { latitude: 31, longitude: 121, system: 'gcj02', progress: 1, expectedAt: '2026-07-18T03:10:00Z' },
+        ],
+      }),
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'invalid_route_weather_request' });
+  }, {
+    now: () => new Date('2026-07-18T02:00:00Z'),
+    fetcher: async () => {
+      upstreamCalls += 1;
+      throw new Error('must not be called');
+    },
+  });
+  assert.equal(upstreamCalls, 0);
+});
+
 test('narrative endpoint is disabled without a server-side model key', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/narrative`, {
@@ -951,7 +1186,7 @@ test('narrative endpoint is disabled without a server-side model key', async () 
         dayPhase: 'sunset',
         weather: 'clear',
         activeRoute: false,
-        creativeEventIds: ['reflection'],
+        creativeEventIds: ['session.water.evening'],
         templateSummary: '今晚可以留意湖面倒影。',
       }),
     });
@@ -974,7 +1209,7 @@ test('narrative endpoint is disabled by runtime settings without upstream traffi
         dayPhase: 'blueHour',
         weather: 'clear',
         activeRoute: false,
-        creativeEventIds: ['city_blue_hour'],
+        creativeEventIds: ['session.city.blue_hour'],
         templateSummary: '蓝调时间适合拍城市灯光。',
       }),
     });
@@ -1005,7 +1240,7 @@ test('narrative endpoint sends only bounded creative context and sanitizes outpu
         dayPhase: 'sunset',
         weather: 'clear',
         activeRoute: false,
-        creativeEventIds: ['reflection'],
+        creativeEventIds: ['session.water.evening'],
         templateSummary: '今晚可以留意湖面倒影。',
         tone: 'detailed',
       }),
@@ -1013,7 +1248,7 @@ test('narrative endpoint sends only bounded creative context and sanitizes outpu
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       summary: '湖面正在安静下来，可以等等倒影。',
-      noteLabels: { reflection: '等倒影' },
+      noteLabels: { 'session.water.evening': '等倒影' },
     });
   }, {
     aiApiKey: 'test-ai-key',
@@ -1026,7 +1261,7 @@ test('narrative endpoint sends only bounded creative context and sanitizes outpu
           message: {
             content: JSON.stringify({
               summary: '湖面正在安静下来，可以等等倒影。',
-              noteLabels: { reflection: '等倒影' },
+              noteLabels: { 'session.water.evening': '等倒影' },
             }),
           },
         }],
@@ -1057,7 +1292,7 @@ test('narrative tone is optional, bounded and changes only prompt guidance', asy
         dayPhase: 'blueHour',
         weather: 'clear',
         activeRoute: false,
-        creativeEventIds: ['humanity-light'],
+        creativeEventIds: ['session.city.after_rain'],
         templateSummary: '晨昏光线正在进入街巷。',
       };
       if (tone !== undefined) body.tone = tone;
@@ -1077,7 +1312,7 @@ test('narrative tone is optional, bounded and changes only prompt guidance', asy
         return new Response(JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
             summary: '街巷光线正在变暖。',
-            noteLabels: { 'humanity-light': '看街巷' },
+            noteLabels: { 'session.city.after_rain': '看街巷' },
           }) } }],
         }), { status: 200 });
       },
@@ -1103,7 +1338,7 @@ test('narrative endpoint rejects extra fields and unknown model labels', async (
         dayPhase: 'sunset',
         weather: 'clear',
         activeRoute: false,
-        creativeEventIds: ['reflection'],
+        creativeEventIds: ['session.water.evening'],
         templateSummary: '今晚可以留意湖面倒影。',
         latitude: 30.25,
       }),
@@ -1132,7 +1367,7 @@ test('narrative endpoint rejects extra fields and unknown model labels', async (
           dayPhase: 'sunset',
           weather: 'clear',
           activeRoute: false,
-          creativeEventIds: ['reflection'],
+          creativeEventIds: ['session.water.evening'],
           templateSummary: '今晚可以留意湖面倒影。',
           ...forbiddenBody,
         }),
@@ -1153,7 +1388,7 @@ test('narrative endpoint rejects extra fields and unknown model labels', async (
         dayPhase: 'sunset',
         weather: 'clear',
         activeRoute: false,
-        creativeEventIds: ['reflection'],
+        creativeEventIds: ['session.water.evening'],
         templateSummary: '今晚可以留意湖面倒影。',
       }),
     });

@@ -273,6 +273,19 @@ verify_previous_discovery_worker() {
   fi
 }
 
+verify_release_discovery_worker() {
+  attempt=1
+  while ! compose_release exec -T discovery-worker python -c \
+    "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'" >/dev/null 2>&1; do
+    if [ "$attempt" -ge "$HEALTHCHECK_ATTEMPTS" ]; then
+      echo "Discovery worker heartbeat check timed out." >&2
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$HEALTHCHECK_INTERVAL_SECONDS"
+  done
+}
+
 restore_old_stack() {
   restore_backup_images || return 1
   compose_previous up -d --no-build --remove-orphans
@@ -458,8 +471,7 @@ compose_release exec -T context-service python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" >/dev/null
 compose_release exec -T discovery-api python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
-compose_release exec -T discovery-worker python -c \
-  "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'" >/dev/null
+verify_release_discovery_worker
 
 # last-backup is written first; current-release is the final commit marker.
 atomic_write "$LUMANEST_ROOT/last-backup" "$BACKUP_DIR"

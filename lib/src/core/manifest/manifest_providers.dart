@@ -16,8 +16,7 @@ final creativePersonalizationProvider = Provider<CreativePersonalization>((
     ref.watch(profilePreferencesProvider),
   );
   final results =
-      ref.watch(userLibraryProvider).asData?.value.opportunityResults ??
-      const [];
+      ref.watch(userLibraryProvider).asData?.value.sessionResults ?? const [];
   return CreativePersonalization(
     photographyPreferences: base.photographyPreferences,
     activityPreferences: base.activityPreferences,

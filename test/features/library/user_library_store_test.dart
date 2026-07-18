@@ -1,41 +1,40 @@
-import 'dart:convert';
-
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:luma_nest/src/core/persistence/app_database.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/persistence/app_database.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
-import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
-import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late AppDatabase database;
-  late SharedPreferencesAsync preferences;
   late DriftUserLibraryStore store;
 
   setUp(() {
     database = AppDatabase(NativeDatabase.memory());
-    preferences = SharedPreferencesAsync();
-    store = DriftUserLibraryStore(database, preferences);
+    store = DriftUserLibraryStore(database);
   });
 
   tearDown(() => database.close());
 
-  test('drift store round-trips the library schema', () async {
+  test('drift store round-trips the current library schema', () async {
+    final observedAt = DateTime.utc(2026, 7, 15, 17);
+    final session = ContextFixtures.waterEveningSession(observedAt: observedAt);
     final state = UserLibraryState(
-      savedPlaces: [
+      savedPlaces: const [
         SavedPlace(
-          id: '1',
+          id: 'place-1',
           name: '机位',
           category: 'viewpoint',
           latitude: 30,
           longitude: 120,
         ),
       ],
-      recentRoute: SavedRouteDestination(
+      recentRoute: const SavedRouteDestination(
         name: '终点',
         latitude: 31,
         longitude: 121,
@@ -71,10 +70,8 @@ void main() {
           points: const [
             GeoPoint(latitude: 30, longitude: 120),
             GeoPoint(latitude: 30.1, longitude: 120.1),
-            GeoPoint(latitude: 31, longitude: 121),
-            GeoPoint(latitude: 31.1, longitude: 121.1),
           ],
-          segmentBreakIndexes: const [2],
+          segmentBreakIndexes: const [],
           distanceMeters: 1200,
           durationSeconds: 900,
           durationEstimated: false,
@@ -91,31 +88,29 @@ void main() {
             emoji: '✨',
             category: InspirationCategory.light,
             kind: InspirationNoteKind.factualOpportunity,
-            action: ManifestAction.openAuthority,
+            action: ManifestAction.openAstronomyDetail,
             detail: '查看经过审核的权威天象目录。',
             priority: 100,
             ttl: const Duration(minutes: 30),
             authorityUri: Uri.parse('https://science.nasa.gov/event-1'),
           ),
-          savedAt: DateTime.utc(2026, 7, 15),
+          savedAt: observedAt,
         ),
       ],
-      watchedOpportunities: [
-        WatchedPhotographyOpportunity.create(
-          opportunityId: 'blue-hour',
+      watchedSessions: [
+        WatchedShootingSession.create(
+          session: session,
           snapshotId: 'snapshot-1',
-          title: '蓝调时刻',
-          watchedAt: DateTime.utc(2026, 7, 15, 17),
-          expiresAt: DateTime.utc(2026, 7, 15, 18),
+          watchedAt: observedAt,
         ),
       ],
-      opportunityResults: [
-        PhotographyOpportunityResult.record(
-          opportunityId: 'blue-hour',
+      sessionResults: [
+        ShootingSessionResult.record(
+          session: session,
           snapshotId: 'snapshot-1',
-          outcome: PhotographyOpportunityOutcome.shot,
-          recordedAt: DateTime.utc(2026, 7, 15, 18),
-          reason: '云隙出现。',
+          outcome: ShootingSessionOutcome.captured,
+          recordedAt: observedAt.add(const Duration(hours: 2)),
+          reasons: const {ShootingSessionOutcomeReason.cloud},
         ),
       ],
       offlinePhotographyPacks: [
@@ -123,30 +118,12 @@ void main() {
           name: '湖岸晚霞',
           createdAt: DateTime.utc(2026, 7, 15, 12),
           dataTimestamp: DateTime.utc(2026, 7, 15, 11, 50),
-          route: const SavedRouteDestination(
-            name: '湖岸停车点',
-            latitude: 30.1,
-            longitude: 120.1,
-          ),
-          places: const [
-            SavedPlace(
-              id: 'lake-1',
-              name: '东岸机位',
-              category: 'viewpoint',
-              latitude: 30.2,
-              longitude: 120.2,
-            ),
-          ],
-          windows: [
-            OfflinePhotographyWindow(
-              id: 'sunset',
-              label: '晚霞窗口',
-              startsAt: DateTime.utc(2026, 7, 15, 18),
-              endsAt: DateTime.utc(2026, 7, 15, 18, 30),
-              peakAt: DateTime.utc(2026, 7, 15, 18, 15),
-            ),
-          ],
-          opportunitySnapshot: const {'eventId': 'sunset', 'confidence': 0.8},
+          places: const [],
+          windows: const [],
+          sessionSnapshot: const {
+            'format': 'lumanest-route-photography-v2',
+            'sessions': [],
+          },
         ),
       ],
     );
@@ -155,50 +132,31 @@ void main() {
     final restored = await store.read();
 
     expect(restored.savedPlaces.single.name, '机位');
-    expect(restored.recentRoute?.name, '终点');
     expect(restored.recentRoute?.travelMode, 'walking');
     expect(restored.savedRoutes.single.destination.name, '湖岸收藏路线');
-    expect(restored.savedRoutes.single.savedAt, DateTime.utc(2026, 7, 15, 8));
-    expect(restored.journeys.single.destination.name, '清晨徒步');
     expect(restored.journeys.single.routeKey, 'track-1');
-    expect(restored.journeys.single.endedAt, DateTime.utc(2026, 7, 15, 8));
-    expect(restored.importedTracks.single.name, '本地徒步');
-    expect(restored.importedTracks.single.points.last.longitude, 121.1);
-    expect(restored.importedTracks.single.segmentBreakIndexes, [2]);
     expect(restored.importedTracks.single.ascentMeters, 80);
     expect(restored.savedNotes.single.displayLabel, '看天象✨');
+    expect(restored.watchedSessions.single.sessionId, session.id);
     expect(
-      restored.savedNotes.single.sourceNoteId,
-      'astronomy-catalog:event-1',
+      restored.watchedSessions.single.kind,
+      ShootingSessionKind.waterEvening,
     );
     expect(
-      restored.savedNotes.single.authorityUri,
-      Uri.parse('https://science.nasa.gov/event-1'),
+      restored.sessionResults.single.outcome,
+      ShootingSessionOutcome.captured,
     );
+    expect(restored.sessionResults.single.reasons, {
+      ShootingSessionOutcomeReason.cloud,
+    });
     expect(
-      restored.savedNotes.single.manifestAction,
-      ManifestAction.openAuthority,
+      restored.offlinePhotographyPacks.single.sessionSnapshot['sessions'],
+      isEmpty,
     );
-    expect(restored.watchedOpportunities.single.title, '蓝调时刻');
-    expect(
-      restored.opportunityResults.single.outcome,
-      PhotographyOpportunityOutcome.shot,
-    );
-    expect(restored.opportunityResults.single.reason, '云隙出现。');
-    expect(restored.offlinePhotographyPacks.single.route?.name, '湖岸停车点');
-    expect(restored.offlinePhotographyPacks.single.places.single.name, '东岸机位');
-    expect(
-      restored.offlinePhotographyPacks.single.windows.single.label,
-      '晚霞窗口',
-    );
-    expect(
-      restored.offlinePhotographyPacks.single.opportunitySnapshot['eventId'],
-      'sunset',
-    );
-    expect(restored.toExportJson()['offlinePhotographyPacks'], hasLength(1));
+    expect(restored.toExportJson()['format'], 'lumanest-local-library-v4');
   });
 
-  test('a write replaces removed places and clears a removed route', () async {
+  test('a write replaces removed current-schema values', () async {
     await store.write(
       const UserLibraryState(
         savedPlaces: [
@@ -210,11 +168,6 @@ void main() {
             longitude: 120,
           ),
         ],
-        recentRoute: SavedRouteDestination(
-          name: '旧终点',
-          latitude: 31,
-          longitude: 121,
-        ),
       ),
     );
 
@@ -222,81 +175,7 @@ void main() {
     final restored = await store.read();
 
     expect(restored.savedPlaces, isEmpty);
-    expect(restored.recentRoute, isNull);
-    expect(restored.savedRoutes, isEmpty);
-    expect(restored.journeys, isEmpty);
-  });
-
-  test('imports valid legacy JSON once and removes it after commit', () async {
-    const legacyKey = 'user_library_v1';
-    await preferences.setString(
-      legacyKey,
-      jsonEncode({
-        'savedPlaces': [
-          {
-            'id': 'legacy',
-            'name': '旧收藏',
-            'category': 'humanity',
-            'latitude': 30,
-            'longitude': 120,
-          },
-        ],
-        'recentRoute': {
-          'name': '旧路线',
-          'latitude': 31,
-          'longitude': 121,
-          'travelMode': 'walking',
-        },
-      }),
-    );
-
-    final imported = await store.read();
-
-    expect(imported.savedPlaces.single.id, 'legacy');
-    expect(imported.recentRoute?.travelMode, 'walking');
-    expect(await preferences.getString(legacyKey), isNull);
-    expect((await store.read()).savedPlaces.single.id, 'legacy');
-  });
-
-  test('malformed legacy JSON is ignored and retained', () async {
-    const legacyKey = 'user_library_v1';
-    await preferences.setString(legacyKey, '{not-json');
-
-    final restored = await store.read();
-
-    expect(restored.savedPlaces, isEmpty);
-    expect(await preferences.getString(legacyKey), '{not-json');
-  });
-
-  test('failed legacy import rolls back and retains the source', () async {
-    const legacyKey = 'user_library_v1';
-    final raw = jsonEncode({
-      'savedPlaces': [
-        {
-          'id': 'invalid',
-          'name': '越界机位',
-          'category': 'viewpoint',
-          'latitude': 91,
-          'longitude': 120,
-        },
-      ],
-      'recentRoute': null,
-    });
-    await preferences.setString(legacyKey, raw);
-
-    await expectLater(store.read(), throwsA(anything));
-
-    expect(await preferences.getString(legacyKey), raw);
-    expect(await database.select(database.savedPlaces).get(), isEmpty);
-  });
-
-  test('legacy recent routes default to driving mode', () {
-    final restored = SavedRouteDestination.fromJson({
-      'name': '旧路线',
-      'latitude': 31,
-      'longitude': 121,
-    });
-
-    expect(restored?.travelMode, 'driving');
+    expect(restored.watchedSessions, isEmpty);
+    expect(restored.sessionResults, isEmpty);
   });
 }

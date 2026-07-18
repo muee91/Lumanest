@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumanest.local/schema/tags.v1.schema.json",
+  "title": "LumaNest canonical tags v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "items"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "items": {
+      "type": "array",
+      "minItems": 96,
+      "maxItems": 96,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "category": {"enum": ["subject", "scene", "phenomenon", "light", "time", "technique", "activity", "equipment"]}
+        }
+      }
+    }
+  }
+}

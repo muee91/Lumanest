@@ -21,8 +21,13 @@ class ShootingWindow {
 
 abstract final class ShootingWindowTimeline {
   static List<ShootingWindow> build(ContextSnapshot snapshot) {
-    final sunrise = snapshot.sunrise;
-    final sunset = snapshot.sunset;
+    return fromSolar(sunrise: snapshot.sunrise, sunset: snapshot.sunset);
+  }
+
+  static List<ShootingWindow> fromSolar({
+    required DateTime? sunrise,
+    required DateTime? sunset,
+  }) {
     if (sunrise == null || sunset == null) return const [];
     return [
       ShootingWindow(

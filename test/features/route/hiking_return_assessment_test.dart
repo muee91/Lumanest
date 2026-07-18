@@ -65,7 +65,7 @@ ContextSnapshot _snapshot(DateTime now, {DateTime? sunset}) => ContextSnapshot(
   id: 'hiking-context',
   observedAt: now,
   expiresAt: now.add(const Duration(minutes: 15)),
-  primaryScene: SceneType.hiking,
+  primaryScene: SceneType.mountain,
   dayPhase: DayPhase.day,
   weather: WeatherType.clear,
   activeRoute: true,

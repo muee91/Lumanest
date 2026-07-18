@@ -1,13 +1,12 @@
 # LumaNest 数据代理
 
-这是部署在 NAS Docker 上的轻量服务。它统一获取和风天气并代理高德 Web 服务；和风私钥、高德 Web Key 与项目凭据都不会进入 Flutter App。旧版 JWT 签发接口仅作为客户端迁移兼容入口保留。
+这是部署在 NAS Docker 上的轻量服务。它统一获取和风天气并代理高德 Web 服务；和风私钥、高德 Web Key 与项目凭据都不会进入 Flutter App。
 
 ## 网络与接口
 
 - App API 端口：`8787`
 - 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`
 - 健康检查：`GET /healthz`
-- 旧客户端 JWT 签发：`POST /v1/qweather/token`
 - 周边 POI：`GET /v1/amap/nearby`
 - 驾车路线：`GET /v1/amap/driving`
 - 步行路线：`GET /v1/amap/walking`
@@ -17,14 +16,14 @@
 - 在线情境快照：`POST /v1/context/snapshot`
 - 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
 - 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
-- JWT 签发接口需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
+- App API 需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
 
-在线情境快照的标准输入只包含 WGS84 坐标、观测时间、语言、白名单意图、路线阶段和契约版本。Broker 从和风获取实时天气、24 小时预报、分钟降水和官方预警，使用 Redis 缓存标准化结果，再将权威天气交给内部 FastAPI。旧客户端携带的 `weather`、`evidence` 和 `solar` 字段暂时仍可通过输入校验，但不会进入服务端安全规则；服务端始终覆盖这些字段。
+在线情境快照的标准输入只包含 WGS84 坐标、观测时间、语言、白名单意图、路线阶段和当前契约。Broker 从和风获取实时天气、24 小时预报、分钟降水和官方预警，使用 Redis 缓存标准化结果，再将权威天气交给内部 FastAPI。
 
-将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 端点是：
+将你的域名反向代理到 NAS 的 `8787` 端口即可。例如域名为 `weather.example.com` 时，App 的 Broker 基址是：
 
 ```text
-https://weather.example.com/v1/qweather/token
+https://weather.example.com
 ```
 
 不要把 NAS 的端口直接映射到公网。路由器反向代理只能指向 `8787`；禁止为 `8788` 创建公网反向代理规则。
@@ -67,7 +66,6 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    - `QWEATHER_PRIVATE_KEY_FILE`：NAS 私钥的绝对路径。
    - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
-   - `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`：只为旧版部署保留的迁移输入；它们绝不会自动建立、选择或启用模型档案。新部署无需填写。
    - `LUMANEST_CONFIG_MASTER_KEY`：32 字节随机密钥的 Base64，用于加密持久化配置。
    - `LUMANEST_ADMIN_PASSWORD`：首次启动时写入 Argon2id 哈希；之后修改 Key 不会要求重复输入密码。
 
@@ -191,7 +189,7 @@ Compose 不向宿主机映射 FastAPI、PostgreSQL 或 Redis 端口。App 仍只
 https://你的域名/healthz
 ```
 
-确认健康检查成功后，Flutter 只需访问 Broker；`/v1/qweather/token` 在旧客户端兼容期结束前保留。
+确认健康检查成功后，Flutter 只访问 Broker。
 
 ## 运维
 

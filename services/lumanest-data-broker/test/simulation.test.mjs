@@ -14,11 +14,13 @@ test('simulation registry keeps only short-lived anonymous sessions', () => {
   assert.deepEqual(registry.list(), []);
 });
 
-test('presets produce a complete safe v2-shaped context snapshot', () => {
+test('presets produce a complete current context snapshot', () => {
   const snapshot = simulatedSnapshot('rain-thunder', new Date('2026-07-17T00:00:00.000Z'));
-  assert.equal(snapshot.contractVersion, 2);
+  assert.equal(snapshot.contractVersion, 4);
   assert.equal(snapshot.weather.condition, 'rain');
   assert.equal(snapshot.events.some((event) => event.id === 'thunderstorm'), true);
-  assert.equal(snapshot.manifest.primaryEventId, 'mist');
+  assert.equal(snapshot.manifest.primaryEventId, 'session.mountain.morning');
+  assert.equal(snapshot.sceneContext.activity, 'hiking');
+  assert.equal(snapshot.opportunityCatalogVersion, 1);
   assert.equal(simulatedSnapshot('unknown'), null);
 });

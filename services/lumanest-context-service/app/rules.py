@@ -1,18 +1,44 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import math
 from datetime import datetime, timedelta, timezone
 
-from .models import (ContextEvent, Manifest, PhotographyOpportunity, PhotographyTarget, SceneEvidence,
-                     SceneType, SnapshotRequest, SnapshotResponse, SnapshotResponseV3)
-from .route_corridor import build_opportunity_corridor
+from .models import (
+    ActivityState,
+    CompositeSceneContext,
+    ContextEvent,
+    Manifest,
+    PhotographyTarget,
+    PrimaryScene,
+    SceneEvidence,
+    SceneFacet,
+    SceneType,
+    ShootingTarget,
+    SnapshotRequest,
+    SnapshotResponse,
+)
+from .shooting_sessions import (
+    build_water_evening_session,
+    build_water_morning_session,
+)
+from .generated.opportunity_catalog import OPPORTUNITY_CATALOG, TIMING_POLICIES
 from .solar import solar_state
 
 
 _moon_reference = datetime(2000, 1, 6, 18, 14, tzinfo=timezone.utc)
 _synodic_month_days = 29.53058867
+_catalog_by_id = {item["id"]: item for item in OPPORTUNITY_CATALOG}
+_timing_by_id = {item["id"]: item for item in TIMING_POLICIES}
+
+
+def _evidence_expiry(definition_id: str, generated_at: datetime) -> datetime:
+    definition = _catalog_by_id.get(definition_id)
+    timing = _timing_by_id.get(definition.get("timingPolicy")) if definition else None
+    raw_ttl = timing.get("evidenceTtl") if timing else None
+    if isinstance(raw_ttl, str) and raw_ttl.endswith("m") and raw_ttl[:-1].isdigit():
+        return generated_at + timedelta(minutes=int(raw_ttl[:-1]))
+    return generated_at + timedelta(minutes=10)
 
 
 def moon_state(moment: datetime) -> tuple[str, float]:
@@ -34,10 +60,6 @@ def moon_state(moment: datetime) -> tuple[str, float]:
 
 def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = None) -> SceneType:
     facts = evidence or request.evidence
-    if request.route.mode == "hiking" and request.route.stage == "active":
-        return SceneType.HIKING
-    if request.route.mode == "driving" and request.route.stage == "active":
-        return SceneType.DRIVING
     if facts.water_body:
         return SceneType.LAKE
     if facts.mountainous:
@@ -51,22 +73,138 @@ def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = No
     return SceneType.UNKNOWN
 
 
+def classify_scene_context(
+    request: SnapshotRequest, evidence: SceneEvidence | None = None
+) -> CompositeSceneContext:
+    facts = evidence or request.evidence
+    facets = set(facts.scene_facets)
+    activity = ActivityState.STATIONARY
+    if request.route.stage == "active" and request.route.mode == "driving":
+        activity = ActivityState.DRIVING
+    elif request.route.stage == "active" and request.route.mode == "hiking":
+        activity = ActivityState.HIKING
+
+    if facts.reviewed_primary_scene not in (None, PrimaryScene.UNKNOWN):
+        reviewed = facts.reviewed_primary_scene
+        return CompositeSceneContext(
+            primaryScene=reviewed,
+            facets=sorted(facets, key=lambda item: item.value),
+            activity=activity,
+            scores={reviewed: 100},
+            reviewedOverride=True,
+        )
+
+    scores: dict[PrimaryScene, int] = {}
+
+    def score(scene: PrimaryScene, value: int) -> None:
+        scores[scene] = max(scores.get(scene, 0), value)
+
+    if facts.mountainous or facets.intersection(
+        {SceneFacet.REVIEWED_PEAK, SceneFacet.GLACIER, SceneFacet.CANYON}
+    ):
+        score(PrimaryScene.MOUNTAIN, 60)
+    if facts.coast or facets.intersection({SceneFacet.COAST, SceneFacet.TIDAL_FLAT}):
+        score(PrimaryScene.COAST, 60)
+    if facts.wetland or SceneFacet.WETLAND in facets:
+        score(PrimaryScene.WETLAND, 60)
+    if facts.arid_land or SceneFacet.DUNE in facets:
+        score(PrimaryScene.DESERT, 60)
+    if facts.plateau or SceneFacet.GRASSLAND in facets:
+        score(PrimaryScene.PLATEAU, 55)
+    if facts.forest or facets.intersection({SceneFacet.FOREST, SceneFacet.BAMBOO_FOREST}):
+        score(PrimaryScene.FOREST, 55)
+    if facts.water_body or facets.intersection({SceneFacet.LAKE, SceneFacet.RESERVOIR}):
+        score(PrimaryScene.INLAND_WATER, 55)
+    if facts.settlement or facets.intersection({SceneFacet.OLD_TOWN, SceneFacet.VILLAGE_STREET}):
+        score(PrimaryScene.VILLAGE, 50)
+    if facts.urban or facets.intersection({SceneFacet.SKYLINE, SceneFacet.ARCHITECTURE}):
+        score(PrimaryScene.URBAN, 45)
+    if SceneFacet.RIVER in facets:
+        score(PrimaryScene.INLAND_WATER, 35)
+
+    tie_order = (
+        PrimaryScene.MOUNTAIN,
+        PrimaryScene.COAST,
+        PrimaryScene.WETLAND,
+        PrimaryScene.INLAND_WATER,
+        PrimaryScene.PLATEAU,
+        PrimaryScene.DESERT,
+        PrimaryScene.FOREST,
+        PrimaryScene.VILLAGE,
+        PrimaryScene.URBAN,
+        PrimaryScene.UNKNOWN,
+    )
+    maximum = max(scores.values(), default=0)
+    primary = (
+        next(
+            (scene for scene in tie_order if scores.get(scene, 0) == maximum),
+            PrimaryScene.UNKNOWN,
+        )
+        if scores
+        else PrimaryScene.UNKNOWN
+    )
+    return CompositeSceneContext(
+        primaryScene=primary,
+        facets=sorted(facets, key=lambda item: item.value),
+        activity=activity,
+        scores=scores,
+        reviewedOverride=False,
+    )
+
+
 def context_fingerprint(
     request: SnapshotRequest,
     scene: SceneType,
     evidence: SceneEvidence | None = None,
     astronomy_events: list[dict] | None = None,
     target: PhotographyTarget | None = None,
+    shooting_targets: list[ShootingTarget] | None = None,
 ) -> str:
     facts = evidence or request.evidence
     solar = request.solar or solar_state(request.coordinate, request.observed_at)
-    warning_ids = ",".join(sorted(warning.id for warning in request.official_warnings))
+    warning_state = ",".join(
+        sorted(
+            ":".join(
+                (
+                    warning.id,
+                    warning.observed_at.astimezone(timezone.utc).isoformat(
+                        timespec="minutes"
+                    ),
+                    warning.expires_at.astimezone(timezone.utc).isoformat(
+                        timespec="minutes"
+                    ),
+                    warning.severity,
+                    warning.title,
+                )
+            )
+            for warning in request.official_warnings
+        )
+    )
+    weather_state = ":".join(
+        (
+            request.weather.observed_at.astimezone(timezone.utc).isoformat(
+                timespec="minutes"
+            ),
+            request.weather.condition,
+            str(request.weather.temperature_celsius),
+            str(round(request.weather.wind_speed_mps, 1)),
+            str(request.weather.wind_direction_degrees),
+            str(round(request.weather.precipitation_mm, 1)),
+            str(round(request.weather.visibility_km, 1)),
+            str(request.weather.cloud_cover_percent),
+            str(request.weather.thunder),
+            str(request.weather.stale),
+        )
+    )
     forecast_state = ":".join((
+        request.forecast.observed_at.astimezone(timezone.utc).isoformat(
+            timespec="minutes"
+        ),
         str(round(request.forecast.next_hour_precipitation_mm, 1)),
         str(round(request.forecast.next_three_hours_max_wind_speed_mps or 0, 1)),
         str(request.forecast.thunder_next_three_hours),
     ))
-    # V3 opportunities are derived from the individual hourly records, rather
+    # Current opportunities are derived from individual hourly records, rather
     # than the aggregate forecast above.  Keep their bounded, non-identifying
     # state in the fingerprint so a Redis hit cannot return a window generated
     # from an earlier hourly forecast.
@@ -77,11 +215,31 @@ def context_fingerprint(
             str(round(item.cloud_cover_percent, 1)) if item.cloud_cover_percent is not None else "unknown",
             str(round(item.wind_speed_mps, 1)),
             str(round(item.precipitation_mm, 1)),
+            str(round(item.visibility_km, 1)) if item.visibility_km is not None else "unknown",
             str(item.thunder),
         ))
         for item in request.forecast.hourly
     ))
-    air_state = f"{request.weather.air_quality_index}:{request.weather.air_quality_stale}"
+    air_state = ":".join(
+        (
+            str(request.weather.air_quality_index),
+            str(request.weather.air_quality_category),
+            str(request.weather.primary_pollutant),
+            request.weather.air_quality_observed_at.astimezone(timezone.utc).isoformat(
+                timespec="minutes"
+            )
+            if request.weather.air_quality_observed_at is not None
+            else "None",
+            str(request.weather.air_quality_stale),
+        )
+    )
+    solar_state_value = ":".join(
+        (
+            solar.day_phase,
+            str(solar.elevation_degrees),
+            str(solar.azimuth_degrees),
+        )
+    )
     corridor_state = ",".join(
         ":".join((
             request.route.route_id or "",
@@ -97,13 +255,12 @@ def context_fingerprint(
         str(request.contract_version),
         grid,
         scene.value,
-        solar.day_phase,
-        request.weather.condition,
-        request.weather.observed_at.astimezone(timezone.utc).isoformat(timespec="minutes"),
+        solar_state_value,
+        weather_state,
         forecast_state,
         hourly_state,
         air_state,
-        warning_ids,
+        warning_state,
         request.route.mode,
         request.route.stage,
         request.intent,
@@ -111,89 +268,10 @@ def context_fingerprint(
         str(facts.wildlife_safety),
         ",".join(sorted(str(event.get("external_id", "")) for event in (astronomy_events or []))),
         target.id if target is not None else "",
+        ",".join(sorted(item.id for item in (shooting_targets or []))),
         corridor_state,
     ))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
-
-
-def _opportunities(
-    request: SnapshotRequest, scene: SceneType, solar, astronomy_events: list[dict], generated_at: datetime,
-    target: PhotographyTarget | None = None,
-) -> list[PhotographyOpportunity]:
-    """Create bounded, deterministic creative windows from fresh forecast facts only."""
-    if request.weather.stale:
-        return []
-    result: list[PhotographyOpportunity] = []
-
-    def opportunity_id(kind: str, start: datetime) -> str:
-        # Public contracts permit lower-case opaque IDs only. Rule kinds use
-        # camelCase for their bounded enum values, so normalize them once
-        # before they are reused by the corridor and response models.
-        normalized = re.sub(r"[^a-z0-9_-]", "", kind.lower())
-        return f"photo-{normalized}-{start.strftime('%Y%m%d%H')}"
-
-    def add(kind: str, start: datetime, score: int, confidence: float, scope: str,
-            primary: str, evidence: list[tuple[str, str]], direction: float | None = None,
-            fallback: str | None = None, hints: list[str] | None = None,
-            end: datetime | None = None) -> None:
-        if len(result) >= 8 or start < generated_at or start > generated_at + timedelta(hours=6):
-            return
-        end = min(end or (start + timedelta(minutes=35)), start + timedelta(minutes=35))
-        if end <= start:
-            return
-        peak = min(start + timedelta(minutes=15), end)
-        bound_target = (
-            target.model_copy(update={"arrival_deadline": start})
-            if target is not None and scope == "point" else None
-        )
-        identifier = opportunity_id(kind, start)
-        corridor = build_opportunity_corridor(
-            request.route,
-            request.forecast.hourly,
-            opportunity_id=identifier,
-            geo_scope=scope,
-        ).corridor
-        result.append(PhotographyOpportunity.model_validate({
-            "id": identifier, "kind": kind,
-            "startAt": start, "peakAt": peak, "endAt": end,
-            "score": score, "confidence": confidence, "geoScope": scope,
-            "directionDegrees": direction, "evidence": [{"label": label, "value": value} for label, value in evidence],
-            "primaryAction": primary, "fallbackAction": fallback, "equipmentHints": hints or [],
-            "target": bound_target,
-            "corridor": corridor,
-        }))
-
-    # Use the current solar result and each QWeather hour; no model inference and no coordinates.
-    hourly = request.forecast.hourly or []
-    if not hourly:
-        hourly = []
-    for item in hourly:
-        if item.thunder or item.precipitation_mm >= 5 or item.wind_speed_mps >= 15:
-            continue
-        hour_solar = solar_state(request.coordinate, item.at)
-        cloud = item.cloud_cover_percent if item.cloud_cover_percent is not None else 50
-        clear = item.condition in ("clear", "cloudy")
-        base = [("预报", item.condition), ("云量", f"{round(cloud)}%")]
-        if hour_solar.day_phase == "blueHour" and clear:
-            add("blueHour", item.at, 82, .82, "point", "openShootingWindow", base, hour_solar.azimuth_degrees, "openExplore", ["广角镜头", "三脚架"])
-        if hour_solar.day_phase == "sunset" and clear and 20 <= cloud <= 75:
-            add("sunsetGlow", item.at, 78, .72, "regional", "openShootingWindow", base + [("时段", "日落前后")], hour_solar.azimuth_degrees, "openExplore", ["广角镜头"])
-        if scene is SceneType.MOUNTAIN and hour_solar.day_phase in ("dawn", "sunset") and clear and cloud <= 60:
-            add("alpenglow", item.at, 76, .70, "regional", "openShootingWindow", base, hour_solar.azimuth_degrees, "openExplore", ["长焦镜头", "三脚架"])
-        if scene is SceneType.LAKE and item.wind_speed_mps <= 3 and item.precipitation_mm == 0 and clear:
-            add("reflection", item.at, 74, .76, "point", "openExplore", base + [("风速", f"{item.wind_speed_mps:.1f}m/s")], None, "openShootingWindow", ["偏振镜"])
-        if hour_solar.day_phase == "dawn" and item.condition in ("cloudy", "clear") and 65 <= cloud <= 100 and item.wind_speed_mps <= 4:
-            add("morningMist", item.at, 65, .58, "regional", "openExplore", base + [("风速", f"{item.wind_speed_mps:.1f}m/s")], None, "openWeather", ["中长焦镜头"])
-
-    for catalog in astronomy_events:
-        starts, ends = catalog.get("starts_at"), catalog.get("ends_at")
-        if not isinstance(starts, datetime) or not isinstance(ends, datetime):
-            continue
-        if ends <= generated_at or starts > generated_at + timedelta(hours=6):
-            continue
-        add("astronomy", max(starts, generated_at), 86, 1, "regional", "openAuthority",
-            [("目录", "已审核天象")], None, None, ["三脚架", "广角镜头"], ends)
-    return sorted(result, key=lambda item: (-item.score, item.start_at, item.id))
 
 
 def evaluate(
@@ -201,12 +279,16 @@ def evaluate(
     evidence: SceneEvidence | None = None,
     astronomy_events: list[dict] | None = None,
     target: PhotographyTarget | None = None,
-) -> SnapshotResponse | SnapshotResponseV3:
+    shooting_targets: list[ShootingTarget] | None = None,
+) -> SnapshotResponse:
     generated_at = request.observed_at.astimezone(timezone.utc)
-    expires_at = generated_at + timedelta(minutes=15)
+    expires_at = generated_at + timedelta(minutes=10)
     scene = classify_scene(request, evidence)
+    scene_context = classify_scene_context(request, evidence)
     facts = evidence or request.evidence
-    fingerprint = context_fingerprint(request, scene, facts, astronomy_events, target)
+    fingerprint = context_fingerprint(
+        request, scene, facts, astronomy_events, target, shooting_targets
+    )
     moon_phase, moon_illumination = moon_state(generated_at)
     solar = request.solar or solar_state(request.coordinate, generated_at)
     events: list[ContextEvent] = []
@@ -218,7 +300,7 @@ def evaluate(
         confidence: float,
         action: str,
         severity: str = "info",
-        geo_scope: str = "regional",
+        geo_scope: str = "region",
         observed_at: datetime | None = None,
         event_expires_at: datetime | None = None,
         title: str | None = None,
@@ -229,7 +311,7 @@ def evaluate(
             "channel": channel,
             "source": source,
             "observedAt": observed_at or request.weather.observed_at,
-            "expiresAt": event_expires_at or expires_at,
+            "expiresAt": event_expires_at or _evidence_expiry(event_id, generated_at),
             "confidence": confidence,
             "geoScope": geo_scope,
             "severity": severity,
@@ -239,16 +321,19 @@ def evaluate(
         }))
 
     for catalog_event in astronomy_events or []:
-        external_id = str(catalog_event.get("external_id", ""))
-        event_hash = hashlib.sha256(external_id.encode("utf-8")).hexdigest()[:12]
+        definition_id = (
+            "event.astro.meteor_shower"
+            if catalog_event.get("event_type") == "meteorShower"
+            else "event.astro.special_authority"
+        )
         add(
-            f"astronomy-{event_hash}",
+            definition_id,
             "opportunity",
             "astronomyCatalog",
             1,
-            "openAuthority",
+            "openAstronomyDetail",
             "info",
-            "regional",
+            "region",
             catalog_event["starts_at"],
             catalog_event["ends_at"],
             str(catalog_event["title"]),
@@ -256,18 +341,18 @@ def evaluate(
         )
 
     if request.weather.thunder:
-        add("thunderstorm", "safety", "weather", 1, "openSafety", "critical", "regional")
+        add("thunderstorm", "safety", "weather", 1, "openSafetyDetail", "critical", "region")
     if request.weather.wind_speed_mps >= 15:
-        add("strong-wind", "safety", "weather", 0.9, "openSafety", "warning", "regional")
+        add("strong-wind", "safety", "weather", 0.9, "openSafetyDetail", "warning", "region")
     if request.weather.precipitation_mm >= 10:
-        add("heavy-rain", "safety", "weather", 0.9, "openSafety", "warning", "regional")
+        add("heavy-rain", "safety", "weather", 0.9, "openSafetyDetail", "warning", "region")
     if facts.wildlife_safety:
-        add("wildlife-area-risk", "wildlifeSafety", "official", 1, "openSafety", "warning", "regional")
+        add("wildlife-safety", "wildlifeSafety", "official", 1, "openSafetyDetail", "warning", "region")
     if not request.weather.stale and not request.weather.air_quality_stale and \
             request.weather.air_quality_index is not None and request.weather.air_quality_index >= 150:
         severity = "critical" if request.weather.air_quality_index >= 300 else \
             "warning" if request.weather.air_quality_index >= 200 else "caution"
-        add("unhealthy-air", "safety", "weather", 0.95, "openWeather", severity, "regional")
+        add("unhealthy-air", "safety", "weather", 0.95, "openSafetyDetail", severity, "region")
 
     for warning in request.official_warnings:
         if warning.expires_at <= generated_at:
@@ -277,9 +362,9 @@ def evaluate(
             "safety",
             "official",
             1,
-            "openSafety",
+            "openSafetyDetail",
             warning.severity,
-            "regional",
+            "region",
             warning.observed_at,
             warning.expires_at,
             warning.title,
@@ -287,30 +372,28 @@ def evaluate(
 
     if not request.weather.stale:
         if facts.wildlife_opportunity:
-            add("regional-wildlife", "wildlifeOpportunity", "wildlifeHistorical", 0.5, "openExplore", "info", "regional")
+            add("regional-wildlife", "wildlifeOpportunity", "wildlifeHistorical", 0.5, "openWildlifeDetail", "info", "region")
         if request.forecast.thunder_next_three_hours:
-            add("thunderstorm-forecast", "safety", "weather", 0.9, "openSafety", "warning")
+            add("thunderstorm-forecast", "safety", "weather", 0.9, "openSafetyDetail", "warning")
         if request.forecast.next_three_hours_max_wind_speed_mps is not None and \
                 request.forecast.next_three_hours_max_wind_speed_mps >= 15:
-            add("strong-wind-forecast", "safety", "weather", 0.8, "openSafety", "caution")
+            add("strong-wind-forecast", "safety", "weather", 0.8, "openSafetyDetail", "caution")
         if request.forecast.next_hour_precipitation_mm >= 5:
-            add("rain-soon", "safety", "weather", 0.8, "openWeather", "caution")
+            add("rain-soon", "safety", "weather", 0.8, "openSafetyDetail", "caution")
         edge_light = solar.day_phase in ("dawn", "sunset")
         clear_enough = request.weather.condition in ("clear", "cloudy")
         if scene is SceneType.CITY and solar.day_phase == "blueHour":
-            add("blue-hour", "opportunity", "solar", 0.9, "openShootingWindow", geo_scope="point")
-        if scene is SceneType.LAKE and request.weather.wind_speed_mps <= 3 and request.weather.precipitation_mm == 0:
-            add("reflection", "opportunity", "rule", 0.82, "openExplore", geo_scope="point")
+            add("session.city.blue_hour", "opportunity", "solar", 0.9, "openShootingWindow", geo_scope="point")
+        if scene is SceneType.LAKE and request.weather.wind_speed_mps <= 3 and request.weather.precipitation_mm == 0 and solar.day_phase in ("dawn", "sunset", "blueHour"):
+            definition_id = "session.water.morning" if solar.day_phase == "dawn" else "session.water.evening"
+            add(definition_id, "opportunity", "rule", 0.82, "openShootingWindow", geo_scope="point")
         if scene is SceneType.MOUNTAIN and edge_light and clear_enough and request.weather.visibility_km >= 10:
-            add("alpenglow", "opportunity", "rule", 0.72, "openShootingWindow", geo_scope="regional")
+            definition_id = "session.mountain.morning" if solar.day_phase == "dawn" else "session.mountain.evening"
+            add(definition_id, "opportunity", "rule", 0.72, "openShootingWindow", geo_scope="region")
         if scene is SceneType.DESERT and request.weather.condition == "dust" and edge_light:
-            add("dust-light", "opportunity", "rule", 0.7, "openShootingWindow", geo_scope="regional")
-        if scene is SceneType.VILLAGE and edge_light and clear_enough:
-            add("humanity-light", "opportunity", "rule", 0.65, "openExplore", geo_scope="regional")
-        if scene is SceneType.DRIVING:
-            add("route-light-window", "opportunity", "rule", 0.7, "openRoute", geo_scope="route")
-        if scene is SceneType.HIKING:
-            add("hiking-return-check", "safety", "rule", 0.8, "openRoute", "caution", "route")
+            add("session.desert.side_light", "opportunity", "rule", 0.7, "openShootingWindow", geo_scope="region")
+        if request.route.mode == "hiking" and request.route.stage == "active":
+            add("trail-return-risk", "safety", "rule", 0.8, "openRoute", "caution", "route")
 
     creative = [event.id for event in events if event.channel in ("opportunity", "wildlifeOpportunity")]
     safety = [event.id for event in events if event.channel in ("safety", "wildlifeSafety")]
@@ -321,13 +404,18 @@ def evaluate(
         "secondaryEventIds": creative[1:3],
         "safetyEventIds": safety,
     })
-    opportunities = _opportunities(request, scene, solar, astronomy_events or [], generated_at, target) \
-        if request.contract_version == 3 else []
-    allowed_actions = list(dict.fromkeys(
-        [event.allowed_action for event in events] +
-        [action for opportunity in opportunities
-         for action in (opportunity.primary_action, opportunity.fallback_action) if action is not None]
-    ))
+    shooting_sessions = []
+    shooting_sessions = sorted(
+        filter(
+            None,
+            (
+                build_water_morning_session(request, scene, shooting_targets),
+                build_water_evening_session(request, scene, shooting_targets),
+            ),
+        ),
+        key=lambda session: (session.start_at, session.id),
+    )
+    allowed_actions = list(dict.fromkeys(event.allowed_action for event in events))
     response = {
         "contextId": f"ctx_{fingerprint}",
         "generatedAt": generated_at,
@@ -371,8 +459,8 @@ def evaluate(
         "allowedActions": allowed_actions,
         "manifest": manifest,
     }
-    if request.contract_version == 3:
-        response["contractVersion"] = 3
-        response["opportunities"] = opportunities
-        return SnapshotResponseV3.model_validate(response)
+    response["contractVersion"] = 4
+    response["sceneContext"] = scene_context
+    response["opportunityCatalogVersion"] = 1
+    response["shootingSessions"] = shooting_sessions
     return SnapshotResponse.model_validate(response)

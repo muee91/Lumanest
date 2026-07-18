@@ -4,9 +4,9 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 abstract interface class UserLibraryStore {
   Future<UserLibraryState> read();
@@ -14,36 +14,12 @@ abstract interface class UserLibraryStore {
 }
 
 class DriftUserLibraryStore implements UserLibraryStore {
-  DriftUserLibraryStore(this._database, this._preferences);
+  DriftUserLibraryStore(this._database);
 
-  static const _key = 'user_library_v1';
   final AppDatabase _database;
-  final SharedPreferencesAsync _preferences;
 
   @override
-  Future<UserLibraryState> read() async {
-    final persisted = await _readDatabase();
-    if (persisted.savedPlaces.isNotEmpty ||
-        persisted.recentRoute != null ||
-        persisted.savedRoutes.isNotEmpty ||
-        persisted.journeys.isNotEmpty ||
-        persisted.importedTracks.isNotEmpty ||
-        persisted.savedNotes.isNotEmpty ||
-        persisted.watchedOpportunities.isNotEmpty ||
-        persisted.opportunityResults.isNotEmpty ||
-        persisted.offlinePhotographyPacks.isNotEmpty) {
-      return persisted;
-    }
-
-    final raw = await _preferences.getString(_key);
-    if (raw == null) return persisted;
-    final legacy = _decodeLegacy(raw);
-    if (legacy == null) return persisted;
-
-    await _writeDatabase(legacy);
-    await _preferences.remove(_key);
-    return legacy;
-  }
+  Future<UserLibraryState> read() => _readDatabase();
 
   @override
   Future<void> write(UserLibraryState state) => _writeDatabase(state);
@@ -68,13 +44,11 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final noteQuery = _database.select(_database.savedInspirationNotes)
         ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
       final notes = await noteQuery.get();
-      final watchedQuery = _database.select(
-        _database.watchedPhotographyOpportunities,
-      )..orderBy([(row) => OrderingTerm.desc(row.watchedAt)]);
+      final watchedQuery = _database.select(_database.watchedShootingSessions)
+        ..orderBy([(row) => OrderingTerm.desc(row.watchedAt)]);
       final watched = await watchedQuery.get();
-      final resultQuery = _database.select(
-        _database.photographyOpportunityResults,
-      )..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]);
+      final resultQuery = _database.select(_database.shootingSessionResults)
+        ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]);
       final results = await resultQuery.get();
       final packQuery = _database.select(_database.offlinePhotographyPacks)
         ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]);
@@ -148,30 +122,30 @@ class DriftUserLibraryStore implements UserLibraryStore {
               ),
             )
             .toList(growable: false),
-        watchedOpportunities: watched
+        watchedSessions: watched
             .map(
-              (row) => WatchedPhotographyOpportunity(
+              (row) => WatchedShootingSession(
                 id: row.id,
-                opportunityId: row.opportunityId,
+                sessionId: row.sessionId,
                 snapshotId: row.snapshotId,
                 title: row.title,
+                kind: ShootingSessionKind.values.byName(row.kind),
                 watchedAt: row.watchedAt.toUtc(),
                 expiresAt: row.expiresAt.toUtc(),
                 targetId: row.targetId,
               ),
             )
             .toList(growable: false),
-        opportunityResults: results
+        sessionResults: results
             .map(
-              (row) => PhotographyOpportunityResult(
+              (row) => ShootingSessionResult(
                 id: row.id,
-                opportunityId: row.opportunityId,
+                sessionId: row.sessionId,
                 snapshotId: row.snapshotId,
-                outcome: PhotographyOpportunityOutcome.values.byName(
-                  row.outcome,
-                ),
+                kind: ShootingSessionKind.values.byName(row.kind),
+                outcome: ShootingSessionOutcome.values.byName(row.outcome),
                 recordedAt: row.recordedAt.toUtc(),
-                reason: row.reason,
+                reasons: _decodeSessionReasons(row.reasonsJson),
                 targetId: row.targetId,
               ),
             )
@@ -303,16 +277,17 @@ class DriftUserLibraryStore implements UserLibraryStore {
             );
       }
 
-      await _database.delete(_database.watchedPhotographyOpportunities).go();
-      for (final watched in state.watchedOpportunities.take(100)) {
+      await _database.delete(_database.watchedShootingSessions).go();
+      for (final watched in state.watchedSessions.take(100)) {
         await _database
-            .into(_database.watchedPhotographyOpportunities)
+            .into(_database.watchedShootingSessions)
             .insert(
-              WatchedPhotographyOpportunitiesCompanion.insert(
+              WatchedShootingSessionsCompanion.insert(
                 id: watched.id,
-                opportunityId: watched.opportunityId,
+                sessionId: watched.sessionId,
                 snapshotId: watched.snapshotId,
                 title: watched.title,
+                kind: watched.kind.name,
                 watchedAt: watched.watchedAt.toUtc(),
                 expiresAt: watched.expiresAt.toUtc(),
                 targetId: Value(watched.targetId),
@@ -320,17 +295,22 @@ class DriftUserLibraryStore implements UserLibraryStore {
             );
       }
 
-      await _database.delete(_database.photographyOpportunityResults).go();
-      for (final result in state.opportunityResults.take(200)) {
+      await _database.delete(_database.shootingSessionResults).go();
+      for (final result in state.sessionResults.take(200)) {
         await _database
-            .into(_database.photographyOpportunityResults)
+            .into(_database.shootingSessionResults)
             .insert(
-              PhotographyOpportunityResultsCompanion.insert(
+              ShootingSessionResultsCompanion.insert(
                 id: result.id,
-                opportunityId: result.opportunityId,
+                sessionId: result.sessionId,
                 snapshotId: result.snapshotId,
+                kind: result.kind.name,
                 outcome: result.outcome.name,
-                reason: Value(result.reason),
+                reasonsJson: jsonEncode(
+                  result.reasons
+                      .map((value) => value.name)
+                      .toList(growable: false),
+                ),
                 recordedAt: result.recordedAt.toUtc(),
                 targetId: Value(result.targetId),
               ),
@@ -360,7 +340,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
                       .map((window) => window.toJson())
                       .toList(growable: false),
                 ),
-                opportunityJson: jsonEncode(pack.opportunitySnapshot),
+                sessionJson: jsonEncode(pack.sessionSnapshot),
               ),
             );
       }
@@ -376,8 +356,8 @@ class DriftUserLibraryStore implements UserLibraryStore {
           : SavedRouteDestination.fromJson(jsonDecode(row.routeJson!));
       final rawPlaces = jsonDecode(row.placesJson);
       final rawWindows = jsonDecode(row.windowsJson);
-      final rawOpportunity = jsonDecode(row.opportunityJson);
-      if (rawPlaces is! List || rawWindows is! List || rawOpportunity is! Map) {
+      final rawSession = jsonDecode(row.sessionJson);
+      if (rawPlaces is! List || rawWindows is! List || rawSession is! Map) {
         return null;
       }
       final places = rawPlaces
@@ -398,7 +378,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
         route: route,
         places: places,
         windows: windows,
-        opportunitySnapshot: rawOpportunity.map(
+        sessionSnapshot: rawSession.map(
           (key, value) => MapEntry('$key', value),
         ),
       );
@@ -459,32 +439,20 @@ class DriftUserLibraryStore implements UserLibraryStore {
         : null;
   }
 
-  UserLibraryState? _decodeLegacy(String raw) {
+  Set<ShootingSessionOutcomeReason> _decodeSessionReasons(String raw) {
     try {
-      final body = jsonDecode(raw);
-      if (body is! Map) return null;
-      final places = body['savedPlaces'];
-      return UserLibraryState(
-        savedPlaces: places is List
-            ? places
-                  .map(SavedPlace.fromJson)
-                  .whereType<SavedPlace>()
-                  .toList(growable: false)
-            : const [],
-        recentRoute: SavedRouteDestination.fromJson(body['recentRoute']),
-        savedRoutes: const [],
-        journeys: const [],
-        importedTracks: const [],
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const {};
+      return decoded
+          .whereType<String>()
+          .map(ShootingSessionOutcomeReason.values.byName)
+          .toSet();
     } on Object {
-      return null;
+      return const {};
     }
   }
 }
 
 final userLibraryStoreProvider = Provider<UserLibraryStore>((ref) {
-  return DriftUserLibraryStore(
-    ref.watch(appDatabaseProvider),
-    SharedPreferencesAsync(),
-  );
+  return DriftUserLibraryStore(ref.watch(appDatabaseProvider));
 });

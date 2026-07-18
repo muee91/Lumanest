@@ -10,6 +10,8 @@ import 'package:luma_nest/src/features/route/infrastructure/resilient_driving_ro
 import 'package:luma_nest/src/features/route/application/route_elevation_service.dart';
 import 'package:luma_nest/src/features/route/infrastructure/data_broker_elevation_repository.dart';
 import 'package:luma_nest/src/features/route/infrastructure/elevation_aware_route_repository.dart';
+import 'package:luma_nest/src/features/route/domain/route_weather.dart';
+import 'package:luma_nest/src/features/route/infrastructure/data_broker_route_weather_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RouteDestination {
@@ -42,6 +44,23 @@ final drivingRouteCacheProvider = Provider<DrivingRouteCache>((ref) {
 
 final routeSupportCacheProvider = Provider<RouteSupportCache>((ref) {
   return PersistentRouteSupportCache(SharedPreferencesAsync());
+});
+
+final routeWeatherRepositoryProvider = Provider<RouteWeatherRepository>((ref) {
+  final config = ref.watch(environmentConfigProvider);
+  return DataBrokerRouteWeatherRepository(
+    brokerBaseUrl: config.dataBrokerBaseUrl,
+    serviceToken: config.lumaNestServiceToken,
+    transport: DioRouteWeatherTransport(
+      Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 15),
+          sendTimeout: const Duration(seconds: 10),
+        ),
+      ),
+    ),
+  );
 });
 
 final drivingRouteRepositoryProvider = Provider<DrivingRouteRepository>((ref) {

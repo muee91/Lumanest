@@ -8,12 +8,12 @@ void main() {
   ) async {
     await tester.pumpWidget(const LumaNestApp());
 
-    expect(find.text('从当前位置开始'), findsOneWidget);
+    expect(find.text('从此刻的位置开始'), findsOneWidget);
     expect(find.text('今日'), findsOneWidget);
-    expect(find.text('探索'), findsOneWidget);
-    expect(find.text('路线'), findsOneWidget);
-    expect(find.text('灵感'), findsOneWidget);
-    expect(find.text('我的'), findsOneWidget);
+    expect(find.bySemanticsLabel('探索'), findsOneWidget);
+    expect(find.bySemanticsLabel('路线'), findsOneWidget);
+    expect(find.bySemanticsLabel('灵感'), findsOneWidget);
+    expect(find.bySemanticsLabel('我的'), findsOneWidget);
   });
 
   testWidgets('accepts an injected context snapshot', (tester) async {
@@ -23,6 +23,9 @@ void main() {
       ),
     );
 
-    expect(find.text('倒影条件改善'), findsWidgets);
+    expect(find.text('栖光此刻看到'), findsOneWidget);
+    expect(find.text('这个窗口值得你提前到场。'), findsOneWidget);
+    expect(find.textContaining('82%'), findsNothing);
+    expect(find.textContaining('置信度'), findsNothing);
   });
 }

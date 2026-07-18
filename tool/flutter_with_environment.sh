@@ -9,15 +9,14 @@ if [[ ! -f "$source_file" ]]; then
   exit 1
 fi
 
-safe_file="$(mktemp "${TMPDIR:-/tmp}/lumanest-client-env.XXXXXX.json")"
+safe_file="$(mktemp "${TMPDIR:-/tmp}/lumanest-client-env.XXXXXX")"
 trap 'rm -f "$safe_file"' EXIT
 
 # The central JSON also contains server-only values. Only these client-safe
 # fields may be passed to Flutter and therefore considered for APK embedding.
 jq '{
   AMAP_ANDROID_KEY,
-  QWEATHER_API_HOST,
-  QWEATHER_TOKEN_ENDPOINT,
+  LUMANEST_BROKER_BASE_URL,
   LUMANEST_SERVICE_TOKEN,
   SENTRY_DSN
 }' "$source_file" > "$safe_file"

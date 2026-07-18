@@ -11,7 +11,7 @@ void main() {
     const item = ManifestItem(
       id: 'astronomy-without-url',
       title: '天象目录',
-      action: ManifestAction.openAuthority,
+      action: ManifestAction.openAstronomyDetail,
     );
     await tester.pumpWidget(
       MaterialApp(
@@ -38,11 +38,11 @@ void main() {
     final item = ManifestItem(
       id: 'official-warning',
       title: '官方安全预警',
-      action: ManifestAction.openSafety,
+      action: ManifestAction.openSafetyDetail,
       source: ContextEventSource.official,
       observedAt: DateTime.utc(2026, 7, 16, 2),
       expiresAt: DateTime.utc(2026, 7, 16, 3),
-      geoScope: ContextGeoScope.regional,
+      geoScope: ContextGeoScope.region,
       safetyLevel: ContextSafetyLevel.critical,
       confidence: 1,
     );
@@ -76,7 +76,7 @@ void main() {
     const item = ManifestItem(
       id: 'official-warning',
       title: '雷电红色预警',
-      action: ManifestAction.openSafety,
+      action: ManifestAction.openSafetyDetail,
     );
     await tester.pumpWidget(
       MaterialApp(

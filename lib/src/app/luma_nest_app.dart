@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/companion/companion_client.dart';
 import 'package:luma_nest/src/core/device/device_energy_providers.dart';
+import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -42,6 +45,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   String _routeLocation = '/today';
   bool _routeRefreshScheduled = false;
   String? _lastPhotographyWatchReconciliation;
+  String? _lastCompanionRefresh;
 
   /// Becomes true while the user scrolls content so the ambient canvas can
   /// auto-decelerate per design §9.3.
@@ -51,10 +55,11 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(LumaNestFeedbackService.instance.preload());
     unawaited(ref.read(journeyRouteContextRestorerProvider).restore());
     _router = createLumaNestRouter(initialContext: widget.initialContext);
-    configurePhotographyWatchNotificationNavigation(
-      ref.read(photographyWatchNotificationServiceProvider),
+    configureShootingSessionNotificationNavigation(
+      ref.read(shootingSessionNotificationServiceProvider),
       _handlePhotographyNotificationResponse,
     );
     _router.routerDelegate.addListener(_handleRouterChange);
@@ -65,6 +70,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     WidgetsBinding.instance.removeObserver(this);
     _router.routerDelegate.removeListener(_handleRouterChange);
     _interactionSuppressed.dispose();
+    unawaited(LumaNestFeedbackService.instance.dispose());
     _router.dispose();
     super.dispose();
   }
@@ -81,16 +87,32 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     // a loading value as `false` here would cancel an already-scheduled local
     // reminder on every cold start before the setting is restored.
     final photographyWatchNotificationsEnabled = ref
-        .watch(photographyWatchNotificationsEnabledProvider)
+        .watch(shootingSessionNotificationsEnabledProvider)
         .asData
         ?.value;
     final reconciliationSnapshot =
         widget.initialContext ?? liveSnapshot?.asData?.value;
+    if (reconciliationSnapshot != null &&
+        _lastCompanionRefresh != reconciliationSnapshot.id) {
+      _lastCompanionRefresh = reconciliationSnapshot.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(
+          ref
+              .read(companionInventoryProvider.notifier)
+              .refresh(
+                snapshotId: reconciliationSnapshot.id,
+                reason: 'manual_refresh',
+                visiblePage: _visiblePage,
+              ),
+        );
+      });
+    }
     if (photographyWatchNotificationsEnabled != null &&
         reconciliationSnapshot != null &&
         library != null) {
       final watchIds =
-          library.watchedOpportunities
+          library.watchedSessions
               .map((watch) => watch.id)
               .toList(growable: false)
             ..sort();
@@ -103,7 +125,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
           if (!mounted) return;
           unawaited(
             ref
-                .read(photographyWatchNotificationReconcilerProvider)
+                .read(shootingSessionNotificationReconcilerProvider)
                 .reconcile(snapshot: reconciliationSnapshot, library: library),
           );
         });
@@ -136,38 +158,63 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
           conserveDeviceEnergy: conserveDeviceEnergy ?? false,
           routeLocation: _routeLocation,
         );
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            if (preferences.ambientBackgroundEnabled)
-              AmbientCanvas(
-                visualState: _ambientVisualState(
-                  context,
-                  widget.initialContext ?? _snapshotValue(liveSnapshot),
+        final darkStage = _routeLocation.startsWith('/inspiration');
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: darkStage
+                ? Brightness.light
+                : Brightness.dark,
+            statusBarBrightness: darkStage ? Brightness.dark : Brightness.light,
+            systemNavigationBarColor: darkStage
+                ? const Color(0xFF17201D)
+                : const Color(0xFFF5F5F1),
+            systemNavigationBarIconBrightness: darkStage
+                ? Brightness.light
+                : Brightness.dark,
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (preferences.ambientBackgroundEnabled)
+                AmbientCanvas(
+                  visualState: _ambientVisualState(
+                    context,
+                    widget.initialContext ?? _snapshotValue(liveSnapshot),
+                  ),
+                  reduceMotion:
+                      ambientRendering.reduceMotion || systemDisablesAnimations,
+                  reduceFlashing: ambientRendering.reduceFlashing,
+                  showWeatherTexture: ambientRendering.showWeatherTexture,
+                  renderer: ambientRendering.renderer,
+                  intensity: ambientRendering.intensity,
+                  interactionSuppressed: _interactionSuppressed,
                 ),
-                reduceMotion:
-                    ambientRendering.reduceMotion || systemDisablesAnimations,
-                reduceFlashing: ambientRendering.reduceFlashing,
-                showWeatherTexture: ambientRendering.showWeatherTexture,
-                renderer: ambientRendering.renderer,
-                intensity: ambientRendering.intensity,
-                interactionSuppressed: _interactionSuppressed,
+              NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification is ScrollStartNotification) {
+                    _interactionSuppressed.value = true;
+                  } else if (notification is ScrollEndNotification) {
+                    _interactionSuppressed.value = false;
+                  }
+                  return false;
+                },
+                child: child ?? const SizedBox.shrink(),
               ),
-            NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification is ScrollStartNotification) {
-                  _interactionSuppressed.value = true;
-                } else if (notification is ScrollEndNotification) {
-                  _interactionSuppressed.value = false;
-                }
-                return false;
-              },
-              child: child ?? const SizedBox.shrink(),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
+  }
+
+  String get _visiblePage {
+    if (_routeLocation.startsWith('/explore')) return 'explore';
+    if (_routeLocation.startsWith('/route')) return 'route';
+    if (_routeLocation.startsWith('/inspiration')) return 'inspiration';
+    if (_routeLocation.startsWith('/profile')) return 'profile';
+    if (_routeLocation.startsWith('/session')) return 'shootingWindow';
+    return 'today';
   }
 
   AmbientVisualState? _ambientVisualState(
@@ -203,14 +250,10 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
 
   void _handlePhotographyNotificationResponse(String payload) {
     final uri = Uri.tryParse(payload);
-    if (uri == null ||
-        uri.path != '/shooting-window' ||
-        uri.queryParameters.keys.any((key) => key != 'opportunity')) {
-      return;
-    }
-    final opportunityId = shootingWindowOpportunityIdFrom(uri);
-    if (opportunityId != null) {
-      _router.go(shootingWindowLocation(opportunityId));
+    if (uri == null) return;
+    final sessionId = shootingSessionIdFrom(uri);
+    if (sessionId != null) {
+      _router.go(shootingSessionLocation(sessionId));
     }
   }
 

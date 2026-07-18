@@ -1,19 +1,11 @@
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
+import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
-import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
-enum SceneType {
-  unknown,
-  city,
-  lake,
-  mountain,
-  desert,
-  village,
-  driving,
-  hiking,
-}
+enum SceneType { unknown, city, lake, mountain, desert, village }
 
 enum DayPhase { dawn, day, sunset, blueHour, night }
 
@@ -42,6 +34,7 @@ class ContextSnapshot {
     required this.observedAt,
     required this.expiresAt,
     required this.primaryScene,
+    this.sceneContext,
     required this.dayPhase,
     required this.weather,
     required this.activeRoute,
@@ -49,7 +42,7 @@ class ContextSnapshot {
     List<String> safetyEventIds = const [],
     List<String> wildlifeEventIds = const [],
     List<ContextEvent> events = const [],
-    List<PhotographyOpportunity> photographyOpportunities = const [],
+    List<ShootingSession> shootingSessions = const [],
     this.wildlifeActivity,
     this.location,
     this.temperatureCelsius,
@@ -80,13 +73,14 @@ class ContextSnapshot {
        safetyEventIds = List.unmodifiable(safetyEventIds),
        wildlifeEventIds = List.unmodifiable(wildlifeEventIds),
        events = List.unmodifiable(events),
-       photographyOpportunities = List.unmodifiable(photographyOpportunities),
+       shootingSessions = List.unmodifiable(shootingSessions),
        allowedActions = List.unmodifiable(allowedActions);
 
   final String id;
   final DateTime observedAt;
   final DateTime expiresAt;
   final SceneType primaryScene;
+  final SceneContext? sceneContext;
   final DayPhase dayPhase;
   final WeatherType weather;
   final bool activeRoute;
@@ -95,9 +89,8 @@ class ContextSnapshot {
   final List<String> wildlifeEventIds;
   final List<ContextEvent> events;
 
-  /// V3 server-established creative windows. Never present for stale or local
-  /// fallback snapshots.
-  final List<PhotographyOpportunity> photographyOpportunities;
+  /// V4 explainable, non-probabilistic shooting sessions.
+  final List<ShootingSession> shootingSessions;
   final RegionalWildlifeActivity? wildlifeActivity;
   final GeoPoint? location;
   final double? temperatureCelsius;
@@ -125,6 +118,11 @@ class ContextSnapshot {
   final List<ContextAction> allowedActions;
   final ServerManifest? serverManifest;
 
+  /// Composite scene state used by the v5 cache and catalog engine. Local
+  /// deterministic snapshots derive it from [primaryScene] when necessary.
+  SceneContext get resolvedSceneContext =>
+      sceneContext ?? _sceneContextFromPrimaryScene(primaryScene);
+
   ContextSnapshot asStale() {
     final retainedEvents = events
         .where((event) => event.channel != ContextEventChannel.opportunity)
@@ -134,6 +132,7 @@ class ContextSnapshot {
       observedAt: observedAt,
       expiresAt: expiresAt,
       primaryScene: primaryScene,
+      sceneContext: sceneContext,
       dayPhase: dayPhase,
       weather: weather,
       activeRoute: activeRoute,
@@ -141,7 +140,7 @@ class ContextSnapshot {
       safetyEventIds: safetyEventIds,
       wildlifeEventIds: wildlifeEventIds,
       events: retainedEvents,
-      photographyOpportunities: const [],
+      shootingSessions: const [],
       wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -193,6 +192,7 @@ class ContextSnapshot {
       observedAt: observedAt,
       expiresAt: expiresAt,
       primaryScene: primaryScene,
+      sceneContext: sceneContext,
       dayPhase: dayPhase,
       weather: weather,
       activeRoute: activeRoute,
@@ -207,7 +207,7 @@ class ContextSnapshot {
         ),
         ...wildlifeEvents,
       ],
-      photographyOpportunities: photographyOpportunities,
+      shootingSessions: shootingSessions,
       wildlifeActivity: activity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -237,12 +237,62 @@ class ContextSnapshot {
     );
   }
 
+  ContextSnapshot withSolarReference({
+    required double elevationDegrees,
+    required double azimuthDegrees,
+    required DateTime? sunrise,
+    required DateTime? sunset,
+  }) {
+    return ContextSnapshot(
+      id: id,
+      observedAt: observedAt,
+      expiresAt: expiresAt,
+      primaryScene: primaryScene,
+      sceneContext: sceneContext,
+      dayPhase: dayPhase,
+      weather: weather,
+      activeRoute: activeRoute,
+      opportunityIds: opportunityIds,
+      safetyEventIds: safetyEventIds,
+      wildlifeEventIds: wildlifeEventIds,
+      events: events,
+      shootingSessions: shootingSessions,
+      wildlifeActivity: wildlifeActivity,
+      location: location,
+      temperatureCelsius: temperatureCelsius,
+      windSpeedMetersPerSecond: windSpeedMetersPerSecond,
+      windDirectionDegrees: windDirectionDegrees,
+      visibilityKilometers: visibilityKilometers,
+      precipitationMillimeters: precipitationMillimeters,
+      cloudCoverPercent: cloudCoverPercent,
+      airQualityIndex: airQualityIndex,
+      airQualityCategory: airQualityCategory,
+      primaryPollutant: primaryPollutant,
+      airQualityObservedAt: airQualityObservedAt,
+      airQualityStale: airQualityStale,
+      solarElevationDegrees: elevationDegrees,
+      solarAzimuthDegrees: azimuthDegrees,
+      sunrise: sunrise,
+      sunset: sunset,
+      isStale: isStale,
+      remoteGeneratedAt: remoteGeneratedAt,
+      dataFreshness: dataFreshness,
+      moonPhase: moonPhase,
+      moonIllumination: moonIllumination,
+      routeMode: routeMode,
+      routeStage: routeStage,
+      allowedActions: allowedActions,
+      serverManifest: serverManifest,
+    );
+  }
+
   ContextSnapshot withRemoteContext({
     required String id,
     required DateTime expiresAt,
     required SceneType primaryScene,
+    SceneContext? sceneContext,
     required List<ContextEvent> events,
-    List<PhotographyOpportunity> photographyOpportunities = const [],
+    List<ShootingSession> shootingSessions = const [],
     required DateTime remoteGeneratedAt,
     required ContextDataFreshness dataFreshness,
     required MoonPhase moonPhase,
@@ -256,6 +306,7 @@ class ContextSnapshot {
       observedAt: observedAt,
       expiresAt: expiresAt,
       primaryScene: primaryScene,
+      sceneContext: sceneContext,
       dayPhase: dayPhase,
       weather: weather,
       activeRoute: activeRoute,
@@ -268,7 +319,7 @@ class ContextSnapshot {
           .map((event) => event.id)
           .toList(growable: false),
       events: events,
-      photographyOpportunities: photographyOpportunities,
+      shootingSessions: shootingSessions,
       wildlifeActivity: wildlifeActivity,
       location: location,
       temperatureCelsius: temperatureCelsius,
@@ -297,4 +348,39 @@ class ContextSnapshot {
       serverManifest: serverManifest,
     );
   }
+}
+
+SceneContext _sceneContextFromPrimaryScene(SceneType scene) {
+  return switch (scene) {
+    SceneType.city => SceneContext(
+      primaryScene: PrimaryScene.urban,
+      facets: const {SceneFacet.skyline, SceneFacet.architecture},
+      activity: ActivityState.stationary,
+    ),
+    SceneType.lake => SceneContext(
+      primaryScene: PrimaryScene.inlandWater,
+      facets: const {SceneFacet.lake, SceneFacet.reflectiveSurface},
+      activity: ActivityState.stationary,
+    ),
+    SceneType.mountain => SceneContext(
+      primaryScene: PrimaryScene.mountain,
+      facets: const <SceneFacet>{},
+      activity: ActivityState.stationary,
+    ),
+    SceneType.desert => SceneContext(
+      primaryScene: PrimaryScene.desert,
+      facets: const {SceneFacet.dune, SceneFacet.openHorizon},
+      activity: ActivityState.stationary,
+    ),
+    SceneType.village => SceneContext(
+      primaryScene: PrimaryScene.village,
+      facets: const {SceneFacet.villageStreet},
+      activity: ActivityState.stationary,
+    ),
+    SceneType.unknown => SceneContext(
+      primaryScene: PrimaryScene.unknown,
+      facets: const <SceneFacet>{},
+      activity: ActivityState.stationary,
+    ),
+  };
 }

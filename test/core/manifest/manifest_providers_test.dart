@@ -29,7 +29,7 @@ void main() {
       LogDataKey.safetyCount: manifest.safety.length,
     });
     expect(record.toString(), isNot(contains(snapshot.id)));
-    expect(record.toString(), isNot(contains('reflection')));
+    expect(record.toString(), isNot(contains('session.water.evening')));
     expect(record.toString(), isNot(contains('fingerprint')));
   });
 }

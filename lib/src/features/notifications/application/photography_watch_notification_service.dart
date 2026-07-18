@@ -8,27 +8,27 @@ import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../../core/context/context_snapshot.dart';
-import '../../../core/photography/photography_opportunity.dart';
+import '../../../core/photography/shooting_session.dart';
 import '../../library/domain/user_library.dart';
 
-/// Local-only reminders for opportunities the user explicitly chose to watch.
+/// Local-only reminders for shooting sessions the user explicitly chose to watch.
 ///
 /// This service deliberately has no network, location, or background-refresh
 /// behaviour. A caller must reconcile it with a freshly established snapshot.
-abstract interface class PhotographyWatchNotificationService {
+abstract interface class ShootingSessionNotificationService {
   Future<bool> requestPermission();
   Future<bool> permissionGranted();
   Future<void> schedule({
-    required WatchedPhotographyOpportunity watch,
-    required PhotographyOpportunity opportunity,
+    required WatchedShootingSession watch,
+    required ShootingSession session,
     required DateTime notifyAt,
   });
   Future<void> cancel(String watchId);
 }
 
-class LocalPhotographyWatchNotificationService
-    implements PhotographyWatchNotificationService {
-  LocalPhotographyWatchNotificationService({
+class LocalShootingSessionNotificationService
+    implements ShootingSessionNotificationService {
+  LocalShootingSessionNotificationService({
     FlutterLocalNotificationsPlugin? plugin,
   }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
@@ -37,7 +37,7 @@ class LocalPhotographyWatchNotificationService
   void Function(String payload)? _onNotificationResponse;
 
   /// Must be registered by the foreground app before scheduling. The payload
-  /// contains only an internal route plus a server-established opportunity ID.
+  /// contains only an internal route plus a server-established session ID.
   void setNotificationResponseHandler(void Function(String payload) handler) {
     _onNotificationResponse = handler;
   }
@@ -115,30 +115,30 @@ class LocalPhotographyWatchNotificationService
 
   @override
   Future<void> schedule({
-    required WatchedPhotographyOpportunity watch,
-    required PhotographyOpportunity opportunity,
+    required WatchedShootingSession watch,
+    required ShootingSession session,
     required DateTime notifyAt,
   }) async {
     await _ensureInitialized();
     final instant = notifyAt.toUtc();
-    final body = _reason(opportunity);
+    final body = _reason(session);
     if (!instant.isAfter(DateTime.now().toUtc())) {
       await _plugin.show(
         id: _notificationId(watch.id),
-        title: '现在可以留意 ${opportunity.title}',
+        title: '现在可以留意 ${session.title}',
         body: body,
         notificationDetails: _details,
-        payload: photographyWatchNotificationPayloadFor(opportunity.id),
+        payload: shootingSessionNotificationPayloadFor(session.id),
       );
       return;
     }
     await _plugin.zonedSchedule(
       id: _notificationId(watch.id),
       scheduledDate: tz.TZDateTime.from(instant, tz.UTC),
-      title: '${opportunity.title} 即将开始',
+      title: '${session.title} 即将开始',
       body: body,
       notificationDetails: _details,
-      payload: photographyWatchNotificationPayloadFor(opportunity.id),
+      payload: shootingSessionNotificationPayloadFor(session.id),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
@@ -160,11 +160,11 @@ class LocalPhotographyWatchNotificationService
     iOS: DarwinNotificationDetails(),
   );
 
-  static String _reason(PhotographyOpportunity opportunity) {
-    final evidence = opportunity.evidence
-        .where((item) => item.supports)
-        .map((item) => item.statement.trim())
-        .firstWhere((item) => item.isNotEmpty, orElse: () => '条件已成立');
+  static String _reason(ShootingSession session) {
+    final evidence = session.factors
+        .where((item) => item.effect == ShootingFactorEffect.supporting)
+        .map((item) => '${item.label} ${item.value}'.trim())
+        .firstWhere((item) => item.isNotEmpty, orElse: () => '拍摄会话已成立');
     return evidence;
   }
 
@@ -177,33 +177,31 @@ class LocalPhotographyWatchNotificationService
   }
 }
 
-String photographyWatchNotificationPayloadFor(String opportunityId) => Uri(
-  path: '/shooting-window',
-  queryParameters: {'opportunity': opportunityId},
-).toString();
+String shootingSessionNotificationPayloadFor(String sessionId) =>
+    '/session/${Uri.encodeComponent(sessionId)}';
 
 /// Wires only the local implementation to the app router. Keeping this out of
 /// the scheduling interface lets deterministic notification tests use a small
 /// fake service and keeps route handling out of the persistence layer.
-void configurePhotographyWatchNotificationNavigation(
-  PhotographyWatchNotificationService service,
+void configureShootingSessionNotificationNavigation(
+  ShootingSessionNotificationService service,
   void Function(String payload) handler,
 ) {
-  if (service case LocalPhotographyWatchNotificationService local) {
+  if (service case LocalShootingSessionNotificationService local) {
     local.setNotificationResponseHandler(handler);
   }
 }
 
-abstract interface class PhotographyWatchNotificationPreferenceStore {
+abstract interface class ShootingSessionNotificationPreferenceStore {
   Future<bool> readEnabled();
   Future<void> writeEnabled(bool value);
 }
 
-class SharedPreferencesPhotographyWatchNotificationPreferenceStore
-    implements PhotographyWatchNotificationPreferenceStore {
-  SharedPreferencesPhotographyWatchNotificationPreferenceStore(this._prefs);
+class SharedPreferencesShootingSessionNotificationPreferenceStore
+    implements ShootingSessionNotificationPreferenceStore {
+  SharedPreferencesShootingSessionNotificationPreferenceStore(this._prefs);
 
-  static const _key = 'photography_watch_notification_enabled';
+  static const _key = 'shooting_session_notification_enabled';
   final SharedPreferencesAsync _prefs;
 
   @override
@@ -214,17 +212,17 @@ class SharedPreferencesPhotographyWatchNotificationPreferenceStore
 }
 
 /// A local schedule ledger. It stores notification timestamps only, never a
-/// location, evidence payload, or opportunity content.
-abstract interface class PhotographyWatchNotificationLedger {
+/// location, evidence payload, or session content.
+abstract interface class ShootingSessionNotificationLedger {
   Future<Map<String, DateTime>> read();
   Future<void> write(Map<String, DateTime> scheduled);
 }
 
-class SharedPreferencesPhotographyWatchNotificationLedger
-    implements PhotographyWatchNotificationLedger {
-  SharedPreferencesPhotographyWatchNotificationLedger(this._prefs);
+class SharedPreferencesShootingSessionNotificationLedger
+    implements ShootingSessionNotificationLedger {
+  SharedPreferencesShootingSessionNotificationLedger(this._prefs);
 
-  static const _key = 'photography_watch_notification_schedule_v1';
+  static const _key = 'shooting_session_notification_schedule';
   final SharedPreferencesAsync _prefs;
 
   @override
@@ -259,17 +257,17 @@ class SharedPreferencesPhotographyWatchNotificationLedger
 ///
 /// Reconciliation is intentionally invoked by the app's foreground snapshot
 /// refresh path; it does not register a background task or poll any provider.
-class PhotographyWatchNotificationReconciler {
-  PhotographyWatchNotificationReconciler({
+class ShootingSessionNotificationReconciler {
+  ShootingSessionNotificationReconciler({
     required this.service,
     required this.preferences,
     required this.ledger,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
-  final PhotographyWatchNotificationService service;
-  final PhotographyWatchNotificationPreferenceStore preferences;
-  final PhotographyWatchNotificationLedger ledger;
+  final ShootingSessionNotificationService service;
+  final ShootingSessionNotificationPreferenceStore preferences;
+  final ShootingSessionNotificationLedger ledger;
   final DateTime Function() _now;
 
   Future<void> reconcile({
@@ -289,20 +287,20 @@ class PhotographyWatchNotificationReconciler {
         fresh &&
         library != null &&
         await service.permissionGranted()) {
-      final opportunities = {
-        for (final item in snapshot.photographyOpportunities) item.id: item,
+      final sessions = {
+        for (final item in snapshot.shootingSessions) item.id: item,
       };
-      for (final watch in library.watchedOpportunities) {
-        final opportunity = opportunities[watch.opportunityId];
-        if (opportunity == null ||
+      for (final watch in library.watchedSessions) {
+        final session = sessions[watch.sessionId];
+        if (session == null ||
             !watch.expiresAt.toUtc().isAfter(now) ||
-            !opportunity.expiresAt.toUtc().isAfter(now)) {
+            !session.endsAt.toUtc().isAfter(now)) {
           continue;
         }
-        final notifyAt = _notificationTime(opportunity, now);
+        final notifyAt = _notificationTime(session, now);
         valid[watch.id] = _WatchPlan(
           watch: watch,
-          opportunity: opportunity,
+          session: session,
           notifyAt: notifyAt,
         );
       }
@@ -320,7 +318,7 @@ class PhotographyWatchNotificationReconciler {
         if (previous != null) await service.cancel(entry.key);
         await service.schedule(
           watch: plan.watch,
-          opportunity: plan.opportunity,
+          session: plan.session,
           notifyAt: plan.notifyAt,
         );
       }
@@ -329,11 +327,8 @@ class PhotographyWatchNotificationReconciler {
     await ledger.write(next);
   }
 
-  static DateTime _notificationTime(
-    PhotographyOpportunity opportunity,
-    DateTime now,
-  ) {
-    final beforeStart = opportunity.startsAt.toUtc().subtract(
+  static DateTime _notificationTime(ShootingSession session, DateTime now) {
+    final beforeStart = session.startsAt.toUtc().subtract(
       const Duration(minutes: 15),
     );
     return beforeStart.isAfter(now) ? beforeStart : now;
@@ -343,80 +338,80 @@ class PhotographyWatchNotificationReconciler {
 class _WatchPlan {
   const _WatchPlan({
     required this.watch,
-    required this.opportunity,
+    required this.session,
     required this.notifyAt,
   });
 
-  final WatchedPhotographyOpportunity watch;
-  final PhotographyOpportunity opportunity;
+  final WatchedShootingSession watch;
+  final ShootingSession session;
   final DateTime notifyAt;
 }
 
-final photographyWatchNotificationServiceProvider =
-    Provider<PhotographyWatchNotificationService>((ref) {
-      return LocalPhotographyWatchNotificationService();
+final shootingSessionNotificationServiceProvider =
+    Provider<ShootingSessionNotificationService>((ref) {
+      return LocalShootingSessionNotificationService();
     });
 
-final photographyWatchNotificationPreferenceStoreProvider =
-    Provider<PhotographyWatchNotificationPreferenceStore>((ref) {
-      return SharedPreferencesPhotographyWatchNotificationPreferenceStore(
+final shootingSessionNotificationPreferenceStoreProvider =
+    Provider<ShootingSessionNotificationPreferenceStore>((ref) {
+      return SharedPreferencesShootingSessionNotificationPreferenceStore(
         SharedPreferencesAsync(),
       );
     });
 
-final photographyWatchNotificationLedgerProvider =
-    Provider<PhotographyWatchNotificationLedger>((ref) {
-      return SharedPreferencesPhotographyWatchNotificationLedger(
+final shootingSessionNotificationLedgerProvider =
+    Provider<ShootingSessionNotificationLedger>((ref) {
+      return SharedPreferencesShootingSessionNotificationLedger(
         SharedPreferencesAsync(),
       );
     });
 
-final photographyWatchNotificationReconcilerProvider =
-    Provider<PhotographyWatchNotificationReconciler>((ref) {
-      return PhotographyWatchNotificationReconciler(
-        service: ref.watch(photographyWatchNotificationServiceProvider),
+final shootingSessionNotificationReconcilerProvider =
+    Provider<ShootingSessionNotificationReconciler>((ref) {
+      return ShootingSessionNotificationReconciler(
+        service: ref.watch(shootingSessionNotificationServiceProvider),
         preferences: ref.watch(
-          photographyWatchNotificationPreferenceStoreProvider,
+          shootingSessionNotificationPreferenceStoreProvider,
         ),
-        ledger: ref.watch(photographyWatchNotificationLedgerProvider),
+        ledger: ref.watch(shootingSessionNotificationLedgerProvider),
       );
     });
 
-class PhotographyWatchNotificationController extends AsyncNotifier<bool> {
+class ShootingSessionNotificationController extends AsyncNotifier<bool> {
   @override
   Future<bool> build() async {
     final enabled = await ref
-        .read(photographyWatchNotificationPreferenceStoreProvider)
+        .read(shootingSessionNotificationPreferenceStoreProvider)
         .readEnabled();
     if (!enabled) return false;
     final granted = await ref
-        .read(photographyWatchNotificationServiceProvider)
+        .read(shootingSessionNotificationServiceProvider)
         .permissionGranted();
     if (granted) return true;
     await ref
-        .read(photographyWatchNotificationPreferenceStoreProvider)
+        .read(shootingSessionNotificationPreferenceStoreProvider)
         .writeEnabled(false);
     return false;
   }
 
   Future<bool> setEnabled(bool value) async {
-    final service = ref.read(photographyWatchNotificationServiceProvider);
+    final service = ref.read(shootingSessionNotificationServiceProvider);
     if (value && !await service.requestPermission()) {
       await ref
-          .read(photographyWatchNotificationPreferenceStoreProvider)
+          .read(shootingSessionNotificationPreferenceStoreProvider)
           .writeEnabled(false);
       state = const AsyncData(false);
       return false;
     }
     await ref
-        .read(photographyWatchNotificationPreferenceStoreProvider)
+        .read(shootingSessionNotificationPreferenceStoreProvider)
         .writeEnabled(value);
     state = AsyncData(value);
     return value;
   }
 }
 
-final photographyWatchNotificationsEnabledProvider =
-    AsyncNotifierProvider<PhotographyWatchNotificationController, bool>(
-      PhotographyWatchNotificationController.new,
+final shootingSessionNotificationsEnabledProvider =
+    AsyncNotifierProvider<ShootingSessionNotificationController, bool>(
+      ShootingSessionNotificationController.new,
     );

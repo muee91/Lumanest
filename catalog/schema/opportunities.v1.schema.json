@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumanest.local/schema/opportunities.v1.schema.json",
+  "title": "LumaNest opportunity catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "catalogVersion", "items"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "catalogVersion": {"const": 1},
+    "items": {
+      "type": "array",
+      "minItems": 48,
+      "maxItems": 48,
+      "items": {"$ref": "#/$defs/opportunity"}
+    }
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "opportunity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "catalogTier", "coreCapability", "modelType", "family",
+        "presentation", "primaryScenes", "sceneFacets", "requiredEvidence",
+        "optionalEvidence", "timingPolicy", "primaryAction", "fallbackAction",
+        "minimumConfidence", "dedupeGroup", "suppresses", "safetyConflicts",
+        "preferenceAffinities"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(session|event)\\.[a-z0-9_.]+$"},
+        "catalogTier": {"enum": ["core", "legacyOnly", "reserved"]},
+        "coreCapability": {"type": ["string", "null"], "enum": ["available", "degraded", "unavailable", null]},
+        "modelType": {"enum": ["shootingSession", "factualEvent"]},
+        "family": {"enum": ["water", "mountain", "city", "landform", "atmosphere", "astronomy", "ecology", "humanityRoute"]},
+        "presentation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["zhCN"],
+          "properties": {
+            "zhCN": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "shortLabel", "emoji"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "shortLabel": {"type": "string", "minLength": 1},
+                "emoji": {"type": "string", "minLength": 1},
+                "degradedName": {"type": "string", "minLength": 1},
+                "fallbackSummary": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        },
+        "primaryScenes": {"$ref": "#/$defs/stringArray"},
+        "sceneFacets": {"$ref": "#/$defs/stringArray"},
+        "requiredEvidence": {"$ref": "#/$defs/stringArray"},
+        "optionalEvidence": {"$ref": "#/$defs/stringArray"},
+        "timingPolicy": {"type": ["string", "null"]},
+        "primaryAction": {"type": "string", "minLength": 1},
+        "fallbackAction": {"type": "string", "minLength": 1},
+        "minimumConfidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "dedupeGroup": {"type": "string", "minLength": 1},
+        "suppresses": {"$ref": "#/$defs/stringArray"},
+        "safetyConflicts": {"$ref": "#/$defs/stringArray"},
+        "preferenceAffinities": {"$ref": "#/$defs/stringArray"}
+      }
+    }
+  }
+}

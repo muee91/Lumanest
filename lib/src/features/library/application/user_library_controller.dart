@@ -5,6 +5,7 @@ import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart'
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 
 class UserLibraryController extends AsyncNotifier<UserLibraryState> {
   @override
@@ -146,8 +147,8 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
         journeys: current.journeys,
         importedTracks: current.importedTracks,
         savedNotes: current.savedNotes,
-        watchedOpportunities: current.watchedOpportunities,
-        opportunityResults: current.opportunityResults,
+        watchedSessions: current.watchedSessions,
+        sessionResults: current.sessionResults,
         offlinePhotographyPacks: current.offlinePhotographyPacks,
       ),
     );
@@ -208,67 +209,60 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     await _save(current.copyWith(savedNotes: const []));
   }
 
-  Future<void> watchOpportunity({
-    required String opportunityId,
+  Future<void> watchSession({
+    required ShootingSession session,
     required String snapshotId,
-    required String title,
-    required DateTime expiresAt,
     String? targetId,
+    DateTime? watchedAt,
   }) async {
     final current = await future;
-    final watched = WatchedPhotographyOpportunity.create(
-      opportunityId: opportunityId,
+    final watched = WatchedShootingSession.create(
+      session: session,
       snapshotId: snapshotId,
-      title: title,
-      watchedAt: DateTime.now(),
-      expiresAt: expiresAt,
+      watchedAt: watchedAt ?? DateTime.now(),
       targetId: targetId,
     );
     await _save(
       current.copyWith(
-        watchedOpportunities: [
+        watchedSessions: [
           watched,
-          ...current.watchedOpportunities.where(
-            (item) => item.id != watched.id,
-          ),
+          ...current.watchedSessions.where((item) => item.id != watched.id),
         ],
       ),
     );
   }
 
-  Future<void> unwatchOpportunity(String id) async {
+  Future<void> unwatchSession(String id) async {
     final current = await future;
     await _save(
       current.copyWith(
-        watchedOpportunities: current.watchedOpportunities
+        watchedSessions: current.watchedSessions
             .where((item) => item.id != id)
             .toList(growable: false),
       ),
     );
   }
 
-  Future<void> recordOpportunityResult({
-    required String opportunityId,
+  Future<void> recordShootingSessionResult({
+    required ShootingSession session,
     required String snapshotId,
-    required PhotographyOpportunityOutcome outcome,
-    String? reason,
+    required ShootingSessionOutcome outcome,
+    Iterable<ShootingSessionOutcomeReason> reasons = const [],
     String? targetId,
+    DateTime? recordedAt,
   }) async {
     final current = await future;
-    final result = PhotographyOpportunityResult.record(
-      opportunityId: opportunityId,
+    final result = ShootingSessionResult.record(
+      session: session,
       snapshotId: snapshotId,
       outcome: outcome,
-      recordedAt: DateTime.now(),
-      reason: reason,
+      reasons: reasons,
       targetId: targetId,
+      recordedAt: recordedAt ?? DateTime.now(),
     );
     await _save(
       current.copyWith(
-        opportunityResults: [
-          result,
-          ...current.opportunityResults,
-        ].take(200).toList(),
+        sessionResults: [result, ...current.sessionResults].take(200).toList(),
       ),
     );
   }
@@ -304,8 +298,8 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     final current = await future;
     await _save(
       current.copyWith(
-        watchedOpportunities: const [],
-        opportunityResults: const [],
+        watchedSessions: const [],
+        sessionResults: const [],
         offlinePhotographyPacks: const [],
       ),
     );

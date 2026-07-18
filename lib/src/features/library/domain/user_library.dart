@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
@@ -58,7 +59,7 @@ class SavedInspirationNote {
     final resolvedAction = manifestAction;
     final safeAuthorityUri = _validAuthorityUri(authorityUri);
     if (resolvedAction == null ||
-        resolvedAction == ManifestAction.openAuthority &&
+        resolvedAction == ManifestAction.openAstronomyDetail &&
             safeAuthorityUri == null) {
       return null;
     }
@@ -66,7 +67,7 @@ class SavedInspirationNote {
       id: sourceNoteId,
       title: displayLabel,
       action: resolvedAction,
-      authorityUri: resolvedAction == ManifestAction.openAuthority
+      authorityUri: resolvedAction == ManifestAction.openAstronomyDetail
           ? safeAuthorityUri
           : null,
     );
@@ -255,43 +256,41 @@ class ActiveImportedTrackConflict implements Exception {
   final SavedJourney activeJourney;
 }
 
-enum PhotographyOpportunityOutcome { shot, missed, skipped }
-
-class WatchedPhotographyOpportunity {
-  const WatchedPhotographyOpportunity({
+class WatchedShootingSession {
+  const WatchedShootingSession({
     required this.id,
-    required this.opportunityId,
+    required this.sessionId,
     required this.snapshotId,
     required this.title,
+    required this.kind,
     required this.watchedAt,
     required this.expiresAt,
     this.targetId,
   });
 
-  factory WatchedPhotographyOpportunity.create({
-    required String opportunityId,
+  factory WatchedShootingSession.create({
+    required ShootingSession session,
     required String snapshotId,
-    required String title,
     required DateTime watchedAt,
-    required DateTime expiresAt,
     String? targetId,
   }) {
     final watched = watchedAt.toUtc();
-    final expires = expiresAt.toUtc();
+    final expires = session.endsAt.toUtc();
     if (!expires.isAfter(watched)) {
       throw ArgumentError.value(
-        expiresAt,
-        'expiresAt',
+        session.endsAt,
+        'session.endsAt',
         'must be after watchedAt',
       );
     }
-    return WatchedPhotographyOpportunity(
+    return WatchedShootingSession(
       id: sha256
-          .convert(utf8.encode('$snapshotId\u0000$opportunityId'))
+          .convert(utf8.encode('$snapshotId\u0000${session.id}'))
           .toString(),
-      opportunityId: opportunityId,
+      sessionId: session.id,
       snapshotId: snapshotId,
-      title: title,
+      title: session.title,
+      kind: session.kind,
       watchedAt: watched,
       expiresAt: expires,
       targetId: targetId,
@@ -299,84 +298,82 @@ class WatchedPhotographyOpportunity {
   }
 
   final String id;
-  final String opportunityId;
+  final String sessionId;
   final String snapshotId;
   final String title;
+  final ShootingSessionKind kind;
   final DateTime watchedAt;
   final DateTime expiresAt;
   final String? targetId;
 
   Map<String, Object?> toJson() => {
     'id': id,
-    'opportunityId': opportunityId,
+    'sessionId': sessionId,
     'snapshotId': snapshotId,
     'title': title,
+    'kind': kind.name,
     'watchedAt': watchedAt.toUtc().toIso8601String(),
     'expiresAt': expiresAt.toUtc().toIso8601String(),
     if (targetId != null) 'targetId': targetId,
   };
 }
 
-class PhotographyOpportunityResult {
-  const PhotographyOpportunityResult({
+class ShootingSessionResult {
+  ShootingSessionResult({
     required this.id,
-    required this.opportunityId,
+    required this.sessionId,
     required this.snapshotId,
+    required this.kind,
     required this.outcome,
     required this.recordedAt,
-    this.reason,
+    Iterable<ShootingSessionOutcomeReason> reasons = const [],
     this.targetId,
-  });
+  }) : reasons = Set.unmodifiable(reasons);
 
-  factory PhotographyOpportunityResult.record({
-    required String opportunityId,
+  factory ShootingSessionResult.record({
+    required ShootingSession session,
     required String snapshotId,
-    required PhotographyOpportunityOutcome outcome,
+    required ShootingSessionOutcome outcome,
     required DateTime recordedAt,
-    String? reason,
+    Iterable<ShootingSessionOutcomeReason> reasons = const [],
     String? targetId,
   }) {
-    final normalizedReason = reason?.trim();
-    if (normalizedReason != null && normalizedReason.length > 280) {
-      throw ArgumentError.value(
-        reason,
-        'reason',
-        'must contain at most 280 characters',
-      );
-    }
     final at = recordedAt.toUtc();
-    return PhotographyOpportunityResult(
+    return ShootingSessionResult(
       id: sha256
           .convert(
             utf8.encode(
-              '$snapshotId\u0000$opportunityId\u0000${at.microsecondsSinceEpoch}',
+              '$snapshotId\u0000${session.id}\u0000${at.microsecondsSinceEpoch}',
             ),
           )
           .toString(),
-      opportunityId: opportunityId,
+      sessionId: session.id,
       snapshotId: snapshotId,
+      kind: session.kind,
       outcome: outcome,
       recordedAt: at,
-      reason: normalizedReason?.isEmpty ?? true ? null : normalizedReason,
+      reasons: reasons,
       targetId: targetId,
     );
   }
 
   final String id;
-  final String opportunityId;
+  final String sessionId;
   final String snapshotId;
-  final PhotographyOpportunityOutcome outcome;
+  final ShootingSessionKind kind;
+  final ShootingSessionOutcome outcome;
   final DateTime recordedAt;
-  final String? reason;
+  final Set<ShootingSessionOutcomeReason> reasons;
   final String? targetId;
 
   Map<String, Object?> toJson() => {
     'id': id,
-    'opportunityId': opportunityId,
+    'sessionId': sessionId,
     'snapshotId': snapshotId,
+    'kind': kind.name,
     'outcome': outcome.name,
     'recordedAt': recordedAt.toUtc().toIso8601String(),
-    if (reason != null) 'reason': reason,
+    'reasons': reasons.map((value) => value.name).toList(growable: false),
     if (targetId != null) 'targetId': targetId,
   };
 }
@@ -446,7 +443,7 @@ class OfflinePhotographyPack {
     required this.dataTimestamp,
     required this.places,
     required this.windows,
-    required this.opportunitySnapshot,
+    required this.sessionSnapshot,
     this.route,
   });
 
@@ -456,7 +453,7 @@ class OfflinePhotographyPack {
     required DateTime dataTimestamp,
     required List<SavedPlace> places,
     required List<OfflinePhotographyWindow> windows,
-    required Map<String, Object?> opportunitySnapshot,
+    required Map<String, Object?> sessionSnapshot,
     SavedRouteDestination? route,
   }) {
     final created = createdAt.toUtc();
@@ -476,7 +473,7 @@ class OfflinePhotographyPack {
         'must contain 1 to 160 characters',
       );
     }
-    final snapshot = _immutableStructuredMap(opportunitySnapshot);
+    final snapshot = _immutableStructuredMap(sessionSnapshot);
     final canonical = jsonEncode({
       'name': normalizedName,
       'dataTimestamp': timestamp.toIso8601String(),
@@ -485,7 +482,7 @@ class OfflinePhotographyPack {
       'windows': windows
           .map((window) => window.toJson())
           .toList(growable: false),
-      'opportunitySnapshot': snapshot,
+      'sessionSnapshot': snapshot,
     });
     return OfflinePhotographyPack._(
       id: sha256.convert(utf8.encode(canonical)).toString(),
@@ -495,7 +492,7 @@ class OfflinePhotographyPack {
       route: route,
       places: List.unmodifiable(places),
       windows: List.unmodifiable(windows),
-      opportunitySnapshot: snapshot,
+      sessionSnapshot: snapshot,
     );
   }
 
@@ -506,7 +503,7 @@ class OfflinePhotographyPack {
     required DateTime dataTimestamp,
     required List<SavedPlace> places,
     required List<OfflinePhotographyWindow> windows,
-    required Map<String, Object?> opportunitySnapshot,
+    required Map<String, Object?> sessionSnapshot,
     SavedRouteDestination? route,
   }) => OfflinePhotographyPack._(
     id: id,
@@ -516,7 +513,7 @@ class OfflinePhotographyPack {
     route: route,
     places: List.unmodifiable(places),
     windows: List.unmodifiable(windows),
-    opportunitySnapshot: _immutableStructuredMap(opportunitySnapshot),
+    sessionSnapshot: _immutableStructuredMap(sessionSnapshot),
   );
 
   final String id;
@@ -526,7 +523,7 @@ class OfflinePhotographyPack {
   final SavedRouteDestination? route;
   final List<SavedPlace> places;
   final List<OfflinePhotographyWindow> windows;
-  final Map<String, Object?> opportunitySnapshot;
+  final Map<String, Object?> sessionSnapshot;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -536,7 +533,7 @@ class OfflinePhotographyPack {
     if (route != null) 'route': route!.toJson(),
     'places': places.map((place) => place.toJson()).toList(growable: false),
     'windows': windows.map((window) => window.toJson()).toList(growable: false),
-    'opportunitySnapshot': opportunitySnapshot,
+    'sessionSnapshot': sessionSnapshot,
   };
 }
 
@@ -565,8 +562,8 @@ class UserLibraryState {
     this.journeys = const [],
     this.importedTracks = const [],
     this.savedNotes = const [],
-    this.watchedOpportunities = const [],
-    this.opportunityResults = const [],
+    this.watchedSessions = const [],
+    this.sessionResults = const [],
     this.offlinePhotographyPacks = const [],
   });
 
@@ -576,8 +573,8 @@ class UserLibraryState {
   final List<SavedJourney> journeys;
   final List<ImportedRouteTrack> importedTracks;
   final List<SavedInspirationNote> savedNotes;
-  final List<WatchedPhotographyOpportunity> watchedOpportunities;
-  final List<PhotographyOpportunityResult> opportunityResults;
+  final List<WatchedShootingSession> watchedSessions;
+  final List<ShootingSessionResult> sessionResults;
   final List<OfflinePhotographyPack> offlinePhotographyPacks;
 
   bool containsPlace(String id) => savedPlaces.any((place) => place.id == id);
@@ -598,8 +595,8 @@ class UserLibraryState {
     List<SavedJourney>? journeys,
     List<ImportedRouteTrack>? importedTracks,
     List<SavedInspirationNote>? savedNotes,
-    List<WatchedPhotographyOpportunity>? watchedOpportunities,
-    List<PhotographyOpportunityResult>? opportunityResults,
+    List<WatchedShootingSession>? watchedSessions,
+    List<ShootingSessionResult>? sessionResults,
     List<OfflinePhotographyPack>? offlinePhotographyPacks,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
@@ -608,12 +605,8 @@ class UserLibraryState {
     journeys: List.unmodifiable(journeys ?? this.journeys),
     importedTracks: List.unmodifiable(importedTracks ?? this.importedTracks),
     savedNotes: List.unmodifiable(savedNotes ?? this.savedNotes),
-    watchedOpportunities: List.unmodifiable(
-      watchedOpportunities ?? this.watchedOpportunities,
-    ),
-    opportunityResults: List.unmodifiable(
-      opportunityResults ?? this.opportunityResults,
-    ),
+    watchedSessions: List.unmodifiable(watchedSessions ?? this.watchedSessions),
+    sessionResults: List.unmodifiable(sessionResults ?? this.sessionResults),
     offlinePhotographyPacks: List.unmodifiable(
       offlinePhotographyPacks ?? this.offlinePhotographyPacks,
     ),
@@ -621,11 +614,11 @@ class UserLibraryState {
 
   /// Stable local-only payload for a future user-initiated file export.
   Map<String, Object?> toExportJson() => {
-    'format': 'lumanest-local-library-v2',
-    'watchedOpportunities': watchedOpportunities
+    'format': 'lumanest-local-library-v4',
+    'watchedSessions': watchedSessions
         .map((value) => value.toJson())
         .toList(growable: false),
-    'opportunityResults': opportunityResults
+    'sessionResults': sessionResults
         .map((value) => value.toJson())
         .toList(growable: false),
     'offlinePhotographyPacks': offlinePhotographyPacks

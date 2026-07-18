@@ -69,6 +69,7 @@ test('search provider failures reduce to a stable error without response details
 
 test('extract contract requires attributable evidence and rejects safety or wildlife schema abuse', () => {
   const body = {
+    missionType: 'humanityEvents',
     focus: '海宁近期摄影活动', locale: 'zh-CN', region: { latitude: 30.52, longitude: 120.68 },
     evidence: [{
       title: '活动公告', snippet: '本周末在盐官举办摄影展。', url: 'https://culture.example.gov.cn/event',

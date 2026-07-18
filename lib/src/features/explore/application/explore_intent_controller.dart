@@ -71,12 +71,10 @@ class ExploreIntentController extends Notifier<ExploreIntentState> {
     final sceneCategory = switch (scene) {
       SceneType.lake => NearbyPlaceCategory.waterfront,
       SceneType.village => NearbyPlaceCategory.humanity,
-      SceneType.unknown ||
       SceneType.city ||
       SceneType.mountain ||
       SceneType.desert ||
-      SceneType.driving ||
-      SceneType.hiking => NearbyPlaceCategory.viewpoint,
+      SceneType.unknown => NearbyPlaceCategory.viewpoint,
     };
     if (sceneCategory == state.sceneCategory) return;
     state = ExploreIntentState(

@@ -36,7 +36,7 @@ test('requires a base64 encoded 32-byte master key', () => {
 test('persists no sensitive plaintext and restores values with the same key', async () => {
   await withTemporaryStore(async ({ store, filePath }) => {
     const value = {
-      aiApiKey: 'sk-secret-1234',
+      serviceToken: 'sk-secret-1234',
       amapWebKey: 'amap-secret-5678',
       settings: { aiEnabled: true },
     };
@@ -54,7 +54,7 @@ test('persists no sensitive plaintext and restores values with the same key', as
 
 test('rejects a corrupted authentication tag', async () => {
   await withTemporaryStore(async ({ store, filePath }) => {
-    await store.write({ aiApiKey: 'sk-secret-1234' });
+    await store.write({ serviceToken: 'sk-secret-1234' });
     const document = JSON.parse(await readFile(filePath, 'utf8'));
     document.authenticationTag = Buffer.alloc(16, 9).toString('base64');
     await import('node:fs/promises').then(({ writeFile }) =>
@@ -68,7 +68,7 @@ test('writes through a temporary file and atomically renames it', async () => {
   const operations = [];
   const fileSystem = await import('node:fs/promises');
   await withTemporaryStore(async ({ store, filePath }) => {
-    await store.write({ aiApiKey: 'first' });
+    await store.write({ serviceToken: 'first' });
     assert.equal(operations.length, 1);
     assert.match(operations[0].from, /\.tmp-/);
     assert.equal(operations[0].to, filePath);
@@ -87,10 +87,10 @@ test('a failed rename leaves the previous configuration readable', async () => {
   const fileSystem = await import('node:fs/promises');
   let failRename = false;
   await withTemporaryStore(async ({ store }) => {
-    await store.write({ aiApiKey: 'first' });
+    await store.write({ serviceToken: 'first' });
     failRename = true;
-    await assert.rejects(() => store.write({ aiApiKey: 'second' }), /simulated rename failure/);
-    assert.deepEqual(await store.read(), { aiApiKey: 'first' });
+    await assert.rejects(() => store.write({ serviceToken: 'second' }), /simulated rename failure/);
+    assert.deepEqual(await store.read(), { serviceToken: 'first' });
   }, {
     fileSystem: {
       ...fileSystem,
@@ -105,21 +105,21 @@ test('a failed rename leaves the previous configuration readable', async () => {
 test('serializes concurrent saves into one valid final document', async () => {
   await withTemporaryStore(async ({ store }) => {
     await Promise.all([
-      store.write({ revision: 1, aiApiKey: 'first' }),
-      store.write({ revision: 2, aiApiKey: 'second' }),
+      store.write({ revision: 1, serviceToken: 'first' }),
+      store.write({ revision: 2, serviceToken: 'second' }),
     ]);
-    assert.deepEqual(await store.read(), { revision: 2, aiApiKey: 'second' });
+    assert.deepEqual(await store.read(), { revision: 2, serviceToken: 'second' });
   });
 });
 
 test('masked output reports only configuration state and last four characters', async () => {
   await withTemporaryStore(async ({ store }) => {
     assert.deepEqual(store.masked({
-      aiApiKey: 'sk-secret-1234',
+      serviceToken: 'sk-secret-1234',
       amapWebKey: '',
       aiModel: 'qwen-plus',
     }), {
-      aiApiKey: { configured: true, lastFour: '1234' },
+      serviceToken: { configured: true, lastFour: '1234' },
       amapWebKey: { configured: false, lastFour: null },
       aiModel: 'qwen-plus',
     });

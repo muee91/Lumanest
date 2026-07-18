@@ -9,6 +9,8 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 
 void main() {
   test('saved authority notes reject non-HTTPS action targets', () {
@@ -20,7 +22,7 @@ void main() {
         emoji: '✨',
         category: InspirationCategory.light,
         kind: InspirationNoteKind.factualOpportunity,
-        action: ManifestAction.openAuthority,
+        action: ManifestAction.openAstronomyDetail,
         detail: '不应打开非 HTTPS 地址。',
         priority: 100,
         ttl: const Duration(minutes: 30),
@@ -336,16 +338,14 @@ void main() {
     expect(store.value.journeys, hasLength(1));
     expect(store.value.importedTracks, hasLength(1));
 
-    await controller.watchOpportunity(
-      opportunityId: 'blue-hour',
-      snapshotId: 'snapshot-1',
-      title: '蓝调窗口',
-      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    final session = ContextFixtures.waterEveningSession(
+      observedAt: DateTime.now(),
     );
-    await controller.recordOpportunityResult(
-      opportunityId: 'blue-hour',
+    await controller.watchSession(session: session, snapshotId: 'snapshot-1');
+    await controller.recordShootingSessionResult(
+      session: session,
       snapshotId: 'snapshot-1',
-      outcome: PhotographyOpportunityOutcome.shot,
+      outcome: ShootingSessionOutcome.captured,
     );
     await controller.saveOfflinePhotographyPack(
       OfflinePhotographyPack.create(
@@ -354,7 +354,7 @@ void main() {
         dataTimestamp: DateTime.now().subtract(const Duration(minutes: 1)),
         places: const [],
         windows: const [],
-        opportunitySnapshot: const {'opportunityId': 'blue-hour'},
+        sessionSnapshot: const {'sessions': []},
       ),
     );
 
@@ -362,8 +362,8 @@ void main() {
     expect(store.value.recentRoute, isNull);
     expect(store.value.savedRoutes, hasLength(1));
     expect(store.value.journeys, hasLength(1));
-    expect(store.value.watchedOpportunities, hasLength(1));
-    expect(store.value.opportunityResults, hasLength(1));
+    expect(store.value.watchedSessions, hasLength(1));
+    expect(store.value.sessionResults, hasLength(1));
     expect(store.value.offlinePhotographyPacks, hasLength(1));
 
     await controller.clearSavedRoutes();
@@ -388,7 +388,7 @@ void main() {
       addTearDown(container.dispose);
       await container.read(userLibraryProvider.future);
       const note = InspirationNote(
-        id: 'reflection',
+        id: 'session.water.evening',
         label: '找倒影',
         emoji: '🪞',
         category: InspirationCategory.place,
@@ -405,7 +405,10 @@ void main() {
 
       expect(store.value.savedNotes, hasLength(1));
       expect(store.value.savedNotes.single.displayLabel, '找倒影🪞');
-      expect(store.value.savedNotes.single.sourceNoteId, 'reflection');
+      expect(
+        store.value.savedNotes.single.sourceNoteId,
+        'session.water.evening',
+      );
       expect(
         store.value.savedNotes.single.action,
         ManifestAction.openExplore.name,
@@ -428,17 +431,15 @@ void main() {
       await container.read(userLibraryProvider.future);
       final controller = container.read(userLibraryProvider.notifier);
 
-      await controller.watchOpportunity(
-        opportunityId: 'alpenglow',
-        snapshotId: 'snapshot-2',
-        title: '金山窗口',
-        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      final session = ContextFixtures.waterEveningSession(
+        observedAt: DateTime.now(),
       );
-      await controller.recordOpportunityResult(
-        opportunityId: 'alpenglow',
+      await controller.watchSession(session: session, snapshotId: 'snapshot-2');
+      await controller.recordShootingSessionResult(
+        session: session,
         snapshotId: 'snapshot-2',
-        outcome: PhotographyOpportunityOutcome.missed,
-        reason: '到达太晚',
+        outcome: ShootingSessionOutcome.arrivedLate,
+        reasons: const {ShootingSessionOutcomeReason.target},
       );
       await controller.saveOfflinePhotographyPack(
         OfflinePhotographyPack.create(
@@ -454,25 +455,22 @@ void main() {
               endsAt: DateTime.utc(2026, 7, 16, 6),
             ),
           ],
-          opportunitySnapshot: const {'eventId': 'mist'},
+          sessionSnapshot: const {'sessions': []},
         ),
       );
 
+      expect(store.value.watchedSessions.single.sessionId, session.id);
       expect(
-        store.value.watchedOpportunities.single.opportunityId,
-        'alpenglow',
-      );
-      expect(
-        store.value.opportunityResults.single.outcome,
-        PhotographyOpportunityOutcome.missed,
+        store.value.sessionResults.single.outcome,
+        ShootingSessionOutcome.arrivedLate,
       );
       expect(store.value.offlinePhotographyPacks.single.name, '山谷清晨');
-      expect(store.value.toExportJson()['format'], 'lumanest-local-library-v2');
+      expect(store.value.toExportJson()['format'], 'lumanest-local-library-v4');
 
       await controller.clearPhotographyActivity();
 
-      expect(store.value.watchedOpportunities, isEmpty);
-      expect(store.value.opportunityResults, isEmpty);
+      expect(store.value.watchedSessions, isEmpty);
+      expect(store.value.sessionResults, isEmpty);
       expect(store.value.offlinePhotographyPacks, isEmpty);
     },
   );

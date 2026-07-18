@@ -109,18 +109,21 @@ function normalizedCurrent(body, fetchedAt) {
 
 function normalizedForecast(hourlyBody, minutelyBody, fetchedAt) {
   const hourly = hourlyBody?.code === '200' && Array.isArray(hourlyBody.hourly)
-    ? hourlyBody.hourly.slice(0, 6)
+    ? hourlyBody.hourly.slice(0, 24)
     : [];
   const minutely = minutelyBody?.code === '200' && Array.isArray(minutelyBody.minutely)
     ? minutelyBody.minutely.slice(0, 12)
     : [];
-  const windSpeeds = hourly.map((item) => finite(item.windSpeed, 0, 540)).filter((value) => value != null);
+  const nextThreeHours = hourly.slice(0, 3);
+  const windSpeeds = nextThreeHours
+    .map((item) => finite(item.windSpeed, 0, 540))
+    .filter((value) => value != null);
   const precipitation = minutely.map((item) => finite(item.precip, 0, 500)).filter((value) => value != null);
   return {
     observedAt: fetchedAt.toISOString(),
     nextHourPrecipitationMm: precipitation.reduce((sum, value) => sum + value, 0),
     nextThreeHoursMaxWindSpeedMps: windSpeeds.length === 0 ? null : Math.max(...windSpeeds) / 3.6,
-    thunderNextThreeHours: hourly.some((item) => thunderFromIcon(item.icon)),
+    thunderNextThreeHours: nextThreeHours.some((item) => thunderFromIcon(item.icon)),
     hourly: hourly.flatMap((item) => {
       const at = new Date(item.fxTime);
       const windSpeed = finite(item.windSpeed, 0, 540);
@@ -129,7 +132,8 @@ function normalizedForecast(hourlyBody, minutelyBody, fetchedAt) {
       return [{
         at: at.toISOString(), condition: conditionFromIcon(item.icon),
         cloudCoverPercent: finite(item.cloud, 0, 100), windSpeedMps: windSpeed / 3.6,
-        precipitationMm: precipitationMm ?? 0, thunder: thunderFromIcon(item.icon),
+        precipitationMm: precipitationMm ?? 0, visibilityKm: finite(item.vis, 0, 500),
+        thunder: thunderFromIcon(item.icon),
       }];
     }),
   };

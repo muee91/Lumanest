@@ -12,17 +12,20 @@ from app.store import DiscoveryStore, REFRESH_STREAM
 
 def payload() -> dict:
     return {
-        "contractVersion": 1,
-        "coordinate": {"latitude": 30.25, "longitude": 120.15, "system": "wgs84"},
+        "missionType": "humanityEvents",
+        "focus": "早市 夜市 展览",
         "locale": "zh-CN",
-        "focus": "photography",
+        "region": {"latitude": 30.25, "longitude": 120.15, "radiusMeters": 5000},
+        "timeRange": {"startsAt": "2026-07-18T00:00:00Z", "endsAt": "2026-07-25T00:00:00Z"},
+        "routeCorridor": None,
+        "interests": ["humanityStreet"],
         "sourcePolicies": [{"id": "official-source", "version": "2026-07"}],
     }
 
 
 def ready_response() -> DiscoveryResponse:
     return DiscoveryResponse.model_validate({
-        "contractVersion": 1,
+        "missionType": "humanityEvents",
         "status": "ready",
         "generatedAt": "2026-07-20T00:00:00Z",
         "expiresAt": "2026-07-20T00:10:00Z",
@@ -166,7 +169,7 @@ async def test_store_returns_only_approved_evidence_with_a_nonempty_title():
     assert items[0].evidence[0].title == "公开目录记录"
     assert "review_status = 'approved'" in captured["sql"]
     assert "title IS NOT NULL" in captured["sql"]
-    assert captured["parameters"]["kinds"] == ["candidate_viewpoint"]
+    assert captured["parameters"]["kinds"] == ["event"]
 
 
 @pytest.mark.asyncio

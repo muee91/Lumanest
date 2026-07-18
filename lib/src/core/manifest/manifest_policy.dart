@@ -3,6 +3,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 
 abstract final class ManifestPolicy {
   static UiManifest build(
@@ -53,11 +54,7 @@ abstract final class ManifestPolicy {
       final event = currentEvents[id];
       if (event == null) continue;
       final template = _creativeItem(id);
-      creative.add(
-        template != null
-            ? template.withEvent(event)
-            : _unknownCreativeItem(id, event).withEvent(event),
-      );
+      if (template != null) creative.add(template.withEvent(event));
     }
     final orderedCreative = _personalizeCreative(creative, personalization);
     final primary = orderedCreative.firstOrNull;
@@ -216,44 +213,23 @@ abstract final class ManifestPolicy {
   // ---------------------------------------------------------------------------
 
   static ManifestItem? _creativeItem(String id) {
-    return switch (id) {
-      'reflection' => const ManifestItem(
-        id: 'reflection',
-        title: '倒影条件改善',
-        action: ManifestAction.openExplore,
-      ),
-      'blue-hour' => const ManifestItem(
-        id: 'blue-hour',
-        title: '蓝调窗口将近',
-        action: ManifestAction.openShootingWindow,
-      ),
-      'alpenglow' => const ManifestItem(
-        id: 'alpenglow',
-        title: '金山条件正在形成',
-        action: ManifestAction.openShootingWindow,
-      ),
-      'mist' => const ManifestItem(
-        id: 'mist',
-        title: '雾气带来层次',
-        action: ManifestAction.openWeather,
-      ),
-      'dust-light' => const ManifestItem(
-        id: 'dust-light',
-        title: '风沙侧光正在形成',
-        action: ManifestAction.openShootingWindow,
-      ),
-      'humanity-light' => const ManifestItem(
-        id: 'humanity-light',
-        title: '街巷光线正在变暖',
-        action: ManifestAction.openExplore,
-      ),
-      'route-light-window' => const ManifestItem(
-        id: 'route-light-window',
-        title: '沿途光线窗口',
-        action: ManifestAction.openRoute,
-      ),
-      _ => null,
-    };
+    if (id == 'regional-wildlife') {
+      return const ManifestItem(
+        id: 'regional-wildlife',
+        title: '附近生态线索',
+        action: ManifestAction.openWildlifeDetail,
+      );
+    }
+    final definition = OpportunityCatalog.current.byId[id];
+    if (definition == null || !definition.isActiveCore) return null;
+    final degraded = definition.coreCapability == CoreCapabilityState.degraded;
+    return ManifestItem(
+      id: id,
+      title: degraded
+          ? definition.presentation.degradedName ?? definition.presentation.name
+          : definition.presentation.name,
+      action: ManifestAction.fromContextAction(definition.primaryAction),
+    );
   }
 
   static ManifestItem? _safetyItem(String id) {
@@ -261,27 +237,27 @@ abstract final class ManifestPolicy {
       'thunderstorm' => const ManifestItem(
         id: 'thunderstorm',
         title: '雷暴正在接近',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       'strong-wind' => const ManifestItem(
         id: 'strong-wind',
         title: '当前风力较强',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       'heavy-rain' => const ManifestItem(
         id: 'heavy-rain',
         title: '当前降水较强',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       'unhealthy-air' => const ManifestItem(
         id: 'unhealthy-air',
         title: '当前空气质量不适合长时间户外拍摄',
-        action: ManifestAction.openWeather,
+        action: ManifestAction.openSafetyDetail,
       ),
       'hiking-return-check' => const ManifestItem(
         id: 'hiking-return-check',
         title: '留意返程时间',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       _ => null,
     };
@@ -292,7 +268,7 @@ abstract final class ManifestPolicy {
       'regional-wildlife' => const ManifestItem(
         id: 'regional-wildlife',
         title: '附近有野外线索',
-        action: ManifestAction.openExplore,
+        action: ManifestAction.openWildlifeDetail,
       ),
       _ => null,
     };
@@ -303,17 +279,17 @@ abstract final class ManifestPolicy {
       'bear-risk' => const ManifestItem(
         id: 'bear-risk',
         title: '进入熊类历史活动区域',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       'boar-risk' => const ManifestItem(
         id: 'boar-risk',
         title: '进入野猪历史活动区域',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       'snake-risk' => const ManifestItem(
         id: 'snake-risk',
         title: '进入蛇类历史活动区域',
-        action: ManifestAction.openSafety,
+        action: ManifestAction.openSafetyDetail,
       ),
       _ => null,
     };
@@ -329,35 +305,21 @@ abstract final class ManifestPolicy {
       title: title,
       action: event.allowedAction != null
           ? ManifestAction.fromContextAction(event.allowedAction!)
-          : ManifestAction.openSafety,
-    );
-  }
-
-  /// Generic fallback for an unknown-but-structured creative event.
-  static ManifestItem _unknownCreativeItem(String id, ContextEvent event) {
-    return ManifestItem(
-      id: id,
-      title: event.title ?? '拍摄机会',
-      action: event.allowedAction != null
-          ? ManifestAction.fromContextAction(event.allowedAction!)
-          : ManifestAction.openExplore,
+          : ManifestAction.openSafetyDetail,
     );
   }
 
   static String _summaryFor(ContextSnapshot snapshot, ManifestItem? primary) {
-    final opportunitySummary = switch (primary?.id) {
-      'reflection' => '风正在变小，湖面倒影条件开始改善。',
-      'blue-hour' => '天色即将进入蓝调，城市光线会更干净。',
-      'alpenglow' => '低角度光线与山体条件正在靠近有效窗口。',
-      'mist' => '雾气正在为画面增加层次。',
-      'regional-wildlife' => '附近有公开的野生动物活动记录，适合放慢脚步观察。',
-      'dust-light' => '风沙与低角度光线正在形成粗粝的空间层次。',
-      'humanity-light' => '晨昏光线正在进入街巷，适合先观察再拍摄。',
-      'route-light-window' => '沿途光线条件适合短暂停靠。',
-      _ => null,
-    };
+    final definition = primary == null
+        ? null
+        : OpportunityCatalog.current.byId[primary.id];
+    final opportunitySummary = primary?.id == 'regional-wildlife'
+        ? '附近有公开的野生动物活动记录，适合放慢脚步观察。'
+        : definition?.isActiveCore == true
+        ? definition?.presentation.fallbackSummary
+        : null;
     if (opportunitySummary != null) return opportunitySummary;
-    if (primary?.action == ManifestAction.openAuthority) {
+    if (primary?.action == ManifestAction.openAstronomyDetail) {
       return '已审核天象目录显示：${primary!.title}。实际可见性仍取决于本地天气与视野。';
     }
 
@@ -368,23 +330,17 @@ abstract final class ManifestPolicy {
       SceneType.mountain => '山体光线条件暂不突出。',
       SceneType.desert => '留意地表纹理与远处层次。',
       SceneType.village => '慢下来观察街巷与人的关系。',
-      SceneType.driving => '沿途暂时没有需要停靠的拍摄机会。',
-      SceneType.hiking => '按当前节奏前进，留意环境变化。',
     };
   }
 
   static String _inspirationFor(ManifestItem? primary) {
-    return switch (primary?.id) {
-      'reflection' => '找倒影🪞',
-      'blue-hour' => '蓝调了🌆',
-      'alpenglow' => '金山⛰️',
-      'mist' => '起雾了🌫️',
-      'regional-wildlife' => '野外线索🦌',
-      'dust-light' => '风沙光🏜️',
-      'humanity-light' => '进巷子🏮',
-      'route-light-window' => '沿途光🚗',
-      _ => primary?.action == ManifestAction.openAuthority ? '看天象✨' : '',
-    };
+    if (primary == null) return '';
+    if (primary.id == 'regional-wildlife') return '野外线索🦌';
+    final definition = OpportunityCatalog.current.byId[primary.id];
+    if (definition?.isActiveCore == true) {
+      return '${definition!.presentation.shortLabel}${definition.presentation.emoji}';
+    }
+    return primary.action == ManifestAction.openAstronomyDetail ? '看天象✨' : '';
   }
 }
 

@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 
 enum PhotographyPreference { landscape, humanities, astro, city }
 
@@ -48,28 +49,23 @@ class CreativePersonalization {
       .toString();
 
   bool matchesCreativeEvent(String eventId) {
-    for (final preference in photographyPreferences) {
-      if (_photographyEvents[preference]!.contains(eventId)) return true;
+    if (eventId == 'regional-wildlife') {
+      return activityPreferences.any(
+        (value) => value != ActivityPreference.driving,
+      );
     }
-    for (final preference in activityPreferences) {
-      if (_activityEvents[preference]!.contains(eventId)) return true;
-    }
-    return false;
+    final definition = OpportunityCatalog.current.byId[eventId];
+    if (definition == null || !definition.isActiveCore) return false;
+    final affinities = definition.preferenceAffinities;
+    return photographyPreferences.any(
+          (value) =>
+              affinities.intersection(_photographyAffinities(value)).isNotEmpty,
+        ) ||
+        activityPreferences.any((value) => _matchesActivity(value, definition));
   }
 
-  double affinityForCreativeEvent(String eventId) {
-    final pieces = eventId.split('-');
-    final kind = eventId.startsWith('photo-') && pieces.length >= 3
-        ? pieces[1]
-        : switch (eventId) {
-            'blue-hour' => 'blueHour',
-            'reflection' => 'reflection',
-            'alpenglow' => 'alpenglow',
-            'mist' => 'morningMist',
-            _ => null,
-          };
-    return kind == null ? 0 : (localAffinity[kind] ?? 0);
-  }
+  double affinityForCreativeEvent(String eventId) =>
+      localAffinity[eventId] ?? 0;
 
   String _canonicalFingerprintInput() {
     final photography =
@@ -83,27 +79,39 @@ class CreativePersonalization {
   }
 }
 
-const _photographyEvents = <PhotographyPreference, Set<String>>{
-  PhotographyPreference.landscape: {
-    'reflection',
-    'blue-hour',
-    'alpenglow',
-    'mist',
-    'dust-light',
-    'route-light-window',
+Set<PhotographyPreferenceId> _photographyAffinities(
+  PhotographyPreference preference,
+) => switch (preference) {
+  PhotographyPreference.landscape => const {
+    PhotographyPreferenceId.mountainLandform,
+    PhotographyPreferenceId.waterCoast,
+    PhotographyPreferenceId.forestDetail,
+    PhotographyPreferenceId.aerialSpatial,
   },
-  PhotographyPreference.humanities: {'humanity-light'},
-  PhotographyPreference.astro: {},
-  PhotographyPreference.city: {'blue-hour', 'humanity-light'},
+  PhotographyPreference.humanities => const {
+    PhotographyPreferenceId.humanityStreet,
+  },
+  PhotographyPreference.astro => const {PhotographyPreferenceId.astroCelestial},
+  PhotographyPreference.city => const {
+    PhotographyPreferenceId.cityArchitecture,
+  },
 };
 
-const _activityEvents = <ActivityPreference, Set<String>>{
-  ActivityPreference.driving: {'route-light-window'},
-  ActivityPreference.lightHiking: {'alpenglow', 'mist', 'regional-wildlife'},
-  ActivityPreference.backpacking: {'alpenglow', 'mist', 'regional-wildlife'},
-  ActivityPreference.nicheExploration: {
-    'dust-light',
-    'humanity-light',
-    'regional-wildlife',
-  },
+bool _matchesActivity(
+  ActivityPreference activity,
+  OpportunityDefinition definition,
+) => switch (activity) {
+  ActivityPreference.driving => definition.id == 'session.route.light_window',
+  ActivityPreference.lightHiking ||
+  ActivityPreference.backpacking => definition.preferenceAffinities.any(
+    const {
+      PhotographyPreferenceId.mountainLandform,
+      PhotographyPreferenceId.forestDetail,
+      PhotographyPreferenceId.wildlifeEcology,
+    }.contains,
+  ),
+  ActivityPreference.nicheExploration =>
+    definition.family == OpportunityFamily.landform ||
+        definition.family == OpportunityFamily.ecology ||
+        definition.family == OpportunityFamily.humanityRoute,
 };

@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_cache.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/persistent_context_cache.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
-import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -27,12 +29,12 @@ void main() {
         dayPhase: DayPhase.sunset,
         weather: WeatherType.cloudy,
         activeRoute: false,
-        opportunityIds: const ['reflection'],
+        opportunityIds: const ['session.water.evening'],
         safetyEventIds: const ['strong-wind'],
         wildlifeEventIds: const ['regional-wildlife'],
         events: [
           ContextEvent(
-            id: 'reflection',
+            id: 'session.water.evening',
             channel: ContextEventChannel.opportunity,
             source: ContextEventSource.rule,
             observedAt: now,
@@ -49,12 +51,15 @@ void main() {
             observedAt: now,
             expiresAt: now.add(const Duration(hours: 2)),
             confidence: 1,
-            geoScope: ContextGeoScope.regional,
+            geoScope: ContextGeoScope.region,
             safetyLevel: ContextSafetyLevel.info,
-            allowedAction: ContextAction.openAuthority,
+            allowedAction: ContextAction.openAstronomyDetail,
             title: '英仙座流星雨极大期',
             sourceUri: Uri.parse('https://science.nasa.gov/meteor-showers/'),
           ),
+        ],
+        shootingSessions: [
+          ContextFixtures.waterEveningSession(observedAt: now),
         ],
         wildlifeActivity: RegionalWildlifeActivity(
           contractVersion: 2,
@@ -127,7 +132,7 @@ void main() {
         routeStage: ContextRouteStage.none,
         allowedActions: const [
           ContextAction.openExplore,
-          ContextAction.openAuthority,
+          ContextAction.openAstronomyDetail,
         ],
       );
 
@@ -161,8 +166,19 @@ void main() {
       expect(restored?.airQualityStale, isFalse);
       expect(restored?.events.first.allowedAction, ContextAction.openExplore);
       expect(restored?.events.last.title, '英仙座流星雨极大期');
-      expect(restored?.events.last.allowedAction, ContextAction.openAuthority);
+      expect(
+        restored?.events.last.allowedAction,
+        ContextAction.openAstronomyDetail,
+      );
       expect(restored?.events.last.sourceUri?.scheme, 'https');
+      expect(restored?.shootingSessions, hasLength(1));
+      expect(
+        restored?.shootingSessions.single.primaryPhase,
+        ShootingPhaseKind.reflection,
+      );
+      expect(restored?.shootingSessions.single.recommendedCapabilities, {
+        EquipmentCapability.tripod,
+      });
     },
   );
 
@@ -203,64 +219,6 @@ void main() {
 
     expect(await cache.readLatest(), isNull);
   });
-
-  test(
-    'round-trips fresh V3 photography opportunities and stale drops them',
-    () async {
-      final preferences = SharedPreferencesAsync();
-      const key = 'context-cache-photography-opportunities';
-      final now = DateTime.utc(2026, 7, 17, 11);
-      final snapshot = ContextSnapshot(
-        id: 'ctx-photo',
-        observedAt: now,
-        expiresAt: now.add(const Duration(minutes: 15)),
-        primaryScene: SceneType.lake,
-        dayPhase: DayPhase.sunset,
-        weather: WeatherType.cloudy,
-        activeRoute: false,
-        photographyOpportunities: [
-          PhotographyOpportunity(
-            id: 'photo-reflection-2026071711',
-            kind: PhotographyOpportunityKind.reflection,
-            title: '倒影窗口',
-            startsAt: now.add(const Duration(minutes: 5)),
-            peaksAt: now.add(const Duration(minutes: 20)),
-            expiresAt: now.add(const Duration(minutes: 40)),
-            score: 74,
-            confidence: .76,
-            geoScope: PhotographyOpportunityGeoScope.point,
-            primaryAction: ContextAction.openExplore,
-            fallbackAction: ContextAction.openShootingWindow,
-            equipmentHints: const ['偏振镜'],
-            evidence: const [
-              PhotographyEvidence(
-                id: 'photo-reflection-2026071711:0',
-                kind: PhotographyEvidenceKind.weather,
-                statement: '风速 2.0m/s',
-                confidence: .76,
-              ),
-            ],
-          ),
-        ],
-      );
-
-      await PersistentContextCache(
-        preferences,
-        storageKey: key,
-      ).write(snapshot);
-      final restored = await PersistentContextCache(
-        preferences,
-        storageKey: key,
-      ).readLatest();
-
-      expect(restored?.photographyOpportunities.single.equipmentHints, ['偏振镜']);
-      expect(
-        restored?.photographyOpportunities.single.primaryAction,
-        ContextAction.openExplore,
-      );
-      expect(restored?.asStale().photographyOpportunities, isEmpty);
-    },
-  );
 
   group('server manifest', () {
     test(
@@ -337,40 +295,36 @@ void main() {
       expect(restored?.serverManifest?.safetyEventIds, isEmpty);
     });
 
-    test(
-      'reads null serverManifest from old-format snapshot (no key)',
-      () async {
-        final preferences = SharedPreferencesAsync();
-        const key = 'manifest-absent-key';
-        // Hand-craft a JSON cache entry without the serverManifest key.
-        final encoded = jsonEncode({
-          'version': 2,
-          'snapshot': {
-            'id': 'no-manifest',
-            'observedAt': '2026-07-13T10:00:00.000Z',
-            'expiresAt': '2026-07-13T10:15:00.000Z',
-            'primaryScene': 'city',
-            'dayPhase': 'day',
-            'weather': 'clear',
-            'activeRoute': false,
-            'dataFreshness': 'fresh',
-            'routeMode': 'none',
-            'routeStage': 'none',
-            'events': [],
-            'isStale': false,
-          },
-        });
-        await preferences.setString(key, encoded);
+    test('rejects an unsupported cache schema version', () async {
+      final preferences = SharedPreferencesAsync();
+      const key = 'manifest-absent-key';
+      // Hand-craft a JSON cache entry without the serverManifest key.
+      final encoded = jsonEncode({
+        'version': 2,
+        'snapshot': {
+          'id': 'no-manifest',
+          'observedAt': '2026-07-13T10:00:00.000Z',
+          'expiresAt': '2026-07-13T10:15:00.000Z',
+          'primaryScene': 'city',
+          'dayPhase': 'day',
+          'weather': 'clear',
+          'activeRoute': false,
+          'dataFreshness': 'fresh',
+          'routeMode': 'none',
+          'routeStage': 'none',
+          'events': [],
+          'isStale': false,
+        },
+      });
+      await preferences.setString(key, encoded);
 
-        final restored = await PersistentContextCache(
-          preferences,
-          storageKey: key,
-        ).readLatest();
+      final restored = await PersistentContextCache(
+        preferences,
+        storageKey: key,
+      ).readLatest();
 
-        expect(restored?.id, 'no-manifest');
-        expect(restored?.serverManifest, isNull);
-      },
-    );
+      expect(restored, isNull);
+    });
 
     test('returns null when manifest has unknown layout', () async {
       final preferences = SharedPreferencesAsync();

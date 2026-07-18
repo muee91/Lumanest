@@ -104,8 +104,8 @@ void main() {
     });
 
     test('uses the three-tier radii tokens', () {
-      expect(LumaNestRadii.compact, 8);
-      expect(LumaNestRadii.regular, 16);
+      expect(LumaNestRadii.compact, 18);
+      expect(LumaNestRadii.regular, 22);
       expect(LumaNestRadii.expansive, 28);
 
       final theme = LumaNestTheme.light;
@@ -127,13 +127,13 @@ void main() {
             .x,
         LumaNestRadii.regular,
       );
-      // Sheets use the expansive tier.
+      // Sheets use the dedicated 30px top radius from the final token set.
       expect(
         (theme.bottomSheetTheme.shape as RoundedRectangleBorder).borderRadius
             .resolve(TextDirection.ltr)
             .topLeft
             .x,
-        LumaNestRadii.expansive,
+        LumaNestRadii.sheetTop,
       );
     });
 

@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,13 +7,14 @@ from pydantic import ValidationError
 
 from app.main import app
 from app.models import (ContextImportResult, PhotographyTarget, RouteState,
-                        SceneEvidence, SpatialFeaturesImport, WildlifeLayerArea)
+                        SceneEvidence, ShootingTarget, SpatialFeaturesImport,
+                        WildlifeLayerArea)
 from app.store import ContextStore
 
 
 def payload():
     return {
-        "contractVersion": 2,
+        "contractVersion": 4,
         "coordinate": {"latitude": 30.25, "longitude": 120.15, "system": "wgs84"},
         "observedAt": "2026-07-14T10:00:00+08:00",
         "locale": "zh-CN",
@@ -55,9 +57,9 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["contractVersion"] == 2
+        assert body["contractVersion"] == 4
         assert body["scene"] == "lake"
-        assert body["manifest"]["primaryEventId"] == "reflection"
+        assert body["manifest"]["primaryEventId"] == "session.water.evening"
         assert body["dataFreshness"] == {
             "context": "fresh",
             "weather": "fresh",
@@ -69,67 +71,8 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
             "fullMoon", "waningGibbous", "lastQuarter", "waningCrescent",
         }
         assert body["route"] == {"mode": "none", "stage": "none", "active": False}
-        assert body["allowedActions"] == ["openExplore"]
+        assert body["allowedActions"] == ["openShootingWindow"]
         assert "latitude" not in body and "longitude" not in body
-
-
-def test_internal_v3_evaluate_keeps_opportunities_and_their_allowed_actions(monkeypatch):
-    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
-    request = payload() | {
-        "contractVersion": 3,
-        "forecast": payload()["forecast"] | {"hourly": [{
-            "at": "2026-07-14T11:00:00+08:00",
-            "condition": "clear",
-            "cloudCoverPercent": 25,
-            "windSpeedMps": 1.5,
-            "precipitationMm": 0,
-            "thunder": False,
-        }]},
-    }
-    with TestClient(app) as client:
-        response = client.post(
-            "/internal/v1/evaluate",
-            json=request,
-            headers={"X-Internal-Service-Token": "internal-test-token"},
-        )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["contractVersion"] == 3
-    reflection = next(item for item in body["opportunities"] if item["kind"] == "reflection")
-    assert reflection["primaryAction"] in body["allowedActions"]
-    assert reflection["fallbackAction"] in body["allowedActions"]
-
-
-def test_internal_v3_evaluate_exposes_only_the_store_selected_static_target(monkeypatch):
-    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
-
-    async def photography_target(_store, latitude, longitude):
-        assert (latitude, longitude) == (30.25, 120.15)
-        return PhotographyTarget.model_validate({
-            "id": "target_0123456789abcdef01234567", "name": "东岸观景台", "kind": "lakeshore",
-            "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
-            "arrivalDeadline": "2026-07-14T10:00:00+08:00",
-        })
-
-    monkeypatch.setattr(ContextStore, "photography_target", photography_target)
-    request = payload() | {
-        "contractVersion": 3,
-        "forecast": payload()["forecast"] | {"hourly": [{
-            "at": "2026-07-14T11:00:00+08:00", "condition": "clear", "cloudCoverPercent": 25,
-            "windSpeedMps": 1.5, "precipitationMm": 0, "thunder": False,
-        }]},
-    }
-    with TestClient(app) as client:
-        response = client.post("/internal/v1/evaluate", json=request, headers={
-            "X-Internal-Service-Token": "internal-test-token",
-        })
-    reflection = next(item for item in response.json()["opportunities"] if item["kind"] == "reflection")
-    assert reflection["target"] == {
-        "id": "target_0123456789abcdef01234567", "name": "东岸观景台", "kind": "lakeshore",
-        "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
-        "arrivalDeadline": "2026-07-14T11:00:00+08:00",
-    }
 
 
 def test_internal_evaluate_merges_generic_scene_with_reviewed_safety(monkeypatch):
@@ -149,9 +92,139 @@ def test_internal_evaluate_merges_generic_scene_with_reviewed_safety(monkeypatch
     assert response.status_code == 200
     body = response.json()
     assert body["scene"] == "lake"
-    risk = next(event for event in body["events"] if event["id"] == "wildlife-area-risk")
+    risk = next(event for event in body["events"] if event["id"] == "wildlife-safety")
     assert risk["channel"] == "wildlifeSafety"
     assert risk["source"] == "official"
+
+
+def test_internal_target_resolve_verifies_public_id_and_coordinate(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    target = ShootingTarget.model_validate({
+        "id": "target_0123456789abcdef01234567",
+        "name": "东岸审核湖岸",
+        "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
+        "supportedSessions": ["waterEvening"],
+        "viewBearingDegrees": 286,
+        "bearingToleranceDegrees": 25,
+        "accessModes": ["driving", "walking"],
+        "leadTimeMinutes": 12,
+        "arrivalRadiusMeters": 100,
+        "shorelineSide": "east",
+        "reviewedAt": "2026-07-01T00:00:00Z",
+        "reviewReference": "https://review.example/targets/east-bank",
+        "sourceAttribution": "审核目录",
+        "sourceLicense": "CC-BY-4.0",
+        "sourceUrl": "https://source.example/lakes/east-bank",
+    })
+
+    async def resolve(_store, target_id, latitude, longitude):
+        assert target_id == target.id
+        assert (latitude, longitude) == (30.251, 120.151)
+        return target
+
+    monkeypatch.setattr(ContextStore, "resolve_shooting_target", resolve)
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/shooting-targets/resolve",
+            json={
+                "targetId": target.id,
+                "coordinate": {
+                    "latitude": 30.251,
+                    "longitude": 120.151,
+                    "system": "wgs84",
+                },
+            },
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == target.id
+
+
+def test_anonymous_feedback_contract_rejects_location_identity_and_media(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    recorded = []
+
+    async def record(_store, body):
+        recorded.append(body)
+
+    monkeypatch.setattr(ContextStore, "record_shooting_feedback", record)
+    valid = {
+        "contractVersion": 2,
+        "ruleVersion": "water-evening.1",
+        "conditionBand": "good",
+        "factors": [{"id": "wind", "effect": "limiting"}],
+        "outcome": "conditionsDidNotAppear",
+        "reasons": ["wind"],
+        "targetId": None,
+    }
+    with TestClient(app) as client:
+        accepted = client.post(
+            "/internal/v1/shooting-feedback",
+            json=valid,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+        for forbidden in ("coordinate", "deviceId", "photo", "exif"):
+            rejected = client.post(
+                "/internal/v1/shooting-feedback",
+                json=valid | {forbidden: "forbidden"},
+                headers={"X-Internal-Service-Token": "internal-test-token"},
+            )
+            assert rejected.status_code == 422
+
+    assert accepted.status_code == 200
+    assert accepted.json() == {"accepted": True}
+    assert len(recorded) == 1
+
+
+@pytest.mark.asyncio
+async def test_feedback_calibration_returns_only_thresholded_factor_aggregates():
+    captured = {}
+
+    class Result:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [
+                {
+                    "rule_version": "water-evening.1",
+                    "condition_band": "good",
+                    "factor_id": "wind",
+                    "factor_effect": "supporting",
+                    "evaluated_count": 10,
+                    "captured_count": 7,
+                    "conditions_did_not_appear_count": 3,
+                }
+            ]
+
+    class Connection:
+        async def execute(self, statement, parameters):
+            captured["statement"] = str(statement)
+            captured["parameters"] = parameters
+            return Result()
+
+    class ConnectionContext:
+        async def __aenter__(self):
+            return Connection()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Engine:
+        def connect(self):
+            return ConnectionContext()
+
+    since = datetime.now(timezone.utc) - timedelta(days=90)
+    store = ContextStore(None, None)
+    store.engine = Engine()
+    report = await store.shooting_feedback_calibration(since, 5)
+
+    assert report.rows[0].captured_rate == pytest.approx(0.7)
+    assert report.rows[0].evaluated_count == 10
+    assert captured["parameters"] == {"since": since, "minimum_samples": 5}
+    assert "target_id" not in captured["statement"]
+    assert "HAVING COUNT(*) >=" in captured["statement"]
 
 
 def test_unknown_fields_are_rejected(monkeypatch):
@@ -170,7 +243,7 @@ def test_unknown_fields_are_rejected(monkeypatch):
 async def test_cached_snapshot_reads_redis_value_after_astronomy_store_extension():
     class FakeRedis:
         async def get(self, key):
-            assert key == "context:v2:fingerprint"
+            assert key == "context:v5:fingerprint"
             return '{"contextId":"cached"}'
 
     store = ContextStore(None, None)
@@ -283,7 +356,7 @@ def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch
     event = next(item for item in response.json()["events"] if item["source"] == "astronomyCatalog")
     assert event["title"] == "英仙座流星雨极大期"
     assert event["sourceUrl"].startswith("https://")
-    assert event["allowedAction"] == "openAuthority"
+    assert event["allowedAction"] == "openAstronomyDetail"
 
 
 def test_source_status_exposes_all_enabled_qweather_sources(monkeypatch):
@@ -429,7 +502,7 @@ def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(m
     assert warning["id"] == "weather-warning-abcdef123456"
     assert warning["severity"] == "critical"
     assert warning["title"] == "雷电红色预警"
-    assert warning["allowedAction"] == "openSafety"
+    assert warning["allowedAction"] == "openSafetyDetail"
     assert body["sunMoon"]["sunElevationDegrees"] is not None
 
 
@@ -536,6 +609,60 @@ def test_photography_target_import_requires_an_explicit_public_scene_point():
     }]}}
     with pytest.raises(ValueError):
         SpatialFeaturesImport.model_validate(sensitive)
+
+
+def test_shooting_target_import_requires_traceable_license_shoreline_and_review():
+    valid = spatial_import_payload()
+    valid["source"] |= {
+        "licenseId": "CC-BY-4.0",
+        "sourceUrl": "https://source.example/lakes/east-bank",
+        "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    }
+    valid["featureCollection"]["features"][0] = {
+        "type": "Feature",
+        "id": "east-bank-reviewed",
+        "geometry": {"type": "Point", "coordinates": [120.151, 30.251]},
+        "properties": {
+            "kind": "water",
+            "name": "东岸审核湖岸",
+            "photographyTarget": True,
+            "targetType": "lakeshore",
+            "shootingSessionTarget": True,
+            "supportedSessions": ["waterMorning", "waterEvening"],
+            "viewBearingDegrees": 286,
+            "bearingToleranceDegrees": 25,
+            "accessModes": ["driving", "walking"],
+            "leadTimeMinutes": 12,
+            "arrivalRadiusMeters": 100,
+            "shorelineSide": "east",
+            "reviewedAt": "2026-07-18T00:00:00Z",
+            "reviewReference": "https://review.example/targets/east-bank",
+        },
+    }
+
+    imported = SpatialFeaturesImport.model_validate(valid)
+    target = imported.feature_collection.features[0].properties
+    assert target.supported_sessions == ["waterMorning", "waterEvening"]
+    assert target.shoreline_side == "east"
+
+    missing_license = deepcopy(valid)
+    missing_license["source"].pop("licenseId")
+    with pytest.raises(ValueError):
+        SpatialFeaturesImport.model_validate(missing_license)
+
+    missing_review = deepcopy(valid)
+    missing_review["featureCollection"]["features"][0]["properties"].pop(
+        "reviewReference"
+    )
+    with pytest.raises(ValueError):
+        SpatialFeaturesImport.model_validate(missing_review)
+
+    duplicate_sessions = deepcopy(valid)
+    duplicate_sessions["featureCollection"]["features"][0]["properties"][
+        "supportedSessions"
+    ] = ["waterEvening", "waterEvening"]
+    with pytest.raises(ValueError):
+        SpatialFeaturesImport.model_validate(duplicate_sessions)
 
 
 def test_import_requires_reviewed_source_categories_for_wildlife_evidence(monkeypatch):

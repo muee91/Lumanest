@@ -8,7 +8,7 @@ void main() {
   test('posts only bounded creative context to the trusted broker', () async {
     final transport = _FakeTransport({
       'summary': '湖面正在安静下来，可以等等倒影。',
-      'noteLabels': {'reflection': '等倒影'},
+      'noteLabels': {'session.water.evening': '等倒影'},
     });
     final model = DataBrokerManifestNarrativeModel(
       brokerBaseUrl: 'https://broker.example',
@@ -22,7 +22,7 @@ void main() {
         dayPhase: DayPhase.sunset,
         weather: WeatherType.clear,
         activeRoute: false,
-        creativeEventIds: ['reflection'],
+        creativeEventIds: ['session.water.evening'],
         templateSummary: '今晚可以留意湖面倒影。',
       ),
     );
@@ -34,7 +34,7 @@ void main() {
       'dayPhase': 'sunset',
       'weather': 'clear',
       'activeRoute': false,
-      'creativeEventIds': ['reflection'],
+      'creativeEventIds': ['session.water.evening'],
       'templateSummary': '今晚可以留意湖面倒影。',
       'tone': 'balanced',
     });
@@ -45,13 +45,13 @@ void main() {
     expect(transport.body, isNot(contains('equipmentList')));
     expect(transport.body, isNot(contains('preferenceFingerprint')));
     expect(candidate.summary, '湖面正在安静下来，可以等等倒影。');
-    expect(candidate.noteLabels, {'reflection': '等倒影'});
+    expect(candidate.noteLabels, {'session.water.evening': '等倒影'});
   });
 
   test('sends only the selected narrative tone from personalization', () async {
     final transport = _FakeTransport({
       'summary': '街巷光线正在变暖，先观察人与环境的关系再决定拍摄位置。',
-      'noteLabels': {'humanity-light': '看街巷'},
+      'noteLabels': {'session.city.after_rain': '看街巷'},
     });
     final model = DataBrokerManifestNarrativeModel(
       brokerBaseUrl: 'https://broker.example',
@@ -65,7 +65,7 @@ void main() {
         dayPhase: DayPhase.sunset,
         weather: WeatherType.clear,
         activeRoute: false,
-        creativeEventIds: ['humanity-light'],
+        creativeEventIds: ['session.city.after_rain'],
         templateSummary: '晨昏光线正在进入街巷。',
         tone: NarrativeTone.detailed,
       ),
@@ -81,7 +81,7 @@ void main() {
       serviceToken: 'service-token',
       transport: _FakeTransport({
         'summary': '可以拍。',
-        'noteLabels': {'reflection': 42},
+        'noteLabels': {'session.water.evening': 42},
       }),
     );
 
@@ -92,7 +92,7 @@ void main() {
           dayPhase: DayPhase.sunset,
           weather: WeatherType.clear,
           activeRoute: false,
-          creativeEventIds: ['reflection'],
+          creativeEventIds: ['session.water.evening'],
           templateSummary: '今晚可以留意湖面倒影。',
         ),
       ),

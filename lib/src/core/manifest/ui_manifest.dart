@@ -21,22 +21,28 @@ enum LayoutMode {
 }
 
 enum ManifestAction {
-  openExplore,
   openShootingWindow,
-  openWeather,
-  openSafety,
+  openExplore,
   openRoute,
-  openAuthority;
+  openPlaceDetail,
+  openAstronomyDetail,
+  openWildlifeDetail,
+  openSafetyDetail,
+  openCreativeDetail,
+  dismiss;
 
   /// Maps a structured [ContextAction] to its UI [ManifestAction].
   static ManifestAction fromContextAction(ContextAction action) =>
       switch (action) {
-        ContextAction.openExplore => ManifestAction.openExplore,
         ContextAction.openShootingWindow => ManifestAction.openShootingWindow,
-        ContextAction.openWeather => ManifestAction.openWeather,
-        ContextAction.openSafety => ManifestAction.openSafety,
+        ContextAction.openExplore => ManifestAction.openExplore,
         ContextAction.openRoute => ManifestAction.openRoute,
-        ContextAction.openAuthority => ManifestAction.openAuthority,
+        ContextAction.openPlaceDetail => ManifestAction.openPlaceDetail,
+        ContextAction.openAstronomyDetail => ManifestAction.openAstronomyDetail,
+        ContextAction.openWildlifeDetail => ManifestAction.openWildlifeDetail,
+        ContextAction.openSafetyDetail => ManifestAction.openSafetyDetail,
+        ContextAction.openCreativeDetail => ManifestAction.openCreativeDetail,
+        ContextAction.dismiss => ManifestAction.dismiss,
       };
 }
 

@@ -1,48 +1,61 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:luma_nest/src/app/app_shell.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/features/explore/presentation/explore_page.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
-import 'package:luma_nest/src/features/inspiration/presentation/inspiration_page.dart';
-import 'package:luma_nest/src/features/profile/presentation/profile_page.dart';
-import 'package:luma_nest/src/features/route/presentation/route_page.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
-import 'package:luma_nest/src/features/today/presentation/today_page.dart';
-import 'package:luma_nest/src/features/shooting_window/presentation/shooting_window_page.dart';
+import 'package:luma_nest/src/design/luma_nest_motion.dart';
+import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
+import 'package:luma_nest/src/presentation_v2/inspiration/v2_inspiration_page.dart';
+import 'package:luma_nest/src/presentation_v2/opportunity/v2_opportunity_page.dart';
+import 'package:luma_nest/src/presentation_v2/profile/v2_profile_page.dart';
+import 'package:luma_nest/src/presentation_v2/route/v2_route_page.dart';
+import 'package:luma_nest/src/presentation_v2/shell/v2_app_shell.dart';
+import 'package:luma_nest/src/presentation_v2/today/v2_today_page.dart';
+
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-today');
+final _exploreNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'shell-explore',
+);
+final _routeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-route');
+final _inspirationNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'shell-inspiration',
+);
+final _profileNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'shell-profile',
+);
 
 GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/today',
     routes: [
       StatefulShellRoute.indexedStack(
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state, navigationShell) {
-          return AppShell(navigationShell: navigationShell);
+          return V2AppShell(navigationShell: navigationShell);
         },
         branches: [
           StatefulShellBranch(
+            navigatorKey: shellNavigatorKey,
             routes: [
               GoRoute(
                 path: '/today',
-                pageBuilder: (context, state) => NoTransitionPage(
-                  child: LiveTodayPage(initialSnapshot: initialContext),
-                ),
-              ),
-              GoRoute(
-                path: '/shooting-window',
-                builder: (context, state) => ShootingWindowPage(
-                  initialOpportunityId: shootingWindowOpportunityIdFrom(
-                    state.uri,
-                  ),
+                pageBuilder: (context, state) => _tabPage(
+                  state,
+                  child: V2TodayPage(initialSnapshot: initialContext),
                 ),
               ),
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _exploreNavigatorKey,
             routes: [
               GoRoute(
                 path: '/explore',
-                pageBuilder: (context, state) => NoTransitionPage(
-                  child: ExplorePage(
+                pageBuilder: (context, state) => _tabPage(
+                  state,
+                  child: V2ExplorePage(
                     focus: ExploreFocus.fromQuery(
                       state.uri.queryParameters['focus'],
                     ),
@@ -52,17 +65,18 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _routeNavigatorKey,
             routes: [
               GoRoute(
                 path: '/route',
                 pageBuilder: (context, state) {
                   final query = state.uri.queryParameters;
-                  return NoTransitionPage(
-                    child: RoutePage(
+                  return _tabPage(
+                    state,
+                    child: V2RoutePage(
                       destinationName: query['name'],
                       destinationLatitude: double.tryParse(query['lat'] ?? ''),
                       destinationLongitude: double.tryParse(query['lon'] ?? ''),
-                      importedTrackId: query['track'],
                       travelMode: query['mode'] == RouteTravelMode.walking.name
                           ? RouteTravelMode.walking
                           : RouteTravelMode.driving,
@@ -73,40 +87,133 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _inspirationNavigatorKey,
             routes: [
               GoRoute(
                 path: '/inspiration',
                 pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: InspirationPage()),
+                    _tabPage(state, child: const V2InspirationPage()),
               ),
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _profileNavigatorKey,
             routes: [
               GoRoute(
                 path: '/profile',
                 pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: ProfilePage()),
+                    _tabPage(state, child: const V2ProfilePage()),
               ),
             ],
           ),
         ],
       ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/opportunity/:id',
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2OpportunityPage(
+            sessionId: state.pathParameters['id']!,
+            initialSnapshot: initialContext,
+          ),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/session/:id',
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2OpportunityPage(
+            sessionId: state.pathParameters['id']!,
+            initialSnapshot: initialContext,
+          ),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/insight/:id',
+        pageBuilder: (context, state) =>
+            _v2DetailPage(state, child: const V2InspirationPage()),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/place/:id',
+        pageBuilder: (context, state) =>
+            _v2DetailPage(state, child: const V2ExplorePage()),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/route-detail/:id',
+        pageBuilder: (context, state) =>
+            _v2DetailPage(state, child: const V2RoutePage()),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/profile/style',
+        pageBuilder: (context, state) =>
+            _v2DetailPage(state, child: const V2ProfileStylePage()),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/profile/library',
+        pageBuilder: (context, state) =>
+            _v2DetailPage(state, child: const V2ProfileLibraryPage()),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/profile/privacy',
+        pageBuilder: (context, state) =>
+            _v2DetailPage(state, child: const V2ProfilePrivacyPage()),
+      ),
     ],
   );
 }
 
-String shootingWindowLocation(String opportunityId) => Uri(
-  path: '/shooting-window',
-  queryParameters: {'opportunity': opportunityId},
-).toString();
+CustomTransitionPage<void> _tabPage(
+  GoRouterState state, {
+  required Widget child,
+}) => CustomTransitionPage<void>(
+  key: state.pageKey,
+  transitionDuration: LumaNestMotion.tabTransition,
+  reverseTransitionDuration: LumaNestMotion.contentExit,
+  child: child,
+  transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+      FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: LumaNestMotion.standard,
+        ),
+        child: child,
+      ),
+);
 
-String? shootingWindowOpportunityIdFrom(Uri uri) {
-  if (uri.queryParameters.keys.any((key) => key != 'opportunity')) {
-    return null;
-  }
-  final value = uri.queryParameters['opportunity'];
-  return value != null && RegExp(r'^photo-[a-z0-9_-]{1,58}$').hasMatch(value)
+CustomTransitionPage<void> _v2DetailPage(
+  GoRouterState state, {
+  required Widget child,
+}) => CustomTransitionPage<void>(
+  key: state.pageKey,
+  transitionDuration: LumaNestMotion.containerTransform,
+  reverseTransitionDuration: LumaNestMotion.contentExit,
+  child: child,
+  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: LumaNestMotion.emphasized,
+      reverseCurve: LumaNestMotion.exit,
+    );
+    return FadeTransition(opacity: curved, child: child);
+  },
+);
+
+String shootingSessionLocation(String sessionId) =>
+    '/session/${Uri.encodeComponent(sessionId)}';
+
+String? shootingSessionIdFrom(Uri uri) {
+  final segments = uri.pathSegments;
+  if (segments.length != 2 || segments.first != 'session') return null;
+  final value = segments[1];
+  return RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$').hasMatch(value)
       ? value
       : null;
 }

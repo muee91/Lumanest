@@ -17,11 +17,6 @@ services:
       AMAP_WEB_KEY: ${AMAP_WEB_KEY:?Set AMAP_WEB_KEY}
       LUMANEST_CONFIG_MASTER_KEY: ${LUMANEST_CONFIG_MASTER_KEY:?Set LUMANEST_CONFIG_MASTER_KEY}
       LUMANEST_ADMIN_PASSWORD: ${LUMANEST_ADMIN_PASSWORD:?Set LUMANEST_ADMIN_PASSWORD}
-      AI_API_KEY: ${AI_API_KEY:-}
-      # Deprecated migration inputs only. They never create or select a model
-      # profile; use the LAN management console to add providers explicitly.
-      AI_BASE_URL: ${AI_BASE_URL:-}
-      AI_MODEL: ${AI_MODEL:-}
       CONTEXT_SERVICE_URL: http://context-service:8000
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
@@ -81,6 +76,8 @@ services:
     build:
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
+      args:
+        DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
     container_name: lumanest-discovery-api
     restart: unless-stopped
     environment:
@@ -109,6 +106,8 @@ services:
     build:
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
+      args:
+        DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
     container_name: lumanest-discovery-worker
     restart: unless-stopped
     environment:

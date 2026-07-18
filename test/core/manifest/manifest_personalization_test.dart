@@ -11,7 +11,11 @@ void main() {
   test('low, medium and high intensity apply the approved stable ordering', () {
     final snapshot = _serverSnapshot(
       now,
-      creativeIds: const ['blue-hour', 'reflection', 'humanity-light'],
+      creativeIds: const [
+        'event.sky.sunset_glow',
+        'session.water.evening',
+        'session.city.after_rain',
+      ],
     );
 
     List<String> ordered(double intensity) => ManifestPolicy.build(
@@ -23,9 +27,21 @@ void main() {
       ),
     ).creativeItems.map((item) => item.id).toList();
 
-    expect(ordered(0.3), ['blue-hour', 'reflection', 'humanity-light']);
-    expect(ordered(0.5), ['blue-hour', 'humanity-light', 'reflection']);
-    expect(ordered(0.8), ['humanity-light', 'blue-hour', 'reflection']);
+    expect(ordered(0.3), [
+      'event.sky.sunset_glow',
+      'session.water.evening',
+      'session.city.after_rain',
+    ]);
+    expect(ordered(0.5), [
+      'event.sky.sunset_glow',
+      'session.city.after_rain',
+      'session.water.evening',
+    ]);
+    expect(ordered(0.8), [
+      'session.city.after_rain',
+      'event.sky.sunset_glow',
+      'session.water.evening',
+    ]);
   });
 
   test(
@@ -34,7 +50,10 @@ void main() {
       final manifest = ManifestPolicy.build(
         _serverSnapshot(
           now,
-          creativeIds: const ['reflection', 'humanity-light'],
+          creativeIds: const [
+            'session.water.evening',
+            'session.city.after_rain',
+          ],
         ),
         now: now,
         personalization: CreativePersonalization(
@@ -43,9 +62,9 @@ void main() {
         ),
       );
 
-      expect(manifest.primary?.id, 'humanity-light');
-      expect(manifest.summary, '晨昏光线正在进入街巷，适合先观察再拍摄。');
-      expect(manifest.inspirationPreview, '进巷子🏮');
+      expect(manifest.primary?.id, 'session.city.after_rain');
+      expect(manifest.summary, '降水正在减弱，湿地面和灯光可能形成反光。');
+      expect(manifest.inspirationPreview, '雨后有光🌧️');
     },
   );
 
@@ -54,7 +73,7 @@ void main() {
     () {
       final snapshot = _localSnapshot(
         now,
-        opportunityIds: const ['unknown-event', 'reflection'],
+        opportunityIds: const ['unknown-event', 'session.water.evening'],
       );
       final manifest = ManifestPolicy.build(
         snapshot,
@@ -65,7 +84,9 @@ void main() {
         ),
       );
 
-      expect(manifest.creativeItems.map((item) => item.id), ['reflection']);
+      expect(manifest.creativeItems.map((item) => item.id), [
+        'session.water.evening',
+      ]);
     },
   );
 
@@ -78,7 +99,7 @@ void main() {
       expiresAt: now.add(const Duration(minutes: 10)),
       confidence: 0.95,
       safetyLevel: ContextSafetyLevel.critical,
-      allowedAction: ContextAction.openSafety,
+      allowedAction: ContextAction.openSafetyDetail,
     );
     final snapshot = ContextSnapshot(
       id: 'safety-personalization',
@@ -88,7 +109,10 @@ void main() {
       dayPhase: DayPhase.blueHour,
       weather: WeatherType.rain,
       activeRoute: false,
-      opportunityIds: const ['blue-hour', 'humanity-light'],
+      opportunityIds: const [
+        'session.city.blue_hour',
+        'session.city.after_rain',
+      ],
       safetyEventIds: const ['thunderstorm'],
       events: [safety],
     );

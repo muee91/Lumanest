@@ -1,5 +1,6 @@
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/weather/weather_observation.dart';
@@ -12,12 +13,11 @@ class ContextRuleEngine {
     required WeatherObservation weather,
     required SolarState solar,
     required DateTime generatedAt,
+    SceneContext? sceneContext,
     bool isStale = false,
     RouteContextState route = RouteContextState.none,
   }) {
     final events = <ContextEvent>[];
-    final expiry = generatedAt.add(const Duration(minutes: 15));
-
     void add(
       String id,
       ContextEventChannel channel,
@@ -26,6 +26,7 @@ class ContextRuleEngine {
       ContextGeoScope? geoScope,
       ContextSafetyLevel? safetyLevel,
       ContextAction? allowedAction,
+      Duration evidenceTtl = const Duration(minutes: 10),
     }) {
       events.add(
         ContextEvent(
@@ -33,7 +34,7 @@ class ContextRuleEngine {
           channel: channel,
           source: source,
           observedAt: weather.observedAt,
-          expiresAt: expiry,
+          expiresAt: generatedAt.add(evidenceTtl),
           confidence: confidence,
           geoScope: geoScope,
           safetyLevel: safetyLevel,
@@ -48,6 +49,7 @@ class ContextRuleEngine {
         ContextEventChannel.safety,
         ContextEventSource.weather,
         1,
+        allowedAction: ContextAction.openSafetyDetail,
       );
     }
     if (weather.windSpeedMetersPerSecond >= 15) {
@@ -56,6 +58,7 @@ class ContextRuleEngine {
         ContextEventChannel.safety,
         ContextEventSource.weather,
         0.9,
+        allowedAction: ContextAction.openSafetyDetail,
       );
     }
     if (weather.precipitationMillimeters >= 10) {
@@ -64,6 +67,7 @@ class ContextRuleEngine {
         ContextEventChannel.safety,
         ContextEventSource.weather,
         0.9,
+        allowedAction: ContextAction.openSafetyDetail,
       );
     }
 
@@ -82,64 +86,81 @@ class ContextRuleEngine {
     final edgeLight =
         solar.dayPhase == DayPhase.dawn || solar.dayPhase == DayPhase.sunset;
 
-    if (solar.dayPhase == DayPhase.blueHour && scene == SceneType.city) {
+    final primaryScene = sceneContext?.primaryScene;
+    final activity = sceneContext?.activity;
+    final isUrban =
+        primaryScene == PrimaryScene.urban || scene == SceneType.city;
+    final isWater =
+        primaryScene == PrimaryScene.inlandWater ||
+        primaryScene == PrimaryScene.wetland ||
+        primaryScene == PrimaryScene.coast ||
+        scene == SceneType.lake;
+    final isMountain =
+        primaryScene == PrimaryScene.mountain ||
+        primaryScene == PrimaryScene.plateau ||
+        scene == SceneType.mountain;
+    final isDesert =
+        primaryScene == PrimaryScene.desert || scene == SceneType.desert;
+
+    if (solar.dayPhase == DayPhase.blueHour && isUrban) {
       add(
-        'blue-hour',
+        'session.city.blue_hour',
         ContextEventChannel.opportunity,
         ContextEventSource.solar,
         0.9,
+        allowedAction: ContextAction.openShootingWindow,
+        evidenceTtl: const Duration(minutes: 30),
       );
     }
-    if (scene == SceneType.lake && lowWind && dry) {
+    if (isWater &&
+        lowWind &&
+        dry &&
+        const {
+          DayPhase.dawn,
+          DayPhase.sunset,
+          DayPhase.blueHour,
+        }.contains(solar.dayPhase)) {
       add(
-        'reflection',
+        solar.dayPhase == DayPhase.dawn
+            ? 'session.water.morning'
+            : 'session.water.evening',
         ContextEventChannel.opportunity,
         ContextEventSource.rule,
         0.82,
+        allowedAction: ContextAction.openShootingWindow,
+        evidenceTtl: const Duration(minutes: 20),
       );
     }
-    if (scene == SceneType.mountain &&
+    if (isMountain &&
         edgeLight &&
         clearEnough &&
         weather.visibilityKilometers >= 10) {
       add(
-        'alpenglow',
+        solar.dayPhase == DayPhase.dawn
+            ? 'session.mountain.morning'
+            : 'session.mountain.evening',
         ContextEventChannel.opportunity,
         ContextEventSource.rule,
         0.72,
+        geoScope: ContextGeoScope.region,
+        allowedAction: ContextAction.openShootingWindow,
+        evidenceTtl: const Duration(minutes: 20),
       );
     }
-    if (scene == SceneType.desert &&
-        weather.condition == WeatherCondition.dust &&
-        edgeLight) {
+    if (isDesert && weather.condition == WeatherCondition.dust && edgeLight) {
       add(
-        'dust-light',
+        'session.desert.side_light',
         ContextEventChannel.opportunity,
         ContextEventSource.rule,
         0.7,
+        geoScope: ContextGeoScope.region,
+        allowedAction: ContextAction.openShootingWindow,
+        evidenceTtl: const Duration(minutes: 15),
       );
     }
-    if (scene == SceneType.village && edgeLight && clearEnough) {
+    if (activity == ActivityState.hiking) {
       add(
-        'humanity-light',
-        ContextEventChannel.opportunity,
-        ContextEventSource.rule,
-        0.65,
-      );
-    }
-    if (scene == SceneType.driving) {
-      add(
-        'route-light-window',
-        ContextEventChannel.opportunity,
-        ContextEventSource.rule,
-        0.7,
-        geoScope: ContextGeoScope.route,
-        allowedAction: ContextAction.openRoute,
-      );
-    }
-    if (scene == SceneType.hiking) {
-      add(
-        'hiking-return-check',
+        'trail-return-risk',
         ContextEventChannel.safety,
         ContextEventSource.rule,
         0.8,

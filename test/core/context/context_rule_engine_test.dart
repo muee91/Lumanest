@@ -32,7 +32,7 @@ void main() {
     dayPhase: phase,
   );
 
-  test('creates lake reflection with source, confidence and expiry', () {
+  test('creates the catalog water session with policy evidence expiry', () {
     final events = const ContextRuleEngine().evaluate(
       scene: SceneType.lake,
       weather: weather(),
@@ -40,14 +40,16 @@ void main() {
       generatedAt: now,
     );
 
-    final event = events.singleWhere((event) => event.id == 'reflection');
+    final event = events.singleWhere(
+      (event) => event.id == 'session.water.evening',
+    );
     expect(event.channel, ContextEventChannel.opportunity);
     expect(event.source, ContextEventSource.rule);
     expect(event.confidence, greaterThan(0));
-    expect(event.expiresAt.isAfter(now), isTrue);
+    expect(event.expiresAt.difference(now), const Duration(minutes: 20));
   });
 
-  test('covers city, mountain, desert and village opportunities', () {
+  test('generates only active Core catalog opportunities', () {
     const engine = ContextRuleEngine();
     expect(
       engine
@@ -58,7 +60,7 @@ void main() {
             generatedAt: now,
           )
           .map((e) => e.id),
-      contains('blue-hour'),
+      contains('session.city.blue_hour'),
     );
     expect(
       engine
@@ -69,7 +71,7 @@ void main() {
             generatedAt: now,
           )
           .map((e) => e.id),
-      contains('alpenglow'),
+      contains('session.mountain.morning'),
     );
     expect(
       engine
@@ -80,7 +82,7 @@ void main() {
             generatedAt: now,
           )
           .map((e) => e.id),
-      contains('dust-light'),
+      contains('session.desert.side_light'),
     );
     expect(
       engine
@@ -91,7 +93,7 @@ void main() {
             generatedAt: now,
           )
           .map((e) => e.id),
-      contains('humanity-light'),
+      isEmpty,
     );
   });
 

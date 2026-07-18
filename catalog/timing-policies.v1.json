@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "timing.waterMorning",
+      "catalogSpan": "18h",
+      "actionableSpan": "6h",
+      "advanceNotice": "180m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "20m",
+      "windowRule": "天文晨光前30分钟至日出后75分钟"
+    },
+    {
+      "id": "timing.waterEvening",
+      "catalogSpan": "18h",
+      "actionableSpan": "6h",
+      "advanceNotice": "180m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "20m",
+      "windowRule": "日落前90分钟至蓝调结束后30分钟；无蓝调数据时至日落后90分钟"
+    },
+    {
+      "id": "timing.mountainMorning",
+      "catalogSpan": "24h",
+      "actionableSpan": "8h",
+      "advanceNotice": "240m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "20m",
+      "windowRule": "民用晨光前45分钟至日出后90分钟"
+    },
+    {
+      "id": "timing.mountainEvening",
+      "catalogSpan": "24h",
+      "actionableSpan": "8h",
+      "advanceNotice": "240m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "20m",
+      "windowRule": "日落前120分钟至民用暮光结束后45分钟"
+    },
+    {
+      "id": "timing.cityBlue",
+      "catalogSpan": "24h",
+      "actionableSpan": "6h",
+      "advanceNotice": "120m",
+      "farRefresh": "60m",
+      "nearRefresh": "20m",
+      "watchRefresh": "10m",
+      "evidenceTtl": "30m",
+      "windowRule": "日落前30分钟至航海暮光结束后30分钟"
+    },
+    {
+      "id": "timing.cityAfterRain",
+      "catalogSpan": "6h",
+      "actionableSpan": "3h",
+      "advanceNotice": "60m",
+      "farRefresh": "10m",
+      "nearRefresh": "5m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "15m",
+      "windowRule": "预计降水结束前10分钟至降水结束后120分钟"
+    },
+    {
+      "id": "timing.desertSide",
+      "catalogSpan": "12h",
+      "actionableSpan": "6h",
+      "advanceNotice": "120m",
+      "farRefresh": "20m",
+      "nearRefresh": "10m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "15m",
+      "windowRule": "太阳高度2°–15°，单次窗口最长90分钟"
+    },
+    {
+      "id": "timing.routeWindow",
+      "catalogSpan": "min(路线预计时长+3h,12h)",
+      "actionableSpan": "90m",
+      "advanceNotice": "30m",
+      "farRefresh": "10m",
+      "nearRefresh": "5m",
+      "watchRefresh": "5m",
+      "evidenceTtl": "15m",
+      "windowRule": "单个合法停靠窗口10–30分钟"
+    },
+    {
+      "id": "timing.sunsetGlow",
+      "catalogSpan": "6h",
+      "actionableSpan": "3h",
+      "advanceNotice": "120m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "10m",
+      "evidenceTtl": "30m",
+      "windowRule": "日落前90分钟至日落后45分钟"
+    },
+    {
+      "id": "timing.rainbow",
+      "catalogSpan": "90m",
+      "actionableSpan": "45m",
+      "advanceNotice": "15m",
+      "farRefresh": "5m",
+      "nearRefresh": "2m",
+      "watchRefresh": "2m",
+      "evidenceTtl": "10m",
+      "windowRule": "太阳高度0°–42°；最后有效证据消失后最多保留15分钟"
+    },
+    {
+      "id": "timing.morningMist",
+      "catalogSpan": "12h",
+      "actionableSpan": "6h",
+      "advanceNotice": "180m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "10m",
+      "evidenceTtl": "20m",
+      "windowRule": "天文晨光前60分钟至日出后120分钟"
+    },
+    {
+      "id": "timing.postSnow",
+      "catalogSpan": "24h",
+      "actionableSpan": "12h",
+      "advanceNotice": "360m",
+      "farRefresh": "30m",
+      "nearRefresh": "10m",
+      "watchRefresh": "10m",
+      "evidenceTtl": "30m",
+      "windowRule": "降雪结束至结束后12小时"
+    },
+    {
+      "id": "timing.astroMilkyWay",
+      "catalogSpan": "365d",
+      "actionableSpan": "72h",
+      "advanceNotice": "12h",
+      "farRefresh": "60m",
+      "nearRefresh": "30m",
+      "watchRefresh": "15m",
+      "evidenceTtl": "60m",
+      "windowRule": "天文黑夜且目标银河高度≥10°"
+    },
+    {
+      "id": "timing.astroMoon",
+      "catalogSpan": "365d",
+      "actionableSpan": "72h",
+      "advanceNotice": "6h",
+      "farRefresh": "60m",
+      "nearRefresh": "30m",
+      "watchRefresh": "15m",
+      "evidenceTtl": "60m",
+      "windowRule": "月出或月落前45分钟至后45分钟"
+    },
+    {
+      "id": "timing.astroMeteor",
+      "catalogSpan": "365d",
+      "actionableSpan": "14d",
+      "advanceNotice": "24h",
+      "farRefresh": "1440m(>72h)",
+      "nearRefresh": "60m(≤72h)",
+      "watchRefresh": "15m",
+      "evidenceTtl": "60m",
+      "windowRule": "权威峰值前3小时至后3小时；权威目录窗口优先"
+    },
+    {
+      "id": "timing.astroAuthority",
+      "catalogSpan": "730d",
+      "actionableSpan": "30d",
+      "advanceNotice": "72h",
+      "farRefresh": "1440m(>72h)",
+      "nearRefresh": "60m(≤72h)",
+      "watchRefresh": "15m",
+      "evidenceTtl": "60m",
+      "windowRule": "完全采用权威目录的开始、峰值和结束时间"
+    }
+  ]
+}

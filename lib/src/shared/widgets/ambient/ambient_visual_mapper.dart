@@ -211,8 +211,6 @@ class AmbientVisualMapper {
       SceneType.mountain => const Color(0xFF8A7668),
       SceneType.desert => const Color(0xFFC28745),
       SceneType.village => const Color(0xFFAA6654),
-      SceneType.driving => const Color(0xFF596A82),
-      SceneType.hiking => const Color(0xFF55785C),
     };
     if (accent == null) return base;
     return AmbientPalette(
@@ -228,8 +226,6 @@ class AmbientVisualMapper {
     SceneType.mountain => const Color(0xFF8A7668),
     SceneType.desert => const Color(0xFFC28745),
     SceneType.village => const Color(0xFFAA6654),
-    SceneType.driving => const Color(0xFF596A82),
-    SceneType.hiking => const Color(0xFF55785C),
   };
 
   static AmbientPalette _lightPalette(WeatherType weather) {

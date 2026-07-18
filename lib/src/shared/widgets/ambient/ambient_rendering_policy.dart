@@ -78,7 +78,10 @@ abstract final class AmbientRenderingPolicy {
     if (location.startsWith('/route')) return 0.15;
     if (location.startsWith('/profile')) return 0.0;
     // Shooting window inherits the today branch's full ambiance.
-    if (location.startsWith('/shooting-window')) return 1.0;
+    if (location.startsWith('/opportunity/') ||
+        location.startsWith('/session/')) {
+      return 1.0;
+    }
     return 1.0;
   }
 }

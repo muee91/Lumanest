@@ -1,56 +1,197 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
+import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
-import 'package:luma_nest/src/core/solar/solar_service.dart';
-import 'package:luma_nest/src/core/weather/weather_observation.dart';
+import 'package:luma_nest/src/core/photography/equipment_capability.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
 
 void main() {
   test(
-    'negotiates the v3 context contract and preserves a strict V2 response',
+    'target session uses only the reviewed public target coordinate',
     () async {
-      final transport = _FakeTransport();
+      final transport = _FakeTransport()
+        ..mutateResponse = (response) {
+          response['contractVersion'] = 4;
+          final session = _shootingSessionBody();
+          session['targetCandidates'] = [_shootingTargetBody()];
+          response['shootingSessions'] = [session];
+        };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
         serviceToken: 'service-token',
         transport: transport,
       );
+      final target = ShootingTarget(
+        id: 'target_0123456789abcdef01234567',
+        name: '东岸审核湖岸',
+        coordinate: const GeoPoint(latitude: 30.251, longitude: 120.151),
+        supportedSessions: const [ShootingSessionKind.waterEvening],
+        viewBearingDegrees: 286,
+        bearingToleranceDegrees: 25,
+        accessModes: const [ShootingTravelMode.driving],
+        leadTimeMinutes: 12,
+        arrivalRadiusMeters: 100,
+        shorelineSide: ShootingShorelineSide.east,
+        reviewedAt: DateTime.utc(2026, 7, 1),
+        reviewReference: Uri.parse('https://review.example/targets/east-bank'),
+        sourceAttribution: '审核目录',
+        sourceLicense: 'CC-BY-4.0',
+        sourceUrl: Uri.parse('https://source.example/lakes/east-bank'),
+      );
+
+      final session = await repository.fetchForTarget(
+        target: target,
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      );
+
+      expect(transport.uri.path, '/v1/context/target-session');
+      expect(transport.body.keys, {
+        'contractVersion',
+        'targetId',
+        'targetCoordinate',
+        'observedAt',
+        'locale',
+      });
+      expect(transport.body.containsKey('userCoordinate'), isFalse);
+      expect(transport.body.containsKey('deviceId'), isFalse);
+      expect((transport.body['targetCoordinate'] as Map)['latitude'], 30.251);
+      expect(session?.kind, ShootingSessionKind.waterEvening);
+      expect(session?.conditionBand, ShootingConditionBand.good);
+      expect(session?.recommendedCapabilities, {EquipmentCapability.tripod});
+      expect(
+        session?.targetCandidates.single.shorelineSide,
+        ShootingShorelineSide.east,
+      );
+      expect(session?.targetCandidates.single.sourceLicense, 'CC-BY-4.0');
+      expect(session?.targetCandidates.single.reviewReference.scheme, 'https');
+    },
+  );
+
+  test(
+    'anonymous feedback contains no identity, coordinate or media fields',
+    () async {
+      final transport = _FakeTransport()..fixedResponse = {'accepted': true};
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+      final session = ContextFixtures.waterEveningSession(
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      );
+
+      await repository.upload(
+        session: session,
+        outcome: ShootingSessionOutcome.conditionsDidNotAppear,
+        reasons: const {
+          ShootingSessionOutcomeReason.wind,
+          ShootingSessionOutcomeReason.cloud,
+        },
+      );
+
+      expect(transport.uri.path, '/v1/context/shooting-feedback');
+      expect(transport.body.keys, {
+        'contractVersion',
+        'ruleVersion',
+        'conditionBand',
+        'factors',
+        'outcome',
+        'reasons',
+        'targetId',
+      });
+      expect(transport.body['targetId'], isNull);
+      expect(transport.body['contractVersion'], 2);
+      expect(transport.body['conditionBand'], 'good');
+      expect(transport.body.toString(), isNot(contains('coordinate')));
+      expect(transport.body.toString(), isNot(contains('device')));
+      expect(transport.body.toString(), isNot(contains('photo')));
+      expect(transport.body.toString(), isNot(contains('exif')));
+    },
+  );
+
+  test('uses only the strict V4 request and response contract', () async {
+    final transport = _FakeTransport();
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+    final result = await repository.fetchSnapshot(
+      location: _location(),
+      observedAt: DateTime.utc(2026, 7, 14, 2),
+    );
+
+    expect(transport.uri.path, '/v1/context/snapshot');
+    expect(transport.headers, {'Authorization': 'Bearer service-token'});
+    expect(transport.body['contractVersion'], 4);
+    expect(transport.body.containsKey('deviceId'), isFalse);
+    expect(transport.body.containsKey('weather'), isFalse);
+    expect(transport.body.containsKey('evidence'), isFalse);
+    expect(transport.body.containsKey('solar'), isFalse);
+    expect((transport.body['coordinate'] as Map)['system'], 'wgs84');
+    expect(result.id, 'ctx_1234567890abcdef12345678');
+    expect(result.primaryScene, SceneType.lake);
+    expect(result.opportunityIds, ['session.water.evening']);
+    expect(result.dataFreshness, ContextDataFreshness.fresh);
+    expect(result.moonPhase, MoonPhase.waxingCrescent);
+    expect(result.allowedActions, [ContextAction.openExplore]);
+    expect(result.temperatureCelsius, 26);
+    expect(result.windSpeedMetersPerSecond, 2);
+    expect(result.airQualityIndex, 42);
+    expect(result.airQualityCategory, '优');
+    expect(result.airQualityStale, isFalse);
+    expect(result.solarAzimuthDegrees, 280);
+    expect(result.serverManifest, isNotNull);
+    expect(result.serverManifest!.layout, ServerManifestLayout.opportunity);
+    expect(result.serverManifest!.primaryEventId, 'session.water.evening');
+    expect(result.serverManifest!.secondaryEventIds, isEmpty);
+    expect(result.serverManifest!.safetyEventIds, isEmpty);
+  });
+
+  test(
+    'parses the composite scene without letting activity replace it',
+    () async {
+      final transport = _FakeTransport()
+        ..mutateResponse = (response) {
+          response['contractVersion'] = 4;
+          response['shootingSessions'] = <Object?>[];
+          response['opportunityCatalogVersion'] = 1;
+          response['sceneContext'] = {
+            'primaryScene': 'inlandWater',
+            'facets': ['lake', 'reflectiveSurface'],
+            'activity': 'driving',
+            'scores': {'inlandWater': 55},
+            'reviewedOverride': false,
+          };
+        };
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
+
       final result = await repository.fetchSnapshot(
         location: _location(),
         observedAt: DateTime.utc(2026, 7, 14, 2),
       );
 
-      expect(transport.uri.path, '/v1/context/snapshot');
-      expect(transport.headers, {'Authorization': 'Bearer service-token'});
-      expect(transport.body['contractVersion'], 3);
-      expect(transport.body.containsKey('deviceId'), isFalse);
-      expect(transport.body.containsKey('weather'), isFalse);
-      expect(transport.body.containsKey('evidence'), isFalse);
-      expect(transport.body.containsKey('solar'), isFalse);
-      expect((transport.body['coordinate'] as Map)['system'], 'wgs84');
-      expect(result.id, 'ctx_1234567890abcdef12345678');
-      expect(result.primaryScene, SceneType.lake);
-      expect(result.opportunityIds, ['reflection']);
-      expect(result.dataFreshness, ContextDataFreshness.fresh);
-      expect(result.moonPhase, MoonPhase.waxingCrescent);
-      expect(result.allowedActions, [ContextAction.openExplore]);
-      expect(result.temperatureCelsius, 26);
-      expect(result.windSpeedMetersPerSecond, 2);
-      expect(result.airQualityIndex, 42);
-      expect(result.airQualityCategory, '优');
-      expect(result.airQualityStale, isFalse);
-      expect(result.solarAzimuthDegrees, 280);
-      expect(result.serverManifest, isNotNull);
-      expect(result.serverManifest!.layout, ServerManifestLayout.opportunity);
-      expect(result.serverManifest!.primaryEventId, 'reflection');
-      expect(result.serverManifest!.secondaryEventIds, isEmpty);
-      expect(result.serverManifest!.safetyEventIds, isEmpty);
+      expect(
+        result.resolvedSceneContext.primaryScene,
+        PrimaryScene.inlandWater,
+      );
+      expect(result.resolvedSceneContext.activity, ActivityState.driving);
+      expect(result.resolvedSceneContext.facets, {
+        SceneFacet.lake,
+        SceneFacet.reflectiveSurface,
+      });
     },
   );
 
@@ -67,144 +208,12 @@ void main() {
       observedAt: DateTime.utc(2026, 7, 14, 2),
     );
 
-    expect(transport.body['route'], {'mode': 'none', 'stage': 'none'});
-  });
-
-  test(
-    'parses V3 photography opportunities without accepting location data',
-    () async {
-      final transport = _FakeTransport()
-        ..mutateResponse = (body) {
-          body['contractVersion'] = 3;
-          body['opportunities'] = [
-            {
-              'id': 'photo-sunsetglow-2026071402',
-              'kind': 'sunsetGlow',
-              'startAt': '2026-07-14T02:05:00Z',
-              'peakAt': '2026-07-14T02:20:00Z',
-              'endAt': '2026-07-14T02:40:00Z',
-              'score': 78,
-              'confidence': .72,
-              'geoScope': 'regional',
-              'directionDegrees': 280,
-              'evidence': [
-                {'label': '云量', 'value': '45%'},
-                {'label': '时段', 'value': '日落前后'},
-              ],
-              'primaryAction': 'openShootingWindow',
-              'fallbackAction': 'openExplore',
-              'equipmentHints': ['广角镜头'],
-            },
-          ];
-        };
-      final repository = DataBrokerContextRepository(
-        brokerBaseUrl: 'https://broker.example',
-        serviceToken: 'service-token',
-        transport: transport,
-      );
-
-      final result = await repository.fetchSnapshot(
-        location: _location(),
-        observedAt: DateTime.utc(2026, 7, 14, 2),
-      );
-
-      final opportunity = result.photographyOpportunities.single;
-      expect(opportunity.title, '晚霞窗口');
-      expect(opportunity.score, 78);
-      expect(opportunity.primaryAction, ContextAction.openShootingWindow);
-      expect(opportunity.fallbackAction, ContextAction.openExplore);
-      expect(opportunity.equipmentHints, ['广角镜头']);
-      expect(opportunity.evidence.map((item) => item.statement), [
-        '云量 45%',
-        '时段 日落前后',
-      ]);
-    },
-  );
-
-  test('rejects V3 opportunities that attempt to carry a coordinate', () async {
-    final transport = _FakeTransport()
-      ..mutateResponse = (body) {
-        body['contractVersion'] = 3;
-        body['opportunities'] = [
-          {
-            'id': 'photo-reflection-2026071402',
-            'kind': 'reflection',
-            'startAt': '2026-07-14T02:05:00Z',
-            'peakAt': '2026-07-14T02:20:00Z',
-            'endAt': '2026-07-14T02:40:00Z',
-            'score': 74,
-            'confidence': .76,
-            'geoScope': 'point',
-            'directionDegrees': null,
-            'evidence': [
-              {'label': '风速', 'value': '2.0m/s'},
-            ],
-            'primaryAction': 'openExplore',
-            'fallbackAction': null,
-            'equipmentHints': [],
-            'coordinate': {'latitude': 30.2, 'longitude': 120.1},
-          },
-        ];
-      };
-    final repository = DataBrokerContextRepository(
-      brokerBaseUrl: 'https://broker.example',
-      serviceToken: 'service-token',
-      transport: transport,
-    );
-
-    expect(
-      repository.fetchSnapshot(
-        location: _location(),
-        observedAt: DateTime.utc(2026, 7, 14, 2),
-      ),
-      throwsA(
-        isA<RemoteContextFailure>().having(
-          (value) => value.kind,
-          'kind',
-          RemoteContextFailureKind.response,
-        ),
-      ),
-    );
-  });
-
-  test('drops V3 opportunities when the returned snapshot is stale', () async {
-    final transport = _FakeTransport()
-      ..mutateResponse = (body) {
-        body['contractVersion'] = 3;
-        body['stale'] = true;
-        body['opportunities'] = [
-          {
-            'id': 'photo-bluehour-2026071402',
-            'kind': 'blueHour',
-            'startAt': '2026-07-14T02:05:00Z',
-            'peakAt': '2026-07-14T02:20:00Z',
-            'endAt': '2026-07-14T02:40:00Z',
-            'score': 82,
-            'confidence': .82,
-            'geoScope': 'point',
-            'directionDegrees': 280,
-            'evidence': [
-              {'label': '预报', 'value': 'clear'},
-            ],
-            'primaryAction': 'openShootingWindow',
-            'fallbackAction': null,
-            'equipmentHints': ['三脚架'],
-          },
-        ];
-      };
-    final repository = DataBrokerContextRepository(
-      brokerBaseUrl: 'https://broker.example',
-      serviceToken: 'service-token',
-      transport: transport,
-    );
-
-    final result = await repository.fetchSnapshot(
-      location: _location(),
-      observedAt: DateTime.utc(2026, 7, 14, 2),
-    );
-
-    expect(result.isStale, isTrue);
-    expect(result.photographyOpportunities, isEmpty);
+    expect(transport.body['route'], {
+      'mode': 'none',
+      'stage': 'none',
+      'routeId': null,
+      'corridorSamples': <Object?>[],
+    });
   });
 
   test(
@@ -262,7 +271,12 @@ void main() {
       route: RouteContextState.planned(ContextRouteMode.driving),
     );
 
-    expect(transport.body['route'], {'mode': 'driving', 'stage': 'planned'});
+    expect(transport.body['route'], {
+      'mode': 'driving',
+      'stage': 'planned',
+      'routeId': null,
+      'corridorSamples': <Object?>[],
+    });
   });
 
   test('canonical request carries driving/active route', () async {
@@ -279,7 +293,12 @@ void main() {
       route: RouteContextState.active(ContextRouteMode.driving),
     );
 
-    expect(transport.body['route'], {'mode': 'driving', 'stage': 'active'});
+    expect(transport.body['route'], {
+      'mode': 'driving',
+      'stage': 'active',
+      'routeId': null,
+      'corridorSamples': <Object?>[],
+    });
   });
 
   test('canonical request carries hiking/paused route', () async {
@@ -296,7 +315,12 @@ void main() {
       route: RouteContextState.paused(ContextRouteMode.hiking),
     );
 
-    expect(transport.body['route'], {'mode': 'hiking', 'stage': 'paused'});
+    expect(transport.body['route'], {
+      'mode': 'hiking',
+      'stage': 'paused',
+      'routeId': null,
+      'corridorSamples': <Object?>[],
+    });
   });
 
   test(
@@ -378,61 +402,6 @@ void main() {
             (failure) => failure.kind,
             'kind',
             RemoteContextFailureKind.response,
-          ),
-        ),
-      );
-    },
-  );
-
-  test('legacy enrichment remains available for an old Broker retry', () async {
-    final transport = _FakeTransport();
-    final repository = DataBrokerContextRepository(
-      brokerBaseUrl: 'https://broker.example',
-      serviceToken: 'service-token',
-      transport: transport,
-    );
-
-    await repository.enrich(
-      base: _snapshot(),
-      weather: _weather(),
-      solar: _solar(),
-    );
-
-    expect(transport.body.containsKey('weather'), isTrue);
-    expect(transport.body.containsKey('evidence'), isTrue);
-    expect(transport.body.containsKey('solar'), isTrue);
-  });
-
-  test(
-    'classifies an old Broker 400 as unsupported minimal contract',
-    () async {
-      final requestOptions = RequestOptions(
-        path: 'https://broker.example/v1/context/snapshot',
-      );
-      final transport = _FakeTransport()
-        ..error = DioException(
-          requestOptions: requestOptions,
-          response: Response<Object?>(
-            requestOptions: requestOptions,
-            statusCode: 400,
-          ),
-        );
-      final repository = DataBrokerContextRepository(
-        brokerBaseUrl: 'https://broker.example',
-        serviceToken: 'service-token',
-        transport: transport,
-      );
-
-      await expectLater(
-        repository.fetchSnapshot(
-          location: _location(),
-          observedAt: DateTime.utc(2026, 7, 14, 2),
-        ),
-        throwsA(
-          isA<RemoteContextFailure>().having(
-            (failure) => failure.kind,
-            'kind',
-            RemoteContextFailureKind.unsupportedContract,
           ),
         ),
       );
@@ -522,7 +491,7 @@ void main() {
       );
       expect(result.safetyEventIds, contains(wildlifeEvent.id));
       expect(result.wildlifeEventIds, contains(wildlifeEvent.id));
-      expect(wildlifeEvent.allowedAction, ContextAction.openSafety);
+      expect(wildlifeEvent.allowedAction, ContextAction.openSafetyDetail);
     },
   );
 
@@ -539,7 +508,7 @@ void main() {
               'observedAt': '2026-07-14T02:00:00Z',
               'expiresAt': '2026-07-14T02:15:00Z',
               'confidence': 0.5,
-              'geoScope': 'regional',
+              'geoScope': 'region',
               'severity': 'info',
               'allowedAction': 'openExplore',
             },
@@ -575,23 +544,23 @@ void main() {
         ..mutateResponse = (body) {
           body['events'] = [
             {
-              'id': 'astronomy-123456789abc',
+              'id': 'event.astro.meteor_shower',
               'channel': 'opportunity',
               'source': 'astronomyCatalog',
               'observedAt': '2026-07-14T01:00:00Z',
               'expiresAt': '2026-07-14T04:00:00Z',
               'confidence': 1.0,
-              'geoScope': 'regional',
+              'geoScope': 'region',
               'severity': 'info',
-              'allowedAction': 'openAuthority',
+              'allowedAction': 'openAstronomyDetail',
               'title': '英仙座流星雨极大期',
               'sourceUrl': 'https://science.nasa.gov/meteor-showers/',
             },
           ];
-          body['allowedActions'] = ['openAuthority'];
+          body['allowedActions'] = ['openAstronomyDetail'];
           body['manifest'] = {
             'layoutMode': 'opportunity',
-            'primaryEventId': 'astronomy-123456789abc',
+            'primaryEventId': 'event.astro.meteor_shower',
             'secondaryEventIds': <String>[],
             'safetyEventIds': <String>[],
           };
@@ -610,9 +579,9 @@ void main() {
 
       expect(event.title, '英仙座流星雨极大期');
       expect(event.source, ContextEventSource.astronomyCatalog);
-      expect(event.allowedAction, ContextAction.openAuthority);
+      expect(event.allowedAction, ContextAction.openAstronomyDetail);
       expect(event.sourceUri?.scheme, 'https');
-      expect(result.allowedActions, [ContextAction.openAuthority]);
+      expect(result.allowedActions, [ContextAction.openAstronomyDetail]);
     },
   );
 
@@ -655,8 +624,11 @@ void main() {
 
         final manifest = result.serverManifest!;
         expect(manifest.layout, ServerManifestLayout.opportunity);
-        expect(manifest.primaryEventId, 'reflection');
-        expect(manifest.secondaryEventIds, ['golden-hour', 'stillness']);
+        expect(manifest.primaryEventId, 'session.water.evening');
+        expect(manifest.secondaryEventIds, [
+          'event.sky.sunset_glow',
+          'event.atmosphere.morning_mist',
+        ]);
         expect(manifest.safetyEventIds, ['storm-alert']);
       },
     );
@@ -702,8 +674,8 @@ void main() {
         mutate: (body) {
           _withRichManifest(body);
           (body['manifest']! as Map)['secondaryEventIds'] = [
-            'golden-hour',
-            'golden-hour',
+            'event.sky.sunset_glow',
+            'event.sky.sunset_glow',
           ];
         },
       );
@@ -726,7 +698,9 @@ void main() {
         final repository = repositoryWithManifest(
           mutate: (body) {
             _withRichManifest(body);
-            (body['manifest']! as Map)['safetyEventIds'] = ['reflection'];
+            (body['manifest']! as Map)['safetyEventIds'] = [
+              'session.water.evening',
+            ];
           },
         );
         await expectRejects(repository);
@@ -767,7 +741,7 @@ LocationReading _location() => LocationReading(
 void _withRichManifest(Map<String, Object?> body) {
   body['events'] = [
     {
-      'id': 'reflection',
+      'id': 'session.water.evening',
       'channel': 'opportunity',
       'source': 'rule',
       'observedAt': '2026-07-14T02:00:00Z',
@@ -778,7 +752,7 @@ void _withRichManifest(Map<String, Object?> body) {
       'allowedAction': 'openExplore',
     },
     {
-      'id': 'golden-hour',
+      'id': 'event.sky.sunset_glow',
       'channel': 'opportunity',
       'source': 'solar',
       'observedAt': '2026-07-14T02:00:00Z',
@@ -789,7 +763,7 @@ void _withRichManifest(Map<String, Object?> body) {
       'allowedAction': 'openExplore',
     },
     {
-      'id': 'stillness',
+      'id': 'event.atmosphere.morning_mist',
       'channel': 'opportunity',
       'source': 'rule',
       'observedAt': '2026-07-14T02:00:00Z',
@@ -806,15 +780,18 @@ void _withRichManifest(Map<String, Object?> body) {
       'observedAt': '2026-07-14T02:00:00Z',
       'expiresAt': '2026-07-14T02:15:00Z',
       'confidence': 0.9,
-      'geoScope': 'regional',
+      'geoScope': 'region',
       'severity': 'warning',
       'allowedAction': 'openExplore',
     },
   ];
   body['manifest'] = {
     'layoutMode': 'opportunity',
-    'primaryEventId': 'reflection',
-    'secondaryEventIds': ['golden-hour', 'stillness'],
+    'primaryEventId': 'session.water.evening',
+    'secondaryEventIds': [
+      'event.sky.sunset_glow',
+      'event.atmosphere.morning_mist',
+    ],
     'safetyEventIds': ['storm-alert'],
   };
 }
@@ -822,7 +799,7 @@ void _withRichManifest(Map<String, Object?> body) {
 void _withWildlifeSafety(Map<String, Object?> body) {
   body['events'] = [
     {
-      'id': 'reflection',
+      'id': 'session.water.evening',
       'channel': 'opportunity',
       'source': 'rule',
       'observedAt': '2026-07-14T02:00:00Z',
@@ -839,48 +816,18 @@ void _withWildlifeSafety(Map<String, Object?> body) {
       'observedAt': '2026-07-14T02:00:00Z',
       'expiresAt': '2026-07-14T02:15:00Z',
       'confidence': 0.88,
-      'geoScope': 'regional',
+      'geoScope': 'region',
       'severity': 'warning',
-      'allowedAction': 'openSafety',
+      'allowedAction': 'openSafetyDetail',
     },
   ];
   body['manifest'] = {
     'layoutMode': 'safety',
-    'primaryEventId': 'reflection',
+    'primaryEventId': 'session.water.evening',
     'secondaryEventIds': <String>[],
     'safetyEventIds': ['bear-risk'],
   };
 }
-
-ContextSnapshot _snapshot() => ContextSnapshot(
-  id: 'local',
-  observedAt: DateTime.utc(2026, 7, 14, 2),
-  expiresAt: DateTime.utc(2026, 7, 14, 2, 15),
-  primaryScene: SceneType.lake,
-  dayPhase: DayPhase.sunset,
-  weather: WeatherType.clear,
-  activeRoute: false,
-  location: const GeoPoint(latitude: 30.25, longitude: 120.15),
-);
-
-WeatherObservation _weather() => WeatherObservation(
-  observedAt: DateTime.utc(2026, 7, 14, 2),
-  temperatureCelsius: 26,
-  condition: WeatherCondition.clear,
-  windSpeedMetersPerSecond: 2,
-  windDirectionDegrees: 90,
-  visibilityKilometers: 20,
-  precipitationMillimeters: 0,
-);
-
-SolarState _solar() => SolarState(
-  observedAt: DateTime.utc(2026, 7, 14, 2),
-  elevationDegrees: 4,
-  azimuthDegrees: 280,
-  sunrise: DateTime.utc(2026, 7, 13, 21),
-  sunset: DateTime.utc(2026, 7, 14, 11),
-  dayPhase: DayPhase.sunset,
-);
 
 class _FakeTransport implements ContextDataTransport {
   late Uri uri;
@@ -888,6 +835,7 @@ class _FakeTransport implements ContextDataTransport {
   late Map<String, Object?> body;
   Object? error;
   void Function(Map<String, Object?> body)? mutateResponse;
+  Map<String, Object?>? fixedResponse;
 
   @override
   Future<Map<String, Object?>> post(
@@ -899,12 +847,21 @@ class _FakeTransport implements ContextDataTransport {
     this.uri = uri;
     this.headers = headers;
     this.body = body;
+    if (fixedResponse case final fixed?) return Map.of(fixed);
     final response = <String, Object?>{
-      'contractVersion': 2,
+      'contractVersion': 4,
       'contextId': 'ctx_1234567890abcdef12345678',
       'generatedAt': '2026-07-14T02:00:00Z',
       'expiresAt': '2026-07-14T02:15:00Z',
       'scene': 'lake',
+      'sceneContext': {
+        'primaryScene': 'inlandWater',
+        'facets': ['lake', 'reflectiveSurface'],
+        'activity': 'stationary',
+        'scores': {'inlandWater': 55},
+        'reviewedOverride': false,
+      },
+      'opportunityCatalogVersion': 1,
       'fingerprint': '1234567890abcdef12345678',
       'stale': false,
       'dataFreshness': {
@@ -937,7 +894,7 @@ class _FakeTransport implements ContextDataTransport {
       'route': {'mode': 'none', 'stage': 'none', 'active': false},
       'events': [
         {
-          'id': 'reflection',
+          'id': 'session.water.evening',
           'channel': 'opportunity',
           'source': 'rule',
           'observedAt': '2026-07-14T02:00:00Z',
@@ -951,12 +908,83 @@ class _FakeTransport implements ContextDataTransport {
       'allowedActions': ['openExplore'],
       'manifest': {
         'layoutMode': 'opportunity',
-        'primaryEventId': 'reflection',
+        'primaryEventId': 'session.water.evening',
         'secondaryEventIds': [],
         'safetyEventIds': [],
       },
+      'shootingSessions': <Object?>[],
     };
     mutateResponse?.call(response);
     return response;
   }
 }
+
+Map<String, Object?> _shootingSessionBody() => {
+  'id': 'session_0123456789abcdef01234567',
+  'kind': 'waterEvening',
+  'title': '湖岸晚间窗口',
+  'startAt': '2026-07-14T10:10:00+08:00',
+  'endAt': '2026-07-14T11:10:00+08:00',
+  'primaryPhase': 'reflection',
+  'conditionBand': 'good',
+  'confidenceBand': 'high',
+  'trend': 'improving',
+  'phases': [
+    {
+      'kind': 'reflection',
+      'startAt': '2026-07-14T10:20:00+08:00',
+      'peakAt': '2026-07-14T10:35:00+08:00',
+      'endAt': '2026-07-14T10:50:00+08:00',
+      'conditionBand': 'good',
+      'directionDegrees': 286,
+    },
+  ],
+  'factors': [
+    {
+      'id': 'wind',
+      'effect': 'supporting',
+      'label': '风速',
+      'value': '1.8m/s',
+      'sourceAt': '2026-07-14T10:00:00+08:00',
+    },
+  ],
+  'trendSamples': [
+    {
+      'at': '2026-07-14T10:10:00+08:00',
+      'conditionIndex': 60,
+      'cloudCoverPercent': 60,
+      'windSpeedMps': 3,
+      'precipitationMm': 0,
+    },
+    {
+      'at': '2026-07-14T10:50:00+08:00',
+      'conditionIndex': 80,
+      'cloudCoverPercent': 50,
+      'windSpeedMps': 1.8,
+      'precipitationMm': 0,
+    },
+  ],
+  'targetCandidates': [],
+  'recommendedCapabilities': ['tripod'],
+  'ruleVersion': 'water-evening.1',
+  'expiresAt': '2026-07-14T10:15:00+08:00',
+};
+
+Map<String, Object?> _shootingTargetBody() => {
+  'id': 'target_0123456789abcdef01234567',
+  'name': '东岸审核湖岸',
+  'kind': 'lakeshore',
+  'coordinate': {'latitude': 30.251, 'longitude': 120.151, 'system': 'wgs84'},
+  'supportedSessions': ['waterMorning', 'waterEvening'],
+  'viewBearingDegrees': 286,
+  'bearingToleranceDegrees': 25,
+  'accessModes': ['driving'],
+  'leadTimeMinutes': 12,
+  'arrivalRadiusMeters': 100,
+  'shorelineSide': 'east',
+  'reviewedAt': '2026-07-01T00:00:00Z',
+  'reviewReference': 'https://review.example/targets/east-bank',
+  'sourceAttribution': '审核目录',
+  'sourceLicense': 'CC-BY-4.0',
+  'sourceUrl': 'https://source.example/lakes/east-bank',
+};

@@ -7,7 +7,7 @@ void main() {
     expect(
       ManifestActionResolver.resolve(
         const ManifestItem(
-          id: 'reflection',
+          id: 'session.water.evening',
           title: '倒影',
           action: ManifestAction.openExplore,
         ),
@@ -17,7 +17,7 @@ void main() {
     expect(
       ManifestActionResolver.resolve(
         const ManifestItem(
-          id: 'humanity-light',
+          id: 'session.route.light_window',
           title: '人文',
           action: ManifestAction.openExplore,
         ),
@@ -40,29 +40,29 @@ void main() {
     expect(
       ManifestActionResolver.resolve(
         const ManifestItem(
-          id: 'blue-hour',
+          id: 'session.city.blue_hour',
           title: '蓝调',
           action: ManifestAction.openShootingWindow,
         ),
       ).route,
-      '/shooting-window',
+      '/session/session.city.blue_hour',
     );
     expect(
       ManifestActionResolver.resolve(
         const ManifestItem(
-          id: 'mist',
+          id: 'event.atmosphere.morning_mist',
           title: '雾',
-          action: ManifestAction.openWeather,
+          action: ManifestAction.openCreativeDetail,
         ),
       ).panel,
-      ManifestPanel.weather,
+      ManifestPanel.creative,
     );
     expect(
       ManifestActionResolver.resolve(
         const ManifestItem(
           id: 'thunderstorm',
           title: '雷暴',
-          action: ManifestAction.openSafety,
+          action: ManifestAction.openSafetyDetail,
         ),
       ).panel,
       ManifestPanel.safety,
@@ -76,7 +76,7 @@ void main() {
         ManifestItem(
           id: 'astronomy-event',
           title: '流星雨',
-          action: ManifestAction.openAuthority,
+          action: ManifestAction.openAstronomyDetail,
           authorityUri: uri,
         ),
       ).externalUri,
@@ -87,7 +87,7 @@ void main() {
         const ManifestItem(
           id: 'missing-authority',
           title: '缺少来源',
-          action: ManifestAction.openAuthority,
+          action: ManifestAction.openAstronomyDetail,
         ),
       ).externalUri,
       isNull,

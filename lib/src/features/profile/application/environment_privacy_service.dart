@@ -28,7 +28,7 @@ class RiverpodEnvironmentPrivacyService implements EnvironmentPrivacyService {
     // Stop new environment work before removing any stored state.
     await _ref.read(environmentConsentProvider.notifier).revoke();
     await _ref.read(mapConsentControllerProvider.notifier).revokeConsent();
-    _ref.read(manualLocationProvider.notifier).clear();
+    await _ref.read(manualLocationProvider.notifier).clear();
     await _ref.read(baseRegionProvider.notifier).clear();
     await _ref.read(contextCacheProvider).clear();
     await _ref.read(drivingRouteCacheProvider).clear();

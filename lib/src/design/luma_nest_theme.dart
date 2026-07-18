@@ -23,6 +23,7 @@ abstract final class LumaNestTheme {
       // face (ZcoolXiaoWei) is reserved for brand and paper-note surfaces via
       // LumaNestTextStyles; it is never applied to titles or running text.
       displayLarge: typography.displayLarge?.copyWith(
+        fontSize: 30,
         fontWeight: FontWeight.w700,
         letterSpacing: -1.4,
         height: 1.08,
@@ -38,6 +39,7 @@ abstract final class LumaNestTheme {
         height: 1.14,
       ),
       headlineLarge: typography.headlineLarge?.copyWith(
+        fontSize: 23,
         fontWeight: FontWeight.w700,
         letterSpacing: -.4,
         height: 1.18,
@@ -51,15 +53,19 @@ abstract final class LumaNestTheme {
         height: 1.28,
       ),
       titleLarge: typography.titleLarge?.copyWith(
+        fontSize: 18,
         fontWeight: FontWeight.w600,
         height: 1.3,
       ),
       titleMedium: typography.titleMedium?.copyWith(
+        fontSize: 16,
         fontWeight: FontWeight.w600,
         height: 1.35,
       ),
-      bodyLarge: typography.bodyLarge?.copyWith(height: 1.55),
-      bodyMedium: typography.bodyMedium?.copyWith(height: 1.5),
+      bodyLarge: typography.bodyLarge?.copyWith(fontSize: 15, height: 1.55),
+      bodyMedium: typography.bodyMedium?.copyWith(fontSize: 15, height: 1.5),
+      bodySmall: typography.bodySmall?.copyWith(fontSize: 13, height: 1.45),
+      labelSmall: typography.labelSmall?.copyWith(fontSize: 12),
       labelLarge: typography.labelLarge?.copyWith(
         fontWeight: FontWeight.w600,
         letterSpacing: .12,
@@ -78,7 +84,7 @@ abstract final class LumaNestTheme {
       canvasColor: dark
           ? LumaNestColors.backgroundDark
           : LumaNestColors.backgroundLight,
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: NoSplash.splashFactory,
       appBarTheme: AppBarTheme(
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -94,7 +100,7 @@ abstract final class LumaNestTheme {
         elevation: 0,
         color: scheme.surfaceContainerLow.withValues(alpha: .94),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(LumaNestRadii.regular),
+          borderRadius: BorderRadius.circular(LumaNestRadii.card),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -122,7 +128,7 @@ abstract final class LumaNestTheme {
           minimumSize: const Size(48, 50),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+            borderRadius: BorderRadius.circular(LumaNestRadii.button),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -133,7 +139,7 @@ abstract final class LumaNestTheme {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           side: BorderSide(color: borderColor),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+            borderRadius: BorderRadius.circular(LumaNestRadii.button),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -142,7 +148,7 @@ abstract final class LumaNestTheme {
         style: TextButton.styleFrom(
           minimumSize: const Size(44, 44),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+            borderRadius: BorderRadius.circular(LumaNestRadii.button),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -156,20 +162,20 @@ abstract final class LumaNestTheme {
         ),
         border: OutlineInputBorder(
           borderSide: BorderSide.none,
-          borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+          borderRadius: BorderRadius.circular(LumaNestRadii.input),
         ),
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(color: borderColor),
-          borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+          borderRadius: BorderRadius.circular(LumaNestRadii.input),
         ),
         focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
-          borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+          borderRadius: BorderRadius.circular(LumaNestRadii.input),
         ),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+          borderRadius: BorderRadius.circular(LumaNestRadii.label),
         ),
         side: BorderSide(color: borderColor),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -185,7 +191,7 @@ abstract final class LumaNestTheme {
         minTileHeight: 58,
         iconColor: scheme.onSurfaceVariant,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+          borderRadius: BorderRadius.circular(LumaNestRadii.card),
         ),
         titleTextStyle: textTheme.titleMedium?.copyWith(
           color: scheme.onSurface,
@@ -200,14 +206,14 @@ abstract final class LumaNestTheme {
         showDragHandle: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(LumaNestRadii.expansive),
+            top: Radius.circular(LumaNestRadii.sheetTop),
           ),
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(LumaNestRadii.expansive),
+          borderRadius: BorderRadius.circular(LumaNestRadii.primaryContainer),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -217,7 +223,7 @@ abstract final class LumaNestTheme {
           color: scheme.onInverseSurface,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(LumaNestRadii.compact),
+          borderRadius: BorderRadius.circular(LumaNestRadii.button),
         ),
       ),
     );
@@ -240,9 +246,7 @@ abstract final class LumaNestTheme {
     final secondary = dark
         ? LumaNestColors.accentDark
         : LumaNestColors.accentLight;
-    final tertiary = dark
-        ? LumaNestColors.tertiaryDark
-        : LumaNestColors.tertiaryLight;
+    final tertiary = dark ? LumaNestColors.warmDark : LumaNestColors.warmLight;
     return ColorScheme(
       brightness: dark ? Brightness.dark : Brightness.light,
       primary: primary,
@@ -291,8 +295,8 @@ abstract final class LumaNestTheme {
           ? const Color(0xFF303B36)
           : const Color(0xFFE2E2DB),
       onSurfaceVariant: dark
-          ? const Color(0xFFC0CAC4)
-          : const Color(0xFF58645F),
+          ? const Color(0xFFB6C0C7)
+          : const Color(0xFF626B73),
       outline: dark ? LumaNestColors.outlineDark : LumaNestColors.outlineLight,
       outlineVariant: dark ? const Color(0xFF414D48) : const Color(0xFFC4CCC6),
       shadow: Colors.black,

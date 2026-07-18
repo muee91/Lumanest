@@ -3,7 +3,6 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { createQWeatherJwt } from './jwt.mjs';
 import { validateRuntimeSettings } from './admin/runtime-settings.mjs';
 import { EncryptedConfigStore } from './admin/config-store.mjs';
 import { RuntimeConfigService } from './admin/runtime-config.mjs';
@@ -17,12 +16,18 @@ import {
   createLLMProfileTester,
 } from './admin/connection-tester.mjs';
 import { routeNarrative } from './llm/router.mjs';
+import { opportunityCatalog } from './generated/opportunity-catalog.mjs';
 import {
   forwardContextSnapshot,
   fetchWildlifeLayers,
+  forwardShootingFeedback,
+  fetchShootingCalibration,
   importContextDataset,
   listContextSources,
+  resolveShootingTarget,
   validContextRequest,
+  validShootingFeedbackRequest,
+  validTargetSessionRequest,
 } from './context/proxy.mjs';
 import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
 import {
@@ -32,8 +37,13 @@ import {
   validDiscoveryExtractRequest,
   validDiscoverySearchRequest,
 } from './discovery/ingestion.mjs';
+import {
+  resolveDeterministicDiscovery,
+  validDeterministicDiscoveryRequest,
+} from './discovery/deterministic.mjs';
 import { defaultDiscoverySearchProfile } from './discovery/search-profile.mjs';
 import { authoritativeWeather } from './context/qweather.mjs';
+import { routeWeatherForecast, validRouteWeatherRequest } from './context/route-weather.mjs';
 import { fetchAmapSceneEvidence } from './context/amap-evidence.mjs';
 import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
 import {
@@ -41,8 +51,14 @@ import {
   MemoryRequestRateLimiter,
   RedisRequestRateLimiter,
 } from './context/request-rate-limiter.mjs';
+import {
+  CompanionStore,
+  parseInventoryQuery,
+  validCompanionRefreshRequest,
+  validIdempotencyKey,
+  validInsightFeedbackRequest,
+} from './companion/orchestrator.mjs';
 
-const tokenLifetimeSeconds = 900;
 const amapBaseUrl = 'https://restapi.amap.com';
 const gbifBaseUrl = 'https://api.gbif.org';
 const elevationBaseUrl = 'https://api.open-meteo.com';
@@ -125,24 +141,51 @@ const narrativeRequestKeys = new Set([
 ]);
 
 const narrativeTones = new Set(['concise', 'balanced', 'detailed']);
+const narrativeCreativeIds = new Set([
+  ...opportunityCatalog
+    .filter((item) => item.catalogTier === 'core' && item.coreCapability !== 'unavailable')
+    .map((item) => item.id),
+  'regional-wildlife',
+]);
 
 const ratePolicies = [
   { path: '/v1/narrative', limit: 8, windowMs: 5 * 60 * 1_000, key: 'narrative' },
-  { path: '/v1/qweather/token', limit: 8, windowMs: 60 * 1_000, key: 'weather-token' },
   { path: '/v1/wildlife/nearby', limit: 12, windowMs: 60 * 1_000, key: 'wildlife' },
   { path: '/v1/wildlife/layers', limit: 12, windowMs: 60 * 1_000, key: 'wildlife-layer' },
   { path: '/v1/elevation/profile', limit: 20, windowMs: 60 * 1_000, key: 'elevation' },
+  { path: '/v1/route/weather', limit: 12, windowMs: 60 * 1_000, key: 'route-weather' },
   { path: '/v1/context/snapshot', limit: 30, windowMs: 60 * 1_000, key: 'context' },
+  { path: '/v1/context/target-session', limit: 20, windowMs: 60 * 1_000, key: 'target-session' },
+  { path: '/v1/context/shooting-feedback', limit: 12, windowMs: 60 * 1_000, key: 'shooting-feedback' },
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
+  { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },
+  { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },
 ];
 
 function ratePolicy(pathname) {
+  if (/^\/v1\/insights\/insight_[a-f0-9]{24}\/feedback$/.test(pathname)) {
+    return { limit: 60, windowMs: 60 * 1_000, key: 'insight-feedback' };
+  }
   return ratePolicies.find((policy) => policy.path === pathname) ?? {
     limit: 60,
     windowMs: 60 * 1_000,
     key: 'app',
   };
+}
+
+function writeApiError(response, status, code, { retryAfterSeconds = null } = {}) {
+  writeJson(response, status, {
+    error: {
+      code,
+      message: code,
+      retryAfterSeconds,
+      requestId: createHash('sha256')
+        .update(`${Date.now()}:${code}`)
+        .digest('hex')
+        .slice(0, 16),
+    },
+  });
 }
 
 function rateLimitKey(request, policy) {
@@ -194,8 +237,7 @@ function validNarrativeRequest(body) {
   if (body.tone !== undefined && !narrativeTones.has(body.tone)) return false;
   if (!Array.isArray(body.creativeEventIds) || body.creativeEventIds.length === 0 ||
       body.creativeEventIds.length > 3) return false;
-  return body.creativeEventIds.every((id) =>
-    typeof id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(id));
+  return body.creativeEventIds.every((id) => narrativeCreativeIds.has(id));
 }
 
 function validNarrativeText(value, minimumLength, maximumLength) {
@@ -671,6 +713,7 @@ export function createTokenBrokerServer({
   weatherCache = new MemoryWeatherCache(),
   requestRateLimiter = new MemoryRequestRateLimiter(),
   simulationRegistry = new SimulationRegistry(),
+  companionStore = null,
   now = () => new Date(),
   fetcher = fetch,
 }) {
@@ -695,6 +738,7 @@ export function createTokenBrokerServer({
   const wildlifeCache = new Map();
   const gbifMetadataCache = new Map();
   const elevationCache = new Map();
+  const companion = companionStore ?? new CompanionStore({ now });
   return createServer(async (request, response) => {
     const configuration = configurationSource.snapshot();
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
@@ -714,7 +758,8 @@ export function createTokenBrokerServer({
     // Compose places workers on the private network; the separate token is a
     // second boundary and is intentionally absent from all responses and logs.
     if (requestUrl.pathname === '/internal/v1/discovery/search' ||
-        requestUrl.pathname === '/internal/v1/discovery/extract') {
+        requestUrl.pathname === '/internal/v1/discovery/extract' ||
+        requestUrl.pathname === '/internal/v1/discovery/deterministic') {
       if (request.method !== 'POST' || !hasValidWorkerToken(
         request.headers['x-discovery-worker-token'], configuration.discoveryWorkerToken,
       )) {
@@ -739,6 +784,25 @@ export function createTokenBrokerServer({
           return;
         }
         writeJson(response, 200, { results: result.results });
+        return;
+      }
+      if (requestUrl.pathname.endsWith('/deterministic')) {
+        if (body == null || !validDeterministicDiscoveryRequest(body)) {
+          writeJson(response, 400, { error: 'invalid_deterministic_discovery_request' });
+          return;
+        }
+        const result = await resolveDeterministicDiscovery({
+          body,
+          amapWebKey: configuration.amapWebKey,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+          now,
+        });
+        if (!result.ok) {
+          writeJson(response, result.error === 'not_configured' ? 503 : 502, { error: result.error });
+          return;
+        }
+        writeJson(response, 200, { candidates: result.candidates, evidence: result.evidence });
         return;
       }
       if (body == null || !validDiscoveryExtractRequest(body)) {
@@ -778,6 +842,53 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/companion/refresh') {
+      const idempotencyKey = request.headers['idempotency-key'];
+      const body = await readJsonBody(request, 2 * 1024);
+      if (!validIdempotencyKey(idempotencyKey) ||
+          body == null || !validCompanionRefreshRequest(body)) {
+        writeApiError(response, 400, 'invalid_snapshot');
+        return;
+      }
+      const result = companion.refresh(body, idempotencyKey);
+      if (!result.ok) {
+        writeApiError(response, result.error === 'invalid_snapshot' ? 400 : 502, result.error);
+        return;
+      }
+      writeJson(response, result.status, result.body);
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/inspiration/inventory') {
+      const query = parseInventoryQuery(requestUrl.searchParams);
+      if (query == null) {
+        writeApiError(response, 400, 'invalid_inventory_query');
+        return;
+      }
+      writeJson(response, 200, companion.listInventory(query));
+      return;
+    }
+
+    const feedbackMatch = /^\/v1\/insights\/(insight_[a-f0-9]{24})\/feedback$/.exec(
+      requestUrl.pathname,
+    );
+    if (request.method === 'POST' && feedbackMatch != null) {
+      const idempotencyKey = request.headers['idempotency-key'];
+      const body = await readJsonBody(request, 1024);
+      if (!validIdempotencyKey(idempotencyKey) ||
+          body == null || !validInsightFeedbackRequest(body)) {
+        writeApiError(response, 400, 'invalid_feedback');
+        return;
+      }
+      const result = companion.feedback(feedbackMatch[1], body.action, idempotencyKey);
+      if (!result.ok) {
+        writeApiError(response, 404, result.error);
+        return;
+      }
+      writeJson(response, 200, result.body);
+      return;
+    }
+
     if (request.method === 'POST' && requestUrl.pathname === '/v1/context/safety-detail') {
       const body = await readJsonBody(request, 512);
       if (body == null || !validSafetyDetailRequest(body)) {
@@ -792,6 +903,63 @@ export function createTokenBrokerServer({
         return;
       }
       writeJson(response, 200, detail);
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/route/weather') {
+      const body = await readJsonBody(request, 8 * 1024);
+      const requestedAt = now();
+      if (body == null || !validRouteWeatherRequest(body, requestedAt)) {
+        writeJson(response, 400, { error: 'invalid_route_weather_request' });
+        return;
+      }
+      const result = await routeWeatherForecast({
+        body,
+        now: () => requestedAt,
+        fetchWeather: (coordinate) => authoritativeWeather({
+          coordinate,
+          apiHost: configuration.qweatherApiHost,
+          privateKey: configuration.privateKey,
+          keyId: configuration.keyId,
+          projectId: configuration.projectId,
+          cache: weatherCache,
+          fetcher,
+          now,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+        }),
+      });
+      if (!result.ok) {
+        const configured = configuration.qweatherApiHost && configuration.privateKey &&
+          configuration.keyId && configuration.projectId;
+        writeJson(response, configured ? 502 : 503, {
+          error: configured ? 'upstream_unavailable' : 'weather_unconfigured',
+        });
+        return;
+      }
+      writeJson(response, 200, result.body);
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/shooting-feedback') {
+      const body = await readJsonBody(request, 4 * 1024);
+      if (body == null || !validShootingFeedbackRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_shooting_feedback_request' });
+        return;
+      }
+      const result = await forwardShootingFeedback({
+        body,
+        serviceUrl: configuration.contextServiceUrl,
+        internalToken: configuration.contextInternalToken,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
+          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      writeJson(response, 202, { accepted: true });
       return;
     }
 
@@ -991,9 +1159,8 @@ export function createTokenBrokerServer({
         simulationRegistry.register(simulationSession);
         const simulated = simulationRegistry.snapshot(simulationSession, now());
         if (simulated != null) {
-          writeJson(response, 200, body.contractVersion === 3
-            ? { ...simulated, contractVersion: 3, opportunities: [] }
-            : simulated);
+          companion.rememberSnapshot(simulated);
+          writeJson(response, 200, simulated);
           return;
         }
       }
@@ -1071,6 +1238,92 @@ export function createTokenBrokerServer({
           result.body.expiresAt,
         );
       }
+      companion.rememberSnapshot(result.body);
+      writeJson(response, 200, result.body);
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/target-session') {
+      const body = await readJsonBody(request, 2 * 1024);
+      if (body == null || !validTargetSessionRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_target_session_request' });
+        return;
+      }
+      const resolved = await resolveShootingTarget({
+        targetId: body.targetId,
+        coordinate: body.targetCoordinate,
+        serviceUrl: configuration.contextServiceUrl,
+        internalToken: configuration.contextInternalToken,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!resolved.ok) {
+        const status = resolved.error === 'not_found'
+          ? 404
+          : resolved.error === 'not_configured' ? 503 : 502;
+        writeJson(response, status, {
+          error: resolved.error === 'not_found'
+            ? 'shooting_target_unavailable'
+            : resolved.error === 'not_configured'
+              ? 'context_unconfigured'
+              : 'upstream_unavailable',
+        });
+        return;
+      }
+      const weather = await authoritativeWeather({
+        coordinate: resolved.target.coordinate,
+        apiHost: configuration.qweatherApiHost,
+        privateKey: configuration.privateKey,
+        keyId: configuration.keyId,
+        projectId: configuration.projectId,
+        cache: weatherCache,
+        fetcher,
+        now,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!weather.ok) {
+        writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
+          error: weather.error === 'not_configured' ? 'weather_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      const internalBody = {
+        contractVersion: 4,
+        coordinate: resolved.target.coordinate,
+        observedAt: body.observedAt,
+        locale: body.locale,
+        intent: 'photography',
+        route: { mode: 'none', stage: 'none' },
+        evidence: {
+          urban: false,
+          waterBody: true,
+          mountainous: false,
+          aridLand: false,
+          settlement: false,
+        },
+        weather: weather.body.weather,
+        forecast: weather.body.forecast,
+        officialWarnings: weather.body.officialWarnings.map((warning) => ({
+          id: warning.id,
+          observedAt: warning.observedAt,
+          expiresAt: warning.expiresAt,
+          severity: warning.severity,
+          title: warning.title,
+        })),
+      };
+      const result = await forwardContextSnapshot({
+        body: internalBody,
+        serviceUrl: configuration.contextServiceUrl,
+        internalToken: configuration.contextInternalToken,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
+          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
       writeJson(response, 200, result.body);
       return;
     }
@@ -1099,24 +1352,7 @@ export function createTokenBrokerServer({
       return;
     }
 
-    if (request.method !== 'POST' || requestUrl.pathname !== '/v1/qweather/token') {
-      writeJson(response, 404, { error: 'not_found' });
-      return;
-    }
-
-    const issuedAt = now();
-    const iat = Math.floor(issuedAt.getTime() / 1000) - 30;
-    const token = createQWeatherJwt({
-      privateKey: configuration.privateKey,
-      keyId: configuration.keyId,
-      projectId: configuration.projectId,
-      now: issuedAt,
-      ttlSeconds: tokenLifetimeSeconds,
-    });
-    writeJson(response, 200, {
-      token,
-      expiresAt: new Date((iat + tokenLifetimeSeconds) * 1000).toISOString(),
-    });
+    writeJson(response, 404, { error: 'not_found' });
   });
 }
 
@@ -1134,11 +1370,6 @@ export function configurationFromEnvironment(environment = process.env) {
     projectId: required('QWEATHER_PROJECT_ID'),
     serviceToken: required('LUMANEST_SERVICE_TOKEN'),
     amapWebKey: required('AMAP_WEB_KEY'),
-    aiApiKey: environment.AI_API_KEY?.trim() ?? '',
-    // Legacy values are never an active model configuration. RuntimeConfigService
-    // exposes a non-empty legacy tuple only as a manual import candidate.
-    aiBaseUrl: environment.AI_BASE_URL?.trim() ?? '',
-    aiModel: environment.AI_MODEL?.trim() ?? '',
     contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
     discoveryServiceUrl: environment.DISCOVERY_SERVICE_URL?.trim() ?? '',
@@ -1195,6 +1426,15 @@ export async function createBrokerServices(environment = process.env, {
     listContextSources: async () => {
       const snapshot = runtimeConfig.snapshot();
       return listContextSources({
+        serviceUrl: snapshot.contextServiceUrl,
+        internalToken: snapshot.contextInternalToken,
+      });
+    },
+    getShootingCalibration: async ({ days, minimumSamples }) => {
+      const snapshot = runtimeConfig.snapshot();
+      return fetchShootingCalibration({
+        days,
+        minimumSamples,
         serviceUrl: snapshot.contextServiceUrl,
         internalToken: snapshot.contextInternalToken,
       });

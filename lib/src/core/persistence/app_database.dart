@@ -136,6 +136,8 @@ class ProfilePreferenceRecords extends Table {
   TextColumn get equipmentList => text()();
   TextColumn get aiTone => text()();
   RealColumn get recommendationIntensity => real()();
+  BoolColumn get shareAnonymousPhotographyFeedback =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -154,6 +156,29 @@ class ProfilePreferenceRecords extends Table {
 /// independently deletable owner.
 @DataClassName('BaseRegionRow')
 class BaseRegions extends Table {
+  IntColumn get id => integer().withDefault(const Constant(1))();
+  TextColumn get name => text()();
+  TextColumn get address => text().nullable()();
+  RealColumn get latitude => real()();
+  RealColumn get longitude => real()();
+  DateTimeColumn get selectedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (id = 1)',
+    'CHECK (length(name) BETWEEN 1 AND 160)',
+    'CHECK (latitude BETWEEN -90 AND 90)',
+    'CHECK (longitude BETWEEN -180 AND 180)',
+  ];
+}
+
+/// The most recent explicit map/search selection. It is local-only and can be
+/// cleared independently from the user's long-term base region.
+@DataClassName('ManualLocationRow')
+class ManualLocations extends Table {
   IntColumn get id => integer().withDefault(const Constant(1))();
   TextColumn get name => text()();
   TextColumn get address => text().nullable()();
@@ -225,14 +250,15 @@ class WildlifeMapLayerCaches extends Table {
   ];
 }
 
-/// Deliberately local, user-initiated follows. This table has no coordinate
-/// columns: following an opportunity must not become a location history.
-@DataClassName('WatchedPhotographyOpportunityRow')
-class WatchedPhotographyOpportunities extends Table {
+/// Deliberately local, user-initiated session watches. This table has no
+/// coordinate columns, so following a session cannot become location history.
+@DataClassName('WatchedShootingSessionRow')
+class WatchedShootingSessions extends Table {
   TextColumn get id => text()();
-  TextColumn get opportunityId => text()();
+  TextColumn get sessionId => text()();
   TextColumn get snapshotId => text()();
   TextColumn get title => text()();
+  TextColumn get kind => text()();
   TextColumn get targetId => text().nullable()();
   DateTimeColumn get watchedAt => dateTime()();
   DateTimeColumn get expiresAt => dateTime()();
@@ -243,21 +269,23 @@ class WatchedPhotographyOpportunities extends Table {
   @override
   List<String> get customConstraints => const [
     'CHECK (length(id) = 64)',
-    'CHECK (length(opportunity_id) BETWEEN 1 AND 160)',
+    'CHECK (length(session_id) BETWEEN 1 AND 160)',
     'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
     'CHECK (length(title) BETWEEN 1 AND 160)',
+    "CHECK (kind IN ('waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
     'CHECK (expires_at >= watched_at)',
   ];
 }
 
-@DataClassName('PhotographyOpportunityResultRow')
-class PhotographyOpportunityResults extends Table {
+@DataClassName('ShootingSessionResultRow')
+class ShootingSessionResults extends Table {
   TextColumn get id => text()();
-  TextColumn get opportunityId => text()();
+  TextColumn get sessionId => text()();
   TextColumn get snapshotId => text()();
+  TextColumn get kind => text()();
   TextColumn get targetId => text().nullable()();
   TextColumn get outcome => text()();
-  TextColumn get reason => text().nullable()();
+  TextColumn get reasonsJson => text()();
   DateTimeColumn get recordedAt => dateTime()();
 
   @override
@@ -266,10 +294,11 @@ class PhotographyOpportunityResults extends Table {
   @override
   List<String> get customConstraints => const [
     'CHECK (length(id) = 64)',
-    'CHECK (length(opportunity_id) BETWEEN 1 AND 160)',
+    'CHECK (length(session_id) BETWEEN 1 AND 160)',
     'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
-    "CHECK (outcome IN ('shot', 'missed', 'skipped'))",
-    'CHECK (reason IS NULL OR length(reason) BETWEEN 1 AND 280)',
+    "CHECK (kind IN ('waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
+    "CHECK (outcome IN ('captured', 'conditionsDidNotAppear', 'arrivedLate', 'didNotGo'))",
+    'CHECK (length(reasons_json) BETWEEN 2 AND 512)',
   ];
 }
 
@@ -285,7 +314,7 @@ class OfflinePhotographyPacks extends Table {
   TextColumn get routeJson => text().nullable()();
   TextColumn get placesJson => text()();
   TextColumn get windowsJson => text()();
-  TextColumn get opportunityJson => text()();
+  TextColumn get sessionJson => text()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -298,7 +327,7 @@ class OfflinePhotographyPacks extends Table {
     'CHECK (route_json IS NULL OR length(route_json) BETWEEN 1 AND 131072)',
     'CHECK (length(places_json) BETWEEN 2 AND 524288)',
     'CHECK (length(windows_json) BETWEEN 2 AND 131072)',
-    'CHECK (length(opportunity_json) BETWEEN 2 AND 131072)',
+    'CHECK (length(session_json) BETWEEN 2 AND 131072)',
   ];
 }
 
@@ -311,10 +340,11 @@ class OfflinePhotographyPacks extends Table {
     ImportedRouteTracks,
     ProfilePreferenceRecords,
     BaseRegions,
+    ManualLocations,
     SavedInspirationNotes,
     WildlifeMapLayerCaches,
-    WatchedPhotographyOpportunities,
-    PhotographyOpportunityResults,
+    WatchedShootingSessions,
+    ShootingSessionResults,
     OfflinePhotographyPacks,
   ],
 )
@@ -325,57 +355,17 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
-      if (from < 2) {
-        await migrator.createTable(profilePreferenceRecords);
+      // Development clean cut: older schemas are intentionally discarded.
+      // No old model, cache, or column is decoded into the current runtime.
+      for (final table in allTables.toList(growable: false).reversed) {
+        await customStatement('DROP TABLE IF EXISTS ${table.actualTableName}');
       }
-      if (from < 3) {
-        await migrator.createTable(importedRouteTracks);
-      }
-      if (from < 4) {
-        await migrator.createTable(baseRegions);
-      }
-      if (from < 5) {
-        await migrator.createTable(savedInspirationNotes);
-      }
-      if (from < 6) {
-        await migrator.createTable(savedRoutes);
-      }
-      if (from < 7) {
-        await migrator.createTable(savedJourneys);
-      }
-      if (from >= 5 && from < 8) {
-        await migrator.addColumn(
-          savedInspirationNotes,
-          savedInspirationNotes.sourceNoteId,
-        );
-        await migrator.addColumn(
-          savedInspirationNotes,
-          savedInspirationNotes.authorityUrl,
-        );
-      }
-      if (from < 9) {
-        await migrator.createTable(wildlifeMapLayerCaches);
-      }
-      if (from < 10) {
-        await migrator.createTable(watchedPhotographyOpportunities);
-        await migrator.createTable(photographyOpportunityResults);
-        await migrator.createTable(offlinePhotographyPacks);
-      }
-      if (from >= 10 && from < 11) {
-        await migrator.addColumn(
-          watchedPhotographyOpportunities,
-          watchedPhotographyOpportunities.targetId,
-        );
-        await migrator.addColumn(
-          photographyOpportunityResults,
-          photographyOpportunityResults.targetId,
-        );
-      }
+      await migrator.createAll();
     },
   );
 }

@@ -66,7 +66,7 @@ def build_opportunity_corridor(
     returns a degradation marker and no partial/guessed corridor, so the
     client cannot mistake a stale or incomplete forecast for a route fact.
     """
-    if geo_scope not in ("regional", "route"):
+    if geo_scope not in ("region", "route"):
         return CorridorBuild(None)
     if not route.corridor_samples or route.route_id is None:
         return CorridorBuild(None, CorridorDegradation.NO_SAMPLES)

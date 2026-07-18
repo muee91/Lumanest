@@ -10,7 +10,13 @@ import httpx
 from redis.asyncio import Redis
 from redis.exceptions import ResponseError
 
-from .models import BrokerExtractionResponse, BrokerSearchResponse, BrokerSearchResult, ExtractedCandidate
+from .models import (
+    BrokerDeterministicResponse,
+    BrokerExtractionResponse,
+    BrokerSearchResponse,
+    BrokerSearchResult,
+    ExtractedCandidate,
+)
 from .store import (
     PENDING_SECONDS,
     REFRESH_GROUP,
@@ -23,7 +29,6 @@ from .store import (
 
 HEARTBEAT_KEY = "discovery:worker:heartbeat"
 MAX_RETRIES = 2
-SEARCH_FRESHNESS_DAYS = 30
 FORBIDDEN_CONTENT = (
     "wildlife", "animal", "bear", "tiger", "snake", "risk", "danger", "hazard", "warning",
     "emergency", "safety", "popular", "trending", "top", "热度", "热门", "人气",
@@ -45,22 +50,32 @@ class BrokerClient:
         return bool(self.base_url and self.token)
 
     async def search(self, job: RefreshJob) -> list[BrokerSearchResult]:
-        payload = {
-            "query": self._query(job),
-            "locale": job.region.locale,
-            "freshnessDays": SEARCH_FRESHNESS_DAYS,
-            "domains": [],
-        }
-        raw = await self._post("/internal/v1/discovery/search", payload)
-        try:
-            response = BrokerSearchResponse.model_validate(raw)
-        except Exception as error:
-            raise BrokerFailure("invalid_search_response") from error
-        # Evidence must be an HTTPS URL before it can be sent to extraction.
-        return [item for item in response.results if item.url.scheme == "https"]
+        results: list[BrokerSearchResult] = []
+        seen: set[str] = set()
+        for query in self._queries(job):
+            payload = {
+                "query": query,
+                "locale": job.region.locale,
+                "freshnessDays": self._freshness_days(job.region.mission_type),
+                "domains": [],
+            }
+            raw = await self._post("/internal/v1/discovery/search", payload)
+            try:
+                response = BrokerSearchResponse.model_validate(raw)
+            except Exception as error:
+                raise BrokerFailure("invalid_search_response") from error
+            for item in response.results:
+                url = str(item.url)
+                if item.url.scheme == "https" and url not in seen:
+                    seen.add(url)
+                    results.append(item)
+                if len(results) == 24:
+                    return results
+        return results
 
     async def extract(self, job: RefreshJob, evidence: list[BrokerSearchResult]) -> list[ExtractedCandidate]:
         payload = {
+            "missionType": job.region.mission_type,
             "focus": job.region.focus,
             "locale": job.region.locale,
             "region": {"latitude": job.region.latitude, "longitude": job.region.longitude},
@@ -81,6 +96,29 @@ class BrokerClient:
         except Exception as error:
             raise BrokerFailure("invalid_extraction_response") from error
 
+    async def deterministic(
+        self,
+        job: RefreshJob,
+        evidence: list[BrokerSearchResult],
+    ) -> tuple[list[ExtractedCandidate], list[BrokerSearchResult]]:
+        payload = {
+            "missionType": job.region.mission_type,
+            "focus": job.region.focus,
+            "locale": job.region.locale,
+            "region": {
+                "latitude": job.region.latitude,
+                "longitude": job.region.longitude,
+                "radiusMeters": job.region.radius_meters,
+            },
+            "evidence": [item.model_dump(by_alias=True, mode="json") for item in evidence],
+        }
+        raw = await self._post("/internal/v1/discovery/deterministic", payload)
+        try:
+            response = BrokerDeterministicResponse.model_validate(raw)
+            return response.candidates, response.evidence
+        except Exception as error:
+            raise BrokerFailure("invalid_deterministic_response") from error
+
     async def _post(self, path: str, payload: dict[str, Any]) -> Any:
         if not self.configured:
             raise BrokerFailure("broker_not_configured")
@@ -98,21 +136,37 @@ class BrokerClient:
             raise BrokerFailure("broker_unavailable") from error
 
     @staticmethod
-    def _query(job: RefreshJob) -> str:
-        # Coordinates here are the grid centre, never the app's supplied point.
-        if job.region.locale.startswith("zh"):
-            focus = {
-                "photography": "摄影观景点和景点",
-                "water": "水岸景点和公开活动",
-                "humanity": "人文景点和公开活动",
-            }[job.region.focus]
-            return f"{focus} 附近 {job.region.latitude:.3f},{job.region.longitude:.3f}"
-        focus = {
-            "photography": "photography viewpoints and attractions",
-            "water": "waterfront attractions and public events",
-            "humanity": "cultural attractions and public events",
-        }[job.region.focus]
-        return f"{focus} near {job.region.latitude:.3f},{job.region.longitude:.3f}"
+    def _queries(job: RefreshJob) -> tuple[str, str, str]:
+        # Coordinates are the coarse grid centre, never the app's raw point.
+        area = job.region.focus.strip() or f"{job.region.latitude:.3f},{job.region.longitude:.3f}"
+        if not job.region.locale.startswith("zh"):
+            return (
+                f"{area} {job.region.mission_type} recent",
+                f"{area} {job.region.mission_type} official",
+                f"{area} {job.region.mission_type} local",
+            )
+        templates = {
+            "popularPlaces": ("最近热门 地点", "摄影机位", "本月 热门旅行地点"),
+            "hiddenPlaces": ("小众地点", "本地人常去", "非热门摄影地点"),
+            "humanityEvents": ("今日 市集 活动", "本周 民俗 节庆", "早市 夜市 展览"),
+            "localStories": ("历史", "当地文化", "传统手艺"),
+            "routeConditions": ("当前路况", "临时封闭", "施工 管制"),
+            "openingAndClosure": ("今日开放", "临时关闭", "营业时间"),
+            "seasonalSignals": ("本月 花期", "候鸟", "季节景观"),
+        }[job.region.mission_type]
+        return tuple(f"{area} {suffix}" for suffix in templates)
+
+    @staticmethod
+    def _freshness_days(mission_type: str) -> int:
+        return {
+            "routeConditions": 1,
+            "humanityEvents": 1,
+            "openingAndClosure": 1,
+            "popularPlaces": 1,
+            "hiddenPlaces": 3,
+            "seasonalSignals": 1,
+            "localStories": 30,
+        }[mission_type]
 
 
 def parse_job(values: dict[str, str]) -> RefreshJob | None:
@@ -124,13 +178,18 @@ def parse_job(values: dict[str, str]) -> RefreshJob | None:
         longitude = float(values["longitude"])
         locale = values["locale"]
         focus = values["focus"]
+        mission_type = values["missionType"]
+        radius_meters = int(values["radiusMeters"])
         expires_at = int(values["expiresAt"])
         attempt = int(values.get("attempt", "0"))
     except (KeyError, TypeError, ValueError):
         return None
     if (
         len(fingerprint) != 64 or len(region_id) > 80 or not -90 <= latitude <= 90
-        or not -180 <= longitude <= 180 or focus not in {"photography", "water", "humanity"}
+        or not -180 <= longitude <= 180 or mission_type not in {
+            "popularPlaces", "hiddenPlaces", "humanityEvents", "localStories",
+            "routeConditions", "openingAndClosure", "seasonalSignals",
+        } or not 100 <= radius_meters <= 50_000
         or not 0 <= attempt <= MAX_RETRIES or expires_at <= int(time.time())
     ):
         return None
@@ -141,7 +200,9 @@ def parse_job(values: dict[str, str]) -> RefreshJob | None:
         return None
     return RefreshJob(
         fingerprint=fingerprint,
-        region=RegionReference(region_id, latitude, longitude, locale, focus),
+        region=RegionReference(
+            region_id, latitude, longitude, locale, mission_type, focus, radius_meters
+        ),
         expires_at=expires_at,
         attempt=attempt,
     )
@@ -164,6 +225,43 @@ def is_admissible(candidate: ExtractedCandidate, evidence: list[BrokerSearchResu
         return None
     linked = [evidence[index] for index in dict.fromkeys(candidate.source_indexes)]
     if not linked or any(item.url.scheme != "https" for item in linked):
+        return None
+    if distance_km(
+        job.region.latitude,
+        job.region.longitude,
+        candidate.coordinate.latitude,
+        candidate.coordinate.longitude,
+    ) > 50:
+        return None
+    return linked
+
+
+def is_deterministic_admissible(
+    candidate: ExtractedCandidate,
+    evidence: list[BrokerSearchResult],
+    job: RefreshJob,
+) -> list[BrokerSearchResult] | None:
+    """Accept only the dedicated AMap products for their matching mission."""
+    expected = {
+        "routeConditions": ("amap-traffic", "candidate_viewpoint"),
+        "openingAndClosure": ("amap-poi", "attraction"),
+    }.get(job.region.mission_type)
+    if expected is None or candidate.kind != expected[1]:
+        return None
+    if candidate.coordinate is None or not coordinate_evidence_supports(candidate, evidence):
+        return None
+    if not has_normal_coordinate_precision(candidate.coordinate.latitude) or not has_normal_coordinate_precision(candidate.coordinate.longitude):
+        return None
+    if any(index < 0 or index >= len(evidence) for index in candidate.source_indexes):
+        return None
+    linked = [evidence[index] for index in dict.fromkeys(candidate.source_indexes)]
+    if not linked or any(
+        item.source_id != expected[0]
+        or item.publisher != "高德地图"
+        or item.url.host != "ditu.amap.com"
+        or item.url.scheme != "https"
+        for item in linked
+    ):
         return None
     if distance_km(
         job.region.latitude,
@@ -229,12 +327,22 @@ async def retry_or_fail(redis: Redis, store: DiscoveryStore, job: RefreshJob) ->
 async def process_job(redis: Redis, store: DiscoveryStore, broker: BrokerClient, job: RefreshJob) -> None:
     try:
         await store.record_refresh(job, "attempted")
-        evidence = await broker.search(job)
-        if not evidence:
-            await redis.set(f"discovery:refresh:{job.fingerprint}", "completed", ex=CACHE_TTL)
-            return
-        extracted = await broker.extract(job, evidence)
-        admitted = [(candidate, linked) for candidate in extracted if (linked := is_admissible(candidate, evidence, job))]
+        if job.region.mission_type in {"routeConditions", "openingAndClosure"}:
+            extracted, deterministic_evidence = await broker.deterministic(job, [])
+            admitted = [
+                (candidate, linked)
+                for candidate in extracted
+                if (linked := is_deterministic_admissible(
+                    candidate, deterministic_evidence, job
+                ))
+            ]
+        else:
+            evidence = await broker.search(job)
+            if not evidence:
+                await redis.set(f"discovery:refresh:{job.fingerprint}", "completed", ex=CACHE_TTL)
+                return
+            extracted = await broker.extract(job, evidence)
+            admitted = [(candidate, linked) for candidate in extracted if (linked := is_admissible(candidate, evidence, job))]
         await store.persist_candidates(job, admitted)
         await redis.set(f"discovery:refresh:{job.fingerprint}", "completed", ex=CACHE_TTL)
     except (BrokerFailure, RuntimeError):

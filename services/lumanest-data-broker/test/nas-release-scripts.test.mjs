@@ -39,6 +39,10 @@ test('cached NAS builds reuse application images without reinstalling dependenci
 
   assert.match(compose, /dockerfile: \$\{BROKER_DOCKERFILE:-Dockerfile\}/);
   assert.match(compose, /dockerfile: \$\{CONTEXT_DOCKERFILE:-Dockerfile\}/);
+  assert.equal(
+    compose.match(/DISCOVERY_BASE_IMAGE: \$\{DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest\}/g)?.length,
+    2,
+  );
 });
 
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {
@@ -175,6 +179,12 @@ test('release state writes and recovery failures remain explicit', async () => {
   assert.match(deploy, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
   assert.match(deploy, /application-images\.tar/);
   assert.match(deploy, /<title>栖光 · 管理台<\/title>/);
+  assert.match(deploy, /verify_release_discovery_worker/);
+  assert.match(deploy, /Discovery worker heartbeat check timed out/);
+  assert.match(
+    deploy,
+    /while ! compose_release exec -T discovery-worker python -c/,
+  );
   assert.match(rollback, /verify_http_boundary/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });

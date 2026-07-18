@@ -15,7 +15,9 @@ function response(path) {
       wind360: '90', vis: '20', precip: '1.5', cloud: '80',
     } },
     '/v7/weather/24h': { code: '200', hourly: [
-      { fxTime: '2026-07-14T11:00:00+08:00', icon: '302', windSpeed: '54' },
+      {
+        fxTime: '2026-07-14T11:00:00+08:00', icon: '302', windSpeed: '54', vis: '18',
+      },
     ] },
     '/v7/minutely/5m': { code: '200', minutely: [
       { fxTime: '2026-07-14T10:05:00+08:00', precip: '2.5' },
@@ -61,6 +63,7 @@ test('authoritative weather normalizes all licensed QWeather sources and caches 
   assert.equal(first.body.forecast.nextHourPrecipitationMm, 5.5);
   assert.equal(first.body.forecast.nextThreeHoursMaxWindSpeedMps, 15);
   assert.equal(first.body.forecast.thunderNextThreeHours, true);
+  assert.equal(first.body.forecast.hourly[0].visibilityKm, 18);
   assert.equal(first.body.officialWarnings[0].severity, 'critical');
   assert.equal(first.body.officialWarnings[0].title, '雷电红色预警');
   assert.equal(first.body.officialWarnings[0].description, '预计未来两小时局地有强雷电活动。');
@@ -99,6 +102,34 @@ test('air quality failure never breaks authoritative weather', async () => {
   assert.equal(result.body.weather.airQualityStale, true);
 });
 
+test('three-hour aggregates ignore later entries while retaining 24-hour coverage', async () => {
+  const hourly = Array.from({ length: 24 }, (_, index) => ({
+    fxTime: new Date(Date.UTC(2026, 6, 14, 3 + index)).toISOString(),
+    icon: index === 3 ? '302' : '101',
+    windSpeed: index === 3 ? '540' : String((index + 1) * 3.6),
+    precip: '0',
+    vis: '20',
+  }));
+  const result = await authoritativeWeather({
+    coordinate,
+    apiHost: 'https://project.qweatherapi.com',
+    privateKey,
+    keyId: 'key-id',
+    projectId: 'project-id',
+    cache: new MemoryWeatherCache(),
+    now: () => new Date('2026-07-14T02:02:00Z'),
+    fetcher: async (url) => url.pathname === '/v7/weather/24h'
+      ? new Response(JSON.stringify({ code: '200', hourly }), { status: 200 })
+      : response(url.pathname),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.body.forecast.hourly.length, 24);
+  assert.equal(result.body.forecast.nextThreeHoursMaxWindSpeedMps, 3);
+  assert.equal(result.body.forecast.thunderNextThreeHours, false);
+  assert.equal(result.body.forecast.hourly[3].thunder, true);
+});
+
 test('authoritative weather uses a bounded stale cache and rejects arbitrary hosts', async () => {
   const cache = new MemoryWeatherCache();
   const base = {
@@ -125,7 +156,7 @@ test('authoritative weather uses a bounded stale cache and rejects arbitrary hos
   assert.deepEqual(invalid, { ok: false, error: 'not_configured' });
 });
 
-test('legacy warning cache refreshes online and remains forward-compatible offline', async () => {
+test('incomplete warning cache refreshes online and degrades safely offline', async () => {
   const cache = new RecordingCache();
   const base = {
     coordinate,

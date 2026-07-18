@@ -44,7 +44,7 @@ def test_projects_bounded_forecast_and_solar_without_coordinates():
         route(),
         [hourly(BASE + timedelta(hours=index)) for index in range(3)],
         opportunity_id="photo-sunsetglow-2026071710",
-        geo_scope="regional",
+        geo_scope="region",
     )
 
     assert result.degradation is None
@@ -59,13 +59,13 @@ def test_projects_bounded_forecast_and_solar_without_coordinates():
 
 def test_missing_forecast_never_returns_partial_or_invented_corridor():
     no_forecast = build_opportunity_corridor(
-        route(), [], opportunity_id="photo-sunsetglow-2026071710", geo_scope="regional"
+        route(), [], opportunity_id="photo-sunsetglow-2026071710", geo_scope="region"
     )
     assert no_forecast.corridor is None
     assert no_forecast.degradation == CorridorDegradation.HOURLY_FORECAST_UNAVAILABLE
 
     partial = build_opportunity_corridor(
-        route(), [hourly(BASE)], opportunity_id="photo-sunsetglow-2026071710", geo_scope="regional"
+        route(), [hourly(BASE)], opportunity_id="photo-sunsetglow-2026071710", geo_scope="region"
     )
     assert partial.corridor is None
     assert partial.degradation == CorridorDegradation.HOURLY_FORECAST_COVERAGE_INSUFFICIENT
@@ -80,7 +80,7 @@ def test_point_opportunity_and_absent_samples_do_not_receive_corridor():
     assert point.degradation is None
 
     absent = build_opportunity_corridor(
-        route(samples=False), [hourly(BASE)], opportunity_id="photo-sunsetglow-2026071710", geo_scope="regional"
+        route(samples=False), [hourly(BASE)], opportunity_id="photo-sunsetglow-2026071710", geo_scope="region"
     )
     assert absent.corridor is None
     assert absent.degradation == CorridorDegradation.NO_SAMPLES

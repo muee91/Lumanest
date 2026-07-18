@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_classifier.dart';
 
 void main() {
@@ -36,69 +35,15 @@ void main() {
     );
   });
 
-  test('active travel state takes precedence over terrain evidence', () {
+  test('activity evidence never replaces terrain evidence', () {
     const classifier = SceneClassifier();
     expect(
       classifier.classify(const SceneEvidence(waterBody: true, driving: true)),
-      SceneType.driving,
+      SceneType.lake,
     );
     expect(
       classifier.classify(const SceneEvidence(mountainous: true, hiking: true)),
-      SceneType.hiking,
+      SceneType.mountain,
     );
-  });
-
-  group('route-aware classification', () {
-    const classifier = SceneClassifier();
-
-    test('planned driving does not override the geo-derived scene', () {
-      expect(
-        classifier.classify(
-          const SceneEvidence(waterBody: true),
-          route: RouteContextState.planned(ContextRouteMode.driving),
-        ),
-        SceneType.lake,
-      );
-    });
-
-    test('paused hiking does not override the geo-derived scene', () {
-      expect(
-        classifier.classify(
-          const SceneEvidence(mountainous: true),
-          route: RouteContextState.paused(ContextRouteMode.hiking),
-        ),
-        SceneType.mountain,
-      );
-    });
-
-    test('planned route with no evidence falls back to unknown', () {
-      expect(
-        classifier.classify(
-          const SceneEvidence(),
-          route: RouteContextState.planned(ContextRouteMode.driving),
-        ),
-        SceneType.unknown,
-      );
-    });
-
-    test('active driving overrides terrain evidence', () {
-      expect(
-        classifier.classify(
-          const SceneEvidence(mountainous: true),
-          route: RouteContextState.active(ContextRouteMode.driving),
-        ),
-        SceneType.driving,
-      );
-    });
-
-    test('active hiking overrides terrain evidence', () {
-      expect(
-        classifier.classify(
-          const SceneEvidence(waterBody: true),
-          route: RouteContextState.active(ContextRouteMode.hiking),
-        ),
-        SceneType.hiking,
-      );
-    });
   });
 }

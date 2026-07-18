@@ -1,17 +1,13 @@
+import 'dart:convert';
+
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
-import 'package:luma_nest/src/core/photography/inspiration_proposal.dart';
-import 'package:luma_nest/src/core/photography/photography_opportunity.dart';
+import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/generated/opportunity_catalog.g.dart';
 
-/// A short prompt in the inspiration bottle.
-///
-/// [factualOpportunity] notes are backed by an already-established context
-/// opportunity. [creativePrompt] notes are local composition exercises: they
-/// intentionally make no claim about current weather, wildlife, risk, or a
-/// particular place being recommended.
 enum InspirationNoteKind { factualOpportunity, creativePrompt }
 
 class InspirationNote {
@@ -26,7 +22,7 @@ class InspirationNote {
     required this.priority,
     required this.ttl,
     this.opportunityId,
-    this.evidence = const <PhotographyEvidence>[],
+    this.evidence = const <String>[],
     this.authorityUri,
   });
 
@@ -39,11 +35,8 @@ class InspirationNote {
   final String detail;
   final int priority;
   final Duration ttl;
-
-  /// Present only for a factual note; used to preserve the link to the
-  /// deterministic decision that established it.
   final String? opportunityId;
-  final List<PhotographyEvidence> evidence;
+  final List<String> evidence;
   final Uri? authorityUri;
 
   bool get isFactual => kind == InspirationNoteKind.factualOpportunity;
@@ -53,312 +46,216 @@ class InspirationNote {
 enum InspirationCategory { light, weather, place, composition }
 
 abstract final class InspirationNotes {
+  static final List<_CreativeDefinition> _creativeCatalog =
+      _decodeCreativeCatalog();
+
   static List<InspirationNote> build(
     ContextSnapshot snapshot, {
     ManifestNarrative? narrative,
-    UiManifest? manifest,
     Iterable<EquipmentCapability> availableEquipment =
         const <EquipmentCapability>[],
   }) {
-    // V3 opportunities are the canonical source for factual notes. A V2
-    // manifest remains a display-compatible fallback until old snapshots age
-    // out; safety and wildlife channels are never eligible either way.
-    final factual = snapshot.photographyOpportunities.isNotEmpty
-        ? _fromOpportunities(snapshot.photographyOpportunities, narrative)
-        : _fromManifest(
-            manifest ?? ManifestPolicy.build(snapshot),
-            narrative: narrative,
-          );
+    final factual = snapshot.shootingSessions
+        .map((session) => _fromSession(session, narrative))
+        .toList(growable: false);
     final creative = _creativePrompts(
       snapshot,
-      availableEquipment: availableEquipment,
+      availableEquipment: availableEquipment.toSet(),
+      maximum: 36 - factual.length,
     );
-    return _deduplicate([...factual, ...creative]);
+    return List.unmodifiable([...factual, ...creative]);
   }
 
-  static List<InspirationNote> _fromOpportunities(
-    Iterable<PhotographyOpportunity> opportunities,
+  static InspirationNote _fromSession(
+    ShootingSession session,
     ManifestNarrative? narrative,
   ) {
-    final proposals = PhotographyInspirationProposalBuilder.build(
-      opportunities: opportunities,
-    );
-    return [
-      for (final proposal in proposals)
-        _fromProposal(proposal, opportunities, narrative),
-    ];
-  }
-
-  static InspirationNote _fromProposal(
-    PhotographyInspirationProposal proposal,
-    Iterable<PhotographyOpportunity> opportunities,
-    ManifestNarrative? narrative,
-  ) {
-    final opportunity = opportunities.firstWhere(
-      (item) => item.id == proposal.opportunityId,
-    );
-    final labelOverride = narrative?.noteLabels[proposal.id];
+    final definitionId = _definitionId(session.kind);
+    final definition = OpportunityCatalog.current.byId[definitionId]!;
+    final labelOverride =
+        narrative?.noteLabels[session.id] ??
+        narrative?.noteLabels[definitionId];
+    final evidence = session.factors
+        .take(3)
+        .map((item) => '${item.label} ${item.value}')
+        .toList(growable: false);
     return InspirationNote(
-      id: proposal.id,
+      id: session.id,
       label: labelOverride?.trim().isNotEmpty == true
           ? labelOverride!.trim()
-          : proposal.label,
-      emoji: _emojiFor(opportunity.kind),
-      category: _categoryFor(opportunity.kind),
+          : definition.presentation.shortLabel,
+      emoji: definition.presentation.emoji,
+      category: _categoryForFamily(definition.family),
       kind: InspirationNoteKind.factualOpportunity,
-      action: _actionForOpportunity(opportunity),
-      detail: proposal.detail.isEmpty ? opportunity.title : proposal.detail,
-      priority: 200 + opportunity.score,
-      ttl: opportunity.expiresAt.difference(opportunity.startsAt),
-      opportunityId: opportunity.id,
-      evidence: proposal.evidence,
-    );
-  }
-
-  static List<InspirationNote> _fromManifest(
-    UiManifest manifest, {
-    ManifestNarrative? narrative,
-  }) => [
-    for (final item in manifest.creativeItems)
-      // Old manifests only expose creative context events. Do not use the
-      // legacy wildlife hint: historical wildlife records belong to Explore,
-      // never a bottle prompt.
-      if (item.id != 'regional-wildlife')
-        _legacyFactual(item, labelOverride: narrative?.noteLabels[item.id]),
-  ];
-
-  static InspirationNote _legacyFactual(
-    ManifestItem item, {
-    String? labelOverride,
-  }) {
-    final template = _legacyTemplate(item.id);
-    final label = labelOverride?.trim();
-    return InspirationNote(
-      id: item.id,
-      label: label?.isNotEmpty == true ? label! : template.label,
-      emoji: template.emoji,
-      category: template.category,
-      kind: InspirationNoteKind.factualOpportunity,
-      action: item.action,
-      detail: template.detail,
-      priority: template.priority,
-      ttl: template.ttl,
-      authorityUri: item.authorityUri,
+      action: ManifestAction.openShootingWindow,
+      detail: evidence.isEmpty ? session.title : evidence.join(' · '),
+      priority: switch (session.conditionBand) {
+        ShootingConditionBand.good => 300,
+        ShootingConditionBand.fair => 250,
+        ShootingConditionBand.limited => 180,
+      },
+      ttl: session.endsAt.difference(session.startsAt),
+      opportunityId: session.id,
+      evidence: evidence,
     );
   }
 
   static List<InspirationNote> _creativePrompts(
     ContextSnapshot snapshot, {
-    required Iterable<EquipmentCapability> availableEquipment,
+    required Set<EquipmentCapability> availableEquipment,
+    required int maximum,
   }) {
-    final scenePrompt = switch (snapshot.primaryScene) {
-      SceneType.lake => _creative(
-        'creative:lake-foreground',
-        '压低机位',
-        '🪞',
-        '让一段近处岸线或石头先进入画面，再留出主体的呼吸空间。',
-      ),
-      SceneType.mountain => _creative(
-        'creative:mountain-layer',
-        '留出山脊',
-        '⛰️',
-        '把前、中、远三层分开，先决定哪一层承担画面的重量。',
-      ),
-      SceneType.village => _creative(
-        'creative:village-frame',
-        '借一扇门',
-        '🏮',
-        '用门、窗或屋檐收住画面边缘，给人物和环境留一点距离。',
-      ),
-      SceneType.desert => _creative(
-        'creative:desert-line',
-        '顺着线走',
-        '🏜️',
-        '找一条自然延伸的纹理或道路，让它带着视线进入画面。',
-      ),
-      SceneType.hiking => _creative(
-        'creative:hiking-scale',
-        '留一个尺度',
-        '🥾',
-        '在画面里保留一个人或物件，让空间感有可感知的尺度。',
-      ),
-      SceneType.driving => _creative(
-        'creative:driving-window',
-        '先定一扇窗',
-        '🚗',
-        '先决定画面边缘，再等待主体进入那块留白。',
-      ),
-      SceneType.city => _creative(
-        'creative:city-rhythm',
-        '等一拍节奏',
-        '🌆',
-        '固定一个构图，等人物、车流或光影把画面推到平衡。',
-      ),
-      SceneType.unknown => _creative(
-        'creative:unknown-frame',
-        '留一处边缘',
-        '▱',
-        '先用一个边缘收住画面，再决定主体要留在哪里。',
-      ),
-    };
-    final lightPrompt = _creative(
-      'creative:light-balance:${snapshot.dayPhase.name}',
-      '先看明暗',
-      '◐',
-      '先让最亮和最暗的部分各有位置，再决定主体要不要居中。',
+    if (maximum <= 0) return const [];
+    final scene = snapshot.resolvedSceneContext.primaryScene.name;
+    final equipment = _equipmentTags(availableEquipment);
+    final ranked = _creativeCatalog.toList(growable: false)
+      ..sort((left, right) {
+        final score = _creativeScore(
+          right,
+          scene,
+          equipment,
+        ).compareTo(_creativeScore(left, scene, equipment));
+        return score != 0 ? score : left.id.compareTo(right.id);
+      });
+    return List.unmodifiable(
+      ranked
+          .take(maximum)
+          .map(
+            (definition) => InspirationNote(
+              id: definition.id,
+              label: definition.shortLabel,
+              emoji: _creativeEmoji(definition.id),
+              category: _creativeCategory(definition.id),
+              kind: InspirationNoteKind.creativePrompt,
+              action: ManifestAction.openCreativeDetail,
+              detail: definition.guide,
+              priority: 100 + _creativeScore(definition, scene, equipment),
+              ttl: Duration(hours: definition.cooldownHours),
+            ),
+          ),
     );
-    final equipmentPrompt = _equipmentPrompt(availableEquipment.toSet());
-    return [scenePrompt, lightPrompt, ?equipmentPrompt];
   }
 
-  static InspirationNote _creative(
-    String id,
-    String label,
-    String emoji,
-    String detail,
-  ) => InspirationNote(
-    id: id,
-    label: label,
-    emoji: emoji,
-    category: InspirationCategory.composition,
-    kind: InspirationNoteKind.creativePrompt,
-    action: ManifestAction.openExplore,
-    detail: detail,
-    priority: 20,
-    ttl: const Duration(hours: 24),
-  );
-
-  static InspirationNote? _equipmentPrompt(Set<EquipmentCapability> equipment) {
-    if (equipment.contains(EquipmentCapability.telephoto)) {
-      return _creative(
-        'creative:equipment-telephoto',
-        '压缩远景',
-        '🔭',
-        '用较长焦段靠后取景，把远处的形状和层次叠进同一个画面。',
-      );
+  static int _creativeScore(
+    _CreativeDefinition definition,
+    String scene,
+    Set<String> equipment,
+  ) {
+    var score = definition.sceneAffinity.contains(scene)
+        ? 20
+        : definition.sceneAffinity.contains('all')
+        ? 10
+        : 0;
+    if (definition.equipmentRequirement.isEmpty) {
+      score += 4;
+    } else if (equipment.containsAll(definition.equipmentRequirement)) {
+      score += 8;
     }
-    if (equipment.contains(EquipmentCapability.wideAngle)) {
-      return _creative(
-        'creative:equipment-wide-angle',
-        '靠近前景',
-        '◒',
-        '用广角靠近一个明确前景，让它把视线带向主体。',
-      );
-    }
-    if (equipment.contains(EquipmentCapability.tripod)) {
-      return _creative(
-        'creative:equipment-tripod',
-        '固定一张',
-        '△',
-        '先固定构图，再只观察画面里会自行变化的部分。',
-      );
-    }
-    return null;
+    return score;
   }
 
-  static List<InspirationNote> _deduplicate(Iterable<InspirationNote> notes) {
-    final unique = <String, InspirationNote>{};
-    for (final note in notes) {
-      unique.putIfAbsent(note.id, () => note);
+  static Set<String> _equipmentTags(Set<EquipmentCapability> values) {
+    final result = <String>{};
+    for (final value in values) {
+      switch (value) {
+        case EquipmentCapability.tripod:
+          result.add('tripod');
+        case EquipmentCapability.wideAngle:
+          result.add('wide_angle_lens');
+        case EquipmentCapability.telephoto:
+          result.add('telephoto_lens');
+        case EquipmentCapability.filter:
+          result.addAll(const {'nd_filter', 'gnd_filter', 'polarizer'});
+        case EquipmentCapability.drone:
+          result.add('drone');
+        case EquipmentCapability.weatherProtection:
+          result.add('rain_cover');
+        case EquipmentCapability.headlamp:
+          result.add('headlamp');
+        case EquipmentCapability.camera:
+        case EquipmentCapability.phoneCamera:
+        case EquipmentCapability.fastLens:
+          break;
+      }
     }
-    return List.unmodifiable(unique.values);
+    return result;
   }
 
-  static ManifestAction _actionForOpportunity(PhotographyOpportunity value) =>
-      value.primaryAction == null
-      ? ManifestAction.openShootingWindow
-      : ManifestAction.fromContextAction(value.primaryAction!);
+  static String _definitionId(ShootingSessionKind kind) => switch (kind) {
+    ShootingSessionKind.waterMorning => 'session.water.morning',
+    ShootingSessionKind.waterEvening => 'session.water.evening',
+    ShootingSessionKind.mountainMorning => 'session.mountain.morning',
+    ShootingSessionKind.mountainEvening => 'session.mountain.evening',
+    ShootingSessionKind.cityBlueHour => 'session.city.blue_hour',
+    ShootingSessionKind.cityAfterRain => 'session.city.after_rain',
+    ShootingSessionKind.desertSideLight => 'session.desert.side_light',
+    ShootingSessionKind.routeLightWindow => 'session.route.light_window',
+  };
 
-  static InspirationCategory _categoryFor(PhotographyOpportunityKind kind) =>
-      switch (kind) {
-        PhotographyOpportunityKind.reflection => InspirationCategory.place,
-        PhotographyOpportunityKind.morningMist => InspirationCategory.weather,
-        _ => InspirationCategory.light,
+  static InspirationCategory _categoryForFamily(OpportunityFamily family) =>
+      switch (family) {
+        OpportunityFamily.atmosphere => InspirationCategory.weather,
+        OpportunityFamily.astronomy => InspirationCategory.light,
+        OpportunityFamily.water ||
+        OpportunityFamily.mountain ||
+        OpportunityFamily.city ||
+        OpportunityFamily.landform ||
+        OpportunityFamily.ecology ||
+        OpportunityFamily.humanityRoute => InspirationCategory.place,
       };
 
-  static String _emojiFor(PhotographyOpportunityKind kind) => switch (kind) {
-    PhotographyOpportunityKind.reflection => '🪞',
-    PhotographyOpportunityKind.blueHour => '🌆',
-    PhotographyOpportunityKind.alpenglow => '⛰️',
-    PhotographyOpportunityKind.morningMist => '🌫️',
-    PhotographyOpportunityKind.sunsetGlow => '🌅',
-    PhotographyOpportunityKind.astronomy => '🌙',
-  };
+  static InspirationCategory _creativeCategory(String id) {
+    if (id.startsWith('creative.light.') || id.startsWith('creative.color.')) {
+      return InspirationCategory.light;
+    }
+    return InspirationCategory.composition;
+  }
 
-  static _LegacyTemplate _legacyTemplate(String id) => switch (id) {
-    'reflection' => const _LegacyTemplate(
-      label: '找倒影',
-      emoji: '🪞',
-      category: InspirationCategory.place,
-      detail: '风正在变小，去湖岸找一段干净的水面。',
-      priority: 100,
-      ttl: Duration(minutes: 30),
-    ),
-    'blue-hour' => const _LegacyTemplate(
-      label: '蓝调了',
-      emoji: '🌆',
-      category: InspirationCategory.light,
-      detail: '天色正在转蓝，适合留在有层次的城市或湖岸。',
-      priority: 100,
-      ttl: Duration(minutes: 35),
-    ),
-    'alpenglow' => const _LegacyTemplate(
-      label: '金山',
-      emoji: '⛰️',
-      category: InspirationCategory.light,
-      detail: '低角度光线正在靠近山体有效受光面。',
-      priority: 100,
-      ttl: Duration(minutes: 25),
-    ),
-    'mist' => const _LegacyTemplate(
-      label: '起雾了',
-      emoji: '🌫️',
-      category: InspirationCategory.weather,
-      detail: '雾气会拉开远近层次，先观察光线从哪里穿出来。',
-      priority: 100,
-      ttl: Duration(minutes: 40),
-    ),
-    'dust-light' => const _LegacyTemplate(
-      label: '风沙光',
-      emoji: '🏜️',
-      category: InspirationCategory.light,
-      detail: '风沙与低角度光线正在形成粗粝层次，注意保护器材。',
-      priority: 90,
-      ttl: Duration(minutes: 20),
-    ),
-    'humanity-light' => const _LegacyTemplate(
-      label: '进巷子',
-      emoji: '🏮',
-      category: InspirationCategory.place,
-      detail: '晨昏光线正在进入街巷，先观察人与环境再拍摄。',
-      priority: 85,
-      ttl: Duration(minutes: 25),
-    ),
-    _ => _LegacyTemplate(
-      label: id,
-      emoji: '✨',
-      category: InspirationCategory.composition,
-      detail: id,
-      priority: 80,
-      ttl: const Duration(minutes: 30),
-    ),
-  };
+  static String _creativeEmoji(String id) {
+    if (id.startsWith('creative.light.')) return '◐';
+    if (id.startsWith('creative.motion.')) return '〰️';
+    if (id.startsWith('creative.story.')) return '◫';
+    if (id.startsWith('creative.color.')) return '◒';
+    if (id.startsWith('creative.experiment.')) return '✦';
+    if (id.startsWith('creative.angle.')) return '⌞';
+    return '▱';
+  }
+
+  static List<_CreativeDefinition> _decodeCreativeCatalog() {
+    final raw = jsonDecode(generatedCreativePromptsJson) as List;
+    return List.unmodifiable(
+      raw.cast<Map<String, Object?>>().map(
+        (item) => _CreativeDefinition(
+          id: item['id']! as String,
+          shortLabel: item['shortLabel']! as String,
+          guide: item['guide']! as String,
+          sceneAffinity: Set.unmodifiable(
+            (item['sceneAffinity']! as List).cast<String>(),
+          ),
+          equipmentRequirement: Set.unmodifiable(
+            (item['equipmentRequirement']! as List).cast<String>(),
+          ),
+          cooldownHours: item['cooldownHours']! as int,
+        ),
+      ),
+    );
+  }
 }
 
-class _LegacyTemplate {
-  const _LegacyTemplate({
-    required this.label,
-    required this.emoji,
-    required this.category,
-    required this.detail,
-    required this.priority,
-    required this.ttl,
+class _CreativeDefinition {
+  const _CreativeDefinition({
+    required this.id,
+    required this.shortLabel,
+    required this.guide,
+    required this.sceneAffinity,
+    required this.equipmentRequirement,
+    required this.cooldownHours,
   });
 
-  final String label;
-  final String emoji;
-  final InspirationCategory category;
-  final String detail;
-  final int priority;
-  final Duration ttl;
+  final String id;
+  final String shortLabel;
+  final String guide;
+  final Set<String> sceneAffinity;
+  final Set<String> equipmentRequirement;
+  final int cooldownHours;
 }

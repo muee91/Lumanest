@@ -16,12 +16,16 @@ class AmbientShaderSurface extends StatefulWidget {
     required this.time,
     required this.child,
     this.lowQuality = false,
+    this.onShaderCreated,
+    this.onShaderDisposed,
   });
 
   final AmbientVisualState visualState;
   final double time;
   final Widget child;
   final bool lowQuality;
+  final VoidCallback? onShaderCreated;
+  final VoidCallback? onShaderDisposed;
 
   @override
   State<AmbientShaderSurface> createState() => _AmbientShaderSurfaceState();
@@ -29,11 +33,31 @@ class AmbientShaderSurface extends StatefulWidget {
 
 class _AmbientShaderSurfaceState extends State<AmbientShaderSurface> {
   Future<FragmentProgram>? _program;
+  FragmentShader? _shader;
 
   @override
   void initState() {
     super.initState();
     _program = FragmentProgram.fromAsset('shaders/lumanest_ambient.frag');
+  }
+
+  @override
+  void dispose() {
+    if (_shader != null) {
+      _shader!.dispose();
+      widget.onShaderDisposed?.call();
+    }
+    _shader = null;
+    super.dispose();
+  }
+
+  FragmentShader _shaderFor(FragmentProgram program) {
+    final existing = _shader;
+    if (existing != null) return existing;
+    final created = program.fragmentShader();
+    _shader = created;
+    widget.onShaderCreated?.call();
+    return created;
   }
 
   @override
@@ -44,7 +68,7 @@ class _AmbientShaderSurfaceState extends State<AmbientShaderSurface> {
       if (program == null) return widget.child;
       return CustomPaint(
         painter: _AmbientShaderPainter(
-          shader: program.fragmentShader(),
+          shader: _shaderFor(program),
           visualState: widget.visualState,
           time: widget.time,
           lowQuality: widget.lowQuality,

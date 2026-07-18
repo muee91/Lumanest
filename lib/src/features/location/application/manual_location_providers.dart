@@ -1,42 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
+import 'package:luma_nest/src/features/location/domain/manual_location_selection.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
+import 'package:luma_nest/src/features/location/infrastructure/manual_location_store.dart';
 
-class ManualLocationSelection {
-  const ManualLocationSelection({
-    required this.name,
-    required this.location,
-    this.address,
-  });
-
-  final String name;
-  final String? address;
-  final LocationReading location;
-}
-
-class ManualLocationController extends Notifier<ManualLocationSelection?> {
+class ManualLocationController extends AsyncNotifier<ManualLocationSelection?> {
   @override
-  ManualLocationSelection? build() => null;
+  Future<ManualLocationSelection?> build() =>
+      ref.watch(manualLocationStoreProvider).read();
 
-  void select(LocationSearchResult result) {
-    state = ManualLocationSelection(
+  Future<void> select(LocationSearchResult result) async {
+    final selectedAt = DateTime.now().toUtc();
+    final point = result.point.coordinateSystem == CoordinateSystem.gcj02
+        ? ChinaCoordinateConverter.gcj02ToWgs84(result.point)
+        : result.point;
+    final value = ManualLocationSelection(
       name: result.name,
       address: result.address,
+      selectedAt: selectedAt,
       location: LocationReading(
-        point: ChinaCoordinateConverter.gcj02ToWgs84(result.point),
-        recordedAt: DateTime.now().toUtc(),
+        point: point,
+        recordedAt: selectedAt,
         // Search results identify a place, not a GNSS point. Keep this
         // deliberately conservative for downstream presentation.
         accuracyMeters: 1000,
       ),
     );
+    await ref.read(manualLocationStoreProvider).write(value);
+    state = AsyncData(value);
   }
 
-  void clear() => state = null;
+  Future<void> clear() async {
+    await ref.read(manualLocationStoreProvider).clear();
+    state = const AsyncData(null);
+  }
 }
 
 final manualLocationProvider =
-    NotifierProvider<ManualLocationController, ManualLocationSelection?>(
+    AsyncNotifierProvider<ManualLocationController, ManualLocationSelection?>(
       ManualLocationController.new,
     );

@@ -99,14 +99,14 @@ void main() {
       (tester) async {
         const sensitiveTokens = <String>[
           'AMAP_ANDROID_KEY',
-          'QWEATHER_API_HOST',
-          'QWEATHER_TOKEN_ENDPOINT',
+          'LUMANEST_BROKER_BASE_URL',
           'LUMANEST_SERVICE_TOKEN',
+          'SENTRY_DSN',
           'sk-',
           'amapAndroidKey',
-          'qweatherApiHost',
-          'qweatherTokenEndpoint',
+          'dataBrokerBaseUrl',
           'lumaNestServiceToken',
+          'sentryDsn',
         ];
 
         for (final status in EnvironmentDiagnosticStatus.values) {

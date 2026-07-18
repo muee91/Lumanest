@@ -4,24 +4,14 @@ import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/app/router.dart';
 
 void main() {
-  test('shooting-window route keeps only a validated opportunity ID', () {
-    final location = shootingWindowLocation('photo-sunset_1');
+  test('session route keeps only a validated stable ID', () {
+    final location = shootingSessionLocation('photo-sunset_1');
 
-    expect(location, '/shooting-window?opportunity=photo-sunset_1');
+    expect(location, '/session/photo-sunset_1');
+    expect(shootingSessionIdFrom(Uri.parse(location)), 'photo-sunset_1');
+    expect(shootingSessionIdFrom(Uri.parse('/session/x')), isNull);
     expect(
-      shootingWindowOpportunityIdFrom(Uri.parse(location)),
-      'photo-sunset_1',
-    );
-    expect(
-      shootingWindowOpportunityIdFrom(
-        Uri.parse('/shooting-window?opportunity=unknown'),
-      ),
-      isNull,
-    );
-    expect(
-      shootingWindowOpportunityIdFrom(
-        Uri.parse('/shooting-window?opportunity=photo-valid&extra=1'),
-      ),
+      shootingSessionIdFrom(Uri.parse('/opportunity/photo-valid')),
       isNull,
     );
   });
@@ -32,28 +22,28 @@ void main() {
     await tester.pumpWidget(const LumaNestApp());
     await tester.pump();
 
-    expect(find.text('从当前位置开始'), findsOneWidget);
-    expect(find.byKey(const Key('app-bottom-navigation')), findsOneWidget);
+    expect(find.text('从此刻的位置开始'), findsOneWidget);
+    expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
 
-    await tester.tap(find.text('探索'));
+    await tester.tap(find.bySemanticsLabel('探索'));
     await tester.pump();
-    expect(find.text('地图尚未配置'), findsOneWidget);
-    expect(find.byKey(const Key('app-bottom-navigation')), findsOneWidget);
+    expect(find.text('地图从你所在之处展开'), findsOneWidget);
+    expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
 
-    await tester.tap(find.text('路线'));
+    await tester.tap(find.bySemanticsLabel('路线'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('去探索选目的地'), findsOneWidget);
+    expect(find.text('先选一个要抵达的地方'), findsOneWidget);
 
-    await tester.tap(find.text('灵感'));
+    await tester.tap(find.bySemanticsLabel('灵感'));
     await tester.pump();
-    expect(find.byType(AppBar), findsOneWidget);
-    expect(find.text('灵感'), findsWidgets);
+    expect(find.text('灵感'), findsOneWidget);
 
-    await tester.tap(find.text('我的'));
+    await tester.tap(find.bySemanticsLabel('我的'));
     await tester.pump();
-    expect(find.text('显示与动效'), findsOneWidget);
-    expect(find.text('创作偏好'), findsOneWidget);
-    expect(find.text('AI 文案'), findsOneWidget);
+    expect(find.text('栖光如何理解我'), findsOneWidget);
+    expect(find.text('风格'), findsOneWidget);
+    expect(find.text('留下的'), findsOneWidget);
+    expect(find.text('隐私'), findsOneWidget);
   });
 }

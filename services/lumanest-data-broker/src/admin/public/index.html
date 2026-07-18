@@ -39,6 +39,7 @@
         <button class="nav-item" data-page="llm">模型服务</button>
         <button class="nav-item" data-page="runtime">运行设置</button>
         <button class="nav-item" data-page="simulation">场景回放</button>
+        <button class="nav-item" data-page="calibration">反馈校准</button>
         <p class="sidebar-label security-label">系统</p>
         <button class="nav-item" data-page="security">安全与维护</button>
         <button id="logout" class="nav-item logout">退出登录</button>
@@ -129,10 +130,32 @@
         <section class="page" data-panel="simulation" hidden>
           <div class="form-grid">
             <div class="section-note"><h3>Debug 场景回放</h3><p>只会作用于已登记的 Debug App 会话；正式客户端不发送会话头，也不会收到模拟数据。会话 30 分钟后自动清除。</p></div>
-            <label class="wide">模拟场景<select id="simulation-preset"><option value="lake-sunset">湖泊 · 落日倒影</option><option value="mountain-dawn">高山 · 黎明金山</option><option value="city-blue-hour">城市 · 蓝调时刻</option><option value="rain-thunder">徒步 · 降雨雷暴</option><option value="snow-hike">徒步 · 降雪</option><option value="desert-dust">沙漠 · 风沙光</option></select></label>
+            <label class="wide">模拟场景<select id="simulation-preset"><option value="lake-sunset">湖泊 · 落日倒影</option><option value="mountain-dawn">高山 · 黎明暖光</option><option value="city-blue-hour">城市 · 蓝调时刻</option><option value="rain-thunder">徒步 · 降雨雷暴</option><option value="snow-hike">徒步 · 降雪</option><option value="desert-dust">沙漠 · 风沙光</option></select></label>
             <div class="wide"><p class="warning">先在 Debug App 中刷新一次环境数据，再在下方选择会话并发送。场景不保存真实坐标、设备标识或位置历史。</p></div>
           </div>
           <div class="audit"><h3>在线 Debug 会话</h3><ol id="simulation-session-list"></ol></div>
+        </section>
+
+        <section class="page" data-panel="calibration" hidden>
+          <div class="calibration-head">
+            <div>
+              <h3>匿名拍摄反馈</h3>
+              <p>只展示达到样本阈值的定性条件与因子聚合，不包含地点、机位、身份或原始反馈。读数仅供人工调权参考，不会自动改变线上规则。</p>
+            </div>
+            <form id="calibration-form" class="calibration-controls">
+              <label>观察周期<select name="days"><option value="30">30 天</option><option value="90" selected>90 天</option><option value="180">180 天</option><option value="365">365 天</option></select></label>
+              <label>最小样本<input name="minimumSamples" type="number" min="5" max="100" value="5" required></label>
+              <button type="submit" class="secondary">刷新读数</button>
+            </form>
+          </div>
+          <div id="calibration-summary" class="calibration-summary" aria-live="polite"></div>
+          <div class="calibration-table-wrap">
+            <table class="calibration-table">
+              <thead><tr><th>规则版本</th><th>条件档位</th><th>因子</th><th>作用</th><th>有效样本</th><th>拍到</th><th>条件未出现</th><th>拍到率</th></tr></thead>
+              <tbody id="calibration-rows"></tbody>
+            </table>
+            <p id="calibration-empty" class="calibration-empty" hidden>当前周期内还没有达到阈值的匿名样本。栖光不会用小样本推断规则效果。</p>
+          </div>
         </section>
 
         <section class="page" data-panel="security" hidden>

@@ -5,7 +5,6 @@ import { dirname } from 'node:path';
 const documentVersion = 1;
 const algorithm = 'aes-256-gcm';
 const sensitiveFields = new Set([
-  'aiApiKey',
   'amapWebKey',
   'serviceToken',
   'qweatherPrivateKeyPem',

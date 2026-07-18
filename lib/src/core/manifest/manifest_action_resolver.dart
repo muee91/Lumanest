@@ -1,6 +1,7 @@
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
+import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 
-enum ManifestPanel { weather, safety }
+enum ManifestPanel { creative, safety }
 
 class ManifestActionResolution {
   const ManifestActionResolution.route(this.route)
@@ -28,29 +29,39 @@ abstract final class ManifestActionResolver {
       ManifestAction.openExplore => ManifestActionResolution.route(
         '/explore?focus=${_exploreFocus(item.id)}',
       ),
-      ManifestAction.openShootingWindow => const ManifestActionResolution.route(
-        '/shooting-window',
-      ),
-      ManifestAction.openWeather => const ManifestActionResolution.panel(
-        ManifestPanel.weather,
-      ),
-      ManifestAction.openSafety => const ManifestActionResolution.panel(
-        ManifestPanel.safety,
+      ManifestAction.openShootingWindow => ManifestActionResolution.route(
+        '/session/${Uri.encodeComponent(item.id)}',
       ),
       ManifestAction.openRoute => const ManifestActionResolution.route(
         '/route',
       ),
-      ManifestAction.openAuthority =>
+      ManifestAction.openPlaceDetail => ManifestActionResolution.route(
+        '/place/${Uri.encodeComponent(item.id)}',
+      ),
+      ManifestAction.openAstronomyDetail =>
         item.authorityUri == null
             ? const ManifestActionResolution.none()
             : ManifestActionResolution.external(item.authorityUri),
+      ManifestAction.openWildlifeDetail => const ManifestActionResolution.route(
+        '/explore?focus=wildlife',
+      ),
+      ManifestAction.openSafetyDetail => const ManifestActionResolution.panel(
+        ManifestPanel.safety,
+      ),
+      ManifestAction.openCreativeDetail => const ManifestActionResolution.panel(
+        ManifestPanel.creative,
+      ),
+      ManifestAction.dismiss => const ManifestActionResolution.none(),
     };
   }
 
-  static String _exploreFocus(String eventId) => switch (eventId) {
-    'reflection' => 'water',
-    'humanity-light' => 'humanity',
-    'regional-wildlife' => 'wildlife',
-    _ => 'photography',
-  };
+  static String _exploreFocus(String eventId) {
+    if (eventId == 'regional-wildlife') return 'wildlife';
+    return switch (OpportunityCatalog.current.byId[eventId]?.family) {
+      OpportunityFamily.water => 'water',
+      OpportunityFamily.ecology => 'wildlife',
+      OpportunityFamily.humanityRoute => 'humanity',
+      _ => 'photography',
+    };
+  }
 }

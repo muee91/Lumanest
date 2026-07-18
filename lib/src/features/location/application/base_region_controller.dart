@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/features/location/domain/base_region.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
@@ -11,11 +12,14 @@ class BaseRegionController extends AsyncNotifier<BaseRegion?> {
 
   Future<void> select(LocationSearchResult result) async {
     final now = DateTime.now().toUtc();
+    final point = result.point.coordinateSystem == CoordinateSystem.gcj02
+        ? ChinaCoordinateConverter.gcj02ToWgs84(result.point)
+        : result.point;
     final value = BaseRegion(
       name: result.name,
       address: result.address,
       location: LocationReading(
-        point: ChinaCoordinateConverter.gcj02ToWgs84(result.point),
+        point: point,
         recordedAt: now,
         accuracyMeters: 1000,
       ),

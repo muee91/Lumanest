@@ -23,7 +23,7 @@ void main() {
       name: '湖泊',
       snapshot: ContextFixtures.lakeSunset(),
       scene: SceneType.lake,
-      creativeIds: const ['reflection', 'blue-hour'],
+      creativeIds: const ['session.water.evening'],
       safetyIds: const [],
       layout: LayoutMode.opportunity,
       routeMode: ContextRouteMode.none,
@@ -33,7 +33,7 @@ void main() {
       name: '高山',
       snapshot: ContextFixtures.mountainDawn(),
       scene: SceneType.mountain,
-      creativeIds: const ['alpenglow'],
+      creativeIds: const ['session.mountain.morning'],
       safetyIds: const [],
       layout: LayoutMode.opportunity,
       routeMode: ContextRouteMode.none,
@@ -43,7 +43,7 @@ void main() {
       name: '沙漠戈壁',
       snapshot: ContextFixtures.desertDusk(),
       scene: SceneType.desert,
-      creativeIds: const ['dust-light'],
+      creativeIds: const ['session.desert.side_light'],
       safetyIds: const [],
       layout: LayoutMode.opportunity,
       routeMode: ContextRouteMode.none,
@@ -53,17 +53,17 @@ void main() {
       name: '村落人文',
       snapshot: ContextFixtures.villageMorning(),
       scene: SceneType.village,
-      creativeIds: const ['humanity-light'],
+      creativeIds: const [],
       safetyIds: const [],
-      layout: LayoutMode.opportunity,
+      layout: LayoutMode.quiet,
       routeMode: ContextRouteMode.none,
       routeStage: ContextRouteStage.none,
     ),
     _SceneCase(
       name: '自驾',
       snapshot: ContextFixtures.drivingActiveRoute(),
-      scene: SceneType.driving,
-      creativeIds: const ['route-light-window'],
+      scene: SceneType.unknown,
+      creativeIds: const ['session.route.light_window'],
       safetyIds: const [],
       layout: LayoutMode.operation,
       routeMode: ContextRouteMode.driving,
@@ -72,7 +72,7 @@ void main() {
     _SceneCase(
       name: '徒步',
       snapshot: ContextFixtures.hikingTrail(),
-      scene: SceneType.hiking,
+      scene: SceneType.mountain,
       creativeIds: const [],
       safetyIds: const ['hiking-return-check'],
       layout: LayoutMode.operation,
@@ -81,7 +81,7 @@ void main() {
     ),
   ];
 
-  group('V1 七类场景 Manifest 验收矩阵', () {
+  group('场景与活动 Manifest 验收矩阵', () {
     for (final sceneCase in cases) {
       test('${sceneCase.name}：场景、通道、顺序和路线状态正确', () {
         final snapshot = sceneCase.snapshot;
@@ -106,22 +106,22 @@ void main() {
         expect(manifest.summary, isNotEmpty);
         expect(manifest.secondary, hasLength(lessThanOrEqualTo(2)));
 
-        final notes = InspirationNotes.build(snapshot, manifest: manifest);
+        final notes = InspirationNotes.build(snapshot);
         final factualIds = notes
             .where((note) => note.isFactual)
             .map((note) => note.id);
         expect(
           factualIds,
-          sceneCase.creativeIds.where((id) => id != 'regional-wildlife'),
+          snapshot.shootingSessions.map((session) => session.id),
         );
         expect(notes.where((note) => !note.isFactual), isNotEmpty);
         for (final safetyId in sceneCase.safetyIds) {
           expect(notes.map((note) => note.id), isNot(contains(safetyId)));
         }
-        if (manifest.primary case final primary?) {
-          if (primary.id != 'regional-wildlife') {
-            expect(notes.first.id, primary.id);
-          }
+        if (snapshot.shootingSessions.isNotEmpty) {
+          expect(notes.first.id, snapshot.shootingSessions.first.id);
+        }
+        if (manifest.primary != null) {
           expect(manifest.inspirationPreview, isNotEmpty);
         } else {
           expect(notes.where((note) => note.isFactual), isEmpty);
@@ -186,11 +186,11 @@ void main() {
         expect(expiredManifest.creativeItems, isEmpty);
         expect(expiredManifest.safety, isEmpty);
         expect(expiredManifest.inspirationPreview, isEmpty);
-        final expiredNotes = InspirationNotes.build(
-          snapshot,
-          manifest: expiredManifest,
+        final expiredNotes = InspirationNotes.build(snapshot);
+        expect(
+          expiredNotes.where((note) => note.isFactual).map((note) => note.id),
+          snapshot.shootingSessions.map((session) => session.id),
         );
-        expect(expiredNotes.where((note) => note.isFactual), isEmpty);
         expect(expiredNotes.where((note) => !note.isFactual), isNotEmpty);
       });
     }

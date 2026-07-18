@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumanest.local/schema/creative-prompts.v1.schema.json",
+  "title": "LumaNest creative prompts v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "items"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "items": {
+      "type": "array",
+      "minItems": 48,
+      "maxItems": 48,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "shortLabel", "guide", "sceneAffinity", "techniqueTags", "equipmentRequirement", "cooldownHours"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^creative\\.[a-z0-9_.]+$"},
+          "shortLabel": {"type": "string", "minLength": 1},
+          "guide": {"type": "string", "minLength": 1},
+          "sceneAffinity": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+          "techniqueTags": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+          "equipmentRequirement": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+          "cooldownHours": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  }
+}

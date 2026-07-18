@@ -22,13 +22,11 @@ enum NearbyPlaceCategory {
 /// deliberately does not invent a new POI type or turn the map into a
 /// navigation directory.
 enum ExploreCreativeIntent {
-  chaseLight('追光', NearbyPlaceCategory.viewpoint),
-  reflection('倒影', NearbyPlaceCategory.waterfront),
-  mountain('看山', NearbyPlaceCategory.viewpoint),
-  stargazing('星空', NearbyPlaceCategory.viewpoint),
-  humanity('人文', NearbyPlaceCategory.humanity),
-  supplies('补给', NearbyPlaceCategory.supply),
-  shelter('避雨', NearbyPlaceCategory.food);
+  water('找水面', NearbyPlaceCategory.waterfront),
+  viewpoint('找观景点', NearbyPlaceCategory.viewpoint),
+  supplies('找补给', NearbyPlaceCategory.supply),
+  parking('找停车', NearbyPlaceCategory.parking),
+  medical('找医疗', NearbyPlaceCategory.medical);
 
   const ExploreCreativeIntent(this.label, this.category);
 

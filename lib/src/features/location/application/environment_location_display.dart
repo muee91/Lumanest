@@ -29,7 +29,7 @@ class EnvironmentLocationDisplay {
 
 final environmentLocationDisplayProvider = Provider<EnvironmentLocationDisplay>(
   (ref) {
-    final manual = ref.watch(manualLocationProvider);
+    final manual = ref.watch(manualLocationProvider).asData?.value;
     if (manual != null) {
       return EnvironmentLocationDisplay(
         label: manual.name,

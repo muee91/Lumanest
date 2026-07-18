@@ -1,0 +1,389 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "mountain_peak",
+      "category": "subject"
+    },
+    {
+      "id": "mountain_range",
+      "category": "subject"
+    },
+    {
+      "id": "lake",
+      "category": "subject"
+    },
+    {
+      "id": "river",
+      "category": "subject"
+    },
+    {
+      "id": "wetland",
+      "category": "subject"
+    },
+    {
+      "id": "coast",
+      "category": "subject"
+    },
+    {
+      "id": "city_skyline",
+      "category": "subject"
+    },
+    {
+      "id": "architecture",
+      "category": "subject"
+    },
+    {
+      "id": "street_people",
+      "category": "subject"
+    },
+    {
+      "id": "wildlife",
+      "category": "subject"
+    },
+    {
+      "id": "forest",
+      "category": "subject"
+    },
+    {
+      "id": "flowers",
+      "category": "subject"
+    },
+    {
+      "id": "alpine",
+      "category": "scene"
+    },
+    {
+      "id": "plateau",
+      "category": "scene"
+    },
+    {
+      "id": "desert",
+      "category": "scene"
+    },
+    {
+      "id": "canyon",
+      "category": "scene"
+    },
+    {
+      "id": "dune",
+      "category": "scene"
+    },
+    {
+      "id": "grassland",
+      "category": "scene"
+    },
+    {
+      "id": "village",
+      "category": "scene"
+    },
+    {
+      "id": "old_town",
+      "category": "scene"
+    },
+    {
+      "id": "waterfront",
+      "category": "scene"
+    },
+    {
+      "id": "shoreline",
+      "category": "scene"
+    },
+    {
+      "id": "woodland",
+      "category": "scene"
+    },
+    {
+      "id": "open_road",
+      "category": "scene"
+    },
+    {
+      "id": "reflection",
+      "category": "phenomenon"
+    },
+    {
+      "id": "morning_mist",
+      "category": "phenomenon"
+    },
+    {
+      "id": "low_fog",
+      "category": "phenomenon"
+    },
+    {
+      "id": "cloud_sea",
+      "category": "phenomenon"
+    },
+    {
+      "id": "rainbow",
+      "category": "phenomenon"
+    },
+    {
+      "id": "sunset_glow",
+      "category": "phenomenon"
+    },
+    {
+      "id": "alpenglow",
+      "category": "phenomenon"
+    },
+    {
+      "id": "tyndall_rays",
+      "category": "phenomenon"
+    },
+    {
+      "id": "after_rain",
+      "category": "phenomenon"
+    },
+    {
+      "id": "post_snow",
+      "category": "phenomenon"
+    },
+    {
+      "id": "dust_haze",
+      "category": "phenomenon"
+    },
+    {
+      "id": "starry_sky",
+      "category": "phenomenon"
+    },
+    {
+      "id": "milky_way",
+      "category": "phenomenon"
+    },
+    {
+      "id": "moonrise",
+      "category": "phenomenon"
+    },
+    {
+      "id": "meteor_shower",
+      "category": "phenomenon"
+    },
+    {
+      "id": "eclipse_comet",
+      "category": "phenomenon"
+    },
+    {
+      "id": "sunrise",
+      "category": "light"
+    },
+    {
+      "id": "sunset",
+      "category": "light"
+    },
+    {
+      "id": "blue_hour",
+      "category": "light"
+    },
+    {
+      "id": "golden_hour",
+      "category": "light"
+    },
+    {
+      "id": "side_light",
+      "category": "light"
+    },
+    {
+      "id": "backlight",
+      "category": "light"
+    },
+    {
+      "id": "side_backlight",
+      "category": "light"
+    },
+    {
+      "id": "soft_light",
+      "category": "light"
+    },
+    {
+      "id": "hard_light",
+      "category": "light"
+    },
+    {
+      "id": "window_light",
+      "category": "light"
+    },
+    {
+      "id": "artificial_light",
+      "category": "light"
+    },
+    {
+      "id": "silhouette",
+      "category": "light"
+    },
+    {
+      "id": "dawn",
+      "category": "time"
+    },
+    {
+      "id": "morning",
+      "category": "time"
+    },
+    {
+      "id": "noon",
+      "category": "time"
+    },
+    {
+      "id": "afternoon",
+      "category": "time"
+    },
+    {
+      "id": "dusk",
+      "category": "time"
+    },
+    {
+      "id": "night",
+      "category": "time"
+    },
+    {
+      "id": "seasonal",
+      "category": "time"
+    },
+    {
+      "id": "fixed_date",
+      "category": "time"
+    },
+    {
+      "id": "wide_angle",
+      "category": "technique"
+    },
+    {
+      "id": "telephoto",
+      "category": "technique"
+    },
+    {
+      "id": "panorama",
+      "category": "technique"
+    },
+    {
+      "id": "long_exposure",
+      "category": "technique"
+    },
+    {
+      "id": "slow_shutter",
+      "category": "technique"
+    },
+    {
+      "id": "focus_stack",
+      "category": "technique"
+    },
+    {
+      "id": "exposure_bracket",
+      "category": "technique"
+    },
+    {
+      "id": "star_tracking",
+      "category": "technique"
+    },
+    {
+      "id": "light_trail",
+      "category": "technique"
+    },
+    {
+      "id": "reflection_composition",
+      "category": "technique"
+    },
+    {
+      "id": "foreground_leading",
+      "category": "technique"
+    },
+    {
+      "id": "minimalism",
+      "category": "technique"
+    },
+    {
+      "id": "aerial",
+      "category": "technique"
+    },
+    {
+      "id": "time_lapse",
+      "category": "technique"
+    },
+    {
+      "id": "handheld",
+      "category": "technique"
+    },
+    {
+      "id": "stationary",
+      "category": "activity"
+    },
+    {
+      "id": "scouting",
+      "category": "activity"
+    },
+    {
+      "id": "waiting",
+      "category": "activity"
+    },
+    {
+      "id": "walking",
+      "category": "activity"
+    },
+    {
+      "id": "hiking",
+      "category": "activity"
+    },
+    {
+      "id": "driving",
+      "category": "activity"
+    },
+    {
+      "id": "route_stop",
+      "category": "activity"
+    },
+    {
+      "id": "return_journey",
+      "category": "activity"
+    },
+    {
+      "id": "tripod",
+      "category": "equipment"
+    },
+    {
+      "id": "wide_angle_lens",
+      "category": "equipment"
+    },
+    {
+      "id": "standard_zoom",
+      "category": "equipment"
+    },
+    {
+      "id": "telephoto_lens",
+      "category": "equipment"
+    },
+    {
+      "id": "macro_lens",
+      "category": "equipment"
+    },
+    {
+      "id": "nd_filter",
+      "category": "equipment"
+    },
+    {
+      "id": "gnd_filter",
+      "category": "equipment"
+    },
+    {
+      "id": "polarizer",
+      "category": "equipment"
+    },
+    {
+      "id": "star_tracker",
+      "category": "equipment"
+    },
+    {
+      "id": "solar_filter",
+      "category": "equipment"
+    },
+    {
+      "id": "rain_cover",
+      "category": "equipment"
+    },
+    {
+      "id": "drone",
+      "category": "equipment"
+    },
+    {
+      "id": "headlamp",
+      "category": "equipment"
+    }
+  ]
+}

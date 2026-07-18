@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lumanest.local/schema/timing-policies.v1.schema.json",
+  "title": "LumaNest timing policies v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "items"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "items": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "catalogSpan", "actionableSpan", "advanceNotice", "farRefresh", "nearRefresh", "watchRefresh", "evidenceTtl", "windowRule"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^timing\\.[A-Za-z]+$"},
+          "catalogSpan": {"type": "string", "minLength": 1},
+          "actionableSpan": {"type": "string", "minLength": 1},
+          "advanceNotice": {"type": "string", "minLength": 1},
+          "farRefresh": {"type": "string", "minLength": 1},
+          "nearRefresh": {"type": "string", "minLength": 1},
+          "watchRefresh": {"type": "string", "minLength": 1},
+          "evidenceTtl": {"type": "string", "pattern": "^[0-9]+m$"},
+          "windowRule": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

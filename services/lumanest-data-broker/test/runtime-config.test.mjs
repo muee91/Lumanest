@@ -20,9 +20,6 @@ function environmentDefaults() {
     projectId: 'environment-project-id',
     serviceToken: 'environment-service-token',
     amapWebKey: 'environment-amap-key',
-    aiApiKey: '',
-    aiBaseUrl: '',
-    aiModel: '',
     port: 8787,
   };
 }
@@ -89,18 +86,14 @@ test('failed validation or storage retains the previously published snapshot', a
   assert.equal(service.snapshot(), original);
 });
 
-test('ignores deprecated persisted AI fields instead of restoring a hidden provider', async () => {
+test('rejects unknown persisted fields instead of interpreting them', async () => {
   const service = new RuntimeConfigService({
     defaults: environmentDefaults(),
     store: new MemoryStore({
-      aiApiKey: 'legacy-secret', aiBaseUrl: 'https://legacy.example/v1', aiModel: 'legacy-model',
+      removedField: 'not-supported',
     }),
   });
-  await service.initialize();
-  const snapshot = service.snapshot();
-  assert.equal(snapshot.llmProfiles.length, 0);
-  assert.equal(snapshot.llmRouting.primaryProfileId, null);
-  assert.equal(Object.hasOwn(snapshot, 'aiApiKey'), false);
+  await assert.rejects(() => service.initialize(), /Unknown runtime configuration field/);
 });
 
 test('QWeather private key accepts an encrypted PEM override', async () => {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
@@ -21,12 +22,70 @@ class ActiveSourcePolicy(StrictModel):
     version: str = Field(min_length=1, max_length=80)
 
 
+MissionType = Literal[
+    "popularPlaces",
+    "hiddenPlaces",
+    "humanityEvents",
+    "localStories",
+    "routeConditions",
+    "openingAndClosure",
+    "seasonalSignals",
+]
+
+
+class DiscoveryRegion(StrictModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    radius_meters: int = Field(alias="radiusMeters", ge=100, le=50_000)
+
+
+class DiscoveryTimeRange(StrictModel):
+    starts_at: datetime = Field(alias="startsAt")
+    ends_at: datetime = Field(alias="endsAt")
+
+    @field_validator("ends_at")
+    @classmethod
+    def valid_end(cls, value: datetime, info):
+        starts_at = info.data.get("starts_at")
+        if starts_at is not None and (value <= starts_at or value - starts_at > timedelta(days=31)):
+            raise ValueError("timeRange must be ordered and at most 31 days")
+        return value
+
+
+class DiscoveryRouteSample(StrictModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class DiscoveryRouteCorridor(StrictModel):
+    route_id: str = Field(alias="routeId", min_length=1, max_length=160)
+    name: str = Field(min_length=1, max_length=160)
+    samples: list[DiscoveryRouteSample] = Field(min_length=2, max_length=16)
+
+
 class DiscoveryRequest(StrictModel):
-    contract_version: Literal[1] = Field(alias="contractVersion")
-    coordinate: Wgs84Coordinate
+    mission_type: MissionType = Field(alias="missionType")
+    focus: str = Field(min_length=1, max_length=180)
     locale: str = Field(min_length=2, max_length=16, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$")
-    focus: Literal["photography", "water", "humanity"] = "photography"
+    region: DiscoveryRegion
+    time_range: DiscoveryTimeRange = Field(alias="timeRange")
+    route_corridor: DiscoveryRouteCorridor | None = Field(alias="routeCorridor")
+    interests: list[str] = Field(max_length=16)
     source_policies: list[ActiveSourcePolicy] = Field(default_factory=list, alias="sourcePolicies", max_length=16)
+
+    @field_validator("interests")
+    @classmethod
+    def valid_interests(cls, value: list[str]) -> list[str]:
+        if len(set(value)) != len(value) or any(not re.fullmatch(r"[A-Za-z][A-Za-z0-9._-]{0,63}", item) for item in value):
+            raise ValueError("invalid interests")
+        return value
+
+    @field_validator("route_corridor")
+    @classmethod
+    def route_required_for_route_mission(cls, value: DiscoveryRouteCorridor | None, info):
+        if info.data.get("mission_type") == "routeConditions" and value is None:
+            raise ValueError("routeConditions requires routeCorridor")
+        return value
 
 
 class DiscoveryEvidence(StrictModel):
@@ -58,7 +117,7 @@ class DiscoveryItem(StrictModel):
 
 
 class DiscoveryResponse(StrictModel):
-    contract_version: Literal[1] = Field(default=1, alias="contractVersion")
+    mission_type: MissionType = Field(alias="missionType")
     status: Literal["ready", "refreshing", "pending"]
     generated_at: datetime = Field(alias="generatedAt")
     expires_at: datetime | None = Field(alias="expiresAt")
@@ -103,3 +162,8 @@ class ExtractedCandidate(StrictModel):
 
 class BrokerExtractionResponse(StrictModel):
     candidates: list[ExtractedCandidate] = Field(max_length=20)
+
+
+class BrokerDeterministicResponse(StrictModel):
+    candidates: list[ExtractedCandidate] = Field(max_length=6)
+    evidence: list[BrokerSearchResult] = Field(max_length=6)

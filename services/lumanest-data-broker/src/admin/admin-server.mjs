@@ -128,6 +128,7 @@ export function createAdminServer({
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
+  getShootingCalibration = async () => ({ ok: false, error: 'not_configured' }),
   importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
   simulationRegistry = null,
   clearCache = async () => {},
@@ -215,6 +216,28 @@ export function createAdminServer({
       return json(response, result.ok ? 200 : 503, result.ok
         ? { sources: result.sources }
         : { sources: [], error: result.error });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/context/shooting-calibration') {
+      const rawDays = url.searchParams.get('days') ?? '90';
+      const rawMinimum = url.searchParams.get('minimumSamples') ?? '5';
+      const days = /^\d{1,3}$/.test(rawDays) ? Number.parseInt(rawDays, 10) : NaN;
+      const minimumSamples = /^\d{1,3}$/.test(rawMinimum)
+        ? Number.parseInt(rawMinimum, 10)
+        : NaN;
+      if (!Number.isInteger(days) || days < 30 || days > 365 ||
+          !Number.isInteger(minimumSamples) || minimumSamples < 5 || minimumSamples > 100) {
+        return json(response, 400, { error: 'invalid_request' });
+      }
+      const result = await getShootingCalibration({ days, minimumSamples });
+      auditLog.record({
+        remoteAddress,
+        operation: 'read_shooting_calibration',
+        fields: ['days', 'minimumSamples'],
+        result: result.ok ? 'ok' : result.error,
+      });
+      return json(response, result.ok ? 200 : 503, result.ok
+        ? result.report
+        : { error: result.error });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/simulation/sessions') {
       return json(response, 200, { sessions: simulationRegistry?.list() ?? [] });
