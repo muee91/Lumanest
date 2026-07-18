@@ -16,6 +16,7 @@ import 'package:luma_nest/src/features/inspiration/presentation/widgets/inspirat
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
+import 'package:luma_nest/src/features/sky_opportunity/application/sky_opportunity_providers.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
@@ -66,9 +67,29 @@ class _V2InspirationStageState extends ConsumerState<_V2InspirationStage> {
         .watch(manifestNarrativeProvider(widget.snapshot))
         .asData
         ?.value;
+    final now = ref.watch(currentTimeProvider)();
+    final point = widget.snapshot.location;
+    final skyOpportunities = point == null
+        ? const <Never>[]
+        : ref
+                  .watch(
+                    dailySkyOpportunitiesProvider((
+                      latitude: point.latitude,
+                      longitude: point.longitude,
+                      focus: skyOpportunityFocusForSnapshot(
+                        widget.snapshot,
+                        now,
+                      ),
+                    )),
+                  )
+                  .asData
+                  ?.value
+                  .values ??
+              const [];
     final localNotes = InspirationNotes.build(
       widget.snapshot,
       narrative: narrative,
+      skyOpportunities: skyOpportunities,
       availableEquipment: EquipmentCapabilityParser.parse(
         preferences.equipmentList,
       ),
@@ -315,6 +336,10 @@ class _V2InspirationStageState extends ConsumerState<_V2InspirationStage> {
             .read(companionInventoryProvider.notifier)
             .feedback(insight.id, InsightFeedbackAction.viewed),
       );
+    }
+    if (note.routeLocation case final route?) {
+      context.push(route);
+      return;
     }
     handleManifestAction(
       context,

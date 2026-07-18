@@ -63,6 +63,34 @@ test('fills omitted settings from immutable defaults', () => {
   assert.equal(Object.isFrozen(defaultRuntimeSettings), true);
   assert.equal(value.aiEnabled, true);
   assert.equal(value.debugLogging, false);
+  assert.equal(value.sunsetbotProviderEnabled, true);
+  assert.equal(value.sunsetbotFreshTtlSeconds, 5_400);
+  assert.equal(value.sunsetbotStaleTtlSeconds, 21_600);
+  assert.equal(value.skyOpportunityNotificationEnabled, false);
+});
+
+test('keeps SunsetBot cache, concurrency and product thresholds internally ordered', () => {
+  assert.throws(
+    () => validateRuntimeSettings({
+      sunsetbotFreshTtlSeconds: 10_000,
+      sunsetbotStaleTtlSeconds: 5_400,
+    }),
+    /fresh TTL/,
+  );
+  assert.throws(
+    () => validateRuntimeSettings({
+      sunsetbotMaxGlobalConcurrency: 2,
+      sunsetbotMaxCityConcurrency: 3,
+    }),
+    /global concurrency/,
+  );
+  assert.throws(
+    () => validateRuntimeSettings({
+      skyOpportunityDisplayThreshold: .8,
+      skyOpportunityPaperThreshold: .6,
+    }),
+    /thresholds/,
+  );
 });
 
 test('partial validation returns only supplied settings', () => {

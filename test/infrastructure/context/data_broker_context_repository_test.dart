@@ -117,6 +117,31 @@ void main() {
     },
   );
 
+  test('debug feedback carries only the ephemeral simulation headers', () async {
+    final transport = _FakeTransport()..fixedResponse = {'accepted': true};
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      debugSimulationSession: 'debugsession2345678',
+      transport: transport,
+    );
+
+    await repository.upload(
+      session: ContextFixtures.waterEveningSession(
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      ),
+      outcome: ShootingSessionOutcome.captured,
+      reasons: const {},
+    );
+
+    expect(transport.headers, {
+      'Authorization': 'Bearer service-token',
+      'X-LumaNest-Debug-Session': 'debugsession2345678',
+      'X-LumaNest-Debug-Contract': '4',
+    });
+    expect(transport.body.toString(), isNot(contains('debugsession2345678')));
+  });
+
   test('uses only the strict V4 request and response contract', () async {
     final transport = _FakeTransport();
     final repository = DataBrokerContextRepository(

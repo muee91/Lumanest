@@ -16,9 +16,7 @@ class AmbientRendering {
   final bool showWeatherTexture;
   final AmbientRenderer renderer;
 
-  /// Page-level ambient strength (0.0 = static, 1.0 = full). The inspiration
-  /// page may exceed 1.0 to render an enhanced reflective look per design
-  /// §9.2.
+  /// Page-level ambient strength (0.0 = static, 1.0 = full).
   final double intensity;
 }
 
@@ -65,23 +63,11 @@ abstract final class AmbientRenderingPolicy {
 
   /// Resolves the ambient intensity for the current route per design §9.2.
   ///
-  /// - 今日 (/today): 1.0 (full but low-saturation environment field)
-  /// - 灵感 (/inspiration): 1.2 (enhanced, the glass bottle inherits reflections)
-  /// - 探索 (/explore): 0.3 (edges only)
-  /// - 路线 (/route): 0.15 (slight color band)
-  /// - 我的 (/profile): 0.0 (basically static)
+  /// Only Today owns the dynamic environment field. Every other route is
+  /// static and does not keep a hidden GPU animation alive behind its page.
   static double intensityForRoute(String? location) {
-    if (location == null) return 1.0;
+    if (location == null) return 0.0;
     if (location.startsWith('/today')) return 1.0;
-    if (location.startsWith('/inspiration')) return 1.2;
-    if (location.startsWith('/explore')) return 0.3;
-    if (location.startsWith('/route')) return 0.15;
-    if (location.startsWith('/profile')) return 0.0;
-    // Shooting window inherits the today branch's full ambiance.
-    if (location.startsWith('/opportunity/') ||
-        location.startsWith('/session/')) {
-      return 1.0;
-    }
-    return 1.0;
+    return 0.0;
   }
 }

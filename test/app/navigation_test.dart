@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/app/router.dart';
+import 'package:luma_nest/src/presentation_v2/inspiration/v2_inspiration_page.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 
 void main() {
   test('session route keeps only a validated stable ID', () {
@@ -24,11 +26,16 @@ void main() {
 
     expect(find.text('从此刻的位置开始'), findsOneWidget);
     expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
+    expect(find.byType(AmbientCanvas), findsOneWidget);
+    expect(find.byKey(const Key('today-ambient-layer')), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('探索'));
     await tester.pump();
+    await tester.pump();
     expect(find.text('地图从你所在之处展开'), findsOneWidget);
     expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
+    expect(find.byType(AmbientCanvas), findsNothing);
+    expect(find.byKey(const Key('today-ambient-layer')), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('路线'));
     await tester.pump();
@@ -37,7 +44,7 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('灵感'));
     await tester.pump();
-    expect(find.text('灵感'), findsOneWidget);
+    expect(find.byType(V2InspirationPage), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('我的'));
     await tester.pump();

@@ -21,31 +21,41 @@ void main() {
     );
   });
 
-  testWidgets('navigation refreshes page-level ambient intensity', (
+  testWidgets('navigation disposes the ambient field outside Today', (
     tester,
   ) async {
     await tester.pumpWidget(const LumaNestApp());
     await tester.pump();
 
-    double intensity() =>
-        tester.widget<AmbientCanvas>(find.byType(AmbientCanvas)).intensity;
-
-    expect(intensity(), 1.0);
+    expect(find.byType(AmbientCanvas), findsOneWidget);
+    expect(
+      tester.widget<AmbientCanvas>(find.byType(AmbientCanvas)).intensity,
+      1.0,
+    );
 
     await tester.tap(find.bySemanticsLabel('灵感'));
     await tester.pump();
     await tester.pump();
-    expect(intensity(), 1.2);
+    expect(find.byType(AmbientCanvas), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('路线'));
     await tester.pump();
     await tester.pump();
-    expect(intensity(), 0.15);
+    expect(find.byType(AmbientCanvas), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('我的'));
     await tester.pump();
     await tester.pump();
-    expect(intensity(), 0.0);
+    expect(find.byType(AmbientCanvas), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('今日'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(AmbientCanvas), findsOneWidget);
+    expect(
+      tester.widget<AmbientCanvas>(find.byType(AmbientCanvas)).intensity,
+      1.0,
+    );
   });
 
   testWidgets('V2 privacy controls global accessibility rendering', (
@@ -92,6 +102,13 @@ void main() {
       matching: find.byType(GestureDetector),
     );
     await tester.tap(reduceMotionObject.first);
+    await tester.pump();
+    expect(find.byType(AmbientCanvas), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('返回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('今日'));
+    await tester.pump();
     await tester.pump();
     expect(
       tester.widget<AmbientCanvas>(find.byType(AmbientCanvas)).reduceMotion,

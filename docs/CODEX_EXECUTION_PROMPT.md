@@ -76,7 +76,7 @@ services/lumanest-discovery-service/app/
 
 1. 建立 JSON Schema、4个Catalog文件和生成器，先让计数测试通过。
 2. 完成 SceneContext、Evidence、Opportunity、Timing、Legacy迁移。
-3. 完成 API 和 Agent 编排，保持旧端点兼容。
+3. 完成 API 和 Agent 编排，只维护当前单一契约；除非产品负责人明确宣布“开始公测”并记录兼容窗口，不得保留旧端点或旧字段兼容。
 4. 完成设计系统、反馈服务、Root Navigator 和页面状态机。
 5. 重构六个页面并接通跨页稳定 ID。
 6. 修复 Ambient Canvas/Shader。
@@ -94,6 +94,7 @@ services/lumanest-discovery-service/app/
 - 不存在 LLM 直接决定机会或安全；
 - 不存在每帧创建 FragmentShader；
 - 不存在 `click.wav` 和 `liveButton.wav` 重复打包。
+- 在“开始公测”前，不存在旧客户端/API 兼容层、双读双写、旧参数默认值或静默协议回退。
 
 ## 最终运行
 

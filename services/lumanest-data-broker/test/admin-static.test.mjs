@@ -43,9 +43,31 @@ test('static UI has accessible auth/status regions and no secret placeholder val
   const html = await readFile(new URL('index.html', publicRoot), 'utf8');
   assert.match(html, /<label[^>]+for="password"/);
   assert.match(html, /role="status"/);
+  assert.match(html, /name="currentPassword"/);
+  assert.match(html, /name="newPassword"/);
+  assert.match(html, /name="confirmPassword"/);
   assert.match(html, /留空表示不修改/);
   assert.doesNotMatch(html, /sk-[A-Za-z0-9]/);
   assert.doesNotMatch(html, /AK[A-Za-z0-9]{8}/);
+});
+
+test('overview presents an operational dashboard without claiming health before config loads', async () => {
+  const html = await readFile(new URL('index.html', publicRoot), 'utf8');
+  const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.match(html, /class="dashboard-hero"/);
+  assert.match(html, /id="configured-count"/);
+  assert.match(html, /id="ai-state"/);
+  assert.match(html, /id="sky-opportunity-state"/);
+  assert.match(html, /id="broker-status">正在连接/);
+  assert.match(html, /id="service-status-list"/);
+  assert.match(html, /id="runtime-summary"/);
+  assert.match(html, /id="capability-grid"/);
+  assert.match(html, /id="refresh-overview"/);
+  assert.match(script, /\$\('#broker-status'\)\.textContent='在线'/);
+  assert.match(script, /qweatherPrivateKey\?\.configured&&config\.services\.keyId\?\.configured&&config\.services\.projectId\?\.configured/);
+  assert.match(script, /appendServiceRow/);
+  assert.match(script, /appendCapability/);
+  assert.doesNotMatch(html, /canvas|sparkline|chart/);
 });
 
 test('client rendering avoids HTML injection and browser-persisted secrets', async () => {
@@ -58,14 +80,26 @@ test('client rendering avoids HTML injection and browser-persisted secrets', asy
 
 test('successful authentication is not relabeled as a password error when config loading fails', async () => {
   const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.match(script, /invalid_credentials:'密码不正确'/);
+  assert.match(script, /登录服务暂不可用，请检查 Broker 状态/);
+  assert.match(script, /state\.csrf=result\.csrfToken/);
+  assert.match(script, /const form=event\.currentTarget/);
+  assert.match(script, /body:\{password:form\.elements\.password\.value\}/);
+  assert.doesNotMatch(script, /await api\('login',[\s\S]{0,500}event\.currentTarget/);
   assert.match(
     script,
-    /catch\(error\)\{[^}]*密码不正确[^}]*\}\s*state\.csrf=result\.csrfToken/s,
+    /try\{await Promise\.all\(\[loadConfig\(\),loadCapabilities\(\)\]\);\}catch\{status\('登录成功，但控制台状态加载失败，请刷新页面'\);\}/,
   );
-  assert.match(
-    script,
-    /try\{await loadConfig\(\);\}catch\{status\('登录成功，但配置加载失败，请刷新页面'\);\}/,
-  );
+});
+
+test('password UI distinguishes credential, confirmation and service failures', async () => {
+  const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.match(script, /invalid_current_password:'当前密码不正确'/);
+  assert.match(script, /password_mismatch:'两次输入的新密码不一致'/);
+  assert.match(script, /登录服务暂不可用，请检查 Broker 状态/);
+  assert.match(script, /body:\{currentPassword,newPassword,confirmPassword\}/);
+  assert.match(script, /value\.error==='unauthenticated'\)showLogin/);
+  assert.doesNotMatch(script, /response\.status===401&&path!=='login'\)showLogin/);
 });
 
 test('LLM console starts empty and requires explicit provider selection', async () => {
@@ -85,4 +119,37 @@ test('LLM console starts empty and requires explicit provider selection', async 
   assert.match(script, /api\('llm\/routing'/);
   assert.match(script, /api\('llm\/models'/);
   assert.match(script, /window\.confirm/);
+});
+
+test('settings pages use grouped compact controls without changing form contracts', async () => {
+  const html = await readFile(new URL('index.html', publicRoot), 'utf8');
+  assert.match(html, /class="credential-layout"/);
+  assert.match(html, /class="advanced-settings"/);
+  assert.match(html, /class="settings-group policy-editor"/);
+  assert.match(html, /class="runtime-grid"/);
+  assert.match(html, /class="setting-row"/);
+  assert.match(html, /class="sunset-layout"/);
+  assert.match(html, /class="security-layout"/);
+  assert.match(html, /class="password-fields"/);
+  for (const name of [
+    'keyId', 'projectId', 'qweatherPrivateKeyPem', 'amapWebKey', 'serviceToken',
+    'aiEnabled', 'aiTimeoutMs', 'sunsetbotProviderEnabled', 'debugLogging',
+    'currentPassword', 'newPassword', 'confirmPassword',
+  ]) {
+    assert.equal((html.match(new RegExp(`name="${name}"`, 'g')) ?? []).length, 1, name);
+  }
+});
+
+test('developer tools stay hidden until the authenticated capability is enabled', async () => {
+  const html = await readFile(new URL('index.html', publicRoot), 'utf8');
+  const script = await readFile(new URL('app.js', publicRoot), 'utf8');
+  assert.match(html, /id="developer-tools-label"[^>]+hidden/);
+  assert.match(html, /id="simulation-nav"[^>]+hidden/);
+  assert.match(html, /场景实验室/);
+  assert.match(html, /模拟快照不会进入真实缓存、Companion 记忆或反馈校准/);
+  assert.match(script, /api\('capabilities'\)/);
+  assert.match(script, /api\('simulation'\)/);
+  assert.match(script, /simulation\/sessions\/\$\{session\.controlId\}/);
+  assert.match(script, /clear-all-simulations/);
+  assert.doesNotMatch(html, /<option value="lake-sunset"/);
 });

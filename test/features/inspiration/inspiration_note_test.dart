@@ -4,6 +4,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 
 void main() {
   test('current shooting sessions become factual inspiration notes', () {
@@ -78,4 +79,55 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'eligible structured sky result creates one factual routeable paper note',
+    () {
+      final forecast = _skyForecast();
+      final notes = InspirationNotes.build(
+        ContextFixtures.quietCity(),
+        skyOpportunities: [forecast],
+      );
+      final note = notes.where((item) => item.id == forecast.id).single;
+
+      expect(note.isFactual, isTrue);
+      expect(note.label, '今晚有戏');
+      expect(note.routeLocation, '/sky-opportunity/sunset/0');
+      expect(note.detail, contains('双模型判断较一致'));
+      expect(notes, hasLength(36));
+    },
+  );
+}
+
+SkyOpportunityForecast _skyForecast() {
+  final now = DateTime.utc(2026, 7, 18, 10);
+  return SkyOpportunityForecast(
+    id: 'skyopp-hangzhou',
+    requestedCity: '杭州',
+    resolvedCity: '杭州',
+    eventType: SkyOpportunityEventType.sunset,
+    dayOffset: 0,
+    eventTime: now.add(const Duration(hours: 2)),
+    providerLocalTimeZone: 'Asia/Shanghai',
+    level: 'strong',
+    label: '较大概率出片',
+    confidence: SkyOpportunityConfidence.high,
+    agreement: SkyOpportunityAgreement.strong,
+    primaryReason: '双模型判断较一致',
+    clarityLevel: 'good',
+    clarityLabel: '大气较通透',
+    models: const [],
+    fetchedAt: now,
+    expiresAt: now.add(const Duration(minutes: 90)),
+    cacheStatus: 'hit',
+    isStale: false,
+    providerStatus: 'healthy',
+    attribution: '晚霞预测数据来源：SunsetBot',
+    presentation: const SkyOpportunityPresentation(
+      proactiveEligible: true,
+      paperEligible: true,
+      notificationEligible: false,
+      ambientStrength: .19,
+    ),
+  );
 }

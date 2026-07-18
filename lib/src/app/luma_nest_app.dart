@@ -15,6 +15,9 @@ import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
+import 'package:luma_nest/src/features/sky_opportunity/application/sky_opportunity_providers.dart';
+import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
+import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_ambient.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_rendering_policy.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
@@ -92,6 +95,24 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         ?.value;
     final reconciliationSnapshot =
         widget.initialContext ?? liveSnapshot?.asData?.value;
+    final skyPoint = reconciliationSnapshot?.location;
+    final now = ref.watch(currentTimeProvider)();
+    final skyOpportunity = skyPoint == null
+        ? null
+        : ref
+              .watch(
+                dailySkyOpportunitiesProvider((
+                  latitude: skyPoint.latitude,
+                  longitude: skyPoint.longitude,
+                  focus: skyOpportunityFocusForSnapshot(
+                    reconciliationSnapshot!,
+                    now,
+                  ),
+                )),
+              )
+              .asData
+              ?.value
+              .activeHomeOpportunity(now);
     if (reconciliationSnapshot != null &&
         _lastCompanionRefresh != reconciliationSnapshot.id) {
       _lastCompanionRefresh = reconciliationSnapshot.id;
@@ -176,19 +197,24 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (preferences.ambientBackgroundEnabled)
-                AmbientCanvas(
-                  visualState: _ambientVisualState(
-                    context,
-                    widget.initialContext ?? _snapshotValue(liveSnapshot),
+              const ColoredBox(color: Color(0xFFF5F5F1)),
+              if (preferences.ambientBackgroundEnabled &&
+                  _routeLocation == '/today')
+                _TodayAmbientLayer(
+                  child: AmbientCanvas(
+                    visualState: _ambientVisualState(
+                      widget.initialContext ?? _snapshotValue(liveSnapshot),
+                      skyOpportunity,
+                    ),
+                    reduceMotion:
+                        ambientRendering.reduceMotion ||
+                        systemDisablesAnimations,
+                    reduceFlashing: ambientRendering.reduceFlashing,
+                    showWeatherTexture: ambientRendering.showWeatherTexture,
+                    renderer: ambientRendering.renderer,
+                    intensity: ambientRendering.intensity,
+                    interactionSuppressed: _interactionSuppressed,
                   ),
-                  reduceMotion:
-                      ambientRendering.reduceMotion || systemDisablesAnimations,
-                  reduceFlashing: ambientRendering.reduceFlashing,
-                  showWeatherTexture: ambientRendering.showWeatherTexture,
-                  renderer: ambientRendering.renderer,
-                  intensity: ambientRendering.intensity,
-                  interactionSuppressed: _interactionSuppressed,
                 ),
               NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
@@ -218,13 +244,18 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   }
 
   AmbientVisualState? _ambientVisualState(
-    BuildContext context,
     ContextSnapshot? snapshot,
+    SkyOpportunityForecast? skyOpportunity,
   ) {
     if (snapshot == null) return null;
-    return const AmbientVisualMapper().resolveSnapshot(
+    final base = const AmbientVisualMapper().resolveSnapshot(
       snapshot,
-      Theme.of(context).brightness,
+      Brightness.light,
+    );
+    return const SkyOpportunityAmbientMapper().apply(
+      base: base,
+      snapshot: snapshot,
+      forecast: skyOpportunity,
     );
   }
 
@@ -263,4 +294,54 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
       ref.invalidate(deviceEnergyProvider);
     }
   }
+}
+
+class _TodayAmbientLayer extends StatelessWidget {
+  const _TodayAmbientLayer({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    key: const Key('today-ambient-layer'),
+    builder: (context, constraints) => Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        height: constraints.maxHeight * .44,
+        width: double.infinity,
+        child: Opacity(
+          opacity: .58,
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (bounds) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white,
+                Color(0xF2FFFFFF),
+                Color(0x8CFFFFFF),
+                Colors.transparent,
+              ],
+              stops: [0, .4, .72, 1],
+            ).createShader(bounds),
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (bounds) => const RadialGradient(
+                center: Alignment(.58, -.88),
+                radius: 1.38,
+                colors: [
+                  Colors.white,
+                  Color(0xE6FFFFFF),
+                  Color(0x73FFFFFF),
+                  Colors.transparent,
+                ],
+                stops: [0, .34, .7, 1],
+              ).createShader(bounds),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

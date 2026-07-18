@@ -7,6 +7,7 @@ import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/generated/opportunity_catalog.g.dart';
+import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 
 enum InspirationNoteKind { factualOpportunity, creativePrompt }
 
@@ -24,6 +25,7 @@ class InspirationNote {
     this.opportunityId,
     this.evidence = const <String>[],
     this.authorityUri,
+    this.routeLocation,
   });
 
   final String id;
@@ -38,6 +40,7 @@ class InspirationNote {
   final String? opportunityId;
   final List<String> evidence;
   final Uri? authorityUri;
+  final String? routeLocation;
 
   bool get isFactual => kind == InspirationNoteKind.factualOpportunity;
   String get displayLabel => '$label$emoji';
@@ -54,16 +57,47 @@ abstract final class InspirationNotes {
     ManifestNarrative? narrative,
     Iterable<EquipmentCapability> availableEquipment =
         const <EquipmentCapability>[],
+    Iterable<SkyOpportunityForecast> skyOpportunities =
+        const <SkyOpportunityForecast>[],
   }) {
-    final factual = snapshot.shootingSessions
+    final sessionNotes = snapshot.shootingSessions
         .map((session) => _fromSession(session, narrative))
         .toList(growable: false);
+    final skyNotes = skyOpportunities
+        .where((item) => item.presentation.paperEligible)
+        .map(_fromSkyOpportunity)
+        .toList(growable: false);
+    final factual = [...skyNotes, ...sessionNotes];
     final creative = _creativePrompts(
       snapshot,
       availableEquipment: availableEquipment.toSet(),
       maximum: 36 - factual.length,
     );
     return List.unmodifiable([...factual, ...creative]);
+  }
+
+  static InspirationNote _fromSkyOpportunity(SkyOpportunityForecast value) {
+    final strong = {'excellent', 'rare', 'exceptional'}.contains(value.level);
+    final label = strong
+        ? '大烧预备'
+        : value.eventType == SkyOpportunityEventType.sunset
+        ? '今晚有戏'
+        : '朝霞将至';
+    return InspirationNote(
+      id: value.id,
+      label: label,
+      emoji: value.eventType == SkyOpportunityEventType.sunset ? '🌇' : '🌅',
+      category: InspirationCategory.light,
+      kind: InspirationNoteKind.factualOpportunity,
+      action: ManifestAction.openCreativeDetail,
+      detail: '${value.primaryReason} · ${value.clarityLabel}',
+      priority: strong ? 380 : 330,
+      ttl: const Duration(hours: 6),
+      opportunityId: value.id,
+      evidence: [value.primaryReason, value.clarityLabel],
+      routeLocation:
+          '/sky-opportunity/${value.eventType.name}/${value.dayOffset}',
+    );
   }
 
   static InspirationNote _fromSession(

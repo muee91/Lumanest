@@ -36,6 +36,13 @@ final environmentConfigProvider = Provider<EnvironmentConfig>((ref) {
   return EnvironmentConfig.fromEnvironment();
 });
 
+/// The single clock used by presentation code that compares a snapshot with
+/// "now". Keeping it injectable prevents a cached snapshot, the Today page
+/// and a sky-opportunity response from disagreeing at a day boundary.
+final currentTimeProvider = Provider<DateTime Function()>((ref) {
+  return DateTime.now;
+});
+
 final locationRepositoryProvider = Provider<LocationRepository>((ref) {
   final config = ref.watch(environmentConfigProvider);
   return GeolocatorRepository(

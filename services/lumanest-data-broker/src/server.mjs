@@ -9,6 +9,7 @@ import { RuntimeConfigService } from './admin/runtime-config.mjs';
 import { AdminAuthService } from './admin/auth.mjs';
 import { AuditLog } from './admin/audit-log.mjs';
 import { createAdminServer } from './admin/admin-server.mjs';
+import { createOutboundNetworkControllerClient } from './admin/outbound-network-controller.mjs';
 import { SimulationRegistry, isSimulationSessionId } from './context/simulation.mjs';
 import {
   createConnectionTester,
@@ -41,11 +42,27 @@ import {
   resolveDeterministicDiscovery,
   validDeterministicDiscoveryRequest,
 } from './discovery/deterministic.mjs';
+import {
+  decodedVerifiedMediaUrl,
+  parsePlaceMediaRequest,
+  searchVerifiedPlaceMedia,
+  verifiedPlaceMediaContentTypes,
+} from './discovery/place-media.mjs';
 import { defaultDiscoverySearchProfile } from './discovery/search-profile.mjs';
 import { authoritativeWeather } from './context/qweather.mjs';
 import { routeWeatherForecast, validRouteWeatherRequest } from './context/route-weather.mjs';
 import { fetchAmapSceneEvidence } from './context/amap-evidence.mjs';
 import { MemoryWeatherCache, RedisWeatherCache } from './context/weather-cache.mjs';
+import {
+  MemorySkyOpportunityCache,
+  RedisSkyOpportunityCache,
+} from './infrastructure/cache/sky_opportunity_cache.mjs';
+import { SkyOpportunityMetrics } from './infrastructure/metrics/sky_opportunity_metrics.mjs';
+import {
+  SkyOpportunityService,
+  validDailySkyOpportunityQuery,
+  validSkyOpportunityQuery,
+} from './domain/sky_opportunity/sky_opportunity_service.mjs';
 import {
   FallbackRequestRateLimiter,
   MemoryRequestRateLimiter,
@@ -60,6 +77,10 @@ import {
 } from './companion/orchestrator.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
+const amapPhotoHosts = new Set(['aos-comment.amap.com', 'store.is.autonavi.com']);
+const amapPhotoContentTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const maximumAmapPhotoBytes = 8 * 1024 * 1024;
+const maximumVerifiedPlaceMediaBytes = 8 * 1024 * 1024;
 const gbifBaseUrl = 'https://api.gbif.org';
 const elevationBaseUrl = 'https://api.open-meteo.com';
 
@@ -71,6 +92,15 @@ function writeJson(response, status, body, headers = {}) {
     ...headers,
   });
   response.end(JSON.stringify(body));
+}
+
+function writeText(response, status, body, contentType = 'text/plain; charset=utf-8') {
+  response.writeHead(status, {
+    'Content-Type': contentType,
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  response.end(body);
 }
 
 function hasValidAuthorization(header, serviceToken) {
@@ -105,6 +135,151 @@ function validKeywords(value) {
   if (typeof value !== 'string') return false;
   const normalized = value.trim();
   return normalized.length > 0 && normalized.length <= 80;
+}
+
+function parsedAmapPhotoUrl(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1_200) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+        !amapPhotoHosts.has(url.hostname.toLowerCase())) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function amapPhotoMedia(value) {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const url = parsedAmapPhotoUrl(value.url);
+  if (url == null) return null;
+  const sourceUrl = url.toString();
+  const token = Buffer.from(sourceUrl, 'utf8').toString('base64url');
+  const title = typeof value.title === 'string' && value.title.trim()
+    ? value.title.trim().slice(0, 160)
+    : null;
+  const provider = typeof value.provider === 'string' && value.provider.trim()
+    ? value.provider.trim().slice(0, 80)
+    : '高德地图';
+  return {
+    id: createHash('sha256').update(sourceUrl).digest('hex').slice(0, 24),
+    kind: 'photo',
+    proxyPath: `/v1/amap/media/${token}`,
+    title,
+    attribution: provider,
+  };
+}
+
+function normalizedAmapNearbyBody(body) {
+  if (!Array.isArray(body?.pois)) return body;
+  return {
+    ...body,
+    pois: body.pois.map((poi) => {
+      if (poi == null || typeof poi !== 'object' || Array.isArray(poi)) return poi;
+      const { photos, ...fields } = poi;
+      const media = Array.isArray(photos)
+        ? photos.map(amapPhotoMedia).filter(Boolean).slice(0, 3)
+        : [];
+      return { ...fields, media };
+    }),
+  };
+}
+
+function decodedAmapPhotoUrl(token) {
+  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{16,1800}$/.test(token)) return null;
+  try {
+    return parsedAmapPhotoUrl(Buffer.from(token, 'base64url').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function proxyAmapPhoto(response, token, fetcher, timeoutMs) {
+  const url = decodedAmapPhotoUrl(token);
+  if (url == null) {
+    writeJson(response, 400, { error: 'invalid_media_reference' });
+    return;
+  }
+  try {
+    const upstream = await fetcher(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(Math.min(timeoutMs, 12_000)),
+      headers: { 'User-Agent': 'LumaNest/1.0 PlaceMediaProxy' },
+    });
+    const contentType = upstream.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+    const declaredLength = Number.parseInt(upstream.headers.get('content-length') ?? '', 10);
+    if (!upstream.ok || !amapPhotoContentTypes.has(contentType) ||
+        (Number.isFinite(declaredLength) && declaredLength > maximumAmapPhotoBytes) ||
+        upstream.body == null) {
+      writeJson(response, 502, { error: 'media_unavailable' });
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of upstream.body) {
+      size += chunk.byteLength;
+      if (size > maximumAmapPhotoBytes) {
+        await upstream.body.cancel().catch(() => {});
+        writeJson(response, 502, { error: 'media_too_large' });
+        return;
+      }
+      chunks.push(Buffer.from(chunk));
+    }
+    const body = Buffer.concat(chunks, size);
+    response.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': body.length,
+      'Cache-Control': 'private, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    response.end(body);
+  } catch {
+    writeJson(response, 502, { error: 'media_unavailable' });
+  }
+}
+
+async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
+  const url = decodedVerifiedMediaUrl(token);
+  if (url == null) {
+    writeJson(response, 400, { error: 'invalid_media_reference' });
+    return;
+  }
+  try {
+    const upstream = await fetcher(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(Math.min(timeoutMs, 12_000)),
+      headers: { 'User-Agent': 'LumaNest/1.0 PlaceMediaProxy' },
+    });
+    const contentType = upstream.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+    const declaredLength = Number.parseInt(upstream.headers.get('content-length') ?? '', 10);
+    if (!upstream.ok || !verifiedPlaceMediaContentTypes.has(contentType) ||
+        (Number.isFinite(declaredLength) && declaredLength > maximumVerifiedPlaceMediaBytes) ||
+        upstream.body == null) {
+      writeJson(response, 502, { error: 'media_unavailable' });
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of upstream.body) {
+      size += chunk.byteLength;
+      if (size > maximumVerifiedPlaceMediaBytes) {
+        await upstream.body.cancel().catch(() => {});
+        writeJson(response, 502, { error: 'media_too_large' });
+        return;
+      }
+      chunks.push(Buffer.from(chunk));
+    }
+    const body = Buffer.concat(chunks, size);
+    response.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': body.length,
+      'Cache-Control': 'private, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    response.end(body);
+  } catch {
+    writeJson(response, 502, { error: 'media_unavailable' });
+  }
 }
 
 function profileLocations(value, maximumSamples = 64) {
@@ -158,7 +333,10 @@ const ratePolicies = [
   { path: '/v1/context/target-session', limit: 20, windowMs: 60 * 1_000, key: 'target-session' },
   { path: '/v1/context/shooting-feedback', limit: 12, windowMs: 60 * 1_000, key: 'shooting-feedback' },
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
+  { path: '/v1/sky-opportunities', limit: 12, windowMs: 60 * 1_000, key: 'sky-opportunity' },
+  { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
+  { path: '/v1/explore/place-media', limit: 12, windowMs: 60 * 1_000, key: 'place-media-search' },
   { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },
   { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },
 ];
@@ -166,6 +344,12 @@ const ratePolicies = [
 function ratePolicy(pathname) {
   if (/^\/v1\/insights\/insight_[a-f0-9]{24}\/feedback$/.test(pathname)) {
     return { limit: 60, windowMs: 60 * 1_000, key: 'insight-feedback' };
+  }
+  if (/^\/v1\/amap\/media\/[A-Za-z0-9_-]{16,1800}$/.test(pathname)) {
+    return { limit: 60, windowMs: 60 * 1_000, key: 'amap-media' };
+  }
+  if (/^\/v1\/explore\/media\/[A-Za-z0-9_-]{16,2800}$/.test(pathname)) {
+    return { limit: 60, windowMs: 60 * 1_000, key: 'place-media' };
   }
   return ratePolicies.find((policy) => policy.path === pathname) ?? {
     limit: 60,
@@ -319,7 +503,15 @@ async function elevationProfile({ locations, fetcher, cache, now, cacheTtlMillis
 // AMap upstream verbatim. The Flutter client owns the single WGS84 → GCJ-02
 // conversion boundary (see ChinaCoordinateConverter); the broker must never
 // re-convert, because that would double-offset mainland coordinates.
-async function forwardAmap(response, path, parameters, amapWebKey, fetcher, timeoutMs) {
+async function forwardAmap(
+  response,
+  path,
+  parameters,
+  amapWebKey,
+  fetcher,
+  timeoutMs,
+  transform = (body) => body,
+) {
   const url = new URL(path, amapBaseUrl);
   for (const [key, value] of Object.entries({ ...parameters, key: amapWebKey })) {
     if (value) url.searchParams.set(key, value);
@@ -331,7 +523,7 @@ async function forwardAmap(response, path, parameters, amapWebKey, fetcher, time
       writeJson(response, 502, { error: 'upstream_unavailable' });
       return;
     }
-    writeJson(response, 200, body);
+    writeJson(response, 200, transform(body));
   } catch {
     writeJson(response, 502, { error: 'upstream_unavailable' });
   }
@@ -711,8 +903,12 @@ export function createTokenBrokerServer({
   discoverySearchProfile = defaultDiscoverySearchProfile(),
   qweatherApiHost = '',
   weatherCache = new MemoryWeatherCache(),
+  sunsetBotBaseUrl = 'https://sunsetbot.top',
+  skyOpportunityCache = new MemorySkyOpportunityCache(),
+  skyOpportunityMetrics = new SkyOpportunityMetrics(),
+  skyOpportunityLogger = () => {},
   requestRateLimiter = new MemoryRequestRateLimiter(),
-  simulationRegistry = new SimulationRegistry(),
+  simulationRegistry = null,
   companionStore = null,
   now = () => new Date(),
   fetcher = fetch,
@@ -732,12 +928,24 @@ export function createTokenBrokerServer({
     discoveryWorkerToken,
     discoverySearchProfile,
     qweatherApiHost,
+    sunsetBotBaseUrl,
     settings: validateRuntimeSettings(settings ?? {}),
   });
   const configurationSource = runtimeConfig ?? { snapshot: () => fixedSnapshot };
+  const skyOpportunityService = new SkyOpportunityService({
+    settings: () => configurationSource.snapshot().settings,
+    baseUrl: sunsetBotBaseUrl,
+    amapWebKey: () => configurationSource.snapshot().amapWebKey,
+    cache: skyOpportunityCache,
+    metrics: skyOpportunityMetrics,
+    fetcher,
+    now,
+    logger: skyOpportunityLogger,
+  });
   const wildlifeCache = new Map();
   const gbifMetadataCache = new Map();
   const elevationCache = new Map();
+  const placeMediaCache = new Map();
   const companion = companionStore ?? new CompanionStore({ now });
   return createServer(async (request, response) => {
     const configuration = configurationSource.snapshot();
@@ -869,6 +1077,31 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities') {
+      const query = validSkyOpportunityQuery(requestUrl.searchParams);
+      if (query == null) {
+        writeJson(response, 400, { error: 'invalid_sky_opportunity_query' });
+        return;
+      }
+      writeJson(response, 200, await skyOpportunityService.forecast(query));
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities/daily') {
+      const query = validDailySkyOpportunityQuery(requestUrl.searchParams);
+      if (query == null) {
+        writeJson(response, 400, { error: 'invalid_sky_opportunity_query' });
+        return;
+      }
+      writeJson(response, 200, await skyOpportunityService.daily(query));
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
+      writeText(response, 200, skyOpportunityMetrics.toPrometheus());
+      return;
+    }
+
     const feedbackMatch = /^\/v1\/insights\/(insight_[a-f0-9]{24})\/feedback$/.exec(
       requestUrl.pathname,
     );
@@ -946,6 +1179,12 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_shooting_feedback_request' });
         return;
       }
+      const simulationSession = request.headers['x-lumanest-debug-session'];
+      if (isSimulationSessionId(simulationSession) &&
+          simulationRegistry?.suppressFeedback(simulationSession)) {
+        writeJson(response, 202, { accepted: true });
+        return;
+      }
       const result = await forwardShootingFeedback({
         body,
         serviceUrl: configuration.contextServiceUrl,
@@ -963,6 +1202,69 @@ export function createTokenBrokerServer({
       return;
     }
 
+    const amapMediaMatch = requestUrl.pathname.match(
+      /^\/v1\/amap\/media\/([A-Za-z0-9_-]{16,1800})$/,
+    );
+    if (request.method === 'GET' && amapMediaMatch != null) {
+      await proxyAmapPhoto(
+        response,
+        amapMediaMatch[1],
+        fetcher,
+        configuration.settings.upstreamTimeoutMs,
+      );
+      return;
+    }
+
+    const verifiedMediaMatch = requestUrl.pathname.match(
+      /^\/v1\/explore\/media\/([A-Za-z0-9_-]{16,2800})$/,
+    );
+    if (request.method === 'GET' && verifiedMediaMatch != null) {
+      await proxyVerifiedPlaceMedia(
+        response,
+        verifiedMediaMatch[1],
+        fetcher,
+        configuration.settings.upstreamTimeoutMs,
+      );
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/explore/place-media') {
+      const mediaRequest = parsePlaceMediaRequest(requestUrl.searchParams);
+      if (mediaRequest == null) {
+        writeJson(response, 400, { error: 'invalid_place_media_request' });
+        return;
+      }
+      const cacheKey = createHash('sha256')
+        .update(`${mediaRequest.name}:${mediaRequest.city ?? ''}:` +
+          `${mediaRequest.latitude.toFixed(4)}:${mediaRequest.longitude.toFixed(4)}`)
+        .digest('hex');
+      const cached = placeMediaCache.get(cacheKey);
+      if (cached != null && now().getTime() - cached.createdAt < 24 * 60 * 60 * 1_000) {
+        writeJson(response, 200, {
+          status: cached.media == null ? 'unavailable' : 'ok',
+          media: cached.media,
+          cacheStatus: 'hit',
+        });
+        return;
+      }
+      const result = await searchVerifiedPlaceMedia({
+        request: mediaRequest,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, 200, { status: 'unavailable', media: null, cacheStatus: 'miss' });
+        return;
+      }
+      placeMediaCache.set(cacheKey, { createdAt: now().getTime(), media: result.media });
+      writeJson(response, 200, {
+        status: result.media == null ? 'unavailable' : 'ok',
+        media: result.media,
+        cacheStatus: 'miss',
+      });
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/v1/amap/nearby') {
       const location = requestUrl.searchParams.get('location');
       if (!validCoordinate(location)) {
@@ -977,7 +1279,8 @@ export function createTokenBrokerServer({
         offset: String(clampInteger(requestUrl.searchParams.get('offset'), { fallback: 20, min: 1, max: 25 })),
         sortrule: 'distance',
         extensions: 'all',
-      }, configuration.amapWebKey, fetcher, configuration.settings.upstreamTimeoutMs);
+      }, configuration.amapWebKey, fetcher, configuration.settings.upstreamTimeoutMs,
+      normalizedAmapNearbyBody);
       return;
     }
 
@@ -1155,11 +1458,16 @@ export function createTokenBrokerServer({
       // This header is emitted only by Flutter debug builds. A release build
       // never sends it, and an inactive registry entry has no effect.
       const simulationSession = request.headers['x-lumanest-debug-session'];
-      if (isSimulationSessionId(simulationSession)) {
-        simulationRegistry.register(simulationSession);
+      if (simulationRegistry != null && isSimulationSessionId(simulationSession)) {
+        const debugContract = Number.parseInt(
+          request.headers['x-lumanest-debug-contract'] ?? '',
+          10,
+        );
+        simulationRegistry.register(simulationSession, {
+          contractVersion: Number.isInteger(debugContract) ? debugContract : null,
+        });
         const simulated = simulationRegistry.snapshot(simulationSession, now());
         if (simulated != null) {
-          companion.rememberSnapshot(simulated);
           writeJson(response, 200, simulated);
           return;
         }
@@ -1376,6 +1684,7 @@ export function configurationFromEnvironment(environment = process.env) {
     discoveryInternalToken: environment.DISCOVERY_INTERNAL_TOKEN?.trim() ?? '',
     discoveryWorkerToken: environment.DISCOVERY_WORKER_TOKEN?.trim() ?? '',
     qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
+    sunsetBotBaseUrl: environment.SUNSETBOT_BASE_URL?.trim() || 'https://sunsetbot.top',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
@@ -1397,22 +1706,34 @@ export async function createBrokerServices(environment = process.env, {
 
   const authService = new AdminAuthService({
     filePath: `${dataDirectory}/admin-auth.json`,
-    bootstrapPassword: environment.LUMANEST_ADMIN_PASSWORD ?? '',
+    bootstrapPassword: environment.LUMANEST_ADMIN_BOOTSTRAP_PASSWORD?.trim() ||
+      environment.LUMANEST_ADMIN_PASSWORD?.trim() || '',
   });
   await authService.initialize();
   const auditLog = new AuditLog();
   const weatherCache = await RedisWeatherCache.connect(environment.REDIS_URL?.trim() ?? '') ??
     new MemoryWeatherCache();
+  const skyOpportunityCache = await RedisSkyOpportunityCache.connect(
+    environment.REDIS_URL?.trim() ?? '',
+  ) ?? new MemorySkyOpportunityCache();
+  const skyOpportunityMetrics = new SkyOpportunityMetrics();
   const redisRateLimiter = await RedisRequestRateLimiter.connect(
     environment.REDIS_URL?.trim() ?? '',
   );
   const requestRateLimiter = redisRateLimiter == null
     ? new MemoryRequestRateLimiter()
     : new FallbackRequestRateLimiter(redisRateLimiter);
-  const simulationRegistry = new SimulationRegistry();
+  const simulationEnabled = /^(?:1|true|yes)$/i.test(
+    environment.LUMANEST_SIMULATION_ENABLED?.trim() ?? '',
+  );
+  const simulationRegistry = simulationEnabled ? new SimulationRegistry() : null;
   const appServer = createTokenBrokerServer({
     runtimeConfig,
     weatherCache,
+    sunsetBotBaseUrl: defaults.sunsetBotBaseUrl,
+    skyOpportunityCache,
+    skyOpportunityMetrics,
+    skyOpportunityLogger: (entry) => console.info(JSON.stringify(entry)),
     requestRateLimiter,
     simulationRegistry,
   });
@@ -1447,7 +1768,12 @@ export async function createBrokerServices(environment = process.env, {
         internalToken: snapshot.contextInternalToken,
       });
     },
+    simulationEnabled,
     simulationRegistry,
+    outboundNetworkController: createOutboundNetworkControllerClient({
+      baseUrl: environment.LUMANEST_OUTBOUND_NETWORK_CONTROLLER_URL ?? '',
+      token: environment.LUMANEST_NETWORK_CONTROLLER_TOKEN ?? '',
+    }),
     restart: async () => exit(0),
   });
   return {

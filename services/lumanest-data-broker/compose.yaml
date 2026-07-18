@@ -16,13 +16,28 @@ services:
       LUMANEST_SERVICE_TOKEN: ${LUMANEST_SERVICE_TOKEN:?Set LUMANEST_SERVICE_TOKEN}
       AMAP_WEB_KEY: ${AMAP_WEB_KEY:?Set AMAP_WEB_KEY}
       LUMANEST_CONFIG_MASTER_KEY: ${LUMANEST_CONFIG_MASTER_KEY:?Set LUMANEST_CONFIG_MASTER_KEY}
-      LUMANEST_ADMIN_PASSWORD: ${LUMANEST_ADMIN_PASSWORD:?Set LUMANEST_ADMIN_PASSWORD}
+      LUMANEST_ADMIN_BOOTSTRAP_PASSWORD: ${LUMANEST_ADMIN_BOOTSTRAP_PASSWORD:-}
+      LUMANEST_ADMIN_PASSWORD: ${LUMANEST_ADMIN_PASSWORD:-}
+      LUMANEST_SIMULATION_ENABLED: ${LUMANEST_SIMULATION_ENABLED:-false}
       CONTEXT_SERVICE_URL: http://context-service:8000
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
       DISCOVERY_INTERNAL_TOKEN: ${DISCOVERY_INTERNAL_TOKEN:?Set DISCOVERY_INTERNAL_TOKEN}
       DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
       REDIS_URL: redis://redis:6379/0
+      SUNSETBOT_BASE_URL: ${SUNSETBOT_BASE_URL:-https://sunsetbot.top}
+      LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
+      LUMANEST_OUTBOUND_NETWORK_CONTROLLER_URL: http://outbound-network-controller:8790
+      LUMANEST_NETWORK_CONTROLLER_TOKEN: ${LUMANEST_NETWORK_CONTROLLER_TOKEN:?Set LUMANEST_NETWORK_CONTROLLER_TOKEN}
+      # Node 22 built-in fetch only honors the standard proxy environment
+      # variables when this flag is enabled. Internal service calls bypass it.
+      NODE_OPTIONS: "--use-env-proxy"
+      HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      NO_PROXY: 127.0.0.1,localhost,context-service,discovery-api,outbound-network-controller,redis,postgres
+    networks:
+      - default
+      - mihomo
     ports:
       - "8787:8787"
       - "8788:8788"
@@ -54,12 +69,19 @@ services:
       DATABASE_URL: postgresql+asyncpg://lumanest:${LUMANEST_DATABASE_PASSWORD:?Set LUMANEST_DATABASE_PASSWORD}@postgres/lumanest
       REDIS_URL: redis://redis:6379/0
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
+      LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
+      HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      NO_PROXY: 127.0.0.1,localhost,qweather-token-broker,discovery-api,redis,postgres
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    networks:
+      - default
+      - mihomo
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,12 +106,19 @@ services:
       DATABASE_URL: postgresql+asyncpg://lumanest:${LUMANEST_DATABASE_PASSWORD:?Set LUMANEST_DATABASE_PASSWORD}@postgres/lumanest
       REDIS_URL: redis://redis:6379/0
       DISCOVERY_INTERNAL_TOKEN: ${DISCOVERY_INTERNAL_TOKEN:?Set DISCOVERY_INTERNAL_TOKEN}
+      LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
+      HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      NO_PROXY: 127.0.0.1,localhost,qweather-token-broker,context-service,redis,postgres
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"]
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    networks:
+      - default
+      - mihomo
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,12 +144,19 @@ services:
       REDIS_URL: redis://redis:6379/0
       DISCOVERY_BROKER_URL: http://qweather-token-broker:8787
       DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
+      LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
+      HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      NO_PROXY: 127.0.0.1,localhost,qweather-token-broker,context-service,discovery-api,redis,postgres
     command: ["python", "-m", "app.worker"]
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    networks:
+      - default
+      - mihomo
     depends_on:
       discovery-api:
         condition: service_healthy
@@ -163,7 +199,37 @@ services:
       timeout: 5s
       retries: 10
 
+  outbound-network-controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.network-controller
+    container_name: lumanest-outbound-network-controller
+    restart: unless-stopped
+    environment:
+      PORT: "8790"
+      LUMANEST_NETWORK_CONTROLLER_TOKEN: ${LUMANEST_NETWORK_CONTROLLER_TOKEN:?Set LUMANEST_NETWORK_CONTROLLER_TOKEN}
+      LUMANEST_HOST_ROOT: /lumanest-root
+      LUMANEST_HOST_RELEASE_PREFIX: ${LUMANEST_HOST_RELEASE_PREFIX:-/vol2/docker/lumanest}
+      LUMANEST_COMPOSE_PROJECT: ${PROJECT_NAME:-qweather-token-broker}
+      LUMANEST_MIHOMO_PROXY_URL: ${LUMANEST_MIHOMO_PROXY_URL:-http://mihomo:7890}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${LUMANEST_HOST_ROOT:-/vol2/docker/lumanest}:/lumanest-root:rw
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
+
 volumes:
   lumanest-data:
   lumanest-postgres:
   lumanest-redis:
+
+networks:
+  default: {}
+  mihomo:
+    external: true
+    name: ${LUMANEST_MIHOMO_NETWORK:-mihomo_default}

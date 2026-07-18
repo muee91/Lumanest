@@ -1,4 +1,4 @@
-const state={csrf:null,config:null,llmProfiles:[],llmRouting:null,llmProviders:[],selectedLLMProfileId:null};
+const state={csrf:null,config:null,llmProfiles:[],llmRouting:null,llmProviders:[],selectedLLMProfileId:null,simulationEnabled:false,simulationPresets:[]};
 const $=(selector)=>document.querySelector(selector);
 const $$=(selector)=>[...document.querySelectorAll(selector)];
 const status=(message)=>{$('#global-status').textContent=message;};
@@ -9,22 +9,67 @@ async function api(path,{method='GET',body}={}){
   if(method!=='GET'&&state.csrf)headers['X-CSRF-Token']=state.csrf;
   const response=await fetch(`/admin-api/${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
   const value=await response.json().catch(()=>({error:'invalid_response'}));
-  if(response.status===401&&path!=='login')showLogin();
+  if(response.status===401&&path!=='login'&&value.error==='unauthenticated')showLogin();
   if(!response.ok)throw new Error(value.error||'request_failed');
   return value;
 }
 
-function showLogin(){state.csrf=null;state.config=null;$('#app-view').hidden=true;$('#login-view').hidden=false;}
+function showLogin(){state.csrf=null;state.config=null;state.simulationEnabled=false;$('#developer-tools-label').hidden=true;$('#simulation-nav').hidden=true;$('#app-view').hidden=true;$('#login-view').hidden=false;}
 function showApp(){ $('#login-view').hidden=true;$('#app-view').hidden=false; }
 function maskText(value){return value?.configured?`已配置 ···· ${value.lastFour||''}`.trim():'尚未配置';}
 function setMask(name,value){const node=document.querySelector(`[data-mask="${name}"]`);if(node)node.textContent=maskText(value);}
-function tile(label,value){const node=document.createElement('article');node.className='service-tile';const small=document.createElement('small');small.textContent=label;const strong=document.createElement('strong');strong.textContent=maskText(value);node.append(small,strong);return node;}
+function statusTone(status){return status==='ready'?'ready':status==='disabled'?'disabled':'attention';}
+function appendServiceRow({name,description,status,label,target}){const row=document.createElement('article');row.className='service-status-row';const identity=document.createElement('div');identity.className='service-identity';const mark=document.createElement('span');mark.className=`service-mark ${statusTone(status)}`;mark.textContent=name.slice(0,1);const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=name;const detail=document.createElement('small');detail.textContent=description;copy.append(title,detail);identity.append(mark,copy);const stateNode=document.createElement('span');stateNode.className=`service-state ${statusTone(status)}`;stateNode.textContent=label;const button=document.createElement('button');button.type='button';button.className='row-action';button.dataset.target=target;button.textContent='管理';row.append(identity,stateNode,button);$('#service-status-list').append(row);}
+function appendSummary(label,value,tone=''){const row=document.createElement('div');const term=document.createElement('dt');term.textContent=label;const detail=document.createElement('dd');detail.textContent=value;if(tone)detail.className=tone;row.append(term,detail);$('#runtime-summary').append(row);}
+function appendCapability({name,detail,enabled}){const item=document.createElement('article');item.className=`capability-item ${enabled?'enabled':'disabled'}`;const top=document.createElement('div');const dot=document.createElement('i');const label=document.createElement('span');label.textContent=enabled?'已启用':'未启用';top.append(dot,label);const title=document.createElement('strong');title.textContent=name;const description=document.createElement('small');description.textContent=detail;item.append(top,title,description);$('#capability-grid').append(item);}
+function renderOutboundNetwork(network){const form=$('#outbound-network-form');if(!form)return;const statusNode=$('#outbound-network-status');const detailNode=$('#outbound-network-detail');const message=$('#outbound-network-message');const mode=network?.effectiveMode;const ready=network?.status==='ready';if(mode)form.elements.mode.value=mode;const modeLabel=mode==='mihomo'?'经 mihomo':mode==='direct'?'直连':'未确认';statusNode.textContent=ready?`${modeLabel} · 已生效`:network?.status==='applying'?'正在切换网络方式':'未确认实际网络方式';const serviceCount=(network?.services??[]).filter((service)=>service.mode===mode&&service.proxyConfigured===(mode==='mihomo')).length;if(ready){detailNode.textContent=`${serviceCount}/4 个应用容器使用同一出口。切换时仅重建应用容器。`;message.textContent='';}else if(network?.status==='applying'){detailNode.textContent='容器正在按新环境变量逐个重建，通常需要半分钟。';message.textContent='正在应用，完成后会自动刷新状态。';setTimeout(()=>loadConfig().catch(()=>{}),8000);}else{detailNode.textContent=network?.error==='controller_not_configured'?'网络控制入口尚未部署或未配置。':'无法确认所有应用容器的网络环境。';}}
 
 function renderConfig(config){
-  state.config=config;$('#revision').textContent=`配置版本 ${config.revision??'—'}`;
-  const grid=$('#service-grid');grid.replaceChildren();
-  const labels={qweatherPrivateKey:'和风私钥',amapWebKey:'高德地图',serviceToken:'App 访问'};
-  for(const [name,label] of Object.entries(labels))grid.append(tile(label,config.services[name]));
+  state.config=config;
+  const integrations=[
+    ['和风天气',{configured:Boolean(config.services.qweatherPrivateKey?.configured&&config.services.keyId?.configured&&config.services.projectId?.configured),lastFour:config.services.keyId?.lastFour}],
+    ['高德地图',config.services.amapWebKey],
+    ['App 访问',config.services.serviceToken],
+  ];
+  const configuredCount=integrations.filter(([,value])=>value?.configured).length;
+  const enabledCapabilities=config.settings?.sunsetbotProviderEnabled?['skyOpportunityCardEnabled','skyOpportunityNotificationEnabled','skyOpportunityMapEnabled','skyOpportunityTomorrowSunsetEnabled'].filter((name)=>config.settings?.[name]).length:0;
+  const enabledSourceCount=(config.discoverySearch?.sourcePolicies??[]).filter((policy)=>policy.enabled).length;
+  $('#revision').textContent=String(config.revision??'—');
+  $('#broker-status').textContent='在线';
+  $('#broker-detail').textContent='认证与配置接口响应正常';
+  $('#configured-count').textContent=`${configuredCount} / ${integrations.length}`;
+  $('#configured-rate').textContent=`${Math.round(configuredCount/integrations.length*100)}%`;
+  $('#configured-detail').textContent=configuredCount===integrations.length?'全部核心服务已完成配置':`还有 ${integrations.length-configuredCount} 项服务待配置`;
+  $('#llm-profile-count').textContent=String(config.llm?.profileCount??0);
+  $('#llm-route-state').textContent=config.llm?.primaryProfileId?'主路由已选':'无主路由';
+  $('#ai-state').textContent=config.settings?.aiEnabled?(config.llm?.primaryProfileId?'AI 文案链路可用':'AI 已开启，但缺少主模型'):'当前使用本地确定性文案';
+  $('#capability-count').textContent=String(enabledCapabilities);
+  $('#sky-opportunity-state').textContent=config.settings?.sunsetbotProviderEnabled?'SunsetBot Provider 已接入':'朝晚霞 Provider 未启用';
+  $('#last-updated').textContent=`同步于 ${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}`;
+  const qweatherReady=integrations[0][1].configured;
+  const amapReady=Boolean(config.services.amapWebKey?.configured);
+  const appReady=Boolean(config.services.serviceToken?.configured);
+  const searchReady=Boolean(config.discoverySearch?.enabled&&config.discoverySearch?.apiKey?.configured&&enabledSourceCount>0);
+  const llmReady=Boolean(config.settings?.aiEnabled&&config.llm?.primaryProfileId);
+  $('#service-status-list').replaceChildren();
+  appendServiceRow({name:'和风天气',description:'私钥、凭据 ID 与项目 ID',status:qweatherReady?'ready':'attention',label:qweatherReady?'链路就绪':'配置不完整',target:'services'});
+  appendServiceRow({name:'高德地图',description:'场景证据、路线与地点检索',status:amapReady?'ready':'attention',label:amapReady?'链路就绪':'缺少 Web Key',target:'services'});
+  appendServiceRow({name:'App 访问',description:'客户端访问 Broker 的服务令牌',status:appReady?'ready':'attention',label:appReady?'访问受保护':'缺少令牌',target:'services'});
+  appendServiceRow({name:'审核来源搜索',description:`${enabledSourceCount} 条已启用来源政策`,status:searchReady?'ready':config.discoverySearch?.enabled?'attention':'disabled',label:searchReady?'检索可用':config.discoverySearch?.enabled?'配置不完整':'已关闭',target:'services'});
+  appendServiceRow({name:'模型路由',description:`${config.llm?.profileCount??0} 个模型档案`,status:llmReady?'ready':config.settings?.aiEnabled?'attention':'disabled',label:llmReady?'主路由可用':config.settings?.aiEnabled?'等待主模型':'本地模式',target:'llm'});
+  $('#runtime-summary').replaceChildren();
+  appendSummary('AI 文案',config.settings?.aiEnabled?'启用':'关闭',config.settings?.aiEnabled?'positive':'muted');
+  appendSummary('AI 超时',`${config.settings?.aiTimeoutMs??'—'} ms`);
+  appendSummary('上游超时',`${config.settings?.upstreamTimeoutMs??'—'} ms`);
+  appendSummary('野生动物范围',`${config.settings?.wildlifeRadiusKm??'—'} km`);
+  appendSummary('调试日志',config.settings?.debugLogging?'启用':'关闭',config.settings?.debugLogging?'warning-text':'muted');
+  $('#capability-grid').replaceChildren();
+  appendCapability({name:'AI 创作表达',detail:config.llm?.primaryProfileId?'已绑定主模型档案':'本地文案仍可独立运行',enabled:Boolean(config.settings?.aiEnabled&&config.llm?.primaryProfileId)});
+  appendCapability({name:'审核来源探索',detail:`${enabledSourceCount} 条已启用来源政策`,enabled:searchReady});
+  appendCapability({name:'首页机会对象',detail:'朝霞与晚霞机会按阈值出现',enabled:Boolean(config.settings?.sunsetbotProviderEnabled&&config.settings?.skyOpportunityCardEnabled)});
+  appendCapability({name:'机会通知',detail:'只在达到独立通知阈值时触发',enabled:Boolean(config.settings?.sunsetbotProviderEnabled&&config.settings?.skyOpportunityNotificationEnabled)});
+  const issueCount=[qweatherReady,amapReady,appReady,searchReady||!config.discoverySearch?.enabled,llmReady||!config.settings?.aiEnabled].filter((ready)=>!ready).length;
+  $('#action-summary').textContent=issueCount===0?'当前没有阻塞性配置问题。':`检测到 ${issueCount} 项启用中的能力尚未完成配置。`;
   for(const [name,value] of Object.entries(config.services))setMask(name,value);
   for(const [name,value] of Object.entries(config.settings)){
     const control=$('#runtime-form').elements[name];if(!control)continue;
@@ -32,9 +77,17 @@ function renderConfig(config){
   }
   const discovery=config.discoverySearch;
   if(discovery){const form=$('#discovery-search-form');form.elements.baseUrl.value=discovery.baseUrl;form.elements.apiKey.value='';form.elements.timeoutMs.value=String(discovery.timeoutMs);form.elements.enabled.checked=discovery.enabled;form.elements.sourcePolicies.value=JSON.stringify(discovery.sourcePolicies||[],null,2);$('#discovery-search-key-mask').textContent=maskText(discovery.apiKey);}
+  renderOutboundNetwork(config.outboundNetwork);
 }
 
 async function loadConfig(){renderConfig(await api('config'));}
+async function loadCapabilities(){
+  const capabilities=await api('capabilities');
+  state.simulationEnabled=Boolean(capabilities.developerTools?.simulationEnabled);
+  $('#developer-tools-label').hidden=!state.simulationEnabled;
+  $('#simulation-nav').hidden=!state.simulationEnabled;
+  if(!state.simulationEnabled&&document.querySelector('.page[data-panel="simulation"].active'))switchPage('overview');
+}
 function llmStatus(profile){return profile.enabled?'已启用':'已停用';}
 function selectLLMProfile(id){state.selectedLLMProfileId=id;renderLLM();}
 function renderProviderOptions(){const list=$('#provider-options');list.replaceChildren();for(const provider of state.llmProviders){const button=document.createElement('button');button.type='button';button.className='provider-option';const title=document.createElement('strong');title.textContent=provider.name;const detail=document.createElement('small');detail.textContent=provider.protocol.replaceAll('_',' · ');button.append(title,detail);button.addEventListener('click',()=>startLLMProfile(provider));list.append(button);}}
@@ -47,7 +100,8 @@ async function loadLLM(){const [providerData,profileData]=await Promise.all([api
 function switchPage(name){
   $$('.nav-item[data-page]').forEach((button)=>button.classList.toggle('active',button.dataset.page===name));
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
-  const titles={overview:'概览',services:'密钥与服务',llm:'模型服务',runtime:'运行设置',simulation:'场景回放',calibration:'反馈校准',security:'安全与维护'};$('#page-title').textContent=titles[name];
+  if(name==='simulation'&&!state.simulationEnabled)return;
+  const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V4 环境场景。'],calibration:['反馈校准','查看达到隐私阈值的匿名拍摄反馈聚合。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
   if(name==='security')loadAudit();
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
   if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
@@ -84,10 +138,39 @@ async function loadCalibration(){
   renderCalibration(await api(`context/shooting-calibration?days=${days}&minimumSamples=${minimumSamples}`));
 }
 
+const simulationLabels={conditionBand:{good:'条件较好',fair:'条件一般',limited:'条件受限'},confidenceBand:{high:'高置信',medium:'中置信',limited:'有限置信'}};
+function remainingText(expiresAt){const seconds=Math.max(0,Math.floor((new Date(expiresAt).getTime()-Date.now())/1000));const minutes=Math.floor(seconds/60);return `${minutes} 分 ${seconds%60} 秒后过期`;}
+function renderSimulationPreset(){
+  const preset=state.simulationPresets.find((item)=>item.value===$('#simulation-preset').value)??state.simulationPresets[0];
+  if(!preset)return;
+  $('#simulation-preset-title').textContent=preset.label;
+  $('#simulation-preset-description').textContent=preset.description;
+  const tags=$('#simulation-preset-tags');tags.replaceChildren();
+  for(const value of [preset.kind,simulationLabels.conditionBand[preset.conditionBand],simulationLabels.confidenceBand[preset.confidenceBand],preset.hasSafetyAlert?'包含安全提醒':'创作场景']){const tag=document.createElement('span');tag.textContent=value;tags.append(tag);}
+}
+function renderSimulationPresets(presets){
+  state.simulationPresets=presets;
+  const select=$('#simulation-preset');const previous=select.value;select.replaceChildren();
+  for(const preset of presets){const option=document.createElement('option');option.value=preset.value;option.textContent=preset.label;option.selected=preset.value===previous;select.append(option);}
+  renderSimulationPreset();
+}
+function simulationPresetLabel(value){return state.simulationPresets.find((item)=>item.value===value)?.label??value;}
 async function loadSimulation(){
-  const {sessions}=await api('simulation/sessions');const list=$('#simulation-session-list');list.replaceChildren();
-  if(!sessions.length){const item=document.createElement('li');item.textContent='尚无 Debug App 会话。打开 App 后刷新一次环境数据。';list.append(item);return;}
-  for(const session of sessions){const item=document.createElement('li');const code=document.createElement('span');code.textContent=`会话 · ${session.sessionCode}`;const state=document.createElement('span');state.textContent=session.activePreset?`当前：${session.activePreset}`:'未启用模拟';const actions=document.createElement('span');const send=document.createElement('button');send.type='button';send.className='secondary';send.textContent='发送场景';send.addEventListener('click',async()=>{await api(`simulation/sessions/${session.sessionCode}`,{method:'POST',body:{preset:$('#simulation-preset').value}});status('模拟场景已发送；在 Debug App 中刷新环境数据即可生效');await loadSimulation();});const clear=document.createElement('button');clear.type='button';clear.className='secondary';clear.textContent='停止';clear.disabled=!session.activePreset;clear.addEventListener('click',async()=>{await api(`simulation/sessions/${session.sessionCode}`,{method:'DELETE',body:{}});status('模拟已停止');await loadSimulation();});actions.append(send,clear);item.append(code,state,actions);list.append(item);}
+  const {presets,sessions}=await api('simulation');
+  renderSimulationPresets(presets);
+  $('#simulation-session-count').textContent=String(sessions.length);
+  const activeCount=sessions.filter((session)=>session.activePreset).length;
+  $('#simulation-active-count').textContent=String(activeCount);
+  $('#clear-all-simulations').disabled=activeCount===0;
+  const list=$('#simulation-session-list');list.replaceChildren();
+  if(!sessions.length){const item=document.createElement('li');item.className='simulation-empty';item.textContent='尚无 Debug App 会话。打开 Debug App 并刷新一次环境数据后，会在这里出现临时配对会话。';list.append(item);return;}
+  for(const session of sessions){
+    const item=document.createElement('li');item.className='simulation-session-card';
+    const identity=document.createElement('div');identity.className='simulation-session-identity';const title=document.createElement('strong');title.textContent=`Debug App · ${session.sessionCode}`;const meta=document.createElement('small');meta.textContent=`契约 V${session.contractVersion??'未知'} · 最后在线 ${new Date(session.lastSeenAt).toLocaleTimeString('zh-CN',{hour12:false})} · ${remainingText(session.expiresAt)}`;identity.append(title,meta);
+    const delivery=document.createElement('div');delivery.className='simulation-delivery';const deliveryTitle=document.createElement('strong');deliveryTitle.textContent=session.activePreset?simulationPresetLabel(session.activePreset):'未启用模拟';const deliveryMeta=document.createElement('small');deliveryMeta.textContent=`已下发 ${session.deliveryCount} 次 · 已隔离 ${session.suppressedFeedbackCount} 条反馈`;delivery.append(deliveryTitle,deliveryMeta);
+    const actions=document.createElement('div');actions.className='simulation-session-actions';const send=document.createElement('button');send.type='button';send.className='secondary';send.textContent=session.activePreset?'切换场景':'发送场景';send.addEventListener('click',async()=>{send.disabled=true;try{await api(`simulation/sessions/${session.controlId}`,{method:'POST',body:{preset:$('#simulation-preset').value}});status('场景已激活；Debug App 下次刷新环境数据时生效');await loadSimulation();}catch{status('场景发送失败，会话可能已经过期');}finally{send.disabled=false;}});const clear=document.createElement('button');clear.type='button';clear.className='secondary';clear.textContent='停止';clear.disabled=!session.activePreset;clear.addEventListener('click',async()=>{clear.disabled=true;try{await api(`simulation/sessions/${session.controlId}`,{method:'DELETE',body:{}});status('该会话的模拟已停止');await loadSimulation();}catch{status('停止失败，会话可能已经过期');}});actions.append(send,clear);
+    item.append(identity,delivery,actions);list.append(item);
+  }
 }
 
 async function loadAudit(){
@@ -98,27 +181,34 @@ async function loadAudit(){
 
 $('#login-form').addEventListener('submit',async(event)=>{
   event.preventDefault();
+  const form=event.currentTarget;
   const button=event.submitter;
   button.disabled=true;
   $('#login-status').textContent='正在验证…';
   let result;
   try{
-    result=await api('login',{method:'POST',body:{password:event.currentTarget.elements.password.value}});
+    result=await api('login',{method:'POST',body:{password:form.elements.password.value}});
   }catch(error){
-    $('#login-status').textContent=error.message==='rate_limited'?'尝试次数过多，请 15 分钟后再试':'密码不正确';
+    const messages={invalid_credentials:'密码不正确',rate_limited:'尝试次数过多，请 15 分钟后再试',lan_only:'当前网络不能访问管理台',invalid_request:'登录请求无效'};
+    $('#login-status').textContent=messages[error.message]??'登录服务暂不可用，请检查 Broker 状态';
     button.disabled=false;
     return;
   }
   state.csrf=result.csrfToken;
-  event.currentTarget.reset();
+  form.reset();
   $('#login-status').textContent='';
   showApp();
-  try{await loadConfig();}catch{status('登录成功，但配置加载失败，请刷新页面');}
+  try{await Promise.all([loadConfig(),loadCapabilities()]);}catch{status('登录成功，但控制台状态加载失败，请刷新页面');}
   button.disabled=false;
 });
 
 $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=>switchPage(button.dataset.page)));
+document.addEventListener('click',(event)=>{const button=event.target.closest('button[data-target]');if(button)switchPage(button.dataset.target);});
+$('#refresh-overview').addEventListener('click',async()=>{const button=$('#refresh-overview');button.disabled=true;try{status('正在刷新配置快照…');await loadConfig();status('状态已刷新');}catch{status('刷新失败，请确认 Broker 服务状态');}finally{button.disabled=false;}});
 $('#calibration-form').addEventListener('submit',async(event)=>{event.preventDefault();try{status('正在读取匿名聚合…');await loadCalibration();status('反馈校准读数已更新');}catch{status('读取失败，请确认 Context Service 与数据库迁移已就绪');}});
+$('#simulation-preset').addEventListener('change',renderSimulationPreset);
+$('#refresh-simulations').addEventListener('click',async()=>{const button=$('#refresh-simulations');button.disabled=true;try{await loadSimulation();status('测试会话已刷新');}catch{status('测试会话读取失败');}finally{button.disabled=false;}});
+$('#clear-all-simulations').addEventListener('click',async()=>{if(!window.confirm('确认停止全部活动模拟？Debug App 下一次刷新将恢复真实环境链路。'))return;try{const result=await api('simulation/sessions',{method:'DELETE',body:{}});status(`已停止 ${result.cleared} 个活动模拟`);await loadSimulation();}catch{status('停止全部模拟失败');}});
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{method:'POST'});}finally{showLogin();}});
 
 $('#services-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const patch={};for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken']){const value=form.elements[name].value.trim();if(value)patch[name]=value;}try{status('正在加密并应用…');renderConfig(await api('config',{method:'PUT',body:patch}));for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken'])form.elements[name].value='';status('密钥与服务配置已生效');}catch{status('保存失败，请检查输入范围与格式');}});
@@ -137,8 +227,10 @@ $('#test-services').addEventListener('click',async()=>{try{status('正在测试�
 
 $('#runtime-form').addEventListener('submit',async(event)=>{event.preventDefault();const settings={};for(const control of event.currentTarget.elements){if(!control.name)continue;settings[control.name]=control.type==='checkbox'?control.checked:Number(control.value);}try{renderConfig(await api('config',{method:'PUT',body:{settings}}));status('运行设置已生效');}catch{status('设置超出允许范围');}});
 
-$('#password-form').addEventListener('submit',async(event)=>{event.preventDefault();try{await api('change-password',{method:'POST',body:{password:event.currentTarget.elements.password.value}});event.currentTarget.reset();showLogin();$('#login-status').textContent='密码已更换，请重新登录';}catch{status('密码更换失败');}});
+$('#outbound-network-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const mode=form.elements.mode.value;const label=mode==='mihomo'?'经 mihomo':'直连';if(!window.confirm(`确认将整个后端的外网 HTTP(S) 切换为「${label}」？四个应用容器会短暂重建，数据库和缓存不会清除。`))return;const button=event.submitter;button.disabled=true;try{await api('outbound-network',{method:'PUT',body:{mode}});$('#outbound-network-message').textContent='网络方式已提交，正在重建应用容器…';setTimeout(()=>loadConfig().catch(()=>{$('#outbound-network-message').textContent='状态刷新失败，请稍后刷新页面确认。';}),8000);}catch{ $('#outbound-network-message').textContent='切换未被接受；当前网络方式没有改变。';}finally{setTimeout(()=>{button.disabled=false;},8000);}});
+
+$('#password-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const button=event.submitter;const passwordStatus=$('#password-status');const currentPassword=form.elements.currentPassword.value;const newPassword=form.elements.newPassword.value;const confirmPassword=form.elements.confirmPassword.value;if(newPassword!==confirmPassword){passwordStatus.textContent='两次输入的新密码不一致';return;}button.disabled=true;passwordStatus.textContent='正在更新密码…';try{await api('change-password',{method:'POST',body:{currentPassword,newPassword,confirmPassword}});form.reset();showLogin();$('#login-status').textContent='密码已更换，所有设备均需重新登录';}catch(error){const messages={invalid_current_password:'当前密码不正确',password_mismatch:'两次输入的新密码不一致',invalid_password:'新密码必须为 8 至 256 个字符',invalid_request:'改密请求无效'};passwordStatus.textContent=messages[error.message]??'密码更新失败，请检查 Broker 状态';}finally{button.disabled=false;}});
 $('#clear-cache').addEventListener('click',async()=>{try{await api('clear-cache',{method:'POST',body:{}});status('缓存已清理');await loadAudit();}catch{status('缓存清理失败');}});
 $('#restart').addEventListener('click',async()=>{if(!window.confirm('确认重启 Broker？App API 会短暂中断。'))return;try{await api('restart',{method:'POST',body:{}});status('重启指令已发送');}catch{status('重启指令发送失败');}});
 
-(async()=>{try{const session=await api('session');state.csrf=session.csrfToken;showApp();await loadConfig();}catch{showLogin();}})();
+(async()=>{try{const session=await api('session');state.csrf=session.csrfToken;showApp();await Promise.all([loadConfig(),loadCapabilities()]);}catch{showLogin();}})();

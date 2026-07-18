@@ -13,6 +13,7 @@ import {
 import { MemoryRequestRateLimiter } from '../src/context/request-rate-limiter.mjs';
 import { MemoryWeatherCache } from '../src/context/weather-cache.mjs';
 import { CompanionStore } from '../src/companion/orchestrator.mjs';
+import { SimulationRegistry } from '../src/context/simulation.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 
@@ -33,6 +34,7 @@ async function withServer(run, {
   weatherCache,
   requestRateLimiter,
   companionStore,
+  simulationRegistry,
   now,
 } = {}) {
   const llmProfiles = aiApiKey ? [{
@@ -66,6 +68,7 @@ async function withServer(run, {
     weatherCache,
     requestRateLimiter,
     companionStore,
+    simulationRegistry,
     now,
     fetcher,
   });
@@ -390,6 +393,59 @@ test('context snapshot rejects identity fields without contacting the context se
     },
   });
   assert.equal(calls, 0);
+});
+
+test('active debug simulation returns V4 sessions and never forwards simulated feedback', async () => {
+  const registry = new SimulationRegistry();
+  registry.register('debugsession2345678', { contractVersion: 4 });
+  const controlId = registry.list()[0].controlId;
+  assert.equal(registry.activate(controlId, 'lake-sunset').ok, true);
+  let upstreamCalls = 0;
+  await withServer(async (baseUrl) => {
+    const headers = {
+      Authorization: 'Bearer test-service-token',
+      'Content-Type': 'application/json',
+      'X-LumaNest-Debug-Session': 'debugsession2345678',
+      'X-LumaNest-Debug-Contract': '4',
+    };
+    const snapshot = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        contractVersion: 4,
+        coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+        observedAt: '2026-07-18T10:00:00+08:00',
+        locale: 'zh-CN', intent: 'photography',
+        route: { mode: 'none', stage: 'none', routeId: null, corridorSamples: [] },
+      }),
+    });
+    assert.equal(snapshot.status, 200);
+    const simulated = await snapshot.json();
+    assert.equal(simulated.shootingSessions.length, 1);
+    assert.equal(simulated.shootingSessions[0].kind, 'waterEvening');
+
+    const feedback = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        contractVersion: 2,
+        ruleVersion: simulated.shootingSessions[0].ruleVersion,
+        conditionBand: simulated.shootingSessions[0].conditionBand,
+        factors: simulated.shootingSessions[0].factors.map(({ id, effect }) => ({ id, effect })),
+        outcome: 'captured', reasons: [], targetId: null,
+      }),
+    });
+    assert.equal(feedback.status, 202);
+    assert.deepEqual(await feedback.json(), { accepted: true });
+  }, {
+    simulationRegistry: registry,
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    fetcher: async () => {
+      upstreamCalls += 1;
+      throw new Error('simulation must not contact upstream services');
+    },
+  });
+  assert.equal(upstreamCalls, 0);
+  assert.equal(registry.list()[0].suppressedFeedbackCount, 1);
 });
 
 test('target session verifies the reviewed target before fetching target weather', async () => {
@@ -923,6 +979,134 @@ test('Amap proxy requires the app service token', async () => {
     assert.equal(response.status, 401);
     assert.deepEqual(await response.json(), { error: 'unauthorized' });
   });
+});
+
+test('Amap nearby photos become bounded authenticated media resources', async () => {
+  const photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  let mediaRequests = 0;
+  await withServer(async (baseUrl) => {
+    const nearby = await fetch(
+      `${baseUrl}/v1/amap/nearby?location=120.70,30.52&keywords=%E6%B9%BF%E5%9C%B0%E5%85%AC%E5%9B%AD`,
+      { headers: { Authorization: 'Bearer test-service-token' } },
+    );
+    assert.equal(nearby.status, 200);
+    const body = await nearby.json();
+    assert.equal('photos' in body.pois[0], false);
+    assert.equal(body.pois[0].media.length, 1);
+    assert.equal(body.pois[0].media[0].attribution, '高德地图');
+    assert.match(body.pois[0].media[0].proxyPath, /^\/v1\/amap\/media\/[A-Za-z0-9_-]+$/);
+
+    const image = await fetch(`${baseUrl}${body.pois[0].media[0].proxyPath}`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(image.status, 200);
+    assert.equal(image.headers.get('content-type'), 'image/jpeg');
+    assert.deepEqual(Buffer.from(await image.arrayBuffer()), photoBytes);
+  }, {
+    fetcher: async (url) => {
+      if (url.hostname === 'restapi.amap.com') {
+        return new Response(JSON.stringify({
+          status: '1',
+          pois: [{
+            id: 'poi-1',
+            name: '长山河生态湿地公园',
+            photos: [
+              { provider: '高德地图', title: '湿地公园', url: 'https://aos-comment.amap.com/pic/photo.jpg' },
+              { provider: '未知来源', title: '错误图片', url: 'https://evil.example/photo.jpg' },
+            ],
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      mediaRequests += 1;
+      assert.equal(url.hostname, 'aos-comment.amap.com');
+      return new Response(photoBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg', 'Content-Length': String(photoBytes.length) },
+      });
+    },
+  });
+  assert.equal(mediaRequests, 1);
+});
+
+test('Amap media proxy rejects non-AMap hosts before fetching', async () => {
+  let upstreamCalls = 0;
+  const token = Buffer.from('https://evil.example/photo.jpg').toString('base64url');
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/amap/media/${token}`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'invalid_media_reference' });
+  }, {
+    fetcher: async () => {
+      upstreamCalls += 1;
+      return new Response('unexpected', { status: 200 });
+    },
+  });
+  assert.equal(upstreamCalls, 0);
+});
+
+test('place detail media uses a strict Commons match, caches lookup and proxies bytes', async () => {
+  const photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  let searchRequests = 0;
+  let mediaRequests = 0;
+  await withServer(async (baseUrl) => {
+    const path = '/v1/explore/place-media?name=' +
+      encodeURIComponent('长山河生态湿地公园') +
+      '&city=' + encodeURIComponent('嘉兴市') + '&lat=30.6842&lon=120.7281';
+    const first = await fetch(`${baseUrl}${path}`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(first.status, 200);
+    const body = await first.json();
+    assert.equal(body.status, 'ok');
+    assert.equal(body.cacheStatus, 'miss');
+    assert.equal(body.media.attribution, 'Wikimedia Commons');
+    assert.equal(body.media.matchBasis, 'name');
+    assert.equal('url' in body.media, false);
+
+    const second = await fetch(`${baseUrl}${path}`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal((await second.json()).cacheStatus, 'hit');
+
+    const image = await fetch(`${baseUrl}${body.media.proxyPath}`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(image.status, 200);
+    assert.equal(image.headers.get('content-type'), 'image/jpeg');
+    assert.deepEqual(Buffer.from(await image.arrayBuffer()), photoBytes);
+  }, {
+    fetcher: async (url) => {
+      if (url.hostname === 'commons.wikimedia.org') {
+        searchRequests += 1;
+        return new Response(JSON.stringify({
+          query: {
+            pages: [{
+              pageid: 42,
+              title: 'File:长山河生态湿地公园.jpg',
+              imageinfo: [{
+                mime: 'image/jpeg',
+                thumburl: 'https://upload.wikimedia.org/example/wetland.jpg',
+                extmetadata: {
+                  ImageDescription: { value: '长山河生态湿地公园' },
+                  LicenseShortName: { value: 'CC BY-SA 4.0' },
+                },
+              }],
+            }],
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      mediaRequests += 1;
+      assert.equal(url.hostname, 'upload.wikimedia.org');
+      return new Response(photoBytes, {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg', 'Content-Length': `${photoBytes.length}` },
+      });
+    },
+  });
+  assert.equal(searchRequests, 1);
+  assert.equal(mediaRequests, 1);
 });
 
 test('Amap text search forwards only a bounded search phrase', async () => {

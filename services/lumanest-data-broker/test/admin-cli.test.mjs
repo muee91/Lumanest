@@ -16,7 +16,7 @@ test('reset-password replaces the hash without printing password or hash', async
   try {
     const code = await runAdminCli({
       argv: ['reset-password'],
-      environment: { LUMANEST_DATA_DIR: directory, LUMANEST_ADMIN_PASSWORD: 'replacement-password' },
+      environment: { LUMANEST_DATA_DIR: directory, LUMANEST_ADMIN_RESET_PASSWORD: 'replacement-password' },
       output: (value) => output.push(value),
     });
     assert.equal(code, 0);
@@ -33,6 +33,6 @@ test('reset-password replaces the hash without printing password or hash', async
 test('reset-password rejects a missing replacement password', async () => {
   await assert.rejects(
     () => runAdminCli({ argv: ['reset-password'], environment: {}, output: () => {} }),
-    /LUMANEST_ADMIN_PASSWORD/,
+    /LUMANEST_ADMIN_RESET_PASSWORD/,
   );
 });

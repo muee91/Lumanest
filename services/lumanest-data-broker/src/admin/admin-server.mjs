@@ -5,6 +5,7 @@ import { isLanAddress } from './lan-address.mjs';
 import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
+import { simulationPresetCatalog } from '../context/simulation.mjs';
 
 const maximumBodyBytes = 16 * 1024;
 const maximumImportBodyBytes = 2 * 1024 * 1024;
@@ -100,7 +101,7 @@ function safeDiscoverySearchProfile(profile) {
   };
 }
 
-function safeConfiguration(snapshot) {
+function safeConfiguration(snapshot, outboundNetwork) {
   return {
     revision: snapshot.revision,
     services: {
@@ -117,6 +118,7 @@ function safeConfiguration(snapshot) {
     },
     discoverySearch: safeDiscoverySearchProfile(snapshot.discoverySearchProfile),
     settings: snapshot.settings,
+    outboundNetwork,
   };
 }
 
@@ -130,9 +132,11 @@ export function createAdminServer({
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
   getShootingCalibration = async () => ({ ok: false, error: 'not_configured' }),
   importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
+  simulationEnabled = false,
   simulationRegistry = null,
   clearCache = async () => {},
   restart = async () => {},
+  outboundNetworkController = null,
 }) {
   return createServer(async (request, response) => {
     const remoteAddress = request.socket.remoteAddress;
@@ -176,7 +180,15 @@ export function createAdminServer({
       });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/config') {
-      return json(response, 200, safeConfiguration(runtimeConfig.snapshot()));
+      const outboundNetwork = outboundNetworkController == null
+        ? { status: 'unavailable', error: 'controller_not_configured' }
+        : await outboundNetworkController.status();
+      return json(response, 200, safeConfiguration(runtimeConfig.snapshot(), outboundNetwork));
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/capabilities') {
+      return json(response, 200, {
+        developerTools: { simulationEnabled: simulationEnabled && simulationRegistry != null },
+      });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/llm/providers') {
       return json(response, 200, { providers: publicProviderCatalog() });
@@ -239,21 +251,37 @@ export function createAdminServer({
         ? result.report
         : { error: result.error });
     }
-    if (request.method === 'GET' && url.pathname === '/admin-api/simulation/sessions') {
-      return json(response, 200, { sessions: simulationRegistry?.list() ?? [] });
+    if (url.pathname.startsWith('/admin-api/simulation') &&
+        (!simulationEnabled || simulationRegistry == null)) {
+      return json(response, 404, { error: 'not_found' });
     }
-    const simulationMatch = /^\/admin-api\/simulation\/sessions\/([a-z0-9]{8})$/.exec(url.pathname);
+    if (request.method === 'GET' && url.pathname === '/admin-api/simulation') {
+      return json(response, 200, {
+        presets: simulationPresetCatalog(),
+        sessions: simulationRegistry.list(),
+      });
+    }
+    if (request.method === 'DELETE' && url.pathname === '/admin-api/simulation/sessions') {
+      const result = simulationRegistry.clearAll();
+      auditLog.record({
+        remoteAddress,
+        operation: 'clear_all_simulations',
+        result: 'ok',
+      });
+      return json(response, 200, result);
+    }
+    const simulationMatch = /^\/admin-api\/simulation\/sessions\/(sim_[a-f0-9]{24})$/.exec(url.pathname);
     if (simulationMatch != null && request.method === 'POST') {
       const parsed = await body(request);
       if (parsed.tooLarge || typeof parsed.value?.preset !== 'string') {
         return json(response, 400, { error: 'invalid_simulation_request' });
       }
-      const result = simulationRegistry?.activate(simulationMatch[1], parsed.value) ?? { ok: false, error: 'unavailable' };
+      const result = simulationRegistry.activate(simulationMatch[1], parsed.value.preset);
       auditLog.record({ remoteAddress, operation: 'activate_simulation', fields: ['preset'], result: result.ok ? 'ok' : result.error });
       return json(response, result.ok ? 200 : 404, result);
     }
     if (simulationMatch != null && request.method === 'DELETE') {
-      const result = simulationRegistry?.clear(simulationMatch[1]) ?? { ok: false, error: 'unavailable' };
+      const result = simulationRegistry.clear(simulationMatch[1]);
       auditLog.record({ remoteAddress, operation: 'clear_simulation', result: result.ok ? 'ok' : result.error });
       return json(response, result.ok ? 200 : 404, result);
     }
@@ -394,16 +422,45 @@ export function createAdminServer({
       if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
       return json(response, 200, await testConnection(parsed.value ?? {}));
     }
+    if (request.method === 'PUT' && url.pathname === '/admin-api/outbound-network') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (typeof parsed.value?.mode !== 'string' || outboundNetworkController == null) {
+        return json(response, 400, { error: 'invalid_request' });
+      }
+      const result = await outboundNetworkController.apply(parsed.value);
+      const accepted = result.accepted === true;
+      auditLog.record({
+        remoteAddress,
+        operation: 'update_outbound_network',
+        fields: ['mode'],
+        result: accepted ? 'accepted' : result.error ?? 'rejected',
+      });
+      return json(response, accepted ? 202 : 503, result);
+    }
     if (request.method === 'POST' && url.pathname === '/admin-api/change-password') {
       const parsed = await body(request);
       if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      const { currentPassword, newPassword, confirmPassword } = parsed.value ?? {};
+      if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' ||
+          typeof confirmPassword !== 'string') {
+        return json(response, 400, { error: 'invalid_request' });
+      }
+      if (newPassword !== confirmPassword) {
+        return json(response, 400, { error: 'password_mismatch' });
+      }
       try {
-        await authService.changePassword(parsed.value?.password);
+        const result = await authService.changePassword(newPassword, { currentPassword });
+        if (!result.ok) {
+          auditLog.record({ remoteAddress, operation: 'change_password', result: result.reason });
+          return json(response, 401, { error: result.reason });
+        }
         auditLog.record({ remoteAddress, operation: 'change_password', result: 'ok' });
         return json(response, 200, { ok: true }, {
           'Set-Cookie': 'lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
         });
       } catch {
+        auditLog.record({ remoteAddress, operation: 'change_password', result: 'invalid_password' });
         return json(response, 400, { error: 'invalid_password' });
       }
     }

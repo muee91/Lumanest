@@ -9,8 +9,9 @@ import { createAdminServer } from '../src/admin/admin-server.mjs';
 import { AdminAuthService } from '../src/admin/auth.mjs';
 import { AuditLog } from '../src/admin/audit-log.mjs';
 import { validateRuntimeSettings } from '../src/admin/runtime-settings.mjs';
+import { SimulationRegistry } from '../src/context/simulation.mjs';
 
-async function withAdmin(run) {
+async function withAdmin(run, { simulationEnabled = false, simulationRegistry = null } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
   const authService = new AdminAuthService({
     filePath: join(directory, 'auth.json'),
@@ -68,6 +69,8 @@ async function withAdmin(run) {
         },
       };
     },
+    simulationEnabled,
+    simulationRegistry,
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -78,10 +81,10 @@ async function withAdmin(run) {
   }
 }
 
-async function login(baseUrl) {
+async function login(baseUrl, password = 'initial-password') {
   const response = await fetch(`${baseUrl}/admin-api/login`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: 'initial-password' }),
+    body: JSON.stringify({ password }),
   });
   const value = await response.json();
   return { cookie: response.headers.get('set-cookie').split(';')[0], csrf: value.csrfToken };
@@ -102,6 +105,56 @@ test('LAN login and authenticated config never reveal raw secrets', async () => 
     assert.equal(text.includes('service-secret-9012'), false);
     assert.equal(text.includes('aiApiKey'), false);
     assert.equal(JSON.parse(text).services.serviceToken.lastFour, '9012');
+  });
+});
+
+test('password change requires the current password and matching confirmation', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const headers = {
+      Cookie: credentials.cookie,
+      'X-CSRF-Token': credentials.csrf,
+      'Content-Type': 'application/json',
+    };
+    const wrongCurrent = await fetch(`${baseUrl}/admin-api/change-password`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        currentPassword: 'incorrect-password',
+        newPassword: 'replacement-password',
+        confirmPassword: 'replacement-password',
+      }),
+    });
+    assert.equal(wrongCurrent.status, 401);
+    assert.equal((await wrongCurrent.json()).error, 'invalid_current_password');
+    assert.equal((await fetch(`${baseUrl}/admin-api/config`, {
+      headers: { Cookie: credentials.cookie },
+    })).status, 200);
+
+    const mismatch = await fetch(`${baseUrl}/admin-api/change-password`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        currentPassword: 'initial-password',
+        newPassword: 'replacement-password',
+        confirmPassword: 'different-password',
+      }),
+    });
+    assert.equal(mismatch.status, 400);
+    assert.equal((await mismatch.json()).error, 'password_mismatch');
+
+    const changed = await fetch(`${baseUrl}/admin-api/change-password`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        currentPassword: 'initial-password',
+        newPassword: 'replacement-password',
+        confirmPassword: 'replacement-password',
+      }),
+    });
+    assert.equal(changed.status, 200);
+    assert.match(changed.headers.get('set-cookie'), /Max-Age=0/);
+    assert.equal((await fetch(`${baseUrl}/admin-api/config`, {
+      headers: { Cookie: credentials.cookie },
+    })).status, 401);
+    assert.equal((await login(baseUrl, 'replacement-password')).csrf.length > 0, true);
   });
 });
 
@@ -200,6 +253,53 @@ test('shooting calibration is authenticated and exposes aggregate rows only', as
       { headers: { Cookie: credentials.cookie } },
     );
     assert.equal(invalid.status, 400);
+  });
+});
+
+test('scene lab is capability-gated and controls opaque debug sessions only', async () => {
+  const registry = new SimulationRegistry();
+  registry.register('debugsession2345678', { contractVersion: 4 });
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const readHeaders = { Cookie: credentials.cookie };
+    const writeHeaders = {
+      ...readHeaders,
+      'X-CSRF-Token': credentials.csrf,
+      'Content-Type': 'application/json',
+    };
+    const capabilities = await fetch(`${baseUrl}/admin-api/capabilities`, { headers: readHeaders });
+    assert.deepEqual(await capabilities.json(), {
+      developerTools: { simulationEnabled: true },
+    });
+    const lab = await fetch(`${baseUrl}/admin-api/simulation`, { headers: readHeaders });
+    const initial = await lab.json();
+    assert.equal(initial.presets.length, 6);
+    assert.equal(initial.sessions.length, 1);
+    assert.match(initial.sessions[0].controlId, /^sim_[a-f0-9]{24}$/);
+    assert.equal(JSON.stringify(initial).includes('debugsession2345678'), false);
+
+    const activated = await fetch(
+      `${baseUrl}/admin-api/simulation/sessions/${initial.sessions[0].controlId}`,
+      { method: 'POST', headers: writeHeaders, body: JSON.stringify({ preset: 'lake-sunset' }) },
+    );
+    assert.equal(activated.status, 200);
+    assert.equal((await activated.json()).preset, 'lake-sunset');
+
+    const cleared = await fetch(`${baseUrl}/admin-api/simulation/sessions`, {
+      method: 'DELETE', headers: writeHeaders, body: '{}',
+    });
+    assert.deepEqual(await cleared.json(), { ok: true, cleared: 1 });
+  }, { simulationEnabled: true, simulationRegistry: registry });
+});
+
+test('scene lab endpoints are unavailable when the environment capability is disabled', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const headers = { Cookie: credentials.cookie };
+    assert.deepEqual(await (await fetch(`${baseUrl}/admin-api/capabilities`, { headers })).json(), {
+      developerTools: { simulationEnabled: false },
+    });
+    assert.equal((await fetch(`${baseUrl}/admin-api/simulation`, { headers })).status, 404);
   });
 });
 

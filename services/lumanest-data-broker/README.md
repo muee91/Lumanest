@@ -14,9 +14,33 @@
 - 野生动物区域线索：`GET /v1/wildlife/nearby`
 - AI 创作文案：`POST /v1/narrative`
 - 在线情境快照：`POST /v1/context/snapshot`
+- 单项朝霞/晚霞机会：`GET /v1/sky-opportunities`
+- 首页朝霞/晚霞批量结果：`GET /v1/sky-opportunities/daily`
 - 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
 - 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
 - App API 需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
+
+## 朝霞与晚霞 Provider
+
+### 开发阶段契约规则
+
+在产品负责人明确宣布“开始公测”前，栖光只维护一个当前 App/服务端契约。破坏性调整必须随当前 release 一并切换：不保留旧字段、旧参数默认值、双读双写或静默回退；旧请求应明确拒绝，或让可选创作能力诚实隐藏。任何兼容窗口都必须在公测开始后单独记录受影响版本、期限、迁移/回滚方案和删除日期。
+
+Broker 持有完整的 SunsetBot 边界。Flutter 只访问上述栖光 API；Broker
+先通过高德把 WGS84 坐标解析为地级市，再并发获取 GFS 与 EC，绝不把
+经纬度、设备标识或用户标识发送给 SunsetBot。
+
+结果新鲜缓存为 90 分钟，回源失败时最多使用 6 小时的显式陈旧缓存。
+同一城市、事件与模型请求会合并，主机与单城市并发受限，独立熔断器
+不会影响和风天气、官方预警、路线或情境快照。
+
+远程运行设置提供 `sunsetbotProviderEnabled`、
+`skyOpportunityCardEnabled`、`skyOpportunityNotificationEnabled` 和
+`skyOpportunityMapEnabled`。daily 调用必须显式给出 `focus=next` 或
+`focus=preSunrise`；通知和 P1 趋势地图关闭，单个 daily 请求冷启动时最多
+产生四次真实回源。对 App 只返回定性机会等级、可信度和通透度等级，原始
+质量分数、AOD 与精确坐标均不属于公开契约。公开契约见仓库根目录
+`docs/openapi-sky-opportunities.yaml`。
 
 在线情境快照的标准输入只包含 WGS84 坐标、观测时间、语言、白名单意图、路线阶段和当前契约。Broker 从和风获取实时天气、24 小时预报、分钟降水和官方预警，使用 Redis 缓存标准化结果，再将权威天气交给内部 FastAPI。
 
@@ -67,7 +91,9 @@ AI 文案没有默认供应商，也不会自动启用任何模型。模型只�
    - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
    - `LUMANEST_CONFIG_MASTER_KEY`：32 字节随机密钥的 Base64，用于加密持久化配置。
-   - `LUMANEST_ADMIN_PASSWORD`：首次启动时写入 Argon2id 哈希；之后修改 Key 不会要求重复输入密码。
+   - `LUMANEST_ADMIN_BOOTSTRAP_PASSWORD`：仅在首次创建管理认证文件时写入 Argon2id 哈希。认证文件建立后应从环境文件删除；修改此变量不会覆盖现有密码。
+   - `LUMANEST_ADMIN_PASSWORD`：旧版兼容字段，仅在未设置新字段时作为首次初始化密码读取，不再用于密码重置。
+   - `LUMANEST_SIMULATION_ENABLED`：默认 `false`。仅在需要使用 Debug App 场景实验室时临时设为 `true`；关闭后管理台隐藏开发工具，Broker 也不登记或执行模拟会话。
 
    生成配置加密密钥时，不要把结果粘贴到聊天或提交到 Git：
 
@@ -201,8 +227,12 @@ docker compose logs --tail=100 qweather-token-broker
 # 更新后重新构建
 docker compose up -d --build
 
-# 忘记管理密码时，在 NAS 本机通过环境文件重置；不会输出哈希
-docker compose --env-file qweather-token-broker.env run --rm qweather-token-broker node src/admin/admin-cli.mjs reset-password
+# 忘记管理密码时，在 NAS 本机输入一次性重置密码；不会写入长期环境文件或输出哈希
+read -r -s -p "New administrator password: " LUMANEST_ADMIN_RESET_PASSWORD
+echo
+export LUMANEST_ADMIN_RESET_PASSWORD
+docker compose --env-file qweather-token-broker.env run --rm -e LUMANEST_ADMIN_RESET_PASSWORD qweather-token-broker node src/admin/admin-cli.mjs reset-password
+unset LUMANEST_ADMIN_RESET_PASSWORD
 ```
 
 如果泄露了 `LUMANEST_SERVICE_TOKEN`，生成一个新随机值、更新 NAS 的 `qweather-token-broker.env` 并重启容器即可。若怀疑 Ed25519 私钥泄露，需要在和风控制台删除旧凭据、生成新密钥对并重新上传公钥。

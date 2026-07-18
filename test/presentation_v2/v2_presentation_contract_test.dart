@@ -38,11 +38,16 @@ void main() {
     await tester.pumpWidget(const LumaNestApp());
     await tester.pump();
 
-    expect(find.text('今日'), findsOneWidget);
-    for (final label in ['探索', '路线', '灵感', '我的']) {
+    for (final label in ['今日', '探索', '路线', '灵感', '我的']) {
       expect(find.bySemanticsLabel(label), findsOneWidget);
     }
     expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
+    expect(find.byKey(const Key('v2-object-navigation-rail')), findsOneWidget);
+    expect(
+      find.byKey(const Key('v2-inspiration-navigation-action')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('v2-moving-selection-lens')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

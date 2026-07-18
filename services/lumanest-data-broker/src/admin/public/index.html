@@ -12,9 +12,14 @@
 <body>
   <main class="shell">
     <header class="brand">
-      <div class="mark" aria-hidden="true">L</div>
-      <div><h1>栖光</h1><p>本地数据管理</p></div>
-      <p class="lan-badge"><i></i>局域网</p>
+      <div class="brand-identity">
+        <div class="mark" aria-hidden="true">L</div>
+        <div><h1>栖光</h1><p>Data Broker Console</p></div>
+      </div>
+      <div class="brand-meta">
+        <span class="environment-chip">NAS · LOCAL</span>
+        <p class="lan-badge"><i></i>局域网安全连接</p>
+      </div>
     </header>
 
     <section id="login-view" class="login-panel">
@@ -33,45 +38,102 @@
 
     <section id="app-view" class="app-view" hidden>
       <nav class="rail" aria-label="管理页面">
-        <p class="sidebar-label">管理</p>
+        <div class="rail-head"><span>CONTROL PLANE</span><strong>数据服务</strong></div>
+        <p class="sidebar-label">工作区</p>
         <button class="nav-item active" data-page="overview">概览</button>
         <button class="nav-item" data-page="services">密钥与服务</button>
         <button class="nav-item" data-page="llm">模型服务</button>
         <button class="nav-item" data-page="runtime">运行设置</button>
-        <button class="nav-item" data-page="simulation">场景回放</button>
+        <p class="sidebar-label data-label">数据与质量</p>
         <button class="nav-item" data-page="calibration">反馈校准</button>
-        <p class="sidebar-label security-label">系统</p>
+        <p id="developer-tools-label" class="sidebar-label developer-label" hidden>开发工具</p>
+        <button id="simulation-nav" class="nav-item" data-page="simulation" hidden>场景实验室</button>
+        <p class="sidebar-label security-label">系统管理</p>
         <button class="nav-item" data-page="security">安全与维护</button>
         <button id="logout" class="nav-item logout">退出登录</button>
       </nav>
       <div class="content">
-        <div class="content-head"><div><h2 id="page-title">概览</h2><p class="page-subtitle">查看栖光数据服务的状态与配置。</p></div><p id="global-status" class="status" role="status" aria-live="polite"></p></div>
+        <div class="content-head">
+          <div><p class="content-eyebrow">LUMANEST / DATA BROKER</p><h2 id="page-title">概览</h2><p id="page-subtitle" class="page-subtitle">查看栖光数据服务的状态与配置。</p></div>
+          <div class="content-actions"><p id="global-status" class="status" role="status" aria-live="polite"></p><button id="refresh-overview" type="button" class="secondary compact-button">刷新状态</button></div>
+        </div>
 
         <section class="page active" data-panel="overview">
-          <div class="hero-card"><div><p>服务状态</p><strong><i></i>运行正常</strong></div><span id="revision">配置版本 —</span></div>
-          <div id="service-grid" class="service-grid" aria-label="服务配置状态"></div>
+          <div class="dashboard-hero">
+            <div class="hero-copy"><div class="hero-meta"><span class="live-label"><i></i>CONTROL PLANE</span><span id="last-updated">等待首次同步</span></div><h3>摄影数据服务运行中心</h3><p>从服务接入、模型路由到机会策略，在一个页面确认当前系统是否真正可用。</p><div class="hero-actions"><button type="button" data-target="services">检查服务配置</button><button type="button" class="hero-secondary" data-target="runtime">查看运行策略</button></div></div>
+            <div class="health-block"><div class="health-ring"><span></span></div><div><small>Broker 状态</small><strong id="broker-status">正在连接</strong><p id="broker-detail">等待配置接口响应</p></div></div>
+          </div>
+          <div class="metric-grid" aria-label="关键运行指标">
+            <article class="metric-card"><div class="metric-head"><span>核心接入</span><i class="metric-icon readiness" aria-hidden="true"></i></div><div class="metric-value"><strong id="configured-count">—</strong><em id="configured-rate">—</em></div><small id="configured-detail">正在读取服务配置</small></article>
+            <article class="metric-card"><div class="metric-head"><span>模型档案</span><i class="metric-icon ai" aria-hidden="true"></i></div><div class="metric-value"><strong id="llm-profile-count">—</strong><em id="llm-route-state">未读取</em></div><small id="ai-state">等待模型路由状态</small></article>
+            <article class="metric-card"><div class="metric-head"><span>机会能力</span><i class="metric-icon sky" aria-hidden="true"></i></div><div class="metric-value"><strong id="capability-count">—</strong><em>项启用</em></div><small id="sky-opportunity-state">等待运行策略</small></article>
+            <article class="metric-card"><div class="metric-head"><span>配置版本</span><i class="metric-icon revision" aria-hidden="true"></i></div><div class="metric-value"><strong id="revision">—</strong><em>REVISION</em></div><small>保存配置后自动递增</small></article>
+          </div>
+          <div class="dashboard-main-grid">
+            <section class="panel-card service-health-panel"><div class="panel-head"><div><p class="card-kicker">SERVICE HEALTH</p><h3>服务链路</h3><p>判断功能是否具备真实运行条件，而不只检查单个 Key。</p></div><span class="panel-note">实时配置快照</span></div><div id="service-status-list" class="service-status-list" aria-label="服务链路状态"></div></section>
+            <div class="dashboard-side-stack">
+              <section class="panel-card runtime-panel"><div class="panel-head"><div><p class="card-kicker">RUNTIME POLICY</p><h3>运行策略</h3></div><button type="button" class="text-button" data-target="runtime">管理</button></div><dl id="runtime-summary" class="summary-list"></dl></section>
+              <section class="panel-card security-panel"><div class="panel-head"><div><p class="card-kicker">SECURITY POSTURE</p><h3>安全边界</h3></div><span class="posture-badge">LAN ONLY</span></div><ul><li><span class="status-dot ok"></span><div><strong>局域网访问</strong><small>管理端口不应映射公网</small></div></li><li><span class="status-dot ok"></span><div><strong>加密持久化</strong><small>配置密钥与密码哈希保存在 NAS</small></div></li><li><span class="status-dot ok"></span><div><strong>Session + CSRF</strong><small>写操作需要双重会话校验</small></div></li></ul></section>
+            </div>
+          </div>
+          <div class="dashboard-bottom-grid">
+            <section class="panel-card capability-panel"><div class="panel-head"><div><p class="card-kicker">CAPABILITIES</p><h3>产品能力状态</h3><p>只展示已经接入后台配置的能力。</p></div></div><div id="capability-grid" class="capability-grid"></div></section>
+            <section class="panel-card action-panel"><div><p class="card-kicker">QUICK ACTIONS</p><h3>需要处理</h3><p id="action-summary">正在检查未完成配置。</p></div><div class="action-list"><button type="button" data-target="services"><span>服务凭据</span><small>检查天气、地图与 App 访问</small></button><button type="button" data-target="llm"><span>模型路由</span><small>配置主模型和备用链</small></button><button type="button" data-target="security"><span>安全维护</span><small>管理密码、缓存与审计</small></button></div></section>
+          </div>
         </section>
 
         <section class="page" data-panel="services" hidden>
-          <form id="services-form" class="form-grid">
-            <div class="section-note"><h3>服务凭据</h3><p>当前凭据只显示末四位。输入框留空即保留原有值。</p></div>
-            <label>和风凭据 ID<input name="keyId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="keyId"></small></label>
-            <label>和风项目 ID<input name="projectId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="projectId"></small></label>
-            <label class="wide">和风 Ed25519 私钥 PEM<textarea name="qweatherPrivateKeyPem" rows="5" autocomplete="off" placeholder="留空表示不修改"></textarea><small data-mask="qweatherPrivateKey"></small></label>
-            <label>高德 Web Key<input name="amapWebKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="amapWebKey"></small></label>
-            <label>App 服务令牌<input name="serviceToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="serviceToken"></small></label>
-            <p class="warning wide">更换 App 服务令牌后，现有 APK 将无法访问服务，需要同步更新 App 配置并重新构建。</p>
-            <div class="actions wide"><button type="button" id="test-services" class="secondary">测试连接</button><button type="submit">保存修改</button></div>
-          </form>
-          <form id="discovery-search-form" class="form-grid">
-            <div class="section-note"><h3>探索资料搜索</h3><p>仅检索审核通过的来源。来源政策会随每条证据保存署名与许可；未配置或停用时不会向搜索服务发送请求。</p></div>
-            <label class="wide">Tavily 服务端点<input name="baseUrl" type="url" maxlength="500" value="https://api.tavily.com" required></label>
-            <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small id="discovery-search-key-mask"></small></label>
-            <label>请求超时（毫秒）<input name="timeoutMs" type="number" min="2000" max="30000" value="8000" required></label>
-            <label class="toggle wide"><input name="enabled" type="checkbox"><span>启用审核来源搜索</span></label>
-            <label class="wide">审核来源政策（JSON 数组）<textarea name="sourcePolicies" rows="6" spellcheck="false" placeholder='[{"id":"local-culture","domain":"example.gov.cn","attribution":"发布机构","license":"许可说明","version":"2026-07","enabled":true}]' required></textarea><small>每项须含 id、domain、attribution、license、version、enabled；只允许启用的域名被检索。</small></label>
-            <div class="actions wide"><button type="submit">保存搜索配置</button></div>
-          </form>
+          <div class="settings-stack">
+            <form id="services-form" class="settings-card">
+              <header class="settings-card-head">
+                <div><p class="card-kicker">CORE INTEGRATIONS</p><h3>核心服务凭据</h3><p>按服务域独立管理。当前值只显示末四位，留空会保留原配置。</p></div>
+                <span class="section-index">01</span>
+              </header>
+              <div class="credential-layout">
+                <section class="settings-group qweather-group">
+                  <div class="group-head"><div><h4>和风天气</h4><p>天气、天文与摄影窗口的基础数据。</p></div><span class="group-tag">3 项凭据</span></div>
+                  <div class="field-grid">
+                    <label>凭据 ID<input name="keyId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="keyId"></small></label>
+                    <label>项目 ID<input name="projectId" autocomplete="off" placeholder="留空表示不修改"><small data-mask="projectId"></small></label>
+                  </div>
+                  <details class="advanced-settings">
+                    <summary><span><strong>Ed25519 私钥</strong><small>仅在轮换私钥时展开</small></span><i aria-hidden="true"></i></summary>
+                    <label>私钥 PEM<textarea name="qweatherPrivateKeyPem" rows="5" autocomplete="off" placeholder="留空表示不修改"></textarea><small data-mask="qweatherPrivateKey"></small></label>
+                  </details>
+                </section>
+                <section class="settings-group access-group">
+                  <div class="group-head"><div><h4>地图与客户端访问</h4><p>地图检索和 App 到 Broker 的访问边界。</p></div><span class="group-tag">2 项凭据</span></div>
+                  <label>高德 Web Key<input name="amapWebKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="amapWebKey"></small></label>
+                  <label>App 服务令牌<input name="serviceToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-mask="serviceToken"></small></label>
+                  <p class="inline-warning">更换服务令牌后，需要同步更新 App 配置并重新构建。</p>
+                </section>
+              </div>
+              <footer class="settings-actions"><button type="button" id="test-services" class="secondary">测试全部连接</button><button type="submit">保存凭据</button></footer>
+            </form>
+
+            <form id="discovery-search-form" class="settings-card">
+              <header class="settings-card-head">
+                <div><p class="card-kicker">REVIEWED DISCOVERY</p><h3>审核来源搜索</h3><p>只向许可清晰、人工审核通过的来源发起请求。</p></div>
+                <span class="section-index">02</span>
+              </header>
+              <div class="discovery-layout">
+                <section class="settings-group discovery-connection">
+                  <div class="group-head"><div><h4>连接配置</h4><p>控制搜索服务的访问与超时。</p></div></div>
+                  <label>服务端点<input name="baseUrl" type="url" maxlength="500" value="https://api.tavily.com" required></label>
+                  <div class="field-grid compact-fields">
+                    <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small id="discovery-search-key-mask"></small></label>
+                    <label>请求超时<input name="timeoutMs" type="number" min="2000" max="30000" value="8000" required><small>2,000–30,000 毫秒</small></label>
+                  </div>
+                  <label class="switch-row"><span><strong>启用审核来源搜索</strong><small>关闭后不会向搜索服务发送请求</small></span><input name="enabled" type="checkbox"></label>
+                </section>
+                <details class="settings-group policy-editor">
+                  <summary><span><strong>来源政策</strong><small>域名、署名、许可与版本</small></span><i aria-hidden="true"></i></summary>
+                  <label>审核来源政策（JSON 数组）<textarea name="sourcePolicies" rows="9" spellcheck="false" placeholder='[{"id":"local-culture","domain":"example.gov.cn","attribution":"发布机构","license":"许可说明","version":"2026-07","enabled":true}]' required></textarea><small>每项须含 id、domain、attribution、license、version、enabled；只允许启用的域名被检索。</small></label>
+                </details>
+              </div>
+              <footer class="settings-actions"><button type="submit">保存搜索配置</button></footer>
+            </form>
+          </div>
         </section>
 
         <section class="page" data-panel="llm" hidden>
@@ -112,28 +174,86 @@
         </section>
 
         <section class="page" data-panel="runtime" hidden>
-          <form id="runtime-form" class="form-grid">
-            <div class="section-note"><h3>运行设置</h3><p>这些设置会在保存后立即生效，服务端会继续校验有效范围。</p></div>
-            <label class="toggle wide"><input name="aiEnabled" type="checkbox"><span>启用 AI 文案</span></label>
-            <label>AI 超时（毫秒）<input name="aiTimeoutMs" type="number" min="2000" max="30000"></label>
-            <label>野生动物范围（公里）<input name="wildlifeRadiusKm" type="number" min="5" max="50"></label>
-            <label>野生动物缓存（分钟）<input name="wildlifeCacheTtlMinutes" type="number" min="5" max="1440"></label>
-            <label>高程缓存（分钟）<input name="elevationCacheTtlMinutes" type="number" min="60" max="10080"></label>
-            <label>最大高程采样数<input name="elevationMaximumSamples" type="number" min="2" max="64"></label>
-            <label>上游超时（毫秒）<input name="upstreamTimeoutMs" type="number" min="2000" max="30000"></label>
-            <label>最低机会置信度<input name="minimumOpportunityConfidence" type="number" min="0" max="1" step="0.05"></label>
-            <label class="toggle"><input name="debugLogging" type="checkbox"><span>调试日志</span></label>
-            <div class="actions wide"><button type="submit">应用设置</button></div>
+          <form id="runtime-form" class="runtime-settings">
+            <div class="runtime-grid">
+              <section class="settings-card runtime-card">
+                <header class="settings-card-head compact-head"><div><p class="card-kicker">REQUEST POLICY</p><h3>请求与生成</h3><p>模型调用、上游请求和机会筛选的基础边界。</p></div><span class="section-index">01</span></header>
+                <div class="setting-rows">
+                  <label class="switch-row"><span><strong>AI 文案</strong><small>关闭时使用本地确定性文案</small></span><input name="aiEnabled" type="checkbox"></label>
+                  <label class="setting-row"><span><strong>AI 请求超时</strong><small>2,000–30,000 毫秒</small></span><input name="aiTimeoutMs" type="number" min="2000" max="30000"></label>
+                  <label class="setting-row"><span><strong>上游请求超时</strong><small>天气、地图等外部服务</small></span><input name="upstreamTimeoutMs" type="number" min="2000" max="30000"></label>
+                  <label class="setting-row"><span><strong>最低机会置信度</strong><small>范围 0–1，步进 0.05</small></span><input name="minimumOpportunityConfidence" type="number" min="0" max="1" step="0.05"></label>
+                </div>
+              </section>
+
+              <section class="settings-card runtime-card">
+                <header class="settings-card-head compact-head"><div><p class="card-kicker">CACHE & SAMPLING</p><h3>缓存与采样</h3><p>控制野生动物和高程数据的采样成本。</p></div><span class="section-index">02</span></header>
+                <div class="setting-rows">
+                  <label class="setting-row"><span><strong>野生动物范围</strong><small>5–50 公里</small></span><input name="wildlifeRadiusKm" type="number" min="5" max="50"></label>
+                  <label class="setting-row"><span><strong>野生动物缓存</strong><small>5–1,440 分钟</small></span><input name="wildlifeCacheTtlMinutes" type="number" min="5" max="1440"></label>
+                  <label class="setting-row"><span><strong>高程缓存</strong><small>60–10,080 分钟</small></span><input name="elevationCacheTtlMinutes" type="number" min="60" max="10080"></label>
+                  <label class="setting-row"><span><strong>最大高程采样数</strong><small>单次请求 2–64 个点</small></span><input name="elevationMaximumSamples" type="number" min="2" max="64"></label>
+                </div>
+              </section>
+            </div>
+
+            <section class="settings-card sunset-settings">
+              <header class="settings-card-head"><div><p class="card-kicker">SUNRISE & SUNSET</p><h3>朝霞与晚霞机会</h3><p>第三方数据只用于摄影创作机会；天气和安全链路保持独立。</p></div><span class="section-index">03</span></header>
+              <div class="sunset-layout">
+                <section class="settings-group feature-switches">
+                  <div class="group-head"><div><h4>能力开关</h4><p>先启用 Provider，再按需开放产品入口。</p></div></div>
+                  <div class="switch-grid">
+                    <label class="switch-row"><span><strong>SunsetBot Provider</strong><small>机会数据总开关</small></span><input name="sunsetbotProviderEnabled" type="checkbox"></label>
+                    <label class="switch-row"><span><strong>首页机会对象</strong><small>达到阈值后展示</small></span><input name="skyOpportunityCardEnabled" type="checkbox"></label>
+                    <label class="switch-row"><span><strong>机会通知</strong><small>使用独立通知阈值</small></span><input name="skyOpportunityNotificationEnabled" type="checkbox"></label>
+                    <label class="switch-row"><span><strong>趋势地图</strong><small>展示区域趋势</small></span><input name="skyOpportunityMapEnabled" type="checkbox"></label>
+                    <label class="switch-row"><span><strong>明日晚霞</strong><small>显示次日窗口</small></span><input name="skyOpportunityTomorrowSunsetEnabled" type="checkbox"></label>
+                  </div>
+                </section>
+                <section class="settings-group numeric-policy">
+                  <div class="group-head"><div><h4>请求与缓存</h4><p>控制响应时间和降级窗口。</p></div></div>
+                  <div class="setting-rows">
+                    <label class="setting-row"><span><strong>请求超时</strong><small>毫秒</small></span><input name="sunsetbotTimeoutMs" type="number" min="2000" max="30000"></label>
+                    <label class="setting-row"><span><strong>新鲜缓存</strong><small>300–21,600 秒</small></span><input name="sunsetbotFreshTtlSeconds" type="number" min="300" max="21600"></label>
+                    <label class="setting-row"><span><strong>陈旧缓存</strong><small>5,400–43,200 秒</small></span><input name="sunsetbotStaleTtlSeconds" type="number" min="5400" max="43200"></label>
+                  </div>
+                </section>
+                <section class="settings-group numeric-policy">
+                  <div class="group-head"><div><h4>展示阈值</h4><p>不同出口使用独立判断边界。</p></div></div>
+                  <div class="setting-rows">
+                    <label class="setting-row"><span><strong>首页展示</strong><small>0–2.5</small></span><input name="skyOpportunityDisplayThreshold" type="number" min="0" max="2.5" step="0.05"></label>
+                    <label class="setting-row"><span><strong>灵感纸条</strong><small>0–2.5</small></span><input name="skyOpportunityPaperThreshold" type="number" min="0" max="2.5" step="0.05"></label>
+                    <label class="setting-row"><span><strong>机会通知</strong><small>0–2.5</small></span><input name="skyOpportunityNotificationThreshold" type="number" min="0" max="2.5" step="0.05"></label>
+                  </div>
+                </section>
+              </div>
+            </section>
+
+            <section class="settings-card debug-setting">
+              <div><p class="card-kicker">DIAGNOSTICS</p><h3>诊断日志</h3><p>只在定位问题时临时启用，避免长期产生额外日志。</p></div>
+              <label class="switch-row"><span><strong>调试日志</strong><small>记录更详细的服务诊断信息</small></span><input name="debugLogging" type="checkbox"></label>
+            </section>
+            <div class="sticky-form-actions"><span>保存后立即生效，服务端仍会校验所有范围。</span><button type="submit">应用运行设置</button></div>
           </form>
         </section>
 
         <section class="page" data-panel="simulation" hidden>
-          <div class="form-grid">
-            <div class="section-note"><h3>Debug 场景回放</h3><p>只会作用于已登记的 Debug App 会话；正式客户端不发送会话头，也不会收到模拟数据。会话 30 分钟后自动清除。</p></div>
-            <label class="wide">模拟场景<select id="simulation-preset"><option value="lake-sunset">湖泊 · 落日倒影</option><option value="mountain-dawn">高山 · 黎明暖光</option><option value="city-blue-hour">城市 · 蓝调时刻</option><option value="rain-thunder">徒步 · 降雨雷暴</option><option value="snow-hike">徒步 · 降雪</option><option value="desert-dust">沙漠 · 风沙光</option></select></label>
-            <div class="wide"><p class="warning">先在 Debug App 中刷新一次环境数据，再在下方选择会话并发送。场景不保存真实坐标、设备标识或位置历史。</p></div>
+          <div class="simulation-lab-head">
+            <section class="settings-card simulation-config">
+              <header class="settings-card-head compact-head"><div><p class="card-kicker">DEVELOPER TOOLS</p><h3>场景实验室</h3><p>向已配对的 Debug App 注入经过 V4 契约校验的临时场景。</p></div><span class="section-index">LAB</span></header>
+              <div class="simulation-picker">
+                <label>场景模板<select id="simulation-preset" aria-describedby="simulation-preset-description"></select></label>
+                <div class="preset-summary"><strong id="simulation-preset-title">等待读取场景</strong><p id="simulation-preset-description">场景模板由 Broker 提供并进行严格校验。</p><div id="simulation-preset-tags" class="preset-tags"></div></div>
+              </div>
+              <p class="inline-warning">模拟快照不会进入真实缓存、Companion 记忆或反馈校准；所有会话 30 分钟后自动过期。</p>
+            </section>
+            <aside class="simulation-summary-card">
+              <div><p class="card-kicker">ISOLATION</p><h3>测试隔离</h3><p>只接受 Debug 构建生成的临时配对会话。</p></div>
+              <dl class="simulation-facts"><div><dt>在线会话</dt><dd id="simulation-session-count">0</dd></div><div><dt>活动场景</dt><dd id="simulation-active-count">0</dd></div><div><dt>反馈处理</dt><dd>仅丢弃模拟反馈</dd></div></dl>
+              <button id="clear-all-simulations" type="button" class="danger-button" disabled>停止全部模拟</button>
+            </aside>
           </div>
-          <div class="audit"><h3>在线 Debug 会话</h3><ol id="simulation-session-list"></ol></div>
+          <div class="audit simulation-sessions"><div class="audit-head"><div><p class="card-kicker">PAIRED DEBUG APPS</p><h3>在线测试会话</h3></div><button id="refresh-simulations" type="button" class="secondary compact-button">刷新会话</button></div><ol id="simulation-session-list" class="simulation-session-list"></ol></div>
         </section>
 
         <section class="page" data-panel="calibration" hidden>
@@ -159,12 +279,38 @@
         </section>
 
         <section class="page" data-panel="security" hidden>
-          <div class="maintenance-grid">
-            <form id="password-form" class="card"><p class="card-kicker">账户</p><h3>更换管理密码</h3><label for="new-password">新密码</label><input id="new-password" name="password" type="password" minlength="8" maxlength="256" autocomplete="new-password" required><button type="submit">更换并退出</button></form>
-            <div class="card"><p class="card-kicker">存储</p><h3>清理运行缓存</h3><p>不会删除加密配置、登录密码和审计记录。</p><button id="clear-cache" class="secondary">清理缓存</button></div>
-            <div class="card danger"><p class="card-kicker">服务</p><h3>重启服务</h3><p>Docker 会自动拉起进程，期间 App API 会短暂中断。</p><button id="restart" class="danger-button">重启服务</button></div>
+          <form id="outbound-network-form" class="settings-card outbound-network-card">
+            <header class="settings-card-head"><div><p class="card-kicker">OUTBOUND NETWORK</p><h3>后端外网网络</h3><p>控制四个应用服务访问外部 HTTP(S) 的出口。切换会重建应用容器，内部数据库与缓存不会清除。</p></div><span class="section-index">NET</span></header>
+            <div class="outbound-network-body">
+              <label class="setting-row"><span><strong>访问方式</strong><small>直连不经代理；经 mihomo 让外网请求走 NAS 代理。</small></span><select name="mode" id="outbound-network-mode"><option value="direct">直连</option><option value="mihomo">经 mihomo</option></select></label>
+              <div class="outbound-network-state"><strong id="outbound-network-status">正在读取</strong><small id="outbound-network-detail">正在检查应用容器的实际网络环境。</small></div>
+            </div>
+            <footer class="settings-actions"><p class="status" id="outbound-network-message" role="status" aria-live="polite"></p><button type="submit">应用网络方式</button></footer>
+          </form>
+          <div class="security-layout">
+            <form id="password-form" class="settings-card password-card">
+              <header class="settings-card-head"><div><p class="card-kicker">ACCOUNT SECURITY</p><h3>更换管理密码</h3><p>需要先验证当前密码；成功后会注销所有已登录设备。</p></div><span class="section-index">01</span></header>
+              <div class="password-fields">
+                <label class="current-password-field" for="current-password">当前密码<input id="current-password" name="currentPassword" type="password" minlength="8" maxlength="256" autocomplete="current-password" required><small>用于确认本次操作身份</small></label>
+                <label for="new-password">新密码<input id="new-password" name="newPassword" type="password" minlength="8" maxlength="256" autocomplete="new-password" required><small>8–256 个字符</small></label>
+                <label for="confirm-password">确认新密码<input id="confirm-password" name="confirmPassword" type="password" minlength="8" maxlength="256" autocomplete="new-password" required><small>必须与新密码一致</small></label>
+              </div>
+              <footer class="settings-actions password-actions"><p id="password-status" class="status" role="status" aria-live="polite"></p><button type="submit">更换密码并退出</button></footer>
+            </form>
+            <aside class="maintenance-stack" aria-label="维护操作">
+              <section class="maintenance-card">
+                <div class="maintenance-icon cache-icon" aria-hidden="true"></div>
+                <div><p class="card-kicker">STORAGE</p><h3>清理运行缓存</h3><p>保留加密配置、登录密码与审计记录。</p></div>
+                <button id="clear-cache" class="secondary">清理缓存</button>
+              </section>
+              <section class="maintenance-card danger-zone">
+                <div class="maintenance-icon restart-icon" aria-hidden="true"></div>
+                <div><p class="card-kicker">SERVICE</p><h3>重启 Broker</h3><p>App API 会短暂中断，Docker 将自动拉起进程。</p></div>
+                <button id="restart" class="danger-button">重启服务</button>
+              </section>
+            </aside>
           </div>
-          <div class="audit"><h3>最近操作</h3><ol id="audit-list"></ol></div>
+          <div class="audit"><div class="audit-head"><div><p class="card-kicker">AUDIT LOG</p><h3>最近操作</h3></div><span>仅保留管理操作结果</span></div><ol id="audit-list"></ol></div>
         </section>
       </div>
     </section>

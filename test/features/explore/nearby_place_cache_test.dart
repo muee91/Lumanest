@@ -21,6 +21,14 @@ void main() {
       ),
       distanceMeters: 320,
       address: '湖岸路',
+      media: [
+        NearbyPlaceMedia(
+          id: '1234567890abcdef12345678',
+          url: 'https://broker.example/v1/amap/media/photo-token',
+          attribution: '高德地图',
+          title: '湖岸观景台',
+        ),
+      ],
     ),
   ];
 
@@ -46,6 +54,7 @@ void main() {
     expect(restored?.single.name, '湖岸观景台');
     expect(restored?.single.cachedAt, now);
     expect(restored?.single.isOfflineCache, isTrue);
+    expect(restored?.single.coverMedia?.attribution, '高德地图');
     expect(
       await cache.readMatching(
         center: center,

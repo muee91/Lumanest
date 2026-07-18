@@ -11,6 +11,8 @@ import 'package:luma_nest/src/presentation_v2/profile/v2_profile_page.dart';
 import 'package:luma_nest/src/presentation_v2/route/v2_route_page.dart';
 import 'package:luma_nest/src/presentation_v2/shell/v2_app_shell.dart';
 import 'package:luma_nest/src/presentation_v2/today/v2_today_page.dart';
+import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
+import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-today');
@@ -107,6 +109,25 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/sky-opportunity/:event/:dayOffset',
+        pageBuilder: (context, state) {
+          final eventType = switch (state.pathParameters['event']) {
+            'sunrise' => SkyOpportunityEventType.sunrise,
+            _ => SkyOpportunityEventType.sunset,
+          };
+          final dayOffset =
+              int.tryParse(state.pathParameters['dayOffset'] ?? '') ?? 0;
+          return _v2DetailPage(
+            state,
+            child: SkyOpportunityDetailPage(
+              eventType: eventType,
+              dayOffset: dayOffset.clamp(0, 1),
+            ),
+          );
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

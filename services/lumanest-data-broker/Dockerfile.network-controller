@@ -1,0 +1,9 @@
+ARG NETWORK_CONTROLLER_BASE_IMAGE=qweather-token-broker-qweather-token-broker:latest
+FROM ${NETWORK_CONTROLLER_BASE_IMAGE}
+
+WORKDIR /app
+COPY src/network-controller ./src/network-controller
+
+USER root
+EXPOSE 8790
+CMD ["node", "src/network-controller/server.mjs"]

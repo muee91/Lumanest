@@ -88,7 +88,6 @@ flutter:
 
   shaders:
     - shaders/lumanest_ambient.frag
-    - shaders/liquid_glass_nav.frag
 
   fonts:
     - family: ZcoolXiaoWei

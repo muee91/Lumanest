@@ -28,6 +28,14 @@ void main() {
     );
   });
 
+  test('sunrise entry activates the dedicated multi-candidate layer', () {
+    controller().activate(ExploreFocus.sunrise);
+
+    expect(state().activeFocus, ExploreFocus.sunrise);
+    expect(state().category, NearbyPlaceCategory.sunriseCandidate);
+    expect(NearbyPlaceCategory.sunriseCandidate.searchKeywords, hasLength(9));
+  });
+
   test('manual completion keeps the chosen category and clears intent', () {
     controller().activate(ExploreFocus.humanity);
     controller().complete(category: NearbyPlaceCategory.food);

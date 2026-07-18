@@ -13,6 +13,7 @@ TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine}
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
 HEALTHCHECK_INTERVAL_SECONDS=${HEALTHCHECK_INTERVAL_SECONDS:-3}
+SKIP_BUILD=${SKIP_BUILD:-0}
 DATA_MAY_BE_CHANGED=0
 BACKUP_COMPLETE=0
 
@@ -62,6 +63,50 @@ atomic_write() {
   temporary=$destination.tmp.$$
   printf '%s\n' "$value" > "$temporary"
   mv -f "$temporary" "$destination"
+}
+
+environment_value() {
+  name=$1
+  awk -v name="$name" 'index($0, name "=") == 1 { value=substr($0, length(name) + 2) } END { print value }' "$ENV_FILE"
+}
+
+upsert_environment_value() {
+  name=$1
+  value=$2
+  temporary=$ENV_FILE.tmp.$$
+  awk -v name="$name" -v value="$value" '
+    index($0, name "=") == 1 {
+      if (!seen++) print name "=" value
+      next
+    }
+    { print }
+    END { if (!seen) print name "=" value }
+  ' "$ENV_FILE" > "$temporary"
+  chmod 600 "$temporary"
+  mv -f "$temporary" "$ENV_FILE"
+}
+
+ensure_outbound_network_environment() {
+  mode=$(environment_value LUMANEST_OUTBOUND_NETWORK_MODE)
+  case "$mode" in
+    direct|mihomo) ;;
+    *)
+      proxy=$(environment_value LUMANEST_OUTBOUND_PROXY_URL)
+      if [ -n "$proxy" ]; then mode=mihomo; else mode=direct; fi
+      upsert_environment_value LUMANEST_OUTBOUND_NETWORK_MODE "$mode"
+      echo "Initialized outbound network mode: $mode"
+      ;;
+  esac
+
+  controller_token=$(environment_value LUMANEST_NETWORK_CONTROLLER_TOKEN)
+  if [ ${#controller_token} -lt 24 ]; then
+    controller_token=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+    case "$controller_token" in
+      *[!a-f0-9]*|'') echo "Unable to generate network controller token." >&2; exit 1 ;;
+    esac
+    upsert_environment_value LUMANEST_NETWORK_CONTROLLER_TOKEN "$controller_token"
+    echo "Generated the protected network controller token."
+  fi
 }
 
 compose_release() {
@@ -359,6 +404,10 @@ esac
 case "$HEALTHCHECK_INTERVAL_SECONDS" in
   ''|0|*[!0-9]*) echo "HEALTHCHECK_INTERVAL_SECONDS must be a positive integer." >&2; exit 1 ;;
 esac
+case "$SKIP_BUILD" in
+  0|1) ;;
+  *) echo "SKIP_BUILD must be 0 or 1." >&2; exit 1 ;;
+esac
 
 LUMANEST_ROOT=$(canonical_dir "$LUMANEST_ROOT_INPUT") || {
   echo "LumaNest root does not exist: $LUMANEST_ROOT_INPUT" >&2
@@ -407,11 +456,15 @@ if [ ! -f "$ENV_FILE" ]; then
   echo "Inherited the protected environment file from the previous release."
 fi
 require_file "$ENV_FILE"
+ensure_outbound_network_environment
 
 command -v docker >/dev/null
 command -v curl >/dev/null
 command -v grep >/dev/null
 command -v tar >/dev/null
+command -v awk >/dev/null
+command -v od >/dev/null
+command -v tr >/dev/null
 if ! docker info >/dev/null 2>&1; then
   echo "The current user cannot access Docker. Add it to the docker group and start a new session." >&2
   exit 1
@@ -465,7 +518,13 @@ validate_volume_archives
 BACKUP_COMPLETE=1
 
 DATA_MAY_BE_CHANGED=1
-compose_release up -d --build --remove-orphans
+if [ "$SKIP_BUILD" = 1 ]; then
+  # Compose-only releases can reuse the already verified application images.
+  # This is also the safe path when the NAS registry mirror is unavailable.
+  compose_release up -d --no-build --remove-orphans
+else
+  compose_release up -d --build --remove-orphans
+fi
 verify_http_boundary '<title>栖光 · 管理台</title>'
 compose_release exec -T context-service python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" >/dev/null

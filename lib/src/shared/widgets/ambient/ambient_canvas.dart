@@ -38,8 +38,7 @@ class AmbientCanvas extends StatefulWidget {
   final bool showWeatherTexture;
   final AmbientRenderer renderer;
 
-  /// Page-level ambient strength (0.0 = static, 1.0 = full). May exceed 1.0
-  /// for pages that want an enhanced reflective look (design §9.2).
+  /// Page-level ambient strength (0.0 = static, 1.0 = full).
   final double intensity;
 
   /// Optional externally-driven flag that becomes true while the user is

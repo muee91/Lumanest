@@ -30,6 +30,21 @@ test('bootstrap password becomes Argon2id hash and plaintext is never persisted'
   });
 });
 
+test('a later bootstrap value never replaces the persisted administrator password', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-auth-restart-'));
+  const filePath = join(directory, 'admin-auth.json');
+  try {
+    const first = new AdminAuthService({ filePath, bootstrapPassword: 'initial-password' });
+    await first.initialize();
+    const restarted = new AdminAuthService({ filePath, bootstrapPassword: 'different-password' });
+    await restarted.initialize();
+    assert.equal(await restarted.verifyPassword('initial-password'), true);
+    assert.equal(await restarted.verifyPassword('different-password'), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('verifies correct and incorrect administrator passwords', async () => {
   await withAuth(async ({ service }) => {
     assert.equal(await service.verifyPassword('initial-password'), true);
@@ -146,5 +161,18 @@ test('password change invalidates all sessions', async () => {
     assert.equal((await service.authenticate({ sessionToken: second.sessionToken })).ok, false);
     assert.equal(await service.verifyPassword('replacement-password'), true);
     assert.equal(await service.verifyPassword('initial-password'), false);
+  });
+});
+
+test('password change verifies the current password before replacing the hash', async () => {
+  await withAuth(async ({ service }) => {
+    assert.deepEqual(await service.changePassword('replacement-password', {
+      currentPassword: 'incorrect-password',
+    }), { ok: false, reason: 'invalid_current_password' });
+    assert.equal(await service.verifyPassword('initial-password'), true);
+    assert.deepEqual(await service.changePassword('replacement-password', {
+      currentPassword: 'initial-password',
+    }), { ok: true });
+    assert.equal(await service.verifyPassword('replacement-password'), true);
   });
 });

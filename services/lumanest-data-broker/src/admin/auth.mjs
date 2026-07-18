@@ -193,14 +193,18 @@ export class AdminAuthService {
     });
   }
 
-  changePassword(password) {
+  changePassword(password, { currentPassword } = {}) {
     return this.#enqueue(async () => {
       this.#requireInitialized();
+      if (currentPassword !== undefined && !await this.verifyPassword(currentPassword)) {
+        return { ok: false, reason: 'invalid_current_password' };
+      }
       validatePassword(password);
       this.#state.passwordHash = await hashPassword(password);
       this.#state.sessions = [];
       this.#failures.clear();
       await this.#persist();
+      return { ok: true };
     });
   }
 

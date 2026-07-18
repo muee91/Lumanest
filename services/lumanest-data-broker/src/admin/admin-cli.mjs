@@ -9,8 +9,8 @@ export async function runAdminCli({
 } = {}) {
   const [command] = argv;
   if (command !== 'reset-password') throw new Error('Supported command: reset-password');
-  const password = environment.LUMANEST_ADMIN_PASSWORD;
-  if (!password) throw new Error('LUMANEST_ADMIN_PASSWORD is required');
+  const password = environment.LUMANEST_ADMIN_RESET_PASSWORD;
+  if (!password) throw new Error('LUMANEST_ADMIN_RESET_PASSWORD is required');
   const dataDirectory = environment.LUMANEST_DATA_DIR?.trim() || '/var/lib/lumanest';
   const auth = new AdminAuthService({
     filePath: `${dataDirectory}/admin-auth.json`,

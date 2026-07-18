@@ -170,9 +170,15 @@ class DataBrokerContextRepository
       brokerBaseUrl,
     ).resolve('/v1/context/shooting-feedback');
     try {
+      final headers = <String, String>{'Authorization': 'Bearer $serviceToken'};
+      final debugSession = debugSimulationSession;
+      if (debugSession != null) {
+        headers['X-LumaNest-Debug-Session'] = debugSession;
+        headers['X-LumaNest-Debug-Contract'] = '4';
+      }
       final body = await transport.post(
         uri,
-        headers: {'Authorization': 'Bearer $serviceToken'},
+        headers: headers,
         body: {
           'contractVersion': 2,
           'ruleVersion': session.ruleVersion,
@@ -218,7 +224,10 @@ class DataBrokerContextRepository
     final uri = Uri.parse(brokerBaseUrl).resolve('/v1/context/snapshot');
     final headers = <String, String>{'Authorization': 'Bearer $serviceToken'};
     final session = debugSimulationSession;
-    if (session != null) headers['X-LumaNest-Debug-Session'] = session;
+    if (session != null) {
+      headers['X-LumaNest-Debug-Session'] = session;
+      headers['X-LumaNest-Debug-Contract'] = '4';
+    }
     try {
       final body = await transport.post(uri, headers: headers, body: request);
       return _parse(body, location: location, fallback: fallback);

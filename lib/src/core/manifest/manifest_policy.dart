@@ -323,6 +323,10 @@ abstract final class ManifestPolicy {
       return '已审核天象目录显示：${primary!.title}。实际可见性仍取决于本地天气与视野。';
     }
 
+    if (snapshot.dayPhase == DayPhase.night) {
+      return '夜已经深了，先看夜空条件或下一次晨光。';
+    }
+
     return switch (snapshot.primaryScene) {
       SceneType.unknown => '环境数据已更新，暂时没有明确拍摄窗口。',
       SceneType.city => '光线平静，适合观察线条与人流。',

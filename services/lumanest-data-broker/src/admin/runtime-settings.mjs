@@ -7,6 +7,25 @@ const definitions = Object.freeze({
   elevationMaximumSamples: Object.freeze({ type: 'integer', minimum: 2, maximum: 64, defaultValue: 64 }),
   upstreamTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 10_000 }),
   minimumOpportunityConfidence: Object.freeze({ type: 'number', minimum: 0, maximum: 1, defaultValue: 0.5 }),
+  sunsetbotProviderEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
+  skyOpportunityCardEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
+  skyOpportunityNotificationEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
+  skyOpportunityMapEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
+  skyOpportunityTomorrowSunsetEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
+  sunsetbotTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 12_000 }),
+  sunsetbotMaxAttempts: Object.freeze({ type: 'integer', minimum: 1, maximum: 2, defaultValue: 2 }),
+  sunsetbotRetryDelayMs: Object.freeze({ type: 'integer', minimum: 100, maximum: 5_000, defaultValue: 500 }),
+  sunsetbotFreshTtlSeconds: Object.freeze({ type: 'integer', minimum: 300, maximum: 21_600, defaultValue: 5_400 }),
+  sunsetbotStaleTtlSeconds: Object.freeze({ type: 'integer', minimum: 5_400, maximum: 43_200, defaultValue: 21_600 }),
+  sunsetbotMaxGlobalConcurrency: Object.freeze({ type: 'integer', minimum: 1, maximum: 8, defaultValue: 4 }),
+  sunsetbotMaxCityConcurrency: Object.freeze({ type: 'integer', minimum: 1, maximum: 4, defaultValue: 2 }),
+  sunsetbotCircuitFailureThreshold: Object.freeze({ type: 'integer', minimum: 2, maximum: 20, defaultValue: 5 }),
+  sunsetbotCircuitRollingWindowSeconds: Object.freeze({ type: 'integer', minimum: 60, maximum: 3_600, defaultValue: 600 }),
+  sunsetbotCircuitFailureRateThreshold: Object.freeze({ type: 'number', minimum: .1, maximum: 1, defaultValue: .60 }),
+  sunsetbotCircuitOpenSeconds: Object.freeze({ type: 'integer', minimum: 60, maximum: 3_600, defaultValue: 900 }),
+  skyOpportunityDisplayThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: .20 }),
+  skyOpportunityPaperThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: .60 }),
+  skyOpportunityNotificationThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: 1.00 }),
   debugLogging: Object.freeze({ type: 'boolean', defaultValue: false }),
 });
 
@@ -48,6 +67,18 @@ export function validateRuntimeSettings(input = {}, { partial = false } = {}) {
   const result = partial ? {} : { ...defaultRuntimeSettings };
   for (const [name, value] of Object.entries(input)) {
     result[name] = validateValue(name, value, definitions[name]);
+  }
+  if (!partial) {
+    if (result.sunsetbotStaleTtlSeconds < result.sunsetbotFreshTtlSeconds) {
+      throw new RangeError('sunsetbotStaleTtlSeconds must not be below the fresh TTL');
+    }
+    if (result.sunsetbotMaxCityConcurrency > result.sunsetbotMaxGlobalConcurrency) {
+      throw new RangeError('sunsetbotMaxCityConcurrency must not exceed global concurrency');
+    }
+    if (result.skyOpportunityPaperThreshold < result.skyOpportunityDisplayThreshold ||
+        result.skyOpportunityNotificationThreshold < result.skyOpportunityPaperThreshold) {
+      throw new RangeError('sky opportunity thresholds must remain ordered');
+    }
   }
   return Object.freeze(result);
 }
