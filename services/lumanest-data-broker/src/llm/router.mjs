@@ -1,6 +1,25 @@
 import { requestNarrative } from './adapters/index.mjs';
+import { guardGroundedOutput } from './grounding-guard.mjs';
 
 const fallbackErrors = new Set(['timeout', 'rate_limited', 'upstream_unavailable']);
+
+export class LLMRouteMetrics {
+  #values = new Map();
+
+  record(name) {
+    this.#values.set(name, (this.#values.get(name) ?? 0) + 1);
+  }
+
+  snapshot() {
+    return Object.freeze(Object.fromEntries(this.#values));
+  }
+
+  reset() {
+    this.#values.clear();
+  }
+}
+
+export const llmRouteMetrics = new LLMRouteMetrics();
 
 export async function routeNarrative({
   profiles,
@@ -8,11 +27,14 @@ export async function routeNarrative({
   prompt,
   fetcher = fetch,
   requester = requestNarrative,
+  metrics = llmRouteMetrics,
 }) {
+  metrics.record('requests');
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const primary = routing.primaryProfileId == null
     ? null : profilesById.get(routing.primaryProfileId);
   if (primary == null || !primary.enabled || primary.model.length === 0) {
+    metrics.record('unconfigured');
     return { ok: false, error: 'ai_unconfigured', attempts: [] };
   }
 
@@ -26,9 +48,20 @@ export async function routeNarrative({
     if (profile == null || !profile.enabled || profile.model.length === 0) continue;
     attempts.push(id);
     const result = await requester({ profile, prompt, fetcher });
-    if (result.ok) return { ok: true, text: result.text, profileId: id, attempts };
+    if (result.ok) {
+      const guarded = guardGroundedOutput({ prompt, text: result.text });
+      if (guarded.ok) {
+        metrics.record(attempts.length > 1 ? 'fallback_success' : 'primary_success');
+        return { ok: true, text: guarded.text, profileId: id, attempts };
+      }
+      metrics.record(`guard_${guarded.reason ?? 'invalid_response'}`);
+      lastError = 'invalid_response';
+      break;
+    }
     lastError = result.error;
+    metrics.record(`upstream_${result.error}`);
     if (!routing.fallbackEnabled || !fallbackErrors.has(result.error)) break;
   }
+  metrics.record('failed');
   return { ok: false, error: lastError, attempts };
 }
