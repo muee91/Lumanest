@@ -1,5 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/context_entry_store.dart';
+import 'package:luma_nest/src/core/scenario/scenario_orchestrator.dart';
+import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 
 /// Process-scoped canonical entry store shared by all surfaces.
 ///
@@ -17,4 +21,18 @@ final contextEntryStoreRevisionProvider = StreamProvider<int>((ref) async* {
   await for (final delta in store.watch()) {
     yield delta.nextRevision;
   }
+});
+
+/// Canonical Explore projection. Consumers should select the slot they need
+/// instead of ranking NearbyPlace objects again inside presentation widgets.
+final exploreSurfaceCompositionProvider = Provider<SurfaceComposition>((ref) {
+  final store = ref.watch(contextEntryStoreProvider);
+  final streamedRevision = ref.watch(contextEntryStoreRevisionProvider);
+  final revision = streamedRevision.asData?.value ?? store.current.revision;
+  final now = ref.watch(currentTimeProvider)();
+  return const ScenarioOrchestrator().composeExplore(
+    entries: store.query(const EntryQuery(surface: EntrySurface.explore)),
+    now: now,
+    revision: revision,
+  );
 });
