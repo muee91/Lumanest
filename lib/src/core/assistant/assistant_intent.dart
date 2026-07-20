@@ -82,7 +82,7 @@ abstract final class AssistantIntentParser {
   }
 
   static AssistantQuestionType? _questionType(String text) {
-    if (RegExp(r'安全|危险|雷|风|雨|雪|冰|能不能去|适合出门|能出门|可以去吗|天气|预警|封路').hasMatch(text)) {
+    if (RegExp(r'安全|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|禁入|能不能去|适合出门|能出门|可以去吗').hasMatch(text)) {
       return AssistantQuestionType.safety;
     }
     if (RegExp(r'附近|哪里|地点|活动|机位|值得去|推荐|去哪|什么地方|周边|湖|山|街巷|公园').hasMatch(text)) {
@@ -94,7 +94,7 @@ abstract final class AssistantIntentParser {
     if (RegExp(r'几点|时间|什么时候|出发|到达|窗口|多久|来得及|赶得上|现在去').hasMatch(text)) {
       return AssistantQuestionType.timing;
     }
-    if (RegExp(r'带什么|器材|装备|准备|穿什么|需要带|镜头|三脚架|滤镜|头灯').hasMatch(text)) {
+    if (RegExp(r'带什么|器材|装备|准备|穿什么|需要带|镜头|三脚架|滤镜|头灯|防雨|防水').hasMatch(text)) {
       return AssistantQuestionType.prepare;
     }
     if (RegExp(r'为什么|依据|原因|条件|怎么判断|凭什么').hasMatch(text)) {
