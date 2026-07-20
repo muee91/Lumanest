@@ -109,7 +109,8 @@ export async function routeNarrative({
   const maximumAttempts = Math.min(3, Math.max(1, routing.maximumAttempts));
   const attempts = [];
   let lastError = 'upstream_unavailable';
-  for (const id of profileIds.slice(0, maximumAttempts)) {
+  for (const id of profileIds) {
+    if (attempts.length >= maximumAttempts) break;
     const profile = profilesById.get(id);
     const isPrimary = id === primary.id;
     if (profile == null || !profile.enabled || profile.model.length === 0) continue;
