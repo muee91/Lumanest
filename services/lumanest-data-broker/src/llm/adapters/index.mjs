@@ -5,6 +5,8 @@ import {
 import { anthropicRequest, anthropicText } from './anthropic.mjs';
 import { geminiRequest, geminiText } from './gemini.mjs';
 
+const maximumResponseBytes = 64 * 1024;
+
 const adapters = new Map([
   ['openai_compatible', { request: openAICompatibleRequest, text: openAICompatibleText }],
   ['anthropic_messages', { request: anthropicRequest, text: anthropicText }],
@@ -19,6 +21,19 @@ function responseError(status) {
   return 'upstream_unavailable';
 }
 
+function exceedsDeclaredLimit(response) {
+  const declared = Number.parseInt(response.headers?.get?.('content-length') ?? '', 10);
+  return Number.isFinite(declared) && declared > maximumResponseBytes;
+}
+
+function boundedBody(body) {
+  try {
+    return Buffer.byteLength(JSON.stringify(body), 'utf8') <= maximumResponseBytes;
+  } catch {
+    return false;
+  }
+}
+
 export async function requestNarrative({ profile, prompt, fetcher = fetch }) {
   const adapter = adapters.get(profile.protocol);
   if (adapter == null) return { ok: false, error: 'request_rejected' };
@@ -27,6 +42,7 @@ export async function requestNarrative({ profile, prompt, fetcher = fetch }) {
   try {
     response = await fetcher(url, {
       ...options,
+      redirect: 'error',
       signal: AbortSignal.timeout(profile.timeoutMs),
     });
   } catch (error) {
@@ -34,9 +50,14 @@ export async function requestNarrative({ profile, prompt, fetcher = fetch }) {
     return { ok: false, error: timeout ? 'timeout' : 'upstream_unavailable' };
   }
   if (!response.ok) return { ok: false, error: responseError(response.status) };
+  if (exceedsDeclaredLimit(response)) return { ok: false, error: 'invalid_response' };
   try {
-    const text = adapter.text(await response.json());
-    return text == null ? { ok: false, error: 'invalid_response' } : { ok: true, text };
+    const body = await response.json();
+    if (!boundedBody(body)) return { ok: false, error: 'invalid_response' };
+    const text = adapter.text(body);
+    return text == null || Buffer.byteLength(text, 'utf8') > 8 * 1024
+      ? { ok: false, error: 'invalid_response' }
+      : { ok: true, text };
   } catch {
     return { ok: false, error: 'invalid_response' };
   }
