@@ -78,7 +78,7 @@ abstract final class AssistantIntentParser {
   }
 
   static AssistantQuestionType? _questionType(String text) {
-    if (RegExp(r'安全|危险|雷|风|雨|雪|冰|能不能去|适合出门|能出门|适合拍|可以去吗|天气|预警|封路').hasMatch(text)) {
+    if (RegExp(r'安全|危险|雷|风|雨|雪|冰|能不能去|适合出门|能出门|可以去吗|天气|预警|封路').hasMatch(text)) {
       return AssistantQuestionType.safety;
     }
     if (RegExp(r'附近|哪里|地点|活动|机位|值得去|推荐|去哪|什么地方|周边|湖|山|街巷|公园').hasMatch(text)) {
@@ -161,9 +161,13 @@ class AssistantConversationState {
 
   AssistantConversationTurn? get latest => turns.lastOrNull;
 
-  AssistantConversationState append(AssistantConversationTurn turn) =>
-      AssistantConversationState(
-        id: id,
-        turns: List.unmodifiable([...turns.take(7), turn]),
-      );
+  AssistantConversationState append(AssistantConversationTurn turn) {
+    final retained = turns.length < 7
+        ? turns
+        : turns.skip(turns.length - 7);
+    return AssistantConversationState(
+      id: id,
+      turns: List.unmodifiable([...retained, turn]),
+    );
+  }
 }
