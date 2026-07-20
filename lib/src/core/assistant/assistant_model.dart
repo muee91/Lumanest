@@ -112,6 +112,11 @@ class DataBrokerAssistantModel implements AssistantModel {
     if (places.isNotEmpty) {
       throw const AssistantFailure(AssistantFailureKind.invalidRequest);
     }
+    final boundedContextIds = _boundedContextIds(
+      snapshot: snapshot,
+      intent: intent,
+      requestedIds: eventIds,
+    );
     try {
       final response = await _dio.post<Object?>(
         '$brokerBaseUrl/v1/assistant',
@@ -119,10 +124,7 @@ class DataBrokerAssistantModel implements AssistantModel {
           'snapshotId': snapshot.id,
           'surface': surface,
           'questionType': intent.type.name,
-          'eventIds': eventIds
-              .where((id) => RegExp(r'^[a-zA-Z0-9._-]{1,96}$').hasMatch(id))
-              .take(3)
-              .toList(growable: false),
+          'eventIds': boundedContextIds,
           'tone': tone.name,
           'placeSummaries': const <Object?>[],
         },
@@ -147,10 +149,13 @@ class DataBrokerAssistantModel implements AssistantModel {
         'template' => AssistantAnswerSource.template,
         _ => throw const AssistantFailure(AssistantFailureKind.invalidResponse),
       };
-      if (answer.isEmpty || answer.runes.length > 80 || RegExp(r'https?://|[\r\n]').hasMatch(answer)) {
+      if (answer.isEmpty ||
+          answer.runes.length > 80 ||
+          RegExp(r'https?://|[\r\n]').hasMatch(answer)) {
         throw const AssistantFailure(AssistantFailureKind.invalidResponse);
       }
       final contextIds = raw['usedFactIds'] ?? raw['citedEventIds'];
+      final allowedContextIds = boundedContextIds.toSet();
       final expiresAt = raw['expiresAt'];
       final result = AssistantAnswer(
         answer: answer,
@@ -158,11 +163,13 @@ class DataBrokerAssistantModel implements AssistantModel {
         contextEventIds: contextIds is List
             ? contextIds
                   .whereType<String>()
-                  .where((id) => RegExp(r'^[a-zA-Z0-9._-]{1,96}$').hasMatch(id))
+                  .where(allowedContextIds.contains)
                   .take(12)
                   .toList(growable: false)
             : const [],
-        expiresAt: expiresAt is String ? DateTime.tryParse(expiresAt)?.toUtc() : null,
+        expiresAt: expiresAt is String
+            ? DateTime.tryParse(expiresAt)?.toUtc()
+            : null,
       );
       if (result.isExpired) {
         throw const AssistantFailure(
@@ -186,6 +193,37 @@ class DataBrokerAssistantModel implements AssistantModel {
     } on FormatException {
       throw const AssistantFailure(AssistantFailureKind.invalidResponse);
     }
+  }
+
+  List<String> _boundedContextIds({
+    required ContextSnapshot snapshot,
+    required AssistantIntent intent,
+    required Iterable<String> requestedIds,
+  }) {
+    final knownIds = <String>{
+      for (final event in snapshot.events) event.id,
+      for (final session in snapshot.shootingSessions) session.id,
+    };
+    final selected = requestedIds
+        .where(knownIds.contains)
+        .where((id) => RegExp(r'^[a-zA-Z0-9._-]{1,96}$').hasMatch(id))
+        .take(3)
+        .toList(growable: true);
+    final requiresSession = switch (intent.type) {
+      AssistantQuestionType.why ||
+      AssistantQuestionType.prepare ||
+      AssistantQuestionType.timing ||
+      AssistantQuestionType.creative => true,
+      _ => false,
+    };
+    if (selected.isEmpty && requiresSession) {
+      final now = DateTime.now().toUtc();
+      final session = snapshot.shootingSessions
+          .where((item) => item.expiresAt.isAfter(now))
+          .firstOrNull;
+      if (session != null) selected.add(session.id);
+    }
+    return List.unmodifiable(selected.take(3));
   }
 
   AssistantFailure _failureForResponse(Response<Object?> response) {
