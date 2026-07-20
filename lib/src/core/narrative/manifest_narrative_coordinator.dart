@@ -15,15 +15,20 @@ class ManifestNarrativeCoordinator {
     this.model,
     required this.now,
     this.cacheTtl = const Duration(minutes: 15),
+    this.failureBackoff = const Duration(minutes: 1),
+    this.maximumCacheEntries = 64,
     this.logger,
   });
 
   final ManifestNarrativeModel? model;
   final DateTime Function() now;
   final Duration cacheTtl;
+  final Duration failureBackoff;
+  final int maximumCacheEntries;
   final AppLogger? logger;
 
   final _cache = <String, ManifestNarrative>{};
+  final _failureUntil = <String, DateTime>{};
   final _inFlight = <String, Future<ManifestNarrative>>{};
 
   Future<ManifestNarrative> resolve({
@@ -47,7 +52,8 @@ class ManifestNarrativeCoordinator {
       return Future.value(fallback);
     }
 
-    final key = _cacheKey(snapshot, manifest, preferenceFingerprint);
+    _prune(evaluatedAt);
+    final key = _cacheKey(snapshot, manifest, preferenceFingerprint, tone);
     final cached = _cache[key];
     if (cached != null && !cached.isExpiredAt(evaluatedAt)) {
       logger?.debug(
@@ -61,6 +67,11 @@ class ManifestNarrativeCoordinator {
       );
       return Future.value(cached);
     }
+    final blockedUntil = _failureUntil[key];
+    if (blockedUntil != null && blockedUntil.isAfter(evaluatedAt)) {
+      _logTemplateFallback('requestFailure', tone, manifest);
+      return Future.value(fallback);
+    }
     final inFlight = _inFlight[key];
     if (inFlight != null) {
       logger?.debug(
@@ -70,17 +81,16 @@ class ManifestNarrativeCoordinator {
       );
       return inFlight;
     }
-    final request =
-        _generate(
-          key: key,
-          snapshot: snapshot,
-          manifest: manifest,
-          fallback: fallback,
-          evaluatedAt: evaluatedAt,
-          tone: tone,
-        ).whenComplete(() {
-          _inFlight.remove(key);
-        });
+    final request = _generate(
+      key: key,
+      snapshot: snapshot,
+      manifest: manifest,
+      fallback: fallback,
+      evaluatedAt: evaluatedAt,
+      tone: tone,
+    ).whenComplete(() {
+      _inFlight.remove(key);
+    });
     _inFlight[key] = request;
     return request;
   }
@@ -115,7 +125,7 @@ class ManifestNarrativeCoordinator {
         ),
       );
       if (!_isValid(candidate, creativeIds.toSet())) {
-        _cache[key] = fallback;
+        _recordFailure(key, evaluatedAt);
         logger?.warning(
           LogCategory.aiCall,
           'narrative.invalid_output',
@@ -136,7 +146,8 @@ class ManifestNarrativeCoordinator {
           evaluatedAt.add(cacheTtl),
         ),
       );
-      _cache[key] = narrative;
+      _failureUntil.remove(key);
+      _putCache(key, narrative, evaluatedAt);
       logger?.info(
         LogCategory.aiCall,
         'narrative.model_used',
@@ -144,7 +155,7 @@ class ManifestNarrativeCoordinator {
       );
       return narrative;
     } catch (_) {
-      _cache[key] = fallback;
+      _recordFailure(key, evaluatedAt);
       logger?.warning(
         LogCategory.aiCall,
         'narrative.request_failed',
@@ -152,6 +163,28 @@ class ManifestNarrativeCoordinator {
       );
       return fallback;
     }
+  }
+
+  void _recordFailure(String key, DateTime evaluatedAt) {
+    _failureUntil[key] = evaluatedAt.add(failureBackoff);
+  }
+
+  void _putCache(
+    String key,
+    ManifestNarrative narrative,
+    DateTime evaluatedAt,
+  ) {
+    _cache.remove(key);
+    _cache[key] = narrative;
+    _prune(evaluatedAt);
+    while (_cache.length > maximumCacheEntries && _cache.isNotEmpty) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  void _prune(DateTime evaluatedAt) {
+    _cache.removeWhere((_, value) => value.isExpiredAt(evaluatedAt));
+    _failureUntil.removeWhere((_, value) => !value.isAfter(evaluatedAt));
   }
 
   void _logTemplateFallback(
@@ -218,9 +251,12 @@ class ManifestNarrativeCoordinator {
     ContextSnapshot snapshot,
     UiManifest manifest,
     String preferenceFingerprint,
+    NarrativeTone tone,
   ) {
     final ids = manifest.creativeItems.map((item) => item.id).join(',');
-    return '${snapshot.id}|$ids|$preferenceFingerprint';
+    final observedAt = snapshot.observedAt.toUtc().microsecondsSinceEpoch;
+    final summary = manifest.summary.trim();
+    return '${snapshot.id}|$observedAt|$ids|$summary|$preferenceFingerprint|${tone.name}';
   }
 
   DateTime _earliest(DateTime first, DateTime second) {
