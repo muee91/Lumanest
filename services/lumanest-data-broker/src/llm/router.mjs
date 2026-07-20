@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { requestNarrative } from './adapters/index.mjs';
 import { guardGroundedOutput } from './grounding-guard.mjs';
 
@@ -19,7 +21,54 @@ export class LLMRouteMetrics {
   }
 }
 
+export class LLMPromptBudget {
+  #buckets = new Map();
+
+  constructor({ now = () => new Date(), assistantLimit = 12, assistantWindowMs = 60_000 } = {}) {
+    this.now = now;
+    this.assistantLimit = assistantLimit;
+    this.assistantWindowMs = assistantWindowMs;
+  }
+
+  consume(prompt) {
+    let user;
+    try {
+      user = JSON.parse(prompt?.user ?? '');
+    } catch {
+      return { allowed: true, reason: null };
+    }
+    if (typeof user?.templateAnswer !== 'string') {
+      return { allowed: true, reason: null };
+    }
+    if (user.questionType === 'safety' || user.questionType === 'nearby') {
+      return { allowed: false, reason: 'deterministic_only' };
+    }
+
+    const key = createHash('sha256')
+      .update(`${user.questionType ?? 'unknown'}|${user.templateAnswer}`)
+      .digest('hex')
+      .slice(0, 24);
+    const timestamp = this.now().getTime();
+    const current = this.#buckets.get(key);
+    const bucket = current != null && current.resetAt > timestamp
+      ? current
+      : { count: 0, resetAt: timestamp + this.assistantWindowMs };
+    bucket.count += 1;
+    this.#buckets.set(key, bucket);
+    if (this.#buckets.size > 512) {
+      for (const [id, value] of this.#buckets) {
+        if (value.resetAt <= timestamp) this.#buckets.delete(id);
+      }
+    }
+    return {
+      allowed: bucket.count <= this.assistantLimit,
+      reason: bucket.count <= this.assistantLimit ? null : 'prompt_rate_limited',
+    };
+  }
+}
+
 export const llmRouteMetrics = new LLMRouteMetrics();
+export const llmPromptBudget = new LLMPromptBudget();
 
 export async function routeNarrative({
   profiles,
@@ -28,8 +77,21 @@ export async function routeNarrative({
   fetcher = fetch,
   requester = requestNarrative,
   metrics = llmRouteMetrics,
+  budget = llmPromptBudget,
 }) {
   metrics.record('requests');
+  const budgetResult = budget.consume(prompt);
+  if (!budgetResult.allowed) {
+    metrics.record(`budget_${budgetResult.reason}`);
+    return {
+      ok: false,
+      error: budgetResult.reason === 'deterministic_only'
+        ? 'deterministic_only'
+        : 'rate_limited',
+      attempts: [],
+    };
+  }
+
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const primary = routing.primaryProfileId == null
     ? null : profilesById.get(routing.primaryProfileId);
