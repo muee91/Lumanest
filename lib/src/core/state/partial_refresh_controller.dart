@@ -50,6 +50,18 @@ class PartialRefreshController {
       }
       nextSlices[entry.key] = entry.value;
     }
+
+    final hasChanges =
+        changedSlices.isNotEmpty ||
+        entryDelta.added.isNotEmpty ||
+        entryDelta.updated.isNotEmpty ||
+        entryDelta.removed.isNotEmpty;
+    final nextRevision = _nextRevision(
+      previousRevision,
+      batch.slices.values,
+      hasChanges: hasChanges,
+    );
+
     final snapshotSlice = nextSlices[EnvironmentSliceKey.scene];
     if (snapshotSlice?.value case final ContextSnapshot snapshot) {
       nextSlices[EnvironmentSliceKey.scene] = snapshotSlice!;
@@ -71,7 +83,7 @@ class PartialRefreshController {
           sourceFingerprint: 'entry-store:${_entryStore.current.revision}',
         ),
         slices: nextSlices,
-        revision: _nextRevision(previousRevision, batch.slices.values),
+        revision: nextRevision,
       );
     } else if (previous != null) {
       _state = EnvironmentState(
@@ -85,14 +97,14 @@ class PartialRefreshController {
           sourceFingerprint: 'entry-store:${_entryStore.current.revision}',
         ),
         slices: nextSlices,
-        revision: _nextRevision(previousRevision, batch.slices.values),
+        revision: nextRevision,
       );
     }
-    final nextRevision = _state?.revision ?? previousRevision;
+    final resolvedRevision = _state?.revision ?? previousRevision;
     final delta = ContextDelta(
       transactionId: batch.transactionId,
       previousRevision: previousRevision,
-      nextRevision: nextRevision,
+      nextRevision: resolvedRevision,
       reason: batch.reason,
       changedSlices: changedSlices,
       addedEntries: entryDelta.added,
@@ -100,17 +112,19 @@ class PartialRefreshController {
       removedEntries: entryDelta.removed,
       compositionDiffs: const {},
     );
-    if (changedSlices.isNotEmpty ||
-        entryDelta.added.isNotEmpty ||
-        entryDelta.updated.isNotEmpty ||
-        entryDelta.removed.isNotEmpty) {
+    if (hasChanges) {
       _changes.add(delta);
     }
     return delta;
   }
 
-  static int _nextRevision(int previous, Iterable<StateSlice<Object?>> slices) {
-    var next = previous;
+  static int _nextRevision(
+    int previous,
+    Iterable<StateSlice<Object?>> slices, {
+    required bool hasChanges,
+  }) {
+    if (!hasChanges) return previous;
+    var next = previous + 1;
     for (final slice in slices) {
       if (slice.revision > next) next = slice.revision;
     }
