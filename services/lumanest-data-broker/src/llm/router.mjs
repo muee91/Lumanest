@@ -111,7 +111,12 @@ export async function routeNarrative({
   let lastError = 'upstream_unavailable';
   for (const id of profileIds.slice(0, maximumAttempts)) {
     const profile = profilesById.get(id);
+    const isPrimary = id === primary.id;
     if (profile == null || !profile.enabled || profile.model.length === 0) continue;
+    if (!isPrimary && profile.allowFallback !== true) {
+      metrics.record('fallback_profile_blocked');
+      continue;
+    }
     attempts.push(id);
     const result = await requester({ profile, prompt, fetcher });
     if (result.ok) {
