@@ -100,3 +100,38 @@ test('unsupported model facts are rejected instead of reaching the client', asyn
   assert.equal(result.error, 'invalid_response');
   assert.equal(metrics.snapshot().guard_unsupported_number, 1);
 });
+
+test('fallback profiles require explicit allowFallback authorization', async () => {
+  const calls = [];
+  const blocked = {
+    ...primary,
+    id: 'blocked',
+    allowFallback: false,
+  };
+  const allowed = {
+    ...primary,
+    id: 'allowed',
+    allowFallback: true,
+  };
+  const result = await routeNarrative({
+    profiles: [primary, blocked, allowed],
+    routing: {
+      ...routing,
+      fallbackEnabled: true,
+      fallbackProfileIds: ['blocked', 'allowed'],
+    },
+    prompt: prompt('why', '主要依据是低风速。'),
+    budget: new LLMPromptBudget(),
+    metrics: new LLMRouteMetrics(),
+    requester: async ({ profile }) => {
+      calls.push(profile.id);
+      return profile.id === 'allowed'
+        ? { ok: true, text: '{"answer":"主要依据仍是低风速。"}' }
+        : { ok: false, error: 'timeout' };
+    },
+  });
+
+  assert.deepEqual(calls, ['primary', 'allowed']);
+  assert.equal(result.ok, true);
+  assert.equal(result.profileId, 'allowed');
+});
