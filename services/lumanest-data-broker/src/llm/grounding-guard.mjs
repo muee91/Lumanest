@@ -131,16 +131,17 @@ function guardNarrative(user, candidate) {
 
 export function guardGroundedOutput({ prompt, text }) {
   const user = parsedJson(prompt?.user);
+  if (user == null || (typeof user.templateAnswer !== 'string' && typeof user.templateSummary !== 'string')) {
+    return { ok: true, text };
+  }
   const candidate = parsedJson(text);
-  if (user == null || candidate == null) {
+  if (candidate == null) {
     return { ok: false, error: 'invalid_response', reason: 'invalid_json' };
   }
 
   const guarded = typeof user.templateAnswer === 'string'
     ? guardAssistant(user, candidate)
-    : typeof user.templateSummary === 'string'
-      ? guardNarrative(user, candidate)
-      : { ok: true };
+    : guardNarrative(user, candidate);
 
   return guarded.ok
     ? { ok: true, text }
