@@ -15,6 +15,16 @@ function assistantPrompt(templateAnswer, placeSummaries = []) {
   };
 }
 
+function narrativePrompt(templateSummary = '云层正在打开，继续观察。') {
+  return {
+    system: 'bounded narrative',
+    user: JSON.stringify({
+      templateSummary,
+      allowedCreativeEventIds: ['event.one'],
+    }),
+  };
+}
+
 test('accepts a natural rewrite that keeps the same facts', () => {
   const result = guardGroundedOutput({
     prompt: assistantPrompt('当前窗口是18:20—18:45，先看时间再决定是否出发。'),
@@ -62,13 +72,7 @@ test('rejects an ungrounded place or equipment item', () => {
 });
 
 test('narrative labels remain tied to allowed creative ids', () => {
-  const prompt = {
-    system: 'bounded narrative',
-    user: JSON.stringify({
-      templateSummary: '云层正在打开，继续观察。',
-      allowedCreativeEventIds: ['event.one'],
-    }),
-  };
+  const prompt = narrativePrompt();
   const accepted = guardGroundedOutput({
     prompt,
     text: JSON.stringify({ summary: '云层正在打开，可以继续观察。', noteLabels: { 'event.one': '云开' } }),
@@ -80,4 +84,26 @@ test('narrative labels remain tied to allowed creative ids', () => {
     text: JSON.stringify({ summary: '云层正在打开。', noteLabels: { 'event.two': '立刻出发' } }),
   });
   assert.equal(rejected.ok, false);
+});
+
+test('narrative cannot invent a place or equipment recommendation', () => {
+  const inventedPlace = guardGroundedOutput({
+    prompt: narrativePrompt(),
+    text: JSON.stringify({
+      summary: '西湖云层正在打开。',
+      noteLabels: { 'event.one': '云开' },
+    }),
+  });
+  assert.equal(inventedPlace.ok, false);
+  assert.equal(inventedPlace.reason, 'unsupported_place');
+
+  const inventedEquipment = guardGroundedOutput({
+    prompt: narrativePrompt(),
+    text: JSON.stringify({
+      summary: '云层正在打开，带上三脚架。',
+      noteLabels: { 'event.one': '云开' },
+    }),
+  });
+  assert.equal(inventedEquipment.ok, false);
+  assert.equal(inventedEquipment.reason, 'unsupported_equipment');
 });
