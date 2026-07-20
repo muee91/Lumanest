@@ -105,7 +105,8 @@ abstract final class InspirationNotes {
     ManifestNarrative? narrative,
   ) {
     final definitionId = _definitionId(session.kind);
-    final definition = OpportunityCatalog.current.byId[definitionId]!;
+    final definition = OpportunityCatalog.current.byId[definitionId];
+    final fallback = _fallbackSessionPresentation(session.kind);
     final labelOverride =
         narrative?.noteLabels[session.id] ??
         narrative?.noteLabels[definitionId];
@@ -117,9 +118,11 @@ abstract final class InspirationNotes {
       id: session.id,
       label: labelOverride?.trim().isNotEmpty == true
           ? labelOverride!.trim()
-          : definition.presentation.shortLabel,
-      emoji: definition.presentation.emoji,
-      category: _categoryForFamily(definition.family),
+          : definition?.presentation.shortLabel ?? fallback.shortLabel,
+      emoji: definition?.presentation.emoji ?? fallback.emoji,
+      category: definition == null
+          ? fallback.category
+          : _categoryForFamily(definition.family),
       kind: InspirationNoteKind.factualOpportunity,
       action: ManifestAction.openShootingWindow,
       detail: evidence.isEmpty ? session.title : evidence.join(' · '),
@@ -216,6 +219,8 @@ abstract final class InspirationNotes {
   }
 
   static String _definitionId(ShootingSessionKind kind) => switch (kind) {
+    ShootingSessionKind.generalMorning => 'session.general.morning',
+    ShootingSessionKind.generalEvening => 'session.general.evening',
     ShootingSessionKind.waterMorning => 'session.water.morning',
     ShootingSessionKind.waterEvening => 'session.water.evening',
     ShootingSessionKind.mountainMorning => 'session.mountain.morning',
@@ -224,6 +229,26 @@ abstract final class InspirationNotes {
     ShootingSessionKind.cityAfterRain => 'session.city.after_rain',
     ShootingSessionKind.desertSideLight => 'session.desert.side_light',
     ShootingSessionKind.routeLightWindow => 'session.route.light_window',
+  };
+
+  static _FallbackSessionPresentation _fallbackSessionPresentation(
+    ShootingSessionKind kind,
+  ) => switch (kind) {
+    ShootingSessionKind.generalMorning => const _FallbackSessionPresentation(
+      shortLabel: '晨间光线',
+      emoji: '🌅',
+      category: InspirationCategory.light,
+    ),
+    ShootingSessionKind.generalEvening => const _FallbackSessionPresentation(
+      shortLabel: '晚间光线',
+      emoji: '🌇',
+      category: InspirationCategory.light,
+    ),
+    _ => const _FallbackSessionPresentation(
+      shortLabel: '拍摄窗口',
+      emoji: '◐',
+      category: InspirationCategory.light,
+    ),
   };
 
   static InspirationCategory _categoryForFamily(OpportunityFamily family) =>
@@ -292,4 +317,16 @@ class _CreativeDefinition {
   final Set<String> sceneAffinity;
   final Set<String> equipmentRequirement;
   final int cooldownHours;
+}
+
+class _FallbackSessionPresentation {
+  const _FallbackSessionPresentation({
+    required this.shortLabel,
+    required this.emoji,
+    required this.category,
+  });
+
+  final String shortLabel;
+  final String emoji;
+  final InspirationCategory category;
 }

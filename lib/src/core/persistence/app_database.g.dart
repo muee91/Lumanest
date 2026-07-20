@@ -6506,6 +6506,747 @@ class OfflinePhotographyPacksCompanion
   }
 }
 
+class $EntryCacheRecordsTable extends EntryCacheRecords
+    with TableInfo<$EntryCacheRecordsTable, EntryCacheRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EntryCacheRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _writtenAtMeta = const VerificationMeta(
+    'writtenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> writtenAt = GeneratedColumn<DateTime>(
+    'written_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    revision,
+    payloadJson,
+    expiresAt,
+    writtenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'entry_cache_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EntryCacheRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_revisionMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    if (data.containsKey('written_at')) {
+      context.handle(
+        _writtenAtMeta,
+        writtenAt.isAcceptableOrUnknown(data['written_at']!, _writtenAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_writtenAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EntryCacheRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EntryCacheRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+      writtenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}written_at'],
+      )!,
+    );
+  }
+
+  @override
+  $EntryCacheRecordsTable createAlias(String alias) {
+    return $EntryCacheRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class EntryCacheRecord extends DataClass
+    implements Insertable<EntryCacheRecord> {
+  final String id;
+  final int revision;
+  final String payloadJson;
+  final DateTime expiresAt;
+  final DateTime writtenAt;
+  const EntryCacheRecord({
+    required this.id,
+    required this.revision,
+    required this.payloadJson,
+    required this.expiresAt,
+    required this.writtenAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['revision'] = Variable<int>(revision);
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    map['written_at'] = Variable<DateTime>(writtenAt);
+    return map;
+  }
+
+  EntryCacheRecordsCompanion toCompanion(bool nullToAbsent) {
+    return EntryCacheRecordsCompanion(
+      id: Value(id),
+      revision: Value(revision),
+      payloadJson: Value(payloadJson),
+      expiresAt: Value(expiresAt),
+      writtenAt: Value(writtenAt),
+    );
+  }
+
+  factory EntryCacheRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EntryCacheRecord(
+      id: serializer.fromJson<String>(json['id']),
+      revision: serializer.fromJson<int>(json['revision']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+      writtenAt: serializer.fromJson<DateTime>(json['writtenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'revision': serializer.toJson<int>(revision),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+      'writtenAt': serializer.toJson<DateTime>(writtenAt),
+    };
+  }
+
+  EntryCacheRecord copyWith({
+    String? id,
+    int? revision,
+    String? payloadJson,
+    DateTime? expiresAt,
+    DateTime? writtenAt,
+  }) => EntryCacheRecord(
+    id: id ?? this.id,
+    revision: revision ?? this.revision,
+    payloadJson: payloadJson ?? this.payloadJson,
+    expiresAt: expiresAt ?? this.expiresAt,
+    writtenAt: writtenAt ?? this.writtenAt,
+  );
+  EntryCacheRecord copyWithCompanion(EntryCacheRecordsCompanion data) {
+    return EntryCacheRecord(
+      id: data.id.present ? data.id.value : this.id,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      writtenAt: data.writtenAt.present ? data.writtenAt.value : this.writtenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntryCacheRecord(')
+          ..write('id: $id, ')
+          ..write('revision: $revision, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('writtenAt: $writtenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, revision, payloadJson, expiresAt, writtenAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EntryCacheRecord &&
+          other.id == this.id &&
+          other.revision == this.revision &&
+          other.payloadJson == this.payloadJson &&
+          other.expiresAt == this.expiresAt &&
+          other.writtenAt == this.writtenAt);
+}
+
+class EntryCacheRecordsCompanion extends UpdateCompanion<EntryCacheRecord> {
+  final Value<String> id;
+  final Value<int> revision;
+  final Value<String> payloadJson;
+  final Value<DateTime> expiresAt;
+  final Value<DateTime> writtenAt;
+  final Value<int> rowid;
+  const EntryCacheRecordsCompanion({
+    this.id = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.writtenAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EntryCacheRecordsCompanion.insert({
+    required String id,
+    required int revision,
+    required String payloadJson,
+    required DateTime expiresAt,
+    required DateTime writtenAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       revision = Value(revision),
+       payloadJson = Value(payloadJson),
+       expiresAt = Value(expiresAt),
+       writtenAt = Value(writtenAt);
+  static Insertable<EntryCacheRecord> custom({
+    Expression<String>? id,
+    Expression<int>? revision,
+    Expression<String>? payloadJson,
+    Expression<DateTime>? expiresAt,
+    Expression<DateTime>? writtenAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (revision != null) 'revision': revision,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (writtenAt != null) 'written_at': writtenAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EntryCacheRecordsCompanion copyWith({
+    Value<String>? id,
+    Value<int>? revision,
+    Value<String>? payloadJson,
+    Value<DateTime>? expiresAt,
+    Value<DateTime>? writtenAt,
+    Value<int>? rowid,
+  }) {
+    return EntryCacheRecordsCompanion(
+      id: id ?? this.id,
+      revision: revision ?? this.revision,
+      payloadJson: payloadJson ?? this.payloadJson,
+      expiresAt: expiresAt ?? this.expiresAt,
+      writtenAt: writtenAt ?? this.writtenAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (writtenAt.present) {
+      map['written_at'] = Variable<DateTime>(writtenAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntryCacheRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('revision: $revision, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('writtenAt: $writtenAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CompositionCacheRecordsTable extends CompositionCacheRecords
+    with TableInfo<$CompositionCacheRecordsTable, CompositionCacheRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CompositionCacheRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<int> revision = GeneratedColumn<int>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _writtenAtMeta = const VerificationMeta(
+    'writtenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> writtenAt = GeneratedColumn<DateTime>(
+    'written_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    revision,
+    payloadJson,
+    expiresAt,
+    writtenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'composition_cache_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CompositionCacheRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_revisionMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    if (data.containsKey('written_at')) {
+      context.handle(
+        _writtenAtMeta,
+        writtenAt.isAcceptableOrUnknown(data['written_at']!, _writtenAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_writtenAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CompositionCacheRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CompositionCacheRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}revision'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+      writtenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}written_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CompositionCacheRecordsTable createAlias(String alias) {
+    return $CompositionCacheRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class CompositionCacheRecord extends DataClass
+    implements Insertable<CompositionCacheRecord> {
+  final String id;
+  final int revision;
+  final String payloadJson;
+  final DateTime expiresAt;
+  final DateTime writtenAt;
+  const CompositionCacheRecord({
+    required this.id,
+    required this.revision,
+    required this.payloadJson,
+    required this.expiresAt,
+    required this.writtenAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['revision'] = Variable<int>(revision);
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    map['written_at'] = Variable<DateTime>(writtenAt);
+    return map;
+  }
+
+  CompositionCacheRecordsCompanion toCompanion(bool nullToAbsent) {
+    return CompositionCacheRecordsCompanion(
+      id: Value(id),
+      revision: Value(revision),
+      payloadJson: Value(payloadJson),
+      expiresAt: Value(expiresAt),
+      writtenAt: Value(writtenAt),
+    );
+  }
+
+  factory CompositionCacheRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CompositionCacheRecord(
+      id: serializer.fromJson<String>(json['id']),
+      revision: serializer.fromJson<int>(json['revision']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+      writtenAt: serializer.fromJson<DateTime>(json['writtenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'revision': serializer.toJson<int>(revision),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+      'writtenAt': serializer.toJson<DateTime>(writtenAt),
+    };
+  }
+
+  CompositionCacheRecord copyWith({
+    String? id,
+    int? revision,
+    String? payloadJson,
+    DateTime? expiresAt,
+    DateTime? writtenAt,
+  }) => CompositionCacheRecord(
+    id: id ?? this.id,
+    revision: revision ?? this.revision,
+    payloadJson: payloadJson ?? this.payloadJson,
+    expiresAt: expiresAt ?? this.expiresAt,
+    writtenAt: writtenAt ?? this.writtenAt,
+  );
+  CompositionCacheRecord copyWithCompanion(
+    CompositionCacheRecordsCompanion data,
+  ) {
+    return CompositionCacheRecord(
+      id: data.id.present ? data.id.value : this.id,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      writtenAt: data.writtenAt.present ? data.writtenAt.value : this.writtenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CompositionCacheRecord(')
+          ..write('id: $id, ')
+          ..write('revision: $revision, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('writtenAt: $writtenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, revision, payloadJson, expiresAt, writtenAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CompositionCacheRecord &&
+          other.id == this.id &&
+          other.revision == this.revision &&
+          other.payloadJson == this.payloadJson &&
+          other.expiresAt == this.expiresAt &&
+          other.writtenAt == this.writtenAt);
+}
+
+class CompositionCacheRecordsCompanion
+    extends UpdateCompanion<CompositionCacheRecord> {
+  final Value<String> id;
+  final Value<int> revision;
+  final Value<String> payloadJson;
+  final Value<DateTime> expiresAt;
+  final Value<DateTime> writtenAt;
+  final Value<int> rowid;
+  const CompositionCacheRecordsCompanion({
+    this.id = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.writtenAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CompositionCacheRecordsCompanion.insert({
+    required String id,
+    required int revision,
+    required String payloadJson,
+    required DateTime expiresAt,
+    required DateTime writtenAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       revision = Value(revision),
+       payloadJson = Value(payloadJson),
+       expiresAt = Value(expiresAt),
+       writtenAt = Value(writtenAt);
+  static Insertable<CompositionCacheRecord> custom({
+    Expression<String>? id,
+    Expression<int>? revision,
+    Expression<String>? payloadJson,
+    Expression<DateTime>? expiresAt,
+    Expression<DateTime>? writtenAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (revision != null) 'revision': revision,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (writtenAt != null) 'written_at': writtenAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CompositionCacheRecordsCompanion copyWith({
+    Value<String>? id,
+    Value<int>? revision,
+    Value<String>? payloadJson,
+    Value<DateTime>? expiresAt,
+    Value<DateTime>? writtenAt,
+    Value<int>? rowid,
+  }) {
+    return CompositionCacheRecordsCompanion(
+      id: id ?? this.id,
+      revision: revision ?? this.revision,
+      payloadJson: payloadJson ?? this.payloadJson,
+      expiresAt: expiresAt ?? this.expiresAt,
+      writtenAt: writtenAt ?? this.writtenAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<int>(revision.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (writtenAt.present) {
+      map['written_at'] = Variable<DateTime>(writtenAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CompositionCacheRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('revision: $revision, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('writtenAt: $writtenAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6532,6 +7273,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ShootingSessionResultsTable(this);
   late final $OfflinePhotographyPacksTable offlinePhotographyPacks =
       $OfflinePhotographyPacksTable(this);
+  late final $EntryCacheRecordsTable entryCacheRecords =
+      $EntryCacheRecordsTable(this);
+  late final $CompositionCacheRecordsTable compositionCacheRecords =
+      $CompositionCacheRecordsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6550,6 +7295,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     watchedShootingSessions,
     shootingSessionResults,
     offlinePhotographyPacks,
+    entryCacheRecords,
+    compositionCacheRecords,
   ];
 }
 
@@ -9975,6 +10722,442 @@ typedef $$OfflinePhotographyPacksTableProcessedTableManager =
       OfflinePhotographyPackRow,
       PrefetchHooks Function()
     >;
+typedef $$EntryCacheRecordsTableCreateCompanionBuilder =
+    EntryCacheRecordsCompanion Function({
+      required String id,
+      required int revision,
+      required String payloadJson,
+      required DateTime expiresAt,
+      required DateTime writtenAt,
+      Value<int> rowid,
+    });
+typedef $$EntryCacheRecordsTableUpdateCompanionBuilder =
+    EntryCacheRecordsCompanion Function({
+      Value<String> id,
+      Value<int> revision,
+      Value<String> payloadJson,
+      Value<DateTime> expiresAt,
+      Value<DateTime> writtenAt,
+      Value<int> rowid,
+    });
+
+class $$EntryCacheRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $EntryCacheRecordsTable> {
+  $$EntryCacheRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get writtenAt => $composableBuilder(
+    column: $table.writtenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$EntryCacheRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EntryCacheRecordsTable> {
+  $$EntryCacheRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get writtenAt => $composableBuilder(
+    column: $table.writtenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EntryCacheRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EntryCacheRecordsTable> {
+  $$EntryCacheRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get writtenAt =>
+      $composableBuilder(column: $table.writtenAt, builder: (column) => column);
+}
+
+class $$EntryCacheRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EntryCacheRecordsTable,
+          EntryCacheRecord,
+          $$EntryCacheRecordsTableFilterComposer,
+          $$EntryCacheRecordsTableOrderingComposer,
+          $$EntryCacheRecordsTableAnnotationComposer,
+          $$EntryCacheRecordsTableCreateCompanionBuilder,
+          $$EntryCacheRecordsTableUpdateCompanionBuilder,
+          (
+            EntryCacheRecord,
+            BaseReferences<
+              _$AppDatabase,
+              $EntryCacheRecordsTable,
+              EntryCacheRecord
+            >,
+          ),
+          EntryCacheRecord,
+          PrefetchHooks Function()
+        > {
+  $$EntryCacheRecordsTableTableManager(
+    _$AppDatabase db,
+    $EntryCacheRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EntryCacheRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EntryCacheRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EntryCacheRecordsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+                Value<DateTime> writtenAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EntryCacheRecordsCompanion(
+                id: id,
+                revision: revision,
+                payloadJson: payloadJson,
+                expiresAt: expiresAt,
+                writtenAt: writtenAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required int revision,
+                required String payloadJson,
+                required DateTime expiresAt,
+                required DateTime writtenAt,
+                Value<int> rowid = const Value.absent(),
+              }) => EntryCacheRecordsCompanion.insert(
+                id: id,
+                revision: revision,
+                payloadJson: payloadJson,
+                expiresAt: expiresAt,
+                writtenAt: writtenAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EntryCacheRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EntryCacheRecordsTable,
+      EntryCacheRecord,
+      $$EntryCacheRecordsTableFilterComposer,
+      $$EntryCacheRecordsTableOrderingComposer,
+      $$EntryCacheRecordsTableAnnotationComposer,
+      $$EntryCacheRecordsTableCreateCompanionBuilder,
+      $$EntryCacheRecordsTableUpdateCompanionBuilder,
+      (
+        EntryCacheRecord,
+        BaseReferences<
+          _$AppDatabase,
+          $EntryCacheRecordsTable,
+          EntryCacheRecord
+        >,
+      ),
+      EntryCacheRecord,
+      PrefetchHooks Function()
+    >;
+typedef $$CompositionCacheRecordsTableCreateCompanionBuilder =
+    CompositionCacheRecordsCompanion Function({
+      required String id,
+      required int revision,
+      required String payloadJson,
+      required DateTime expiresAt,
+      required DateTime writtenAt,
+      Value<int> rowid,
+    });
+typedef $$CompositionCacheRecordsTableUpdateCompanionBuilder =
+    CompositionCacheRecordsCompanion Function({
+      Value<String> id,
+      Value<int> revision,
+      Value<String> payloadJson,
+      Value<DateTime> expiresAt,
+      Value<DateTime> writtenAt,
+      Value<int> rowid,
+    });
+
+class $$CompositionCacheRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $CompositionCacheRecordsTable> {
+  $$CompositionCacheRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get writtenAt => $composableBuilder(
+    column: $table.writtenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CompositionCacheRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CompositionCacheRecordsTable> {
+  $$CompositionCacheRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get writtenAt => $composableBuilder(
+    column: $table.writtenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CompositionCacheRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CompositionCacheRecordsTable> {
+  $$CompositionCacheRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get writtenAt =>
+      $composableBuilder(column: $table.writtenAt, builder: (column) => column);
+}
+
+class $$CompositionCacheRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CompositionCacheRecordsTable,
+          CompositionCacheRecord,
+          $$CompositionCacheRecordsTableFilterComposer,
+          $$CompositionCacheRecordsTableOrderingComposer,
+          $$CompositionCacheRecordsTableAnnotationComposer,
+          $$CompositionCacheRecordsTableCreateCompanionBuilder,
+          $$CompositionCacheRecordsTableUpdateCompanionBuilder,
+          (
+            CompositionCacheRecord,
+            BaseReferences<
+              _$AppDatabase,
+              $CompositionCacheRecordsTable,
+              CompositionCacheRecord
+            >,
+          ),
+          CompositionCacheRecord,
+          PrefetchHooks Function()
+        > {
+  $$CompositionCacheRecordsTableTableManager(
+    _$AppDatabase db,
+    $CompositionCacheRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CompositionCacheRecordsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$CompositionCacheRecordsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CompositionCacheRecordsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<int> revision = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+                Value<DateTime> writtenAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CompositionCacheRecordsCompanion(
+                id: id,
+                revision: revision,
+                payloadJson: payloadJson,
+                expiresAt: expiresAt,
+                writtenAt: writtenAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required int revision,
+                required String payloadJson,
+                required DateTime expiresAt,
+                required DateTime writtenAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CompositionCacheRecordsCompanion.insert(
+                id: id,
+                revision: revision,
+                payloadJson: payloadJson,
+                expiresAt: expiresAt,
+                writtenAt: writtenAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CompositionCacheRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CompositionCacheRecordsTable,
+      CompositionCacheRecord,
+      $$CompositionCacheRecordsTableFilterComposer,
+      $$CompositionCacheRecordsTableOrderingComposer,
+      $$CompositionCacheRecordsTableAnnotationComposer,
+      $$CompositionCacheRecordsTableCreateCompanionBuilder,
+      $$CompositionCacheRecordsTableUpdateCompanionBuilder,
+      (
+        CompositionCacheRecord,
+        BaseReferences<
+          _$AppDatabase,
+          $CompositionCacheRecordsTable,
+          CompositionCacheRecord
+        >,
+      ),
+      CompositionCacheRecord,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10022,5 +11205,12 @@ class $AppDatabaseManager {
       $$OfflinePhotographyPacksTableTableManager(
         _db,
         _db.offlinePhotographyPacks,
+      );
+  $$EntryCacheRecordsTableTableManager get entryCacheRecords =>
+      $$EntryCacheRecordsTableTableManager(_db, _db.entryCacheRecords);
+  $$CompositionCacheRecordsTableTableManager get compositionCacheRecords =>
+      $$CompositionCacheRecordsTableTableManager(
+        _db,
+        _db.compositionCacheRecords,
       );
 }

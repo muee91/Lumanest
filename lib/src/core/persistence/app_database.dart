@@ -175,6 +175,31 @@ class BaseRegions extends Table {
   ];
 }
 
+/// v5 context entries are cached independently from the environment snapshot.
+/// The payload is already validated JSON; expiry and revision are indexed so
+/// partial refreshes can replace one entry without rewriting the snapshot.
+class EntryCacheRecords extends Table {
+  TextColumn get id => text()();
+  IntColumn get revision => integer()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get expiresAt => dateTime()();
+  DateTimeColumn get writtenAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class CompositionCacheRecords extends Table {
+  TextColumn get id => text()();
+  IntColumn get revision => integer()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get expiresAt => dateTime()();
+  DateTimeColumn get writtenAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// The most recent explicit map/search selection. It is local-only and can be
 /// cleared independently from the user's long-term base region.
 @DataClassName('ManualLocationRow')
@@ -272,7 +297,7 @@ class WatchedShootingSessions extends Table {
     'CHECK (length(session_id) BETWEEN 1 AND 160)',
     'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
     'CHECK (length(title) BETWEEN 1 AND 160)',
-    "CHECK (kind IN ('waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
+    "CHECK (kind IN ('generalMorning', 'generalEvening', 'waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
     'CHECK (expires_at >= watched_at)',
   ];
 }
@@ -296,7 +321,7 @@ class ShootingSessionResults extends Table {
     'CHECK (length(id) = 64)',
     'CHECK (length(session_id) BETWEEN 1 AND 160)',
     'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
-    "CHECK (kind IN ('waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
+    "CHECK (kind IN ('generalMorning', 'generalEvening', 'waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
     "CHECK (outcome IN ('captured', 'conditionsDidNotAppear', 'arrivedLate', 'didNotGo'))",
     'CHECK (length(reasons_json) BETWEEN 2 AND 512)',
   ];
@@ -346,6 +371,8 @@ class OfflinePhotographyPacks extends Table {
     WatchedShootingSessions,
     ShootingSessionResults,
     OfflinePhotographyPacks,
+    EntryCacheRecords,
+    CompositionCacheRecords,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -355,19 +382,28 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
-      // Development clean cut: older schemas are intentionally discarded.
-      // No old model, cache, or column is decoded into the current runtime.
+      // Development baseline: schema 16 is the only supported local shape.
+      // Formal data-preserving migrations start when the first RC freezes this
+      // schema. Until then, rebuilding avoids carrying ambiguous pre-release
+      // models into the runtime or pretending to support partial old schemas.
       for (final table in allTables.toList(growable: false).reversed) {
         await customStatement('DROP TABLE IF EXISTS ${table.actualTableName}');
       }
       await migrator.createAll();
     },
   );
+
+  Future<void> clearDerivedCaches() async {
+    await batch((batch) {
+      batch.deleteAll(entryCacheRecords);
+      batch.deleteAll(compositionCacheRecords);
+    });
+  }
 }
 
 /// Overridden by the Flutter test bootstrap so widget tests never open or

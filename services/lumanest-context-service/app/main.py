@@ -18,13 +18,14 @@ from .models import (
     ShootingSessionFeedbackRequest,
     ShootingFeedbackCalibrationResponse,
     SnapshotRequest,
-    SnapshotResponse,
+    V5SnapshotResponse,
     SourceStatus,
     WildlifeLayerResponse,
 )
 from .rules import classify_scene, context_fingerprint, evaluate
 from .solar import next_evening_window, next_morning_window, solar_state
 from .store import ContextStore
+from .v5 import project_snapshot_v5
 
 
 @asynccontextmanager
@@ -58,13 +59,13 @@ async def readyz(request: Request) -> dict[str, object]:
 
 @app.post(
     "/internal/v1/evaluate",
-    response_model=SnapshotResponse,
+    response_model=V5SnapshotResponse,
     response_model_by_alias=True,
     dependencies=[Depends(require_internal_token)],
 )
 async def evaluate_context(
     body: SnapshotRequest, request: Request
-) -> SnapshotResponse:
+) -> V5SnapshotResponse:
     stored = await request.app.state.store.spatial_evidence(
         body.coordinate.latitude, body.coordinate.longitude
     )
@@ -117,15 +118,16 @@ async def evaluate_context(
         body, scene, evidence, astronomy_events, target, shooting_targets
     )
     cached = await request.app.state.store.cached_snapshot(fingerprint)
-    if cached is not None:
-        return SnapshotResponse.model_validate(cached)
+    if cached is not None and cached.get("contractVersion") == 5:
+        return V5SnapshotResponse.model_validate(cached)
     snapshot = evaluate(
         body, evidence, astronomy_events, target, shooting_targets
     )
+    projected = project_snapshot_v5(snapshot)
     await request.app.state.store.cache_snapshot(
-        snapshot.fingerprint, snapshot.model_dump(mode="json", by_alias=True)
+        snapshot.fingerprint, projected.model_dump(mode="json", by_alias=True)
     )
-    return snapshot
+    return projected
 
 
 @app.get(

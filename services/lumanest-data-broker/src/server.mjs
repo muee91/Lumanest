@@ -31,6 +31,7 @@ import {
   validTargetSessionRequest,
 } from './context/proxy.mjs';
 import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
+import { prewarmNearbyDiscovery } from './discovery/prewarm.mjs';
 import {
   extractDiscoveryCandidates,
   normalizedDiscoverySearchRequest,
@@ -42,6 +43,7 @@ import {
   resolveDeterministicDiscovery,
   validDeterministicDiscoveryRequest,
 } from './discovery/deterministic.mjs';
+import { resolvePlace, validResolvePlaceRequest } from './discovery/geocode.mjs';
 import {
   decodedVerifiedMediaUrl,
   parsePlaceMediaRequest,
@@ -57,12 +59,26 @@ import {
   MemorySkyOpportunityCache,
   RedisSkyOpportunityCache,
 } from './infrastructure/cache/sky_opportunity_cache.mjs';
+import {
+  MemorySevenTimerCache,
+  RedisSevenTimerCache,
+} from './infrastructure/cache/seven_timer_cache.mjs';
 import { SkyOpportunityMetrics } from './infrastructure/metrics/sky_opportunity_metrics.mjs';
+import { SevenTimerMetrics } from './infrastructure/metrics/seven_timer_metrics.mjs';
+import { BrokerHealthMonitor } from './infrastructure/metrics/broker_health_monitor.mjs';
+import {
+  MemorySevenTimerDiagnosticsStore,
+  RedisSevenTimerDiagnosticsStore,
+} from './infrastructure/diagnostics/seven_timer_diagnostics_store.mjs';
 import {
   SkyOpportunityService,
   validDailySkyOpportunityQuery,
   validSkyOpportunityQuery,
 } from './domain/sky_opportunity/sky_opportunity_service.mjs';
+import {
+  SevenTimerService,
+  validSevenTimerRequest,
+} from './providers/seven_timer/seven_timer_provider.mjs';
 import {
   FallbackRequestRateLimiter,
   MemoryRequestRateLimiter,
@@ -316,6 +332,8 @@ const narrativeRequestKeys = new Set([
 ]);
 
 const narrativeTones = new Set(['concise', 'balanced', 'detailed']);
+const assistantQuestionTypes = new Set(['why', 'prepare', 'wording', 'nearby', 'timing', 'creative', 'safety']);
+const assistantSurfaces = new Set(['today', 'explore', 'inspiration', 'shootingWindow']);
 const narrativeCreativeIds = new Set([
   ...opportunityCatalog
     .filter((item) => item.catalogTier === 'core' && item.coreCapability !== 'unavailable')
@@ -335,6 +353,7 @@ const ratePolicies = [
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
   { path: '/v1/sky-opportunities', limit: 12, windowMs: 60 * 1_000, key: 'sky-opportunity' },
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
+  { path: '/v1/weather/7timer', limit: 20, windowMs: 60 * 1_000, key: 'seven-timer' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/place-media', limit: 12, windowMs: 60 * 1_000, key: 'place-media-search' },
   { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },
@@ -429,6 +448,93 @@ function validNarrativeText(value, minimumLength, maximumLength) {
   const length = [...value.trim()].length;
   return length >= minimumLength && length <= maximumLength &&
     !/[\r\n]/.test(value) && !/https?:\/\//i.test(value);
+}
+
+function validAssistantRequest(body) {
+  const keys = new Set(['snapshotId', 'surface', 'questionType', 'eventIds', 'tone', 'placeSummaries']);
+  return body != null && Object.keys(body).length === keys.size &&
+    Object.keys(body).every((key) => keys.has(key)) &&
+    typeof body.snapshotId === 'string' && /^ctx_[a-f0-9]{24}$/.test(body.snapshotId) &&
+    assistantSurfaces.has(body.surface) && assistantQuestionTypes.has(body.questionType) &&
+    Array.isArray(body.eventIds) && body.eventIds.length <= 3 &&
+    body.eventIds.every((id) => typeof id === 'string' && /^[a-z0-9][a-z0-9._-]{0,95}$/.test(id)) &&
+    narrativeTones.has(body.tone) && Array.isArray(body.placeSummaries) &&
+    body.placeSummaries.length <= 8 && body.placeSummaries.every((place) =>
+      place != null && typeof place === 'object' &&
+      Object.keys(place).length === 3 &&
+      typeof place.name === 'string' && place.name.trim().length >= 1 && place.name.length <= 120 &&
+      typeof place.category === 'string' && place.category.length <= 40 &&
+      Number.isInteger(place.distanceMeters) && place.distanceMeters >= 0 && place.distanceMeters <= 100_000);
+}
+
+function assistantTemplate(snapshot, questionType, eventIds, placeSummaries) {
+  const sessions = (snapshot.facts?.shootingSessions ?? []).filter((session) =>
+    eventIds.length === 0 || eventIds.includes(session.id));
+  const session = sessions[0] ?? null;
+  if (questionType === 'why') {
+    if (session == null) return '当前没有独立的拍摄窗口，先看环境变化。';
+    const factors = (session.factors ?? [])
+      .filter((factor) => factor.effect === 'supporting')
+      .slice(0, 2)
+      .map((factor) => `${factor.label}${factor.value}`)
+      .join('、');
+    return factors.length === 0
+      ? '这个窗口仍需现场观察，不建议只凭它出发。'
+      : `主要依据是${factors}；时间轴仍会随新环境数据更新。`;
+  }
+  if (questionType === 'prepare') {
+    if (session == null || session.recommendedCapabilities.length === 0) {
+      return '当前没有额外器材要求，保持轻装即可。';
+    }
+    const labels = {
+      tripod: '三脚架', wide_angle: '广角镜头', telephoto: '长焦镜头',
+      filter: '滤镜', weather_protection: '防雨装备', headlamp: '头灯',
+    };
+    return `可以准备${session.recommendedCapabilities.map((item) => labels[item] ?? '常用器材').join('、')}。`;
+  }
+  if (questionType === 'nearby') {
+    const places = placeSummaries.slice(0, 3).map((place) => place.name).join('、');
+    return places.length === 0 ? '附近暂时没有足够的地点资料，先移动地图范围再看。' : `当前附近可以先看${places}。它们是候选地点，不等于已审核机位。`;
+  }
+  if (questionType === 'timing') {
+    if (session == null) return '当前没有可执行的拍摄时间窗口。';
+    const start = new Date(session.startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const end = new Date(session.endAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `当前窗口是${start}—${end}，先看时间再决定是否出发。`;
+  }
+  if (questionType === 'creative') {
+    const title = session?.title?.trim();
+    return title
+      ? `围绕「${title}」先确定一个主体，再用前景和光线方向组织画面。`
+      : '先确定一个主体，再用前景和光线方向组织画面。';
+  }
+  if (questionType === 'safety') return '安全信息只看独立安全卡，不由模型改写。';
+  return snapshot.environment?.scene === 'village'
+    ? '先看时间，再决定是否出发。'
+    : '先看当前窗口，再决定下一步。';
+}
+
+function assistantPrompt(body, snapshot, templateAnswer) {
+  return {
+    system: '你是栖光的摄影助手。只能把给定的本地答案改写得更自然，不得增加地点、事实、风险、概率、动作、坐标或链接。只输出 JSON：{"answer":"不超过80字"}。',
+    user: JSON.stringify({
+      scene: snapshot.environment?.scene,
+      dayPhase: snapshot.environment?.sunMoon?.dayPhase,
+      questionType: body.questionType,
+      templateAnswer,
+      placeSummaries: body.placeSummaries,
+      tone: body.tone,
+    }),
+  };
+}
+
+function parsedAssistant(text) {
+  try {
+    const candidate = JSON.parse(text);
+    return validNarrativeText(candidate.answer, 1, 80) ? candidate.answer.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function narrativePrompt(body) {
@@ -907,6 +1013,10 @@ export function createTokenBrokerServer({
   skyOpportunityCache = new MemorySkyOpportunityCache(),
   skyOpportunityMetrics = new SkyOpportunityMetrics(),
   skyOpportunityLogger = () => {},
+  sevenTimerBaseUrl = 'https://www.7timer.info',
+  sevenTimerCache = new MemorySevenTimerCache(),
+  sevenTimerMetrics = new SevenTimerMetrics(),
+  sevenTimerService = null,
   requestRateLimiter = new MemoryRequestRateLimiter(),
   simulationRegistry = null,
   companionStore = null,
@@ -929,6 +1039,7 @@ export function createTokenBrokerServer({
     discoverySearchProfile,
     qweatherApiHost,
     sunsetBotBaseUrl,
+    sevenTimerBaseUrl,
     settings: validateRuntimeSettings(settings ?? {}),
   });
   const configurationSource = runtimeConfig ?? { snapshot: () => fixedSnapshot };
@@ -942,6 +1053,15 @@ export function createTokenBrokerServer({
     now,
     logger: skyOpportunityLogger,
   });
+  const activeSevenTimerService = sevenTimerService ?? new SevenTimerService({
+    settings: () => configurationSource.snapshot().settings,
+    baseUrl: sevenTimerBaseUrl,
+    cache: sevenTimerCache,
+    metrics: sevenTimerMetrics,
+    fetcher,
+    now,
+  });
+  const activeSevenTimerMetrics = activeSevenTimerService.metrics ?? sevenTimerMetrics;
   const wildlifeCache = new Map();
   const gbifMetadataCache = new Map();
   const elevationCache = new Map();
@@ -967,14 +1087,15 @@ export function createTokenBrokerServer({
     // second boundary and is intentionally absent from all responses and logs.
     if (requestUrl.pathname === '/internal/v1/discovery/search' ||
         requestUrl.pathname === '/internal/v1/discovery/extract' ||
-        requestUrl.pathname === '/internal/v1/discovery/deterministic') {
+        requestUrl.pathname === '/internal/v1/discovery/deterministic' ||
+        requestUrl.pathname === '/internal/v1/discovery/resolve-place') {
       if (request.method !== 'POST' || !hasValidWorkerToken(
         request.headers['x-discovery-worker-token'], configuration.discoveryWorkerToken,
       )) {
         writeJson(response, 401, { error: 'unauthorized' });
         return;
       }
-      const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') ? 4_096 : 16 * 1_024);
+      const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') || requestUrl.pathname.endsWith('/resolve-place') ? 4_096 : 16 * 1_024);
       if (requestUrl.pathname.endsWith('/search')) {
         if (body == null || !validDiscoverySearchRequest(
           body, configuration.discoverySearchProfile.sourcePolicies,
@@ -1011,6 +1132,21 @@ export function createTokenBrokerServer({
           return;
         }
         writeJson(response, 200, { candidates: result.candidates, evidence: result.evidence });
+        return;
+      }
+      if (requestUrl.pathname.endsWith('/resolve-place')) {
+        if (body == null || !validResolvePlaceRequest(body)) {
+          writeJson(response, 400, { error: 'invalid_discovery_resolve_place_request' });
+          return;
+        }
+        const result = await resolvePlace({
+          body,
+          amapWebKey: configuration.amapWebKey,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+          now,
+        });
+        writeJson(response, result.status === 'failed' && !configuration.amapWebKey ? 503 : 200, result);
         return;
       }
       if (body == null || !validDiscoveryExtractRequest(body)) {
@@ -1097,8 +1233,25 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/weather/7timer') {
+      const query = validSevenTimerRequest(await readJsonBody(request, 512));
+      if (query == null) {
+        writeJson(response, 400, { error: 'invalid_seven_timer_request' });
+        return;
+      }
+      const result = await activeSevenTimerService.forecast(query);
+      if (!result.ok) {
+        writeJson(response, result.error === 'disabled' ? 503 : 502, {
+          error: result.error === 'disabled' ? 'seven_timer_disabled' : 'seven_timer_unavailable',
+        });
+        return;
+      }
+      writeJson(response, 200, result.body);
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
-      writeText(response, 200, skyOpportunityMetrics.toPrometheus());
+      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}`);
       return;
     }
 
@@ -1449,6 +1602,55 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/assistant') {
+      const body = await readJsonBody(request, 2 * 1024);
+      if (body == null || !validAssistantRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_assistant_request' });
+        return;
+      }
+      const snapshot = companion.snapshot(body.snapshotId);
+      if (snapshot == null || snapshot.stale || new Date(snapshot.expiresAt) <= now()) {
+        writeJson(response, 410, { error: 'snapshot_expired' });
+        return;
+      }
+      const knownIds = new Set([
+        ...(snapshot.facts?.events ?? []).map((event) => event.id),
+        ...(snapshot.facts?.shootingSessions ?? []).map((session) => session.id),
+      ]);
+      if (body.eventIds.some((id) => !knownIds.has(id))) {
+        writeJson(response, 400, { error: 'invalid_event_reference' });
+        return;
+      }
+      const templateAnswer = assistantTemplate(
+        snapshot,
+        body.questionType,
+        body.eventIds,
+        body.placeSummaries,
+      );
+      let answer = templateAnswer;
+      let source = 'template';
+      if (body.questionType !== 'safety' && configuration.settings.aiEnabled && configuration.llmRouting.primaryProfileId != null) {
+        const routed = await routeNarrative({
+          profiles: configuration.llmProfiles,
+          routing: configuration.llmRouting,
+          prompt: assistantPrompt(body, snapshot, templateAnswer),
+          fetcher,
+        });
+        const generated = routed.ok ? parsedAssistant(routed.text) : null;
+        if (generated != null) {
+          answer = generated;
+          source = 'model';
+        }
+      }
+      writeJson(response, 200, {
+        source,
+        answer,
+        citedEventIds: body.eventIds,
+        expiresAt: snapshot.expiresAt,
+      });
+      return;
+    }
+
     if (request.method === 'POST' && requestUrl.pathname === '/v1/context/snapshot') {
       const body = await readJsonBody(request, 16 * 1024);
       if (body == null || !validContextRequest(body)) {
@@ -1537,7 +1739,7 @@ export function createTokenBrokerServer({
       const details = safetyDetailsFor(
         result.body.contextId,
         weather.body.officialWarnings,
-        result.body.events.map((event) => event.id),
+        result.body.facts.events.map((event) => event.id),
       );
       if (details.length > 0 && typeof weatherCache.setSafetyDetails === 'function') {
         await weatherCache.setSafetyDetails(
@@ -1548,6 +1750,25 @@ export function createTokenBrokerServer({
       }
       companion.rememberSnapshot(result.body);
       writeJson(response, 200, result.body);
+      // The client must receive the refreshed environment immediately. Nearby
+      // discovery is cache-first background work and is deliberately detached
+      // from this request; only the Broker performs the transient city lookup.
+      setImmediate(() => {
+        void prewarmNearbyDiscovery({
+          coordinate: body.coordinate,
+          locale: body.locale,
+          amapWebKey: configuration.amapWebKey,
+          serviceUrl: configuration.discoveryServiceUrl,
+          internalToken: configuration.discoveryInternalToken,
+          sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+          now,
+          radiusMeters: configuration.settings.discoveryLocationWarmupRadiusMeters,
+          enabled: configuration.settings.discoveryLocationWarmupEnabled,
+          searchEnabled: configuration.discoverySearchProfile.enabled,
+        }).catch(() => {});
+      });
       return;
     }
 
@@ -1596,7 +1817,7 @@ export function createTokenBrokerServer({
         return;
       }
       const internalBody = {
-        contractVersion: 4,
+        contractVersion: 5,
         coordinate: resolved.target.coordinate,
         observedAt: body.observedAt,
         locale: body.locale,
@@ -1685,6 +1906,7 @@ export function configurationFromEnvironment(environment = process.env) {
     discoveryWorkerToken: environment.DISCOVERY_WORKER_TOKEN?.trim() ?? '',
     qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
     sunsetBotBaseUrl: environment.SUNSETBOT_BASE_URL?.trim() || 'https://sunsetbot.top',
+    sevenTimerBaseUrl: environment.SEVEN_TIMER_BASE_URL?.trim() || 'https://www.7timer.info',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
@@ -1716,6 +1938,23 @@ export async function createBrokerServices(environment = process.env, {
   const skyOpportunityCache = await RedisSkyOpportunityCache.connect(
     environment.REDIS_URL?.trim() ?? '',
   ) ?? new MemorySkyOpportunityCache();
+  const sevenTimerCache = await RedisSevenTimerCache.connect(
+    environment.REDIS_URL?.trim() ?? '',
+  ) ?? new MemorySevenTimerCache();
+  const sevenTimerDiagnosticsStore = await RedisSevenTimerDiagnosticsStore.connect(
+    environment.REDIS_URL?.trim() ?? '',
+  ) ?? new MemorySevenTimerDiagnosticsStore();
+  const sevenTimerMetrics = new SevenTimerMetrics();
+  const brokerHealthMonitor = new BrokerHealthMonitor();
+  const sevenTimerService = new SevenTimerService({
+    settings: () => runtimeConfig.snapshot().settings,
+    baseUrl: defaults.sevenTimerBaseUrl,
+    cache: sevenTimerCache,
+    diagnosticsStore: sevenTimerDiagnosticsStore,
+    metrics: sevenTimerMetrics,
+    logger: (entry) => console.info(JSON.stringify(entry)),
+  });
+  await sevenTimerService.initialize();
   const skyOpportunityMetrics = new SkyOpportunityMetrics();
   const redisRateLimiter = await RedisRequestRateLimiter.connect(
     environment.REDIS_URL?.trim() ?? '',
@@ -1731,8 +1970,12 @@ export async function createBrokerServices(environment = process.env, {
     runtimeConfig,
     weatherCache,
     sunsetBotBaseUrl: defaults.sunsetBotBaseUrl,
+    sevenTimerBaseUrl: defaults.sevenTimerBaseUrl,
     skyOpportunityCache,
     skyOpportunityMetrics,
+    sevenTimerCache,
+    sevenTimerMetrics,
+    sevenTimerService,
     skyOpportunityLogger: (entry) => console.info(JSON.stringify(entry)),
     requestRateLimiter,
     simulationRegistry,
@@ -1741,6 +1984,9 @@ export async function createBrokerServices(environment = process.env, {
     authService,
     runtimeConfig,
     auditLog,
+    getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),
+    getBrokerHealth: () => brokerHealthMonitor.snapshot(),
+    testSevenTimer: (query) => sevenTimerService.testProduct(query),
     testConnection: createConnectionTester({ runtimeConfig }),
     testLLMProfile: createLLMProfileTester({ runtimeConfig }),
     listLLMModels: createLLMModelLister(),

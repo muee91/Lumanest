@@ -218,7 +218,7 @@ class ContextStore:
         direction_degrees: float,
         session_kind: str,
     ) -> list[ShootingTarget]:
-        """Return fully reviewed V4 targets aligned with one session kind."""
+        """Return fully reviewed targets aligned with one session kind."""
         if self.engine is None:
             return []
         query = text("""

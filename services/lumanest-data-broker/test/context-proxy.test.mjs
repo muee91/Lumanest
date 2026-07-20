@@ -33,7 +33,7 @@ const wildlifeLayerResponse = {
 };
 
 const minimalRequest = {
-  contractVersion: 4,
+  contractVersion: 5,
   coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
   observedAt: '2026-07-14T10:00:00+08:00',
   locale: 'zh-CN',
@@ -120,16 +120,17 @@ test('current contract accepts only bounded ordered WGS84 corridor samples', () 
 
 test('current context response validates composite scene and route invariants', async () => {
   const base = {
-    contractVersion: 4,
+    contractVersion: 5,
+    snapshotRevision: 1,
     contextId: 'ctx_1234567890abcdef12345678',
     generatedAt: '2026-07-14T02:00:00Z',
     expiresAt: '2026-07-14T02:10:00Z',
+    sourceRevisions: { weather: 1, solar: 1, scene: 1, route: 1 },
     scene: 'lake',
     sceneContext: {
       primaryScene: 'inlandWater', facets: ['lake', 'reflectiveSurface'],
       activity: 'stationary', scores: { inlandWater: 55 }, reviewedOverride: false,
     },
-    opportunityCatalogVersion: 1,
     fingerprint: '1234567890abcdef12345678',
     stale: false,
     dataFreshness: { context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z' },
@@ -147,7 +148,20 @@ test('current context response validates composite scene and route invariants', 
     events: [], allowedActions: [],
     manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
     shootingSessions: [],
+    environment: null,
+    facts: null,
+    entries: [],
+    refreshHints: { weather: 'ttl:600', solar: 'phase-boundary', opportunities: 'solar-or-weather-delta' },
   };
+  base.environment = {
+    scene: base.scene, dataFreshness: base.dataFreshness, weather: base.weather,
+    sunMoon: base.sunMoon, route: base.route, sceneContext: base.sceneContext,
+    allowedActions: base.allowedActions,
+  };
+  base.facts = { events: base.events, shootingSessions: base.shootingSessions };
+  delete base.scene; delete base.dataFreshness; delete base.weather; delete base.sunMoon;
+  delete base.route; delete base.sceneContext; delete base.allowedActions;
+  delete base.events; delete base.manifest; delete base.shootingSessions; delete base.fingerprint;
   const accepted = await forwardContextSnapshot({
     body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
     fetcher: async () => new Response(JSON.stringify(base), { status: 200 }),
@@ -157,7 +171,7 @@ test('current context response validates composite scene and route invariants', 
   const rejected = await forwardContextSnapshot({
     body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
     fetcher: async () => new Response(JSON.stringify({
-      ...base, route: { mode: 'driving', stage: 'planned', active: true },
+      ...base, environment: { ...base.environment, route: { mode: 'driving', stage: 'planned', active: true } },
     }), { status: 200 }),
   });
   assert.equal(rejected.ok, false);

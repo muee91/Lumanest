@@ -12,14 +12,61 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from .models import BrokerSearchResult, DiscoveryItem, DiscoveryRequest, DiscoveryResponse, ExtractedCandidate
+from .models import (
+    BrokerSearchResult,
+    DiscoveryActivationType,
+    DiscoveryItem,
+    DiscoveryRequest,
+    DiscoveryResponse,
+    ExtractedCandidate,
+)
 
 
-CACHE_SECONDS = 600
 PENDING_SECONDS = 1800
 REFRESH_STREAM = "discovery:refresh:stream"
 REFRESH_GROUP = "discovery-workers"
 REGION_GRID_DEGREES = 0.05
+@dataclass(frozen=True)
+class FreshnessRule:
+    valid_seconds: int
+    refresh_seconds: int
+
+
+FRESHNESS_POLICY: dict[str, FreshnessRule] = {
+    "routeConditions": FreshnessRule(15 * 60, 5 * 60),
+    "openingAndClosure": FreshnessRule(4 * 60 * 60, 60 * 60),
+    "humanityEvents": FreshnessRule(12 * 60 * 60, 2 * 60 * 60),
+    "popularPlaces": FreshnessRule(24 * 60 * 60, 24 * 60 * 60),
+    "hiddenPlaces": FreshnessRule(3 * 24 * 60 * 60, 3 * 24 * 60 * 60),
+    "seasonalSignals": FreshnessRule(24 * 60 * 60, 24 * 60 * 60),
+    "localStories": FreshnessRule(30 * 24 * 60 * 60, 30 * 24 * 60 * 60),
+}
+
+
+def response_cache_seconds(mission_type: str) -> int:
+    """Keep response cache aligned with the mission's refresh cadence.
+
+    The durable place records have their own validity window. This cache is
+    only the fast path and must expire when the next background verification is
+    due, rather than forcing every app reopen through the database after ten
+    minutes.
+    """
+    return FRESHNESS_POLICY[mission_type].refresh_seconds
+
+
+def freshness_until(
+    mission_type: str,
+    ends_at: datetime | None,
+    *,
+    now: datetime | None = None,
+) -> datetime:
+    """Return the signal expiry for the single current mission policy."""
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    if mission_type == "humanityEvents" and ends_at is not None:
+        return ends_at
+    return current + timedelta(seconds=FRESHNESS_POLICY[mission_type].valid_seconds)
 
 
 @dataclass(frozen=True)
@@ -40,7 +87,9 @@ class RefreshJob:
     fingerprint: str
     region: RegionReference
     expires_at: int
-    attempt: int = 0
+    attempt: int
+    activation_type: DiscoveryActivationType
+    dedupe_key: str
 
     def stream_values(self) -> dict[str, str]:
         return {
@@ -54,6 +103,8 @@ class RefreshJob:
             "radiusMeters": str(self.region.radius_meters),
             "expiresAt": str(self.expires_at),
             "attempt": str(self.attempt),
+            "activationType": self.activation_type,
+            "dedupeKey": self.dedupe_key,
         }
 
 
@@ -105,18 +156,36 @@ class DiscoveryStore:
     @classmethod
     def fingerprint(cls, request: DiscoveryRequest) -> str:
         region = cls.region_reference(request)
+        refresh_seconds = response_cache_seconds(request.mission_type)
         payload = {
             "regionId": region.region_id,
             "locale": region.locale,
             "missionType": region.mission_type,
             "focus": region.focus,
             "radiusMeters": region.radius_meters,
-            "timeRange": (
-                request.time_range.starts_at.isoformat(),
-                request.time_range.ends_at.isoformat(),
-            ),
+            # The result set is bounded by persisted item validity. A full
+            # timestamp here made logically identical foreground requests miss
+            # cache every time the app reopened. Retain a mission refresh
+            # bucket instead, matching the stale-while-revalidate policy.
+            "timeBucket": int(request.time_range.starts_at.timestamp()) // refresh_seconds,
             "routeId": request.route_corridor.route_id if request.route_corridor else None,
             "interests": sorted(request.interests),
+            "sourcePolicies": sorted((policy.id, policy.version) for policy in request.source_policies),
+            "activationType": request.activation_type,
+        }
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def dedupe_key(cls, request: DiscoveryRequest) -> str:
+        """Single-flight key: coarse region, mission, time bucket and policy set."""
+        region = cls.region_reference(request)
+        bucket_seconds = FRESHNESS_POLICY[request.mission_type].refresh_seconds
+        bucket = int(request.time_range.starts_at.timestamp()) // bucket_seconds
+        payload = {
+            "regionId": region.region_id,
+            "missionType": request.mission_type,
+            "timeBucket": bucket,
             "sourcePolicies": sorted((policy.id, policy.version) for policy in request.source_policies),
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -137,17 +206,17 @@ class DiscoveryStore:
         try:
             await self.redis.setex(
                 f"discovery:response:{fingerprint}",
-                CACHE_SECONDS,
+                response_cache_seconds(response.mission_type),
                 response.model_dump_json(by_alias=True),
             )
         except Exception:
             return
 
-    async def refresh_state(self, fingerprint: str) -> str | None:
+    async def refresh_state(self, request: DiscoveryRequest) -> str | None:
         if self.redis is None:
             return None
         try:
-            return await self.redis.get(f"discovery:refresh:{fingerprint}")
+            return await self.redis.get(f"discovery:refresh:{self.dedupe_key(request)}")
         except Exception:
             return None
 
@@ -156,22 +225,36 @@ class DiscoveryStore:
         if self.redis is None:
             return False
         fingerprint = self.fingerprint(request)
+        dedupe_key = self.dedupe_key(request)
         region = self.region_reference(request)
         job = RefreshJob(
             fingerprint=fingerprint,
             region=region,
             expires_at=int(datetime.now(timezone.utc).timestamp()) + PENDING_SECONDS,
+            attempt=0,
+            activation_type=request.activation_type,
+            dedupe_key=dedupe_key,
         )
-        key = f"discovery:refresh:{fingerprint}"
+        key = f"discovery:refresh:{dedupe_key}"
+        cooldown_key = f"discovery:cooldown:{dedupe_key}"
         try:
+            if request.activation_type == "foreground_opportunistic":
+                if await self.redis.get(cooldown_key):
+                    return False
             if not await self.redis.set(key, "pending", ex=PENDING_SECONDS, nx=True):
                 return False
             try:
                 await self.redis.xadd(REFRESH_STREAM, job.stream_values(), maxlen=10_000, approximate=True)
+                await self.redis.set(
+                    cooldown_key,
+                    "queued",
+                    ex=FRESHNESS_POLICY[request.mission_type].refresh_seconds,
+                )
             except Exception:
                 # Do not leave callers retrying a task that was never queued.
                 if await self.redis.get(key) == "pending":
                     await self.redis.delete(key)
+                await self.redis.delete(cooldown_key)
                 return False
             return True
         except Exception:
@@ -279,7 +362,7 @@ class DiscoveryStore:
         if cached is not None:
             return cached, 200
 
-        refresh_state = await self.refresh_state(fingerprint)
+        refresh_state = await self.refresh_state(request)
         now = datetime.now(timezone.utc)
         if refresh_state == "pending":
             return DiscoveryResponse(
@@ -292,17 +375,21 @@ class DiscoveryStore:
             ), 202
 
         items = await self.candidates(request)
+        cache_seconds = response_cache_seconds(request.mission_type)
         response = DiscoveryResponse(
             missionType=request.mission_type,
             status="ready" if items else "refreshing",
             generatedAt=now,
-            expiresAt=now + timedelta(seconds=CACHE_SECONDS) if items else None,
+            expiresAt=now + timedelta(seconds=cache_seconds) if items else None,
             retryAfterSeconds=None if items else 30,
             items=items,
         )
         if items:
             await self.cache(fingerprint, response)
-        if not items:
+        # Existing candidate records are returned immediately, while a
+        # deduplicated worker run refreshes them for the next open. This is
+        # stale-while-revalidate, not a user-visible loading dependency.
+        if request.source_policies:
             await self.schedule_refresh(request)
         return response, 200
 
@@ -373,7 +460,7 @@ class DiscoveryStore:
                  starts_at, ends_at, updated_at, geometry)
             VALUES
                 (:id, :canonical_key, :kind, :name, :summary, 'candidate', TRUE,
-                 COALESCE(:ends_at, NOW() + INTERVAL '7 days'), :starts_at, :ends_at, NOW(),
+                 :valid_until, :starts_at, :ends_at, NOW(),
                  ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
             ON CONFLICT (canonical_key) DO UPDATE SET
                 name = EXCLUDED.name, summary = EXCLUDED.summary, published = TRUE,
@@ -410,6 +497,7 @@ class DiscoveryStore:
                         "kind": candidate.kind,
                         "name": candidate.title,
                         "summary": candidate.summary,
+                        "valid_until": freshness_until(job.region.mission_type, candidate.ends_at),
                         "latitude": candidate.coordinate.latitude,
                         "longitude": candidate.coordinate.longitude,
                         "starts_at": candidate.starts_at,

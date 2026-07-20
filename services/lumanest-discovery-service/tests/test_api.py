@@ -7,11 +7,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models import DiscoveryItem, DiscoveryRequest, DiscoveryResponse
-from app.store import DiscoveryStore, REFRESH_STREAM
+from app.store import DiscoveryStore, REFRESH_STREAM, response_cache_seconds
 
 
 def payload() -> dict:
     return {
+        "activationType": "foreground_opportunistic",
         "missionType": "humanityEvents",
         "focus": "早市 夜市 展览",
         "locale": "zh-CN",
@@ -201,7 +202,10 @@ async def test_refresh_stream_uses_only_a_ttl_bound_coarse_region_not_client_coo
     calls = []
 
     class FakeRedis:
-        async def set(self, key, value, ex, nx):
+        async def get(self, _key):
+            return None
+
+        async def set(self, key, value, ex, nx=None):
             calls.append(("set", key, value, ex, nx))
             return True
 
@@ -218,6 +222,8 @@ async def test_refresh_stream_uses_only_a_ttl_bound_coarse_region_not_client_coo
     assert calls[1][1] == REFRESH_STREAM
     assert values["regionId"].startswith("g")
     assert values["latitude"] == "30.275"
+    assert values["activationType"] == "foreground_opportunistic"
+    assert len(values["dedupeKey"]) == 64
     assert values["longitude"] == "120.175"
     assert "30.25" not in str(values)
     assert "120.15" not in str(values)
@@ -235,8 +241,8 @@ async def test_failed_stream_enqueue_clears_its_pending_dedupe_key():
         async def xadd(self, *_args, **_kwargs):
             raise RuntimeError("redis unavailable")
 
-        async def get(self, _key):
-            return "pending"
+        async def get(self, key):
+            return "pending" if key.startswith("discovery:refresh:") else None
 
         async def delete(self, key):
             deleted.append(key)
@@ -246,3 +252,48 @@ async def test_failed_stream_enqueue_clears_its_pending_dedupe_key():
 
     assert await store.schedule_refresh(DiscoveryRequest.model_validate(payload())) is False
     assert deleted and deleted[0].startswith("discovery:refresh:")
+
+
+@pytest.mark.asyncio
+async def test_foreground_activation_respects_mission_cooldown_without_enqueuing():
+    calls = []
+
+    class FakeRedis:
+        async def get(self, key):
+            return "queued" if key.startswith("discovery:cooldown:") else None
+
+        async def set(self, *_args, **_kwargs):
+            calls.append("set")
+            return True
+
+        async def xadd(self, *_args, **_kwargs):
+            calls.append("xadd")
+
+    store = DiscoveryStore(None, None)
+    store.redis = FakeRedis()
+
+    assert await store.schedule_refresh(DiscoveryRequest.model_validate(payload())) is False
+    assert calls == []
+
+
+def test_single_flight_key_ignores_focus_wording_within_the_same_region_and_bucket():
+    first = DiscoveryRequest.model_validate(payload())
+    second_payload = payload()
+    second_payload["focus"] = "今天附近有什么活动"
+    second = DiscoveryRequest.model_validate(second_payload)
+
+    assert DiscoveryStore.fingerprint(first) != DiscoveryStore.fingerprint(second)
+    assert DiscoveryStore.dedupe_key(first) == DiscoveryStore.dedupe_key(second)
+
+
+def test_response_cache_fingerprint_uses_the_mission_refresh_bucket_not_each_open_timestamp():
+    first = DiscoveryRequest.model_validate(payload())
+    later_payload = payload()
+    later_payload["timeRange"] = {
+        "startsAt": "2026-07-18T01:30:00Z",
+        "endsAt": "2026-07-25T01:30:00Z",
+    }
+    later = DiscoveryRequest.model_validate(later_payload)
+
+    assert response_cache_seconds("humanityEvents") == 2 * 60 * 60
+    assert DiscoveryStore.fingerprint(first) == DiscoveryStore.fingerprint(later)

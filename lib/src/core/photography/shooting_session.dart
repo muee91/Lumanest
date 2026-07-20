@@ -2,6 +2,8 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 
 enum ShootingSessionKind {
+  generalMorning,
+  generalEvening,
   waterMorning,
   waterEvening,
   mountainMorning,

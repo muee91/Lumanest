@@ -5,30 +5,27 @@ import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
-import 'package:luma_nest/src/core/context/server_manifest.dart';
+import 'package:luma_nest/src/core/entry/context_entry.dart';
+import 'package:luma_nest/src/core/entry/entry_action.dart';
+import 'package:luma_nest/src/core/entry/entry_payload.dart';
+import 'package:luma_nest/src/core/entry/entry_provenance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 
-const _responseKeys = <String>{
+const _v5ResponseKeys = <String>{
   'contractVersion',
   'contextId',
+  'snapshotRevision',
   'generatedAt',
   'expiresAt',
-  'scene',
-  'fingerprint',
+  'sourceRevisions',
   'stale',
-  'dataFreshness',
-  'weather',
-  'sunMoon',
-  'route',
-  'events',
-  'allowedActions',
-  'manifest',
-  'shootingSessions',
-  'sceneContext',
-  'opportunityCatalogVersion',
+  'environment',
+  'facts',
+  'entries',
+  'refreshHints',
 };
 
 bool _hasExactKeys(Map<Object?, Object?> value, Set<String> keys) {
@@ -174,7 +171,7 @@ class DataBrokerContextRepository
       final debugSession = debugSimulationSession;
       if (debugSession != null) {
         headers['X-LumaNest-Debug-Session'] = debugSession;
-        headers['X-LumaNest-Debug-Contract'] = '4';
+        headers['X-LumaNest-Debug-Contract'] = '5';
       }
       final body = await transport.post(
         uri,
@@ -226,7 +223,7 @@ class DataBrokerContextRepository
     final session = debugSimulationSession;
     if (session != null) {
       headers['X-LumaNest-Debug-Session'] = session;
-      headers['X-LumaNest-Debug-Contract'] = '4';
+      headers['X-LumaNest-Debug-Contract'] = '5';
     }
     try {
       final body = await transport.post(uri, headers: headers, body: request);
@@ -256,7 +253,7 @@ class DataBrokerContextRepository
     RouteCorridorContext? corridor,
   ) {
     return {
-      'contractVersion': 4,
+      'contractVersion': 5,
       'coordinate': {
         'latitude': location.point.latitude,
         'longitude': location.point.longitude,
@@ -284,35 +281,54 @@ class DataBrokerContextRepository
     required GeoPoint location,
     ContextSnapshot? fallback,
   }) {
-    final contractVersion = body['contractVersion'];
-    if (!_hasExactKeys(body, _responseKeys) ||
-        contractVersion != 4 ||
+    if (body['contractVersion'] == 5) {
+      return _parseV5(body, location: location, fallback: fallback);
+    }
+    throw const RemoteContextFailure(RemoteContextFailureKind.response);
+  }
+
+  ContextSnapshot _parseV5(
+    Map<String, Object?> body, {
+    required GeoPoint location,
+    ContextSnapshot? fallback,
+  }) {
+    if (!_hasExactKeys(body, _v5ResponseKeys) ||
+        body['contractVersion'] != 5 ||
         body['contextId'] is! String ||
-        body['scene'] is! String ||
-        body['events'] is! List ||
-        body['dataFreshness'] is! Map ||
-        body['weather'] is! Map ||
-        body['sunMoon'] is! Map ||
-        body['route'] is! Map ||
-        body['manifest'] is! Map ||
-        body['allowedActions'] is! List ||
-        body['shootingSessions'] is! List ||
-        body['sceneContext'] is! Map ||
-        body['opportunityCatalogVersion'] != 1) {
+        body['snapshotRevision'] is! int ||
+        body['environment'] is! Map ||
+        body['facts'] is! Map ||
+        body['entries'] is! List ||
+        body['sourceRevisions'] is! Map) {
+      throw const RemoteContextFailure(RemoteContextFailureKind.response);
+    }
+    final environment = Map<String, Object?>.from(body['environment']! as Map);
+    final facts = Map<String, Object?>.from(body['facts']! as Map);
+    if (!_hasExactKeys(environment, const {
+          'scene',
+          'dataFreshness',
+          'weather',
+          'sunMoon',
+          'route',
+          'sceneContext',
+          'allowedActions',
+        }) ||
+        !_hasExactKeys(facts, const {'events', 'shootingSessions'})) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
     final scene = SceneType.values
-        .where((value) => value.name == body['scene'])
+        .where((value) => value.name == environment['scene'])
         .firstOrNull;
-    final sceneContext = _sceneContext(body['sceneContext']);
-    final events = (body['events'] as List).map(_event).toList(growable: false);
+    final freshness = Map<String, Object?>.from(
+      environment['dataFreshness']! as Map,
+    );
+    final weatherState = Map<String, Object?>.from(
+      environment['weather']! as Map,
+    );
+    final sunMoon = Map<String, Object?>.from(environment['sunMoon']! as Map);
+    final route = Map<String, Object?>.from(environment['route']! as Map);
     final generatedAt = DateTime.tryParse('${body['generatedAt'] ?? ''}');
     final expiresAt = DateTime.tryParse('${body['expiresAt'] ?? ''}');
-    final freshness = Map<String, Object?>.from(body['dataFreshness']! as Map);
-    final weatherState = Map<String, Object?>.from(body['weather']! as Map);
-    final sunMoon = Map<String, Object?>.from(body['sunMoon']! as Map);
-    final route = Map<String, Object?>.from(body['route']! as Map);
-    final manifest = Map<String, Object?>.from(body['manifest']! as Map);
     final dataFreshness = ContextDataFreshness.values
         .where((value) => value.name == freshness['context'])
         .firstOrNull;
@@ -322,25 +338,9 @@ class DataBrokerContextRepository
     final weatherObservedAt = DateTime.tryParse(
       '${freshness['weatherObservedAt'] ?? ''}',
     );
-    final weatherType = weatherState['condition'] == 'unknown'
-        ? WeatherType.cloudy
-        : WeatherType.values
-              .where((value) => value.name == weatherState['condition'])
-              .firstOrNull;
-    final temperature = weatherState['temperatureCelsius'];
-    final windSpeed = weatherState['windSpeedMps'];
-    final windDirection = weatherState['windDirectionDegrees'];
-    final precipitation = weatherState['precipitationMm'];
-    final visibility = weatherState['visibilityKm'];
-    final cloudCover = weatherState['cloudCoverPercent'];
-    final thunder = weatherState['thunder'];
-    final airQualityIndex = weatherState['airQualityIndex'];
-    final airQualityCategory = weatherState['airQualityCategory'];
-    final primaryPollutant = weatherState['primaryPollutant'];
-    final airQualityObservedAt = DateTime.tryParse(
-      '${weatherState['airQualityObservedAt'] ?? ''}',
-    );
-    final airQualityStale = weatherState['airQualityStale'];
+    final weatherType = WeatherType.values
+        .where((value) => value.name == weatherState['condition'])
+        .firstOrNull;
     final sunDayPhase = DayPhase.values
         .where((value) => value.name == sunMoon['dayPhase'])
         .firstOrNull;
@@ -353,59 +353,26 @@ class DataBrokerContextRepository
     final routeStage = ContextRouteStage.values
         .where((value) => value.name == route['stage'])
         .firstOrNull;
-    final moonIllumination = sunMoon['moonIllumination'];
-    final solarElevation = sunMoon['sunElevationDegrees'];
-    final solarAzimuth = sunMoon['sunAzimuthDegrees'];
-    final actions = (body['allowedActions']! as List)
-        .map((raw) {
-          if (raw is! String) {
-            throw const FormatException('Invalid context action');
-          }
-          return ContextAction.values
-              .where((value) => value.name == raw)
-              .firstOrNull;
-        })
+    final sceneContext = _sceneContext(environment['sceneContext']);
+    final events = (facts['events']! as List)
+        .map(_event)
         .toList(growable: false);
     final shootingSessions = _shootingSessions(
-      body['shootingSessions'] as List,
+      facts['shootingSessions']! as List,
     );
+    final actions = (environment['allowedActions']! as List)
+        .map(
+          (raw) => raw is String
+              ? ContextAction.values
+                    .where((value) => value.name == raw)
+                    .firstOrNull
+              : null,
+        )
+        .toList(growable: false);
+    final entries = (body['entries']! as List)
+        .map(_entryV5)
+        .toList(growable: false);
     if (!RegExp(r'^ctx_[a-f0-9]{24}$').hasMatch(body['contextId']! as String) ||
-        body['fingerprint'] is! String ||
-        !RegExp(r'^[a-f0-9]{24}$').hasMatch(body['fingerprint']! as String) ||
-        !_hasExactKeys(freshness, const {
-          'context',
-          'weather',
-          'weatherObservedAt',
-        }) ||
-        !_hasExactKeys(weatherState, const {
-          'condition',
-          'temperatureCelsius',
-          'windSpeedMps',
-          'windDirectionDegrees',
-          'precipitationMm',
-          'visibilityKm',
-          'cloudCoverPercent',
-          'thunder',
-          'airQualityIndex',
-          'airQualityCategory',
-          'primaryPollutant',
-          'airQualityObservedAt',
-          'airQualityStale',
-        }) ||
-        !_hasExactKeys(sunMoon, const {
-          'dayPhase',
-          'sunElevationDegrees',
-          'sunAzimuthDegrees',
-          'moonPhase',
-          'moonIllumination',
-        }) ||
-        !_hasExactKeys(route, const {'mode', 'stage', 'active'}) ||
-        !_hasExactKeys(manifest, const {
-          'layoutMode',
-          'primaryEventId',
-          'secondaryEventIds',
-          'safetyEventIds',
-        }) ||
         scene == null ||
         sceneContext == null ||
         generatedAt == null ||
@@ -415,83 +382,27 @@ class DataBrokerContextRepository
         weatherFreshness == null ||
         weatherObservedAt == null ||
         weatherType == null ||
-        (temperature != null && !_finiteIn(temperature, -100, 100)) ||
-        !_finiteIn(windSpeed, 0, 150) ||
-        (windDirection != null && !_finiteIn(windDirection, 0, 359.999)) ||
-        !_finiteIn(precipitation, 0, 2000) ||
-        !_finiteIn(visibility, 0, 500) ||
-        (cloudCover != null && !_finiteIn(cloudCover, 0, 100)) ||
-        thunder is! bool ||
-        (airQualityIndex != null &&
-            (airQualityIndex is! int || !_finiteIn(airQualityIndex, 0, 500))) ||
-        (airQualityCategory != null &&
-            (airQualityCategory is! String ||
-                airQualityCategory.isEmpty ||
-                airQualityCategory.runes.length > 40)) ||
-        (primaryPollutant != null &&
-            (primaryPollutant is! String ||
-                primaryPollutant.isEmpty ||
-                primaryPollutant.runes.length > 40)) ||
-        airQualityStale is! bool ||
-        ((airQualityIndex == null) != (airQualityObservedAt == null)) ||
         sunDayPhase == null ||
-        (solarElevation != null && !_finiteIn(solarElevation, -90, 90)) ||
-        (solarAzimuth != null && !_finiteIn(solarAzimuth, 0, 359.999)) ||
         moonPhase == null ||
         routeMode == null ||
         routeStage == null ||
-        !_finiteIn(moonIllumination, 0, 1) ||
+        !_hasExactKeys(route, const {'mode', 'stage', 'active'}) ||
         route['active'] is! bool ||
         (route['active'] == true) != (routeStage == ContextRouteStage.active) ||
         (routeMode == ContextRouteMode.none) !=
             (routeStage == ContextRouteStage.none) ||
-        body['stale'] is! bool ||
-        !const {
-          'quiet',
-          'opportunity',
-          'safety',
-        }.contains(manifest['layoutMode']) ||
-        (manifest['primaryEventId'] != null &&
-            manifest['primaryEventId'] is! String) ||
-        manifest['secondaryEventIds'] is! List ||
-        (manifest['secondaryEventIds']! as List).length > 2 ||
-        (manifest['secondaryEventIds']! as List).any(
-          (value) => value is! String,
-        ) ||
-        manifest['safetyEventIds'] is! List ||
-        (manifest['safetyEventIds']! as List).any(
-          (value) => value is! String,
-        ) ||
-        actions.any((action) => action == null)) {
+        actions.any((action) => action == null) ||
+        entries.any((entry) => entry == null) ||
+        !_finiteIn(weatherState['windSpeedMps'], 0, 150) ||
+        !_finiteIn(weatherState['precipitationMm'], 0, 2000) ||
+        !_finiteIn(weatherState['visibilityKm'], 0, 500) ||
+        !_finiteIn(sunMoon['moonIllumination'], 0, 1)) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
-    final layout = ServerManifestLayout.fromServerString(
-      manifest['layoutMode']! as String,
-    );
-    if (layout == null) {
-      throw const RemoteContextFailure(RemoteContextFailureKind.response);
-    }
-    final primaryEventId = manifest['primaryEventId'] as String?;
-    final secondaryEventIds = (manifest['secondaryEventIds']! as List)
-        .cast<String>();
-    final safetyEventIds = (manifest['safetyEventIds']! as List).cast<String>();
-    final eventById = <String, ContextEvent>{
-      for (final event in events) event.id: event,
-    };
-    if (!_manifestReferencesAreValid(
-      primaryEventId: primaryEventId,
-      secondaryEventIds: secondaryEventIds,
-      safetyEventIds: safetyEventIds,
-      eventById: eventById,
-    )) {
-      throw const RemoteContextFailure(RemoteContextFailureKind.response);
-    }
-    final serverManifest = ServerManifest(
-      layout: layout,
-      primaryEventId: primaryEventId,
-      secondaryEventIds: secondaryEventIds,
-      safetyEventIds: safetyEventIds,
-    );
+    final isStale =
+        body['stale'] == true ||
+        dataFreshness == ContextDataFreshness.stale ||
+        weatherFreshness == ContextDataFreshness.stale;
     return ContextSnapshot(
       id: body['contextId']! as String,
       observedAt: weatherObservedAt.toUtc(),
@@ -500,7 +411,7 @@ class DataBrokerContextRepository
       sceneContext: sceneContext,
       dayPhase: sunDayPhase,
       weather: weatherType,
-      activeRoute: route['active']! as bool,
+      activeRoute: route['active'] == true,
       opportunityIds: events
           .where(
             (event) =>
@@ -526,41 +437,178 @@ class DataBrokerContextRepository
           .map((event) => event.id)
           .toList(growable: false),
       events: events,
-      shootingSessions:
-          body['stale']! as bool ||
-              dataFreshness == ContextDataFreshness.stale ||
-              weatherFreshness == ContextDataFreshness.stale
-          ? const []
-          : shootingSessions,
+      shootingSessions: isStale ? const [] : shootingSessions,
       wildlifeActivity: fallback?.wildlifeActivity,
       location: location,
-      temperatureCelsius: (temperature as num?)?.toDouble(),
-      windSpeedMetersPerSecond: (windSpeed! as num).toDouble(),
-      windDirectionDegrees: (windDirection as num?)?.toDouble(),
-      visibilityKilometers: (visibility! as num).toDouble(),
-      precipitationMillimeters: (precipitation! as num).toDouble(),
-      cloudCoverPercent: (cloudCover as num?)?.toDouble(),
-      airQualityIndex: airQualityIndex as int?,
-      airQualityCategory: airQualityCategory as String?,
-      primaryPollutant: primaryPollutant as String?,
-      airQualityObservedAt: airQualityObservedAt?.toUtc(),
-      airQualityStale: airQualityStale,
-      solarElevationDegrees: (solarElevation as num?)?.toDouble(),
-      solarAzimuthDegrees: (solarAzimuth as num?)?.toDouble(),
+      temperatureCelsius: (weatherState['temperatureCelsius'] as num?)
+          ?.toDouble(),
+      windSpeedMetersPerSecond: (weatherState['windSpeedMps'] as num)
+          .toDouble(),
+      windDirectionDegrees: (weatherState['windDirectionDegrees'] as num?)
+          ?.toDouble(),
+      visibilityKilometers: (weatherState['visibilityKm'] as num).toDouble(),
+      precipitationMillimeters: (weatherState['precipitationMm'] as num)
+          .toDouble(),
+      cloudCoverPercent: (weatherState['cloudCoverPercent'] as num?)
+          ?.toDouble(),
+      airQualityIndex: weatherState['airQualityIndex'] as int?,
+      airQualityCategory: weatherState['airQualityCategory'] as String?,
+      primaryPollutant: weatherState['primaryPollutant'] as String?,
+      airQualityObservedAt: DateTime.tryParse(
+        '${weatherState['airQualityObservedAt'] ?? ''}',
+      )?.toUtc(),
+      airQualityStale: weatherState['airQualityStale'] == true,
+      solarElevationDegrees: (sunMoon['sunElevationDegrees'] as num?)
+          ?.toDouble(),
+      solarAzimuthDegrees: (sunMoon['sunAzimuthDegrees'] as num?)?.toDouble(),
       sunrise: fallback?.sunrise,
       sunset: fallback?.sunset,
-      isStale:
-          body['stale']! as bool ||
-          dataFreshness == ContextDataFreshness.stale ||
-          weatherFreshness == ContextDataFreshness.stale,
+      isStale: isStale,
       remoteGeneratedAt: generatedAt.toUtc(),
       dataFreshness: dataFreshness,
       moonPhase: moonPhase,
-      moonIllumination: (moonIllumination! as num).toDouble(),
+      moonIllumination: (sunMoon['moonIllumination'] as num).toDouble(),
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: actions.cast<ContextAction>(),
-      serverManifest: serverManifest,
+      entries: entries.whereType<ContextEntry>().toList(growable: false),
+      canonicalEntriesPresent: true,
+    );
+  }
+
+  ContextEntry? _entryV5(Object? raw) {
+    if (raw is! Map) return null;
+    final value = Map<String, Object?>.from(raw);
+    final actions = value['actions'];
+    final presentation = value['presentation'];
+    final payload = value['payload'];
+    final provenance = value['provenance'];
+    if (actions is! List ||
+        actions.isEmpty ||
+        presentation is! Map ||
+        payload is! Map ||
+        provenance is! List) {
+      return null;
+    }
+    final actionRaw = Map<String, Object?>.from(actions.first as Map);
+    final actionType = EntryActionType.values
+        .where((item) => item.name == actionRaw['type'])
+        .firstOrNull;
+    final variant = EntryPresentationVariant.values
+        .where((item) => item.name == presentation['variant'])
+        .firstOrNull;
+    final kind = EntryKind.values
+        .where((item) => item.name == value['kind'])
+        .firstOrNull;
+    final priority = EntryPriority.values
+        .where((item) => item.name == value['basePriority'])
+        .firstOrNull;
+    final severity = EntrySeverity.values
+        .where((item) => item.name == value['severity'])
+        .firstOrNull;
+    final freshness = EntryFreshness.values
+        .where((item) => item.name == value['freshness'])
+        .firstOrNull;
+    final geo = ContextGeoScope.values
+        .where((item) => item.name == value['geoScope'])
+        .firstOrNull;
+    final observedAt = DateTime.tryParse('${value['observedAt'] ?? ''}');
+    final validFrom = DateTime.tryParse('${value['validFrom'] ?? ''}');
+    final expiresAt = DateTime.tryParse('${value['expiresAt'] ?? ''}');
+    if (actionType == null ||
+        variant == null ||
+        kind == null ||
+        priority == null ||
+        severity == null ||
+        freshness == null ||
+        geo == null ||
+        observedAt == null ||
+        validFrom == null ||
+        expiresAt == null ||
+        value['revision'] is! int ||
+        value['evidenceConfidence'] is! num ||
+        presentation['title'] is! String ||
+        payload['type'] is! String) {
+      return null;
+    }
+    final payloadType = payload['type'];
+    final entryPayload = payloadType == 'safety'
+        ? SafetyEntryPayload(
+            eventId:
+                (payload['eventId'] as String?) ?? value['sourceId'] as String,
+            action: ContextAction.values.firstWhere(
+              (item) => item.name == actionRaw['type'],
+              orElse: () => ContextAction.openSafetyDetail,
+            ),
+          )
+        : payloadType == 'opportunity'
+        ? OpportunityEntryPayload(
+            definitionId:
+                (payload['definitionId'] as String?) ??
+                value['sourceId'] as String,
+            instanceId:
+                (payload['instanceId'] as String?) ??
+                value['sourceId'] as String,
+            sessionId: payload['sessionId'] as String?,
+          )
+        : const SystemEntryPayload(stateCode: 'remote');
+    final provenanceEntries = provenance
+        .map((item) {
+          final map = Map<String, Object?>.from(item as Map);
+          final at = DateTime.tryParse('${map['observedAt'] ?? ''}');
+          return at == null
+              ? null
+              : EntryProvenance(sourceId: '${map['sourceId']}', observedAt: at);
+        })
+        .whereType<EntryProvenance>()
+        .toList(growable: false);
+    return ContextEntry(
+      id: value['id']! as String,
+      kind: kind,
+      sourceNamespace: value['sourceNamespace']! as String,
+      sourceId: value['sourceId']! as String,
+      revision: value['revision']! as int,
+      observedAt: observedAt,
+      validFrom: validFrom,
+      expiresAt: expiresAt,
+      freshness: freshness,
+      evidenceConfidence: (value['evidenceConfidence']! as num).toDouble(),
+      basePriority: priority,
+      severity: severity,
+      geoScope: EntryGeoScope(type: geo),
+      allowedSurfaces: (value['allowedSurfaces']! as List)
+          .map(
+            (item) => EntrySurface.values
+                .where((surface) => surface.name == item)
+                .firstOrNull,
+          )
+          .whereType<EntrySurface>()
+          .toSet(),
+      actions: [
+        EntryAction(
+          type: actionType,
+          targetId: actionRaw['targetId'] as String?,
+          query: actionRaw['query'] as String?,
+        ),
+      ],
+      presentation: EntryPresentation(
+        variant: variant,
+        eyebrow:
+            presentation['shortLabel'] as String? ??
+            presentation['title']! as String,
+        title: presentation['title']! as String,
+        detail: presentation['fallbackSummary'] as String? ?? '',
+        timeLabel: '环境更新后持续观察',
+        actionLabel: actionType.name == 'openSafetyDetail' ? '查看安全建议' : '查看',
+        accent: kind == EntryKind.safety ? EntryAccent.danger : EntryAccent.sky,
+      ),
+      payload: entryPayload,
+      provenance: provenanceEntries,
+      dedupeKey: value['dedupeKey']! as String,
+      suppressionKeys: (value['suppressionKeys']! as List)
+          .whereType<String>()
+          .toSet(),
+      contentFingerprint: value['contentFingerprint']! as String,
     );
   }
 
@@ -624,38 +672,6 @@ class DataBrokerContextRepository
       scores: scores,
       reviewedOverride: raw['reviewedOverride']! as bool,
     );
-  }
-
-  bool _manifestReferencesAreValid({
-    required String? primaryEventId,
-    required List<String> secondaryEventIds,
-    required List<String> safetyEventIds,
-    required Map<String, ContextEvent> eventById,
-  }) {
-    bool isOpportunity(String id) {
-      final event = eventById[id];
-      return event != null &&
-          (event.channel == ContextEventChannel.opportunity ||
-              event.channel == ContextEventChannel.wildlifeOpportunity);
-    }
-
-    bool isSafety(String id) {
-      final event = eventById[id];
-      return event != null &&
-          (event.channel == ContextEventChannel.safety ||
-              event.channel == ContextEventChannel.wildlifeSafety);
-    }
-
-    if (primaryEventId != null && !isOpportunity(primaryEventId)) {
-      return false;
-    }
-    for (final id in secondaryEventIds) {
-      if (!isOpportunity(id)) return false;
-    }
-    for (final id in safetyEventIds) {
-      if (!isSafety(id)) return false;
-    }
-    return true;
   }
 
   ContextEvent _event(Object? raw) {

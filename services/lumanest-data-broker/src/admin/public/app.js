@@ -1,4 +1,4 @@
-const state={csrf:null,config:null,llmProfiles:[],llmRouting:null,llmProviders:[],selectedLLMProfileId:null,simulationEnabled:false,simulationPresets:[]};
+const state={csrf:null,config:null,llmProfiles:[],llmRouting:null,llmProviders:[],selectedLLMProfileId:null,simulationEnabled:false,simulationPresets:[],sevenTimerHealth:null};
 const $=(selector)=>document.querySelector(selector);
 const $$=(selector)=>[...document.querySelectorAll(selector)];
 const status=(message)=>{$('#global-status').textContent=message;};
@@ -19,10 +19,24 @@ function showApp(){ $('#login-view').hidden=true;$('#app-view').hidden=false; }
 function maskText(value){return value?.configured?`已配置 ···· ${value.lastFour||''}`.trim():'尚未配置';}
 function setMask(name,value){const node=document.querySelector(`[data-mask="${name}"]`);if(node)node.textContent=maskText(value);}
 function statusTone(status){return status==='ready'?'ready':status==='disabled'?'disabled':'attention';}
-function appendServiceRow({name,description,status,label,target}){const row=document.createElement('article');row.className='service-status-row';const identity=document.createElement('div');identity.className='service-identity';const mark=document.createElement('span');mark.className=`service-mark ${statusTone(status)}`;mark.textContent=name.slice(0,1);const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=name;const detail=document.createElement('small');detail.textContent=description;copy.append(title,detail);identity.append(mark,copy);const stateNode=document.createElement('span');stateNode.className=`service-state ${statusTone(status)}`;stateNode.textContent=label;const button=document.createElement('button');button.type='button';button.className='row-action';button.dataset.target=target;button.textContent='管理';row.append(identity,stateNode,button);$('#service-status-list').append(row);}
+function appendServiceRow({name,description,status,label,target,id}){const row=document.createElement('article');row.className='service-status-row';if(id)row.id=id;const identity=document.createElement('div');identity.className='service-identity';const mark=document.createElement('span');mark.className=`service-mark ${statusTone(status)}`;mark.textContent=name.slice(0,1);const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=name;const detail=document.createElement('small');detail.textContent=description;copy.append(title,detail);identity.append(mark,copy);const stateNode=document.createElement('span');stateNode.className=`service-state ${statusTone(status)}`;stateNode.textContent=label;const button=document.createElement('button');button.type='button';button.className='row-action';button.dataset.target=target;button.textContent='管理';row.append(identity,stateNode,button);$('#service-status-list').append(row);}
 function appendSummary(label,value,tone=''){const row=document.createElement('div');const term=document.createElement('dt');term.textContent=label;const detail=document.createElement('dd');detail.textContent=value;if(tone)detail.className=tone;row.append(term,detail);$('#runtime-summary').append(row);}
 function appendCapability({name,detail,enabled}){const item=document.createElement('article');item.className=`capability-item ${enabled?'enabled':'disabled'}`;const top=document.createElement('div');const dot=document.createElement('i');const label=document.createElement('span');label.textContent=enabled?'已启用':'未启用';top.append(dot,label);const title=document.createElement('strong');title.textContent=name;const description=document.createElement('small');description.textContent=detail;item.append(top,title,description);$('#capability-grid').append(item);}
 function renderOutboundNetwork(network){const form=$('#outbound-network-form');if(!form)return;const statusNode=$('#outbound-network-status');const detailNode=$('#outbound-network-detail');const message=$('#outbound-network-message');const mode=network?.effectiveMode;const ready=network?.status==='ready';if(mode)form.elements.mode.value=mode;const modeLabel=mode==='mihomo'?'经 mihomo':mode==='direct'?'直连':'未确认';statusNode.textContent=ready?`${modeLabel} · 已生效`:network?.status==='applying'?'正在切换网络方式':'未确认实际网络方式';const serviceCount=(network?.services??[]).filter((service)=>service.mode===mode&&service.proxyConfigured===(mode==='mihomo')).length;if(ready){detailNode.textContent=`${serviceCount}/4 个应用容器使用同一出口。切换时仅重建应用容器。`;message.textContent='';}else if(network?.status==='applying'){detailNode.textContent='容器正在按新环境变量逐个重建，通常需要半分钟。';message.textContent='正在应用，完成后会自动刷新状态。';setTimeout(()=>loadConfig().catch(()=>{}),8000);}else{detailNode.textContent=network?.error==='controller_not_configured'?'网络控制入口尚未部署或未配置。':'无法确认所有应用容器的网络环境。';}}
+function renderBrokerHealth(health){const runtime=health?.runtime;$('#broker-status').textContent=health?.status==='healthy'?'健康':'需要关注';$('#broker-detail').textContent=runtime?.memory?`运行 ${runtime.uptimeSeconds} 秒 · RSS ${runtime.memory.rssMiB} MiB · 堆 ${Math.round(runtime.memory.heapUsageRatio*100)}% · 事件循环 ${Math.round(runtime.eventLoop.utilization*100)}%`:'后端资源状态未读取';$('#last-updated').textContent=`同步于 ${new Date(health.checkedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}`;renderSevenTimerHealth(health?.services?.sevenTimer);}
+function renderSevenTimerHealth(health){
+  state.sevenTimerHealth=health;
+  const labels={healthy:'健康',degraded:'降级',unavailable:'不可用',disabled:'已关闭',unknown:'未检测'};
+  const overall=$('#seven-timer-overall');
+  if(overall)overall.textContent=health?.enabled?`整体状态：${labels[health.status]??'未检测'} · ${new Date(health.checkedAt).toLocaleTimeString('zh-CN',{hour12:false})}`:'整体状态：已关闭';
+  const overviewRow=$('#seven-timer-overview-row');
+  if(overviewRow){const tone=health?.enabled?(health.status==='healthy'?'ready':'attention'):'disabled';overviewRow.querySelector('.service-mark').className=`service-mark ${tone}`;overviewRow.querySelector('.service-state').className=`service-state ${tone}`;overviewRow.querySelector('.service-state').textContent=labels[health?.status]??'未检测';overviewRow.querySelector('.service-identity small').textContent=health?.enabled?`ASTRO / METEO / TWO · ${labels[health.status]??'未检测'}`:'Provider 已关闭';}
+  const metrics=health?.metrics;const persistence=health?.persistence;const resource=$('#seven-timer-resource-summary');
+  if(resource){const requests=(metrics?.products??[]).reduce((sum,item)=>sum+item.requestTotal,0);const cacheHits=(metrics?.products??[]).reduce((sum,item)=>sum+item.cacheHit,0);const cacheBackend=health?.cacheBackend;resource.textContent=`进行中 ${metrics?.inFlight??0} · 请求 ${requests} · 缓存命中 ${cacheHits} · 缓存 ${cacheBackend?.mode??'未知'}${cacheBackend?.available?' 可用':' 不可用'} · 诊断 ${persistence?.mode??'未知'}${persistence?.durable?' 持久':' 临时'}`;}
+  const root=$('#seven-timer-products');if(!root)return;root.replaceChildren();
+  const metricByProduct=new Map((metrics?.products??[]).map((item)=>[item.product,item]));
+  for(const item of (health?.products??[])){const metric=metricByProduct.get(item.product)??{};const row=document.createElement('div');row.className='seven-timer-product';const title=document.createElement('strong');title.textContent=item.product.toUpperCase();const detail=document.createElement('small');const statusLabel=labels[item.status]??'未检测';const cache=item.cacheStatus==='unknown'?'缓存未知':`缓存：${item.cacheStatus}`;detail.textContent=`${statusLabel} · ${cache} · ${item.pointCount||0} 点 · 源龄 ${item.sourceAgeMinutes??'—'} 分钟 · 熔断 ${item.circuitState} · P95 ${metric.p95LatencyMs??0} ms`;const trace=document.createElement('code');trace.textContent=item.lastErrorCode?`${item.lastErrorCode} · ${item.lastAttempts} 次 · ${item.lastLatencyMs??'—'} ms · ${item.traceId||'无 Trace ID'}`:(item.lastSuccessAt?`成功 ${item.lastSuccessLatencyMs??'—'} ms · ${item.traceId||'无 Trace ID'}`:'暂无尝试');row.append(title,detail,trace);root.append(row);}
+}
 
 function renderConfig(config){
   state.config=config;
@@ -35,8 +49,6 @@ function renderConfig(config){
   const enabledCapabilities=config.settings?.sunsetbotProviderEnabled?['skyOpportunityCardEnabled','skyOpportunityNotificationEnabled','skyOpportunityMapEnabled','skyOpportunityTomorrowSunsetEnabled'].filter((name)=>config.settings?.[name]).length:0;
   const enabledSourceCount=(config.discoverySearch?.sourcePolicies??[]).filter((policy)=>policy.enabled).length;
   $('#revision').textContent=String(config.revision??'—');
-  $('#broker-status').textContent='在线';
-  $('#broker-detail').textContent='认证与配置接口响应正常';
   $('#configured-count').textContent=`${configuredCount} / ${integrations.length}`;
   $('#configured-rate').textContent=`${Math.round(configuredCount/integrations.length*100)}%`;
   $('#configured-detail').textContent=configuredCount===integrations.length?'全部核心服务已完成配置':`还有 ${integrations.length-configuredCount} 项服务待配置`;
@@ -45,7 +57,6 @@ function renderConfig(config){
   $('#ai-state').textContent=config.settings?.aiEnabled?(config.llm?.primaryProfileId?'AI 文案链路可用':'AI 已开启，但缺少主模型'):'当前使用本地确定性文案';
   $('#capability-count').textContent=String(enabledCapabilities);
   $('#sky-opportunity-state').textContent=config.settings?.sunsetbotProviderEnabled?'SunsetBot Provider 已接入':'朝晚霞 Provider 未启用';
-  $('#last-updated').textContent=`同步于 ${new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}`;
   const qweatherReady=integrations[0][1].configured;
   const amapReady=Boolean(config.services.amapWebKey?.configured);
   const appReady=Boolean(config.services.serviceToken?.configured);
@@ -57,6 +68,7 @@ function renderConfig(config){
   appendServiceRow({name:'App 访问',description:'客户端访问 Broker 的服务令牌',status:appReady?'ready':'attention',label:appReady?'访问受保护':'缺少令牌',target:'services'});
   appendServiceRow({name:'审核来源搜索',description:`${enabledSourceCount} 条已启用来源政策`,status:searchReady?'ready':config.discoverySearch?.enabled?'attention':'disabled',label:searchReady?'检索可用':config.discoverySearch?.enabled?'配置不完整':'已关闭',target:'services'});
   appendServiceRow({name:'模型路由',description:`${config.llm?.profileCount??0} 个模型档案`,status:llmReady?'ready':config.settings?.aiEnabled?'attention':'disabled',label:llmReady?'主路由可用':config.settings?.aiEnabled?'等待主模型':'本地模式',target:'llm'});
+  appendServiceRow({name:'7Timer',description:'专业气象补充源 · 健康状态待读取',status:'attention',label:'未检测',target:'runtime',id:'seven-timer-overview-row'});
   $('#runtime-summary').replaceChildren();
   appendSummary('AI 文案',config.settings?.aiEnabled?'启用':'关闭',config.settings?.aiEnabled?'positive':'muted');
   appendSummary('AI 超时',`${config.settings?.aiTimeoutMs??'—'} ms`);
@@ -80,7 +92,9 @@ function renderConfig(config){
   renderOutboundNetwork(config.outboundNetwork);
 }
 
-async function loadConfig(){renderConfig(await api('config'));}
+async function loadSevenTimerHealth(){renderSevenTimerHealth(await api('services/7timer'));}
+async function loadBrokerHealth(){renderBrokerHealth(await api('health'));}
+async function loadConfig(){renderConfig(await api('config'));await loadBrokerHealth();}
 async function loadCapabilities(){
   const capabilities=await api('capabilities');
   state.simulationEnabled=Boolean(capabilities.developerTools?.simulationEnabled);
@@ -101,11 +115,12 @@ function switchPage(name){
   $$('.nav-item[data-page]').forEach((button)=>button.classList.toggle('active',button.dataset.page===name));
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
   if(name==='simulation'&&!state.simulationEnabled)return;
-  const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V4 环境场景。'],calibration:['反馈校准','查看达到隐私阈值的匿名拍摄反馈聚合。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
+  const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V5 环境场景。'],calibration:['反馈校准','查看达到隐私阈值的匿名拍摄反馈聚合。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
   if(name==='security')loadAudit();
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
   if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
   if(name==='calibration')loadCalibration().catch(()=>status('反馈校准读数读取失败'));
+  if(name==='runtime')loadSevenTimerHealth().catch(()=>status('7Timer 健康状态读取失败'));
 }
 
 const calibrationLabels={
@@ -175,7 +190,7 @@ async function loadSimulation(){
 
 async function loadAudit(){
   try{const {entries}=await api('audit');const list=$('#audit-list');list.replaceChildren();
-    for(const entry of entries){const item=document.createElement('li');for(const value of [new Date(entry.timestamp).toLocaleString(),entry.operation,entry.result]){const span=document.createElement('span');span.textContent=value;item.append(span);}list.append(item);}
+    for(const entry of entries){const item=document.createElement('li');const result=[entry.result,entry.details?.product,entry.details?.traceId].filter(Boolean).join(' · ');for(const value of [new Date(entry.timestamp).toLocaleString(),entry.operation,result]){const span=document.createElement('span');span.textContent=value;item.append(span);}list.append(item);}
   }catch{status('审计记录读取失败');}
 }
 
@@ -226,6 +241,8 @@ $('#llm-routing-form').addEventListener('submit',async(event)=>{event.preventDef
 $('#test-services').addEventListener('click',async()=>{try{status('正在测试上游连接…');const result=await api('test-connection',{method:'POST',body:{}});status(result.status==='ok'?'连接正常':`连接结果：${result.status}`);}catch{status('连接测试失败');}});
 
 $('#runtime-form').addEventListener('submit',async(event)=>{event.preventDefault();const settings={};for(const control of event.currentTarget.elements){if(!control.name)continue;settings[control.name]=control.type==='checkbox'?control.checked:Number(control.value);}try{renderConfig(await api('config',{method:'PUT',body:{settings}}));status('运行设置已生效');}catch{status('设置超出允许范围');}});
+$('#refresh-seven-timer').addEventListener('click',async()=>{const button=$('#refresh-seven-timer');button.disabled=true;try{await loadSevenTimerHealth();status('7Timer 健康状态已刷新');}catch{status('7Timer 健康状态读取失败');}finally{button.disabled=false;}});
+$('#test-seven-timer').addEventListener('click',async()=>{const button=$('#test-seven-timer');button.disabled=true;const product=$('#seven-timer-test-product').value;try{const result=await api('services/7timer/test',{method:'POST',body:{product,latitude:Number($('#seven-timer-test-latitude').value),longitude:Number($('#seven-timer-test-longitude').value)}});status(`${product.toUpperCase()} 检测成功：${result.pointCount} 点 · Trace ID ${result.traceId}`);await loadSevenTimerHealth();}catch(error){status(`${product.toUpperCase()} 检测失败：${error.message}；可在健康面板查看 Trace ID`);await loadSevenTimerHealth().catch(()=>{});}finally{button.disabled=false;}});
 
 $('#outbound-network-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const mode=form.elements.mode.value;const label=mode==='mihomo'?'经 mihomo':'直连';if(!window.confirm(`确认将整个后端的外网 HTTP(S) 切换为「${label}」？四个应用容器会短暂重建，数据库和缓存不会清除。`))return;const button=event.submitter;button.disabled=true;try{await api('outbound-network',{method:'PUT',body:{mode}});$('#outbound-network-message').textContent='网络方式已提交，正在重建应用容器…';setTimeout(()=>loadConfig().catch(()=>{$('#outbound-network-message').textContent='状态刷新失败，请稍后刷新页面确认。';}),8000);}catch{ $('#outbound-network-message').textContent='切换未被接受；当前网络方式没有改变。';}finally{setTimeout(()=>{button.disabled=false;},8000);}});
 

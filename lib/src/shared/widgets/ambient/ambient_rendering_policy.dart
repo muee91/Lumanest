@@ -1,4 +1,5 @@
 import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_field_parameters.dart';
 
 enum AmbientRenderer { fragment, reducedFragment, staticField }
 
@@ -8,6 +9,7 @@ class AmbientRendering {
     required this.reduceFlashing,
     required this.showWeatherTexture,
     required this.renderer,
+    this.quality = AmbientQualityTier.balanced,
     this.intensity = 1.0,
   });
 
@@ -15,6 +17,7 @@ class AmbientRendering {
   final bool reduceFlashing;
   final bool showWeatherTexture;
   final AmbientRenderer renderer;
+  final AmbientQualityTier quality;
 
   /// Page-level ambient strength (0.0 = static, 1.0 = full).
   final double intensity;
@@ -33,6 +36,7 @@ abstract final class AmbientRenderingPolicy {
         reduceFlashing: true,
         showWeatherTexture: true,
         renderer: AmbientRenderer.reducedFragment,
+        quality: AmbientQualityTier.reduced,
         intensity: intensity,
       ),
       AmbientMotionMode.full => AmbientRendering(
@@ -42,6 +46,9 @@ abstract final class AmbientRenderingPolicy {
         renderer: preferences.reduceMotion
             ? AmbientRenderer.reducedFragment
             : AmbientRenderer.fragment,
+        quality: preferences.reduceMotion
+            ? AmbientQualityTier.reduced
+            : AmbientQualityTier.balanced,
         intensity: intensity,
       ),
       AmbientMotionMode.energySaver => AmbientRendering(
@@ -49,6 +56,7 @@ abstract final class AmbientRenderingPolicy {
         reduceFlashing: true,
         showWeatherTexture: true,
         renderer: AmbientRenderer.reducedFragment,
+        quality: AmbientQualityTier.reduced,
         intensity: intensity,
       ),
       AmbientMotionMode.staticColor => AmbientRendering(
@@ -56,6 +64,7 @@ abstract final class AmbientRenderingPolicy {
         reduceFlashing: true,
         showWeatherTexture: false,
         renderer: AmbientRenderer.staticField,
+        quality: AmbientQualityTier.static,
         intensity: intensity,
       ),
     };

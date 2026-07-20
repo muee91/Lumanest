@@ -3,6 +3,7 @@ import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 
@@ -16,6 +17,53 @@ void main() {
     expect(factual.displayLabel, '湖岸晚光🌇');
     expect(factual.evidence, contains('风速 2.1m/s'));
     expect(factual.opportunityId, snapshot.shootingSessions.single.id);
+  });
+
+  test('generic shooting sessions degrade to a safe local paper', () {
+    final now = DateTime.utc(2026, 7, 19, 10);
+    final session = ShootingSession(
+      id: 'session_general_evening_0123456789',
+      kind: ShootingSessionKind.generalEvening,
+      title: '晚间光线窗口',
+      startsAt: now.add(const Duration(hours: 2)),
+      endsAt: now.add(const Duration(hours: 3)),
+      primaryPhase: ShootingPhaseKind.sunset,
+      conditionBand: ShootingConditionBand.fair,
+      confidenceBand: ShootingConfidenceBand.medium,
+      trend: ShootingTrend.stable,
+      phases: [
+        ShootingSessionPhase(
+          kind: ShootingPhaseKind.sunset,
+          startsAt: now.add(const Duration(hours: 2)),
+          peaksAt: now.add(const Duration(hours: 2, minutes: 20)),
+          endsAt: now.add(const Duration(hours: 2, minutes: 40)),
+          conditionBand: ShootingConditionBand.fair,
+          directionDegrees: 270,
+        ),
+      ],
+      factors: const [],
+      trendSamples: const [],
+      targetCandidates: const [],
+      ruleVersion: 'general-evening.1',
+      expiresAt: now.add(const Duration(hours: 2, minutes: 15)),
+    );
+    final snapshot = ContextSnapshot(
+      id: 'generic-session-fixture',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 30)),
+      primaryScene: SceneType.village,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.clear,
+      activeRoute: false,
+      shootingSessions: [session],
+    );
+
+    final factual = InspirationNotes.build(
+      snapshot,
+    ).where((note) => note.isFactual).single;
+
+    expect(factual.label, '晚间光线');
+    expect(factual.emoji, '🌇');
   });
 
   test('validated narrative can refine wording but cannot create facts', () {

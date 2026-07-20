@@ -3,7 +3,10 @@ const missionTypes = new Set([
   'routeConditions', 'openingAndClosure', 'seasonalSignals',
 ]);
 const publicRequestKeys = new Set([
-  'missionType', 'focus', 'locale', 'region', 'timeRange', 'routeCorridor', 'interests',
+  'activationType', 'missionType', 'focus', 'locale', 'region', 'timeRange', 'routeCorridor', 'interests',
+]);
+const activationTypes = new Set([
+  'user_manual', 'foreground_opportunistic', 'ai_verification', 'admin_backfill',
 ]);
 const responseKeys = new Set([
   'missionType', 'status', 'generatedAt', 'expiresAt', 'retryAfterSeconds', 'items',
@@ -76,7 +79,8 @@ function validUrl(value) {
 }
 
 export function validDiscoveryRequest(body) {
-  return exactKeys(body, publicRequestKeys) && missionTypes.has(body.missionType) &&
+  return exactKeys(body, publicRequestKeys) && activationTypes.has(body.activationType) &&
+    missionTypes.has(body.missionType) &&
     validString(body.focus, 180) && validString(body.locale, 16) &&
     /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/.test(body.locale) &&
     validRegion(body.region) && validTimeRange(body.timeRange) &&

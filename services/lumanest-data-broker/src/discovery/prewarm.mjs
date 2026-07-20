@@ -1,0 +1,95 @@
+import { resolveSkyOpportunityCity } from '../domain/sky_opportunity/sky_opportunity_city_resolver.mjs';
+import { forwardDiscovery } from './proxy.mjs';
+
+const defaultRadiusMeters = 15_000;
+const maximumRadiusMeters = 30_000;
+
+function validCoordinate(value) {
+  return value != null && typeof value === 'object' && value.system === 'wgs84' &&
+    typeof value.latitude === 'number' && Number.isFinite(value.latitude) &&
+    typeof value.longitude === 'number' && Number.isFinite(value.longitude) &&
+    value.latitude >= -90 && value.latitude <= 90 &&
+    value.longitude >= -180 && value.longitude <= 180;
+}
+
+function enabledPolicies(value) {
+  return Array.isArray(value) && value.some((policy) => policy?.enabled);
+}
+
+export function nearbyPrewarmRequest({ coordinate, locale, city, now = new Date(), radiusMeters = defaultRadiusMeters }) {
+  if (!validCoordinate(coordinate) || !['zh-CN', 'en'].includes(locale) ||
+      typeof city !== 'string' || city.trim().length === 0 || !Number.isFinite(now.getTime())) return null;
+  const radius = Math.min(maximumRadiusMeters, Math.max(100, Math.round(radiusMeters)));
+  const startsAt = now.toISOString();
+  const endsAt = new Date(now.getTime() + 24 * 60 * 60 * 1_000).toISOString();
+  const placeName = city.trim().slice(0, 80);
+  return Object.freeze({
+    activationType: 'foreground_opportunistic',
+    missionType: 'popularPlaces',
+    // City is resolved transiently by the Broker. The Discovery service stores
+    // only its coarse grid centre in the queued job, never this input point.
+    focus: locale === 'zh-CN'
+      ? `${placeName}周边近期值得了解的摄影地点与观景地`
+      : `Recent photography places and viewpoints around ${placeName}`,
+    locale,
+    region: {
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      radiusMeters: radius,
+    },
+    timeRange: { startsAt, endsAt },
+    routeCorridor: null,
+    interests: ['photography'],
+  });
+}
+
+/**
+ * Starts a cache-first nearby discovery after a context refresh. This function
+ * is intentionally fire-and-forget at its call site: a failed or unavailable
+ * discovery provider must never delay the environment snapshot response.
+ */
+export async function prewarmNearbyDiscovery({
+  coordinate,
+  locale,
+  amapWebKey,
+  serviceUrl,
+  internalToken,
+  sourcePolicies,
+  fetcher = fetch,
+  timeoutMs = 8_000,
+  now = () => new Date(),
+  radiusMeters = defaultRadiusMeters,
+  enabled = true,
+  searchEnabled = true,
+}) {
+  if (!enabled || !searchEnabled || !validCoordinate(coordinate) || !enabledPolicies(sourcePolicies) || !serviceUrl || !internalToken) {
+    return { queued: false, reason: 'not_configured' };
+  }
+  const city = await resolveSkyOpportunityCity({
+    latitude: coordinate.latitude,
+    longitude: coordinate.longitude,
+    amapWebKey,
+    fetcher,
+    timeoutMs: Math.min(timeoutMs, 5_000),
+  });
+  if (!city.ok || !city.requestedCity) return { queued: false, reason: 'city_unavailable' };
+  const body = nearbyPrewarmRequest({
+    coordinate,
+    locale,
+    city: city.requestedCity,
+    now: now(),
+    radiusMeters,
+  });
+  if (body == null) return { queued: false, reason: 'invalid_request' };
+  const result = await forwardDiscovery({
+    body,
+    serviceUrl,
+    internalToken,
+    sourcePolicies,
+    fetcher,
+    timeoutMs,
+  });
+  return result.ok
+    ? { queued: result.body.status !== 'ready', status: result.body.status }
+    : { queued: false, reason: result.error };
+}

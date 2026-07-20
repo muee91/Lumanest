@@ -5,7 +5,14 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 class ApiModel(BaseModel):
@@ -110,31 +117,52 @@ class WeatherInput(ApiModel):
     visibility_km: float = Field(ge=0, le=500, alias="visibilityKm")
     thunder: bool = False
     stale: bool = False
-    temperature_celsius: float | None = Field(None, ge=-100, le=100, alias="temperatureCelsius")
+    temperature_celsius: float | None = Field(
+        None, ge=-100, le=100, alias="temperatureCelsius"
+    )
     wind_direction_degrees: float | None = Field(
         None, ge=0, lt=360, alias="windDirectionDegrees"
     )
-    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    cloud_cover_percent: float | None = Field(
+        None, ge=0, le=100, alias="cloudCoverPercent"
+    )
     air_quality_index: int | None = Field(None, ge=0, le=500, alias="airQualityIndex")
-    air_quality_category: str | None = Field(None, min_length=1, max_length=40, alias="airQualityCategory")
-    primary_pollutant: str | None = Field(None, min_length=1, max_length=40, alias="primaryPollutant")
+    air_quality_category: str | None = Field(
+        None, min_length=1, max_length=40, alias="airQualityCategory"
+    )
+    primary_pollutant: str | None = Field(
+        None, min_length=1, max_length=40, alias="primaryPollutant"
+    )
     air_quality_observed_at: datetime | None = Field(None, alias="airQualityObservedAt")
     air_quality_stale: bool = Field(True, alias="airQualityStale")
 
     @model_validator(mode="after")
     def require_complete_air_quality(self) -> "WeatherInput":
         if self.air_quality_index is None:
-            if any((self.air_quality_category, self.primary_pollutant, self.air_quality_observed_at)):
+            if any(
+                (
+                    self.air_quality_category,
+                    self.primary_pollutant,
+                    self.air_quality_observed_at,
+                )
+            ):
                 raise ValueError("air quality metadata requires an AQI")
             return self
-        if self.air_quality_observed_at is None or self.air_quality_observed_at.tzinfo is None:
+        if (
+            self.air_quality_observed_at is None
+            or self.air_quality_observed_at.tzinfo is None
+        ):
             raise ValueError("AQI requires a timezone-aware observation time")
         return self
 
 
 class SolarInput(ApiModel):
-    day_phase: Literal["dawn", "day", "sunset", "blueHour", "night"] = Field(alias="dayPhase")
-    elevation_degrees: float | None = Field(None, ge=-90, le=90, alias="elevationDegrees")
+    day_phase: Literal["dawn", "day", "sunset", "blueHour", "night"] = Field(
+        alias="dayPhase"
+    )
+    elevation_degrees: float | None = Field(
+        None, ge=-90, le=90, alias="elevationDegrees"
+    )
     azimuth_degrees: float | None = Field(None, ge=0, lt=360, alias="azimuthDegrees")
 
 
@@ -183,7 +211,9 @@ class RouteInput(ApiModel):
             progress = [item.progress for item in self.corridor_samples]
             moments = [item.expected_at for item in self.corridor_samples]
             if progress != sorted(progress) or moments != sorted(moments):
-                raise ValueError("corridor samples must be ordered by progress and expectedAt")
+                raise ValueError(
+                    "corridor samples must be ordered by progress and expectedAt"
+                )
         return self
 
 
@@ -196,7 +226,7 @@ class WeatherForecastInput(ApiModel):
         None, ge=0, le=150, alias="nextThreeHoursMaxWindSpeedMps"
     )
     thunder_next_three_hours: bool = Field(False, alias="thunderNextThreeHours")
-    # V4 needs enough coverage to reach the next local evening even when the
+    # The current contract needs enough coverage to reach the next local evening even when the
     # app is opened early in the day. Older contracts remain valid with fewer
     # samples.
     hourly: list["HourlyForecastInput"] = Field(default_factory=list, max_length=24)
@@ -212,7 +242,9 @@ class WeatherForecastInput(ApiModel):
 class HourlyForecastInput(ApiModel):
     at: datetime
     condition: Literal["clear", "cloudy", "rain", "snow", "dust", "unknown"]
-    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    cloud_cover_percent: float | None = Field(
+        None, ge=0, le=100, alias="cloudCoverPercent"
+    )
     wind_speed_mps: float = Field(ge=0, le=150, alias="windSpeedMps")
     precipitation_mm: float = Field(ge=0, le=2000, alias="precipitationMm")
     visibility_km: float | None = Field(None, ge=0, le=500, alias="visibilityKm")
@@ -248,11 +280,13 @@ class OfficialWarningInput(ApiModel):
 
 
 class SnapshotRequest(ApiModel):
-    contract_version: Literal[4] = Field(alias="contractVersion")
+    contract_version: Literal[5] = Field(alias="contractVersion")
     coordinate: Coordinate
     observed_at: datetime = Field(alias="observedAt")
     locale: Literal["zh-CN", "en"] = "zh-CN"
-    intent: Literal["photography", "food", "supplies", "fuel", "wildlife"] = "photography"
+    intent: Literal["photography", "food", "supplies", "fuel", "wildlife"] = (
+        "photography"
+    )
     route: RouteInput = RouteInput()
     evidence: SceneEvidence = SceneEvidence()
     weather: WeatherInput
@@ -282,9 +316,15 @@ class ContextEvent(ApiModel):
     geo_scope: Literal["point", "region", "route"] = Field(alias="geoScope")
     severity: Literal["info", "caution", "warning", "critical"] = "info"
     allowed_action: Literal[
-        "openShootingWindow", "openExplore", "openRoute", "openPlaceDetail",
-        "openAstronomyDetail", "openWildlifeDetail", "openSafetyDetail",
-        "openCreativeDetail", "dismiss",
+        "openShootingWindow",
+        "openExplore",
+        "openRoute",
+        "openPlaceDetail",
+        "openAstronomyDetail",
+        "openWildlifeDetail",
+        "openSafetyDetail",
+        "openCreativeDetail",
+        "dismiss",
     ] = Field(alias="allowedAction")
     title: str | None = Field(None, min_length=1, max_length=80)
     source_url: HttpUrl | None = Field(None, alias="sourceUrl", max_length=500)
@@ -292,8 +332,14 @@ class ContextEvent(ApiModel):
     @model_validator(mode="after")
     def require_authority_metadata_only_for_authority_action(self) -> "ContextEvent":
         if self.source == "astronomyCatalog":
-            if self.allowed_action != "openAstronomyDetail" or self.title is None or self.source_url is None:
-                raise ValueError("astronomy catalog events require title, URL and astronomy action")
+            if (
+                self.allowed_action != "openAstronomyDetail"
+                or self.title is None
+                or self.source_url is None
+            ):
+                raise ValueError(
+                    "astronomy catalog events require title, URL and astronomy action"
+                )
         elif self.source_url is not None:
             raise ValueError("sourceUrl is only allowed for astronomy catalog events")
         return self
@@ -302,7 +348,9 @@ class ContextEvent(ApiModel):
 class Manifest(ApiModel):
     layout_mode: Literal["quiet", "opportunity", "safety"] = Field(alias="layoutMode")
     primary_event_id: str | None = Field(None, alias="primaryEventId")
-    secondary_event_ids: list[str] = Field(default_factory=list, alias="secondaryEventIds", max_length=2)
+    secondary_event_ids: list[str] = Field(
+        default_factory=list, alias="secondaryEventIds", max_length=2
+    )
     safety_event_ids: list[str] = Field(default_factory=list, alias="safetyEventIds")
 
 
@@ -322,14 +370,20 @@ class WeatherState(ApiModel):
     cloud_cover_percent: float | None = Field(None, alias="cloudCoverPercent")
     thunder: bool
     air_quality_index: int | None = Field(None, ge=0, le=500, alias="airQualityIndex")
-    air_quality_category: str | None = Field(None, min_length=1, max_length=40, alias="airQualityCategory")
-    primary_pollutant: str | None = Field(None, min_length=1, max_length=40, alias="primaryPollutant")
+    air_quality_category: str | None = Field(
+        None, min_length=1, max_length=40, alias="airQualityCategory"
+    )
+    primary_pollutant: str | None = Field(
+        None, min_length=1, max_length=40, alias="primaryPollutant"
+    )
     air_quality_observed_at: datetime | None = Field(None, alias="airQualityObservedAt")
     air_quality_stale: bool = Field(True, alias="airQualityStale")
 
 
 class SunMoonState(ApiModel):
-    day_phase: Literal["dawn", "day", "sunset", "blueHour", "night"] = Field(alias="dayPhase")
+    day_phase: Literal["dawn", "day", "sunset", "blueHour", "night"] = Field(
+        alias="dayPhase"
+    )
     sun_elevation_degrees: float | None = Field(None, alias="sunElevationDegrees")
     sun_azimuth_degrees: float | None = Field(None, alias="sunAzimuthDegrees")
     moon_phase: Literal[
@@ -362,7 +416,7 @@ class RouteState(ApiModel):
 
 
 class SnapshotResponse(ApiModel):
-    contract_version: Literal[4] = Field(4, alias="contractVersion")
+    contract_version: Literal[5] = Field(5, alias="contractVersion")
     context_id: str = Field(alias="contextId")
     generated_at: datetime = Field(alias="generatedAt")
     expires_at: datetime = Field(alias="expiresAt")
@@ -376,9 +430,15 @@ class SnapshotResponse(ApiModel):
     events: list[ContextEvent]
     allowed_actions: list[
         Literal[
-            "openShootingWindow", "openExplore", "openRoute", "openPlaceDetail",
-            "openAstronomyDetail", "openWildlifeDetail", "openSafetyDetail",
-            "openCreativeDetail", "dismiss",
+            "openShootingWindow",
+            "openExplore",
+            "openRoute",
+            "openPlaceDetail",
+            "openAstronomyDetail",
+            "openWildlifeDetail",
+            "openSafetyDetail",
+            "openCreativeDetail",
+            "dismiss",
         ]
     ] = Field(alias="allowedActions")
     manifest: Manifest
@@ -389,6 +449,139 @@ class SnapshotResponse(ApiModel):
     shooting_sessions: list["ShootingSession"] = Field(
         default_factory=list, max_length=2, alias="shootingSessions"
     )
+
+
+class V5EntryAction(ApiModel):
+    type: Literal[
+        "openShootingWindow",
+        "openExplore",
+        "openRoute",
+        "openPlaceDetail",
+        "openAstronomyDetail",
+        "openWildlifeDetail",
+        "openSafetyDetail",
+        "openCreativeDetail",
+        "dismiss",
+    ]
+    target_id: str | None = Field(None, alias="targetId")
+    query: str | None = None
+
+
+class V5EntryPayload(ApiModel):
+    type: Literal["safety", "opportunity", "system"]
+    event_id: str | None = Field(None, alias="eventId")
+    definition_id: str | None = Field(None, alias="definitionId")
+    instance_id: str | None = Field(None, alias="instanceId")
+    session_id: str | None = Field(None, alias="sessionId")
+
+
+class V5EntryPresentation(ApiModel):
+    variant: Literal[
+        "safety",
+        "shootingSession",
+        "skyOpportunity",
+        "manifestOpportunity",
+        "quiet",
+    ]
+    title: str = Field(min_length=1, max_length=120)
+    short_label: str | None = Field(None, alias="shortLabel")
+    fallback_summary: str | None = Field(None, alias="fallbackSummary")
+
+
+class V5EntryProvenance(ApiModel):
+    source_id: str = Field(alias="sourceId", min_length=1, max_length=120)
+    observed_at: datetime = Field(alias="observedAt")
+    source_url: HttpUrl | None = Field(None, alias="sourceUrl")
+
+
+class V5ContextEntry(ApiModel):
+    id: str = Field(pattern=r"^entry_[a-zA-Z0-9_-]{1,120}$")
+    kind: Literal[
+        "safety",
+        "photographyOpportunity",
+        "place",
+        "route",
+        "astronomy",
+        "inspiration",
+        "system",
+    ]
+    source_namespace: str = Field(alias="sourceNamespace", min_length=1, max_length=80)
+    source_id: str = Field(alias="sourceId", min_length=1, max_length=160)
+    revision: int = Field(ge=1)
+    observed_at: datetime = Field(alias="observedAt")
+    valid_from: datetime = Field(alias="validFrom")
+    expires_at: datetime = Field(alias="expiresAt")
+    freshness: Literal["fresh", "stale", "expired"]
+    evidence_confidence: float = Field(alias="evidenceConfidence", ge=0, le=1)
+    base_priority: Literal["p0", "p1", "p2", "p3"] = Field(alias="basePriority")
+    severity: Literal["info", "caution", "warning", "critical"]
+    geo_scope: Literal["point", "region", "route"] = Field(alias="geoScope")
+    allowed_surfaces: list[
+        Literal[
+            "today",
+            "explore",
+            "route",
+            "inspiration",
+            "profile",
+            "shootingWindow",
+            "widget",
+            "notification",
+        ]
+    ] = Field(alias="allowedSurfaces", min_length=1)
+    actions: list[V5EntryAction] = Field(min_length=1, max_length=3)
+    presentation: V5EntryPresentation
+    payload: V5EntryPayload
+    provenance: list[V5EntryProvenance] = Field(min_length=1, max_length=8)
+    dedupe_key: str = Field(alias="dedupeKey", min_length=1, max_length=200)
+    suppression_keys: list[str] = Field(
+        default_factory=list, alias="suppressionKeys", max_length=8
+    )
+    content_fingerprint: str = Field(
+        alias="contentFingerprint", pattern=r"^sha256:[a-f0-9]{64}$"
+    )
+
+
+class V5Environment(ApiModel):
+    scene: SceneType
+    data_freshness: DataFreshness = Field(alias="dataFreshness")
+    weather: WeatherState
+    sun_moon: SunMoonState = Field(alias="sunMoon")
+    route: RouteState
+    scene_context: CompositeSceneContext = Field(alias="sceneContext")
+    allowed_actions: list[
+        Literal[
+            "openShootingWindow",
+            "openExplore",
+            "openRoute",
+            "openPlaceDetail",
+            "openAstronomyDetail",
+            "openWildlifeDetail",
+            "openSafetyDetail",
+            "openCreativeDetail",
+            "dismiss",
+        ]
+    ] = Field(alias="allowedActions")
+
+
+class V5Facts(ApiModel):
+    events: list[ContextEvent]
+    shooting_sessions: list["ShootingSession"] = Field(
+        default_factory=list, max_length=2, alias="shootingSessions"
+    )
+
+
+class V5SnapshotResponse(ApiModel):
+    contract_version: Literal[5] = Field(5, alias="contractVersion")
+    context_id: str = Field(alias="contextId")
+    snapshot_revision: int = Field(alias="snapshotRevision", ge=1)
+    generated_at: datetime = Field(alias="generatedAt")
+    expires_at: datetime = Field(alias="expiresAt")
+    source_revisions: dict[str, int] = Field(alias="sourceRevisions")
+    stale: bool
+    environment: V5Environment
+    facts: V5Facts
+    entries: list[V5ContextEntry] = Field(max_length=64)
+    refresh_hints: dict[str, str] = Field(alias="refreshHints")
 
 
 class PhotographyTarget(ApiModel):
@@ -413,7 +606,7 @@ class PhotographyTarget(ApiModel):
 
 
 class ShootingTarget(ApiModel):
-    """A reviewed target that is eligible for a V4 shooting session."""
+    """A reviewed target that is eligible for a current shooting session."""
 
     id: str = Field(pattern=r"^target_[a-f0-9]{24}$")
     name: str = Field(min_length=1, max_length=200)
@@ -432,12 +625,20 @@ class ShootingTarget(ApiModel):
     lead_time_minutes: int = Field(ge=0, le=180, alias="leadTimeMinutes")
     arrival_radius_meters: int = Field(ge=25, le=1000, alias="arrivalRadiusMeters")
     shoreline_side: Literal[
-        "north", "northeast", "east", "southeast",
-        "south", "southwest", "west", "northwest",
+        "north",
+        "northeast",
+        "east",
+        "southeast",
+        "south",
+        "southwest",
+        "west",
+        "northwest",
     ] = Field(alias="shorelineSide")
     reviewed_at: datetime = Field(alias="reviewedAt")
     review_reference: HttpUrl = Field(alias="reviewReference", max_length=500)
-    source_attribution: str = Field(min_length=1, max_length=500, alias="sourceAttribution")
+    source_attribution: str = Field(
+        min_length=1, max_length=500, alias="sourceAttribution"
+    )
     source_license: str = Field(min_length=1, max_length=100, alias="sourceLicense")
     source_url: HttpUrl = Field(alias="sourceUrl", max_length=500)
 
@@ -468,9 +669,7 @@ class ShootingSessionFeedbackRequest(ApiModel):
     rule_version: str = Field(pattern=r"^[a-z0-9._-]{1,32}$", alias="ruleVersion")
     condition_band: Literal["good", "fair", "limited"] = Field(alias="conditionBand")
     factors: list[ShootingFeedbackFactor] = Field(min_length=1, max_length=8)
-    outcome: Literal[
-        "captured", "conditionsDidNotAppear", "arrivedLate", "didNotGo"
-    ]
+    outcome: Literal["captured", "conditionsDidNotAppear", "arrivedLate", "didNotGo"]
     reasons: list[Literal["wind", "cloud", "precipitation", "target"]] = Field(
         default_factory=list, max_length=4
     )
@@ -494,6 +693,7 @@ class ShootingSessionFeedbackRequest(ApiModel):
             raise ValueError("feedback reasons must be unique")
         return value
 
+
 class ShootingSessionFeedbackReceipt(ApiModel):
     accepted: Literal[True] = True
 
@@ -501,8 +701,12 @@ class ShootingSessionFeedbackReceipt(ApiModel):
 class ShootingFeedbackCalibrationRow(ApiModel):
     rule_version: str = Field(alias="ruleVersion")
     condition_band: Literal["good", "fair", "limited"] = Field(alias="conditionBand")
-    factor_id: Literal["cloud", "wind", "precipitation", "visibility", "dataCoverage"] = Field(alias="factorId")
-    factor_effect: Literal["supporting", "neutral", "limiting"] = Field(alias="factorEffect")
+    factor_id: Literal[
+        "cloud", "wind", "precipitation", "visibility", "dataCoverage"
+    ] = Field(alias="factorId")
+    factor_effect: Literal["supporting", "neutral", "limiting"] = Field(
+        alias="factorEffect"
+    )
     evaluated_count: int = Field(ge=1, alias="evaluatedCount")
     captured_count: int = Field(ge=0, alias="capturedCount")
     conditions_did_not_appear_count: int = Field(
@@ -529,17 +733,33 @@ class ShootingSessionFactor(ApiModel):
 class ShootingSessionTrendSample(ApiModel):
     at: datetime
     condition_index: int = Field(ge=0, le=100, alias="conditionIndex")
-    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    cloud_cover_percent: float | None = Field(
+        None, ge=0, le=100, alias="cloudCoverPercent"
+    )
     wind_speed_mps: float = Field(ge=0, le=150, alias="windSpeedMps")
     precipitation_mm: float = Field(ge=0, le=2000, alias="precipitationMm")
 
 
 class ShootingSessionPhase(ApiModel):
     kind: Literal[
-        "morningBlueHour", "sunrise", "morningMist", "reflection", "warmLight",
-        "sunset", "blueHour", "artificialLights", "rainEnding", "wetReflection",
-        "desertSideLight", "texture", "approach", "safeStop", "shoot",
-        "rejoinRoute", "returnWindow", "sessionEnd",
+        "morningBlueHour",
+        "sunrise",
+        "morningMist",
+        "reflection",
+        "warmLight",
+        "sunset",
+        "blueHour",
+        "artificialLights",
+        "rainEnding",
+        "wetReflection",
+        "desertSideLight",
+        "texture",
+        "approach",
+        "safeStop",
+        "shoot",
+        "rejoinRoute",
+        "returnWindow",
+        "sessionEnd",
     ]
     start_at: datetime = Field(alias="startAt")
     peak_at: datetime = Field(alias="peakAt")
@@ -557,20 +777,44 @@ class ShootingSessionPhase(ApiModel):
 class ShootingSession(ApiModel):
     id: str = Field(pattern=r"^session_[a-f0-9]{24}$")
     kind: Literal[
-        "waterMorning", "waterEvening", "mountainMorning", "mountainEvening",
-        "cityBlueHour", "cityAfterRain", "desertSideLight", "routeLightWindow",
+        "generalMorning",
+        "generalEvening",
+        "waterMorning",
+        "waterEvening",
+        "mountainMorning",
+        "mountainEvening",
+        "cityBlueHour",
+        "cityAfterRain",
+        "desertSideLight",
+        "routeLightWindow",
     ]
     title: str = Field(min_length=1, max_length=80)
     start_at: datetime = Field(alias="startAt")
     end_at: datetime = Field(alias="endAt")
     primary_phase: Literal[
-        "morningBlueHour", "sunrise", "morningMist", "reflection", "warmLight",
-        "sunset", "blueHour", "artificialLights", "rainEnding", "wetReflection",
-        "desertSideLight", "texture", "approach", "safeStop", "shoot",
-        "rejoinRoute", "returnWindow", "sessionEnd",
+        "morningBlueHour",
+        "sunrise",
+        "morningMist",
+        "reflection",
+        "warmLight",
+        "sunset",
+        "blueHour",
+        "artificialLights",
+        "rainEnding",
+        "wetReflection",
+        "desertSideLight",
+        "texture",
+        "approach",
+        "safeStop",
+        "shoot",
+        "rejoinRoute",
+        "returnWindow",
+        "sessionEnd",
     ] = Field(alias="primaryPhase")
     condition_band: Literal["good", "fair", "limited"] = Field(alias="conditionBand")
-    confidence_band: Literal["high", "medium", "limited"] = Field(alias="confidenceBand")
+    confidence_band: Literal["high", "medium", "limited"] = Field(
+        alias="confidenceBand"
+    )
     trend: Literal["improving", "stable", "weakening"]
     phases: list[ShootingSessionPhase] = Field(min_length=1, max_length=5)
     factors: list[ShootingSessionFactor] = Field(min_length=1, max_length=8)
@@ -606,11 +850,15 @@ class PhotographyCorridorObservation(ApiModel):
     progress: float = Field(ge=0, le=1)
     expected_at: datetime = Field(alias="expectedAt")
     condition: Literal["clear", "cloudy", "rain", "snow", "dust", "unknown"]
-    cloud_cover_percent: float | None = Field(None, ge=0, le=100, alias="cloudCoverPercent")
+    cloud_cover_percent: float | None = Field(
+        None, ge=0, le=100, alias="cloudCoverPercent"
+    )
     wind_speed_mps: float = Field(ge=0, le=150, alias="windSpeedMps")
     precipitation_mm: float = Field(ge=0, le=500, alias="precipitationMm")
     thunder: bool
-    sun_azimuth_degrees: float | None = Field(None, ge=0, lt=360, alias="sunAzimuthDegrees")
+    sun_azimuth_degrees: float | None = Field(
+        None, ge=0, lt=360, alias="sunAzimuthDegrees"
+    )
     opportunity_id: str | None = Field(
         None, alias="opportunityId", pattern=r"^photo-[a-z0-9_-]{1,58}$"
     )
@@ -642,7 +890,9 @@ class SourceStatus(ApiModel):
         alias="datasetType"
     )
     enabled: bool
-    license_status: Literal["approved", "pending", "disabled"] = Field(alias="licenseStatus")
+    license_status: Literal["approved", "pending", "disabled"] = Field(
+        alias="licenseStatus"
+    )
     attribution: str
     version: str
     license_id: str | None = Field(None, alias="licenseId")
@@ -654,10 +904,14 @@ class SourceStatus(ApiModel):
 class ImportSource(ApiModel):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
     enabled: bool = False
-    license_status: Literal["approved", "pending", "disabled"] = Field(alias="licenseStatus")
+    license_status: Literal["approved", "pending", "disabled"] = Field(
+        alias="licenseStatus"
+    )
     attribution: str = Field(min_length=1, max_length=500)
     version: str = Field(min_length=1, max_length=100)
-    license_id: str | None = Field(None, min_length=1, max_length=100, alias="licenseId")
+    license_id: str | None = Field(
+        None, min_length=1, max_length=100, alias="licenseId"
+    )
     source_url: HttpUrl | None = Field(None, alias="sourceUrl", max_length=500)
     license_url: HttpUrl | None = Field(None, alias="licenseUrl", max_length=500)
     category: Literal["spatial", "wildlifeHistorical", "officialRisk"] = "spatial"
@@ -681,7 +935,9 @@ class ImportSource(ApiModel):
 
 
 class SpatialFeatureProperties(ApiModel):
-    kind: Literal["urban", "water", "mountain", "arid", "settlement", "protected", "risk"]
+    kind: Literal[
+        "urban", "water", "mountain", "arid", "settlement", "protected", "risk"
+    ]
     name: str = Field(min_length=1, max_length=200)
     sensitivity: Literal["public", "sensitive"] = "public"
     evidence_class: Literal["scene", "wildlifeOpportunity", "wildlifeSafety"] = Field(
@@ -704,16 +960,23 @@ class SpatialFeatureProperties(ApiModel):
     access_modes: list[Literal["driving", "walking"]] = Field(
         default_factory=list, max_length=2, alias="accessModes"
     )
-    lead_time_minutes: int | None = Field(
-        None, ge=0, le=180, alias="leadTimeMinutes"
-    )
+    lead_time_minutes: int | None = Field(None, ge=0, le=180, alias="leadTimeMinutes")
     arrival_radius_meters: int | None = Field(
         None, ge=25, le=1000, alias="arrivalRadiusMeters"
     )
-    shoreline_side: Literal[
-        "north", "northeast", "east", "southeast",
-        "south", "southwest", "west", "northwest",
-    ] | None = Field(None, alias="shorelineSide")
+    shoreline_side: (
+        Literal[
+            "north",
+            "northeast",
+            "east",
+            "southeast",
+            "south",
+            "southwest",
+            "west",
+            "northwest",
+        ]
+        | None
+    ) = Field(None, alias="shorelineSide")
     reviewed_at: datetime | None = Field(None, alias="reviewedAt")
     review_reference: HttpUrl | None = Field(
         None, alias="reviewReference", max_length=500
@@ -742,9 +1005,13 @@ class SpatialFeatureProperties(ApiModel):
                 or not self.access_modes
                 or any(value is None for value in metadata[1:])
             ):
-                raise ValueError("shooting session targets require complete reviewed metadata")
+                raise ValueError(
+                    "shooting session targets require complete reviewed metadata"
+                )
             if self.reviewed_at is not None and self.reviewed_at.tzinfo is None:
-                raise ValueError("shooting session target reviewedAt must include a timezone")
+                raise ValueError(
+                    "shooting session target reviewedAt must include a timezone"
+                )
         elif any((self.supported_sessions, self.access_modes)) or any(
             value is not None
             for value in (
@@ -762,7 +1029,10 @@ class SpatialFeatureProperties(ApiModel):
             raise ValueError("supportedSessions must be unique")
         if len(self.access_modes) != len(set(self.access_modes)):
             raise ValueError("accessModes must be unique")
-        if self.review_reference is not None and self.review_reference.scheme != "https":
+        if (
+            self.review_reference is not None
+            and self.review_reference.scheme != "https"
+        ):
             raise ValueError("reviewReference must use https")
         return self
 
@@ -777,7 +1047,10 @@ class GeoJsonGeometry(ApiModel):
             return (
                 isinstance(value, list)
                 and len(value) >= 2
-                and all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value[:2])
+                and all(
+                    isinstance(item, (int, float)) and not isinstance(item, bool)
+                    for item in value[:2]
+                )
                 and all(math.isfinite(float(item)) for item in value[:2])
                 and -180 <= float(value[0]) <= 180
                 and -90 <= float(value[1]) <= 90
@@ -795,10 +1068,14 @@ class GeoJsonGeometry(ApiModel):
         if self.type == "Point":
             valid = position(self.coordinates)
         elif self.type == "Polygon":
-            valid = bool(self.coordinates) and all(ring(item) for item in self.coordinates)
+            valid = bool(self.coordinates) and all(
+                ring(item) for item in self.coordinates
+            )
         elif self.type == "MultiPolygon":
             valid = bool(self.coordinates) and all(
-                isinstance(polygon, list) and bool(polygon) and all(ring(item) for item in polygon)
+                isinstance(polygon, list)
+                and bool(polygon)
+                and all(ring(item) for item in polygon)
                 for polygon in self.coordinates
             )
         if not valid:
@@ -843,7 +1120,10 @@ class GeoJsonFeature(ApiModel):
         if self.properties.photography_target:
             if self.properties.sensitivity != "public":
                 raise ValueError("photography targets must be public")
-            if self.properties.evidence_class != "scene" or self.geometry.type != "Point":
+            if (
+                self.properties.evidence_class != "scene"
+                or self.geometry.type != "Point"
+            ):
                 raise ValueError("photography targets must be public scene points")
         if self.properties.sensitivity == "sensitive":
             if self.geometry.type == "Point":
@@ -864,8 +1144,12 @@ class GeoJsonFeature(ApiModel):
                         collect(item)
 
             collect(self.geometry.coordinates)
-            longitude_span = max(item[0] for item in positions) - min(item[0] for item in positions)
-            latitude_span = max(item[1] for item in positions) - min(item[1] for item in positions)
+            longitude_span = max(item[0] for item in positions) - min(
+                item[0] for item in positions
+            )
+            latitude_span = max(item[1] for item in positions) - min(
+                item[1] for item in positions
+            )
             if longitude_span < 0.01 or latitude_span < 0.01:
                 raise ValueError("sensitive feature polygon is too precise")
         return self
@@ -896,9 +1180,13 @@ class SpatialFeaturesImport(ApiModel):
                 raise ValueError("scene features require a spatial source")
             if evidence == "wildlifeOpportunity":
                 if self.source.category != "wildlifeHistorical":
-                    raise ValueError("wildlife opportunities require a historical wildlife source")
+                    raise ValueError(
+                        "wildlife opportunities require a historical wildlife source"
+                    )
                 if feature.properties.kind != "protected":
-                    raise ValueError("wildlife opportunities require a reviewed observation area")
+                    raise ValueError(
+                        "wildlife opportunities require a reviewed observation area"
+                    )
             if evidence == "wildlifeSafety":
                 if self.source.category != "officialRisk":
                     raise ValueError("wildlife safety requires an official risk source")
@@ -918,8 +1206,8 @@ class SpatialFeaturesImport(ApiModel):
 
 class AstronomyEventImport(ApiModel):
     id: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$")
-    event_type: Literal["solarEclipse", "lunarEclipse", "meteorShower", "comet"] = Field(
-        alias="eventType"
+    event_type: Literal["solarEclipse", "lunarEclipse", "meteorShower", "comet"] = (
+        Field(alias="eventType")
     )
     starts_at: datetime = Field(alias="startsAt")
     ends_at: datetime = Field(alias="endsAt")
@@ -958,7 +1246,9 @@ ContextImportRequest = Annotated[
 
 class ContextImportResult(ApiModel):
     source_id: str = Field(alias="sourceId")
-    dataset_type: Literal["spatialFeatures", "astronomyEvents"] = Field(alias="datasetType")
+    dataset_type: Literal["spatialFeatures", "astronomyEvents"] = Field(
+        alias="datasetType"
+    )
     imported_count: int = Field(ge=0, alias="importedCount")
     enabled: bool
     cache_invalidated: bool = Field(alias="cacheInvalidated")

@@ -134,7 +134,7 @@ services:
   discovery-worker:
     build:
       context: ../lumanest-discovery-service
-      dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
+      dockerfile: ${DISCOVERY_WORKER_DOCKERFILE:-Dockerfile.crawler}
       args:
         DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
     container_name: lumanest-discovery-worker
@@ -144,11 +144,16 @@ services:
       REDIS_URL: redis://redis:6379/0
       DISCOVERY_BROKER_URL: http://qweather-token-broker:8787
       DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
+      DISCOVERY_CRAWLER_ENABLED: ${DISCOVERY_CRAWLER_ENABLED:-true}
+      DISCOVERY_CRAWLER_TIMEOUT_MS: ${DISCOVERY_CRAWLER_TIMEOUT_MS:-12000}
       LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
       HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
       HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
       NO_PROXY: 127.0.0.1,localhost,qweather-token-broker,context-service,discovery-api,redis,postgres
     command: ["python", "-m", "app.worker"]
+    shm_size: 512m
+    mem_limit: 1536m
+    pids_limit: 256
     read_only: true
     tmpfs:
       - /tmp

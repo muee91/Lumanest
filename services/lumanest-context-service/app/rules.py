@@ -19,6 +19,10 @@ from .models import (
     SnapshotResponse,
 )
 from .shooting_sessions import (
+    build_city_after_rain_session,
+    build_general_evening_session,
+    build_general_morning_session,
+    build_route_light_session,
     build_water_evening_session,
     build_water_morning_session,
 )
@@ -42,7 +46,9 @@ def _evidence_expiry(definition_id: str, generated_at: datetime) -> datetime:
 
 
 def moon_state(moment: datetime) -> tuple[str, float]:
-    age = ((moment.astimezone(timezone.utc) - _moon_reference).total_seconds() / 86_400) % _synodic_month_days
+    age = (
+        (moment.astimezone(timezone.utc) - _moon_reference).total_seconds() / 86_400
+    ) % _synodic_month_days
     illumination = (1 - math.cos(2 * math.pi * age / _synodic_month_days)) / 2
     phase_index = int(((age / _synodic_month_days) * 8) + 0.5) % 8
     phases = (
@@ -58,7 +64,9 @@ def moon_state(moment: datetime) -> tuple[str, float]:
     return phases[phase_index], round(illumination, 4)
 
 
-def classify_scene(request: SnapshotRequest, evidence: SceneEvidence | None = None) -> SceneType:
+def classify_scene(
+    request: SnapshotRequest, evidence: SceneEvidence | None = None
+) -> SceneType:
     facts = evidence or request.evidence
     if facts.water_body:
         return SceneType.LAKE
@@ -111,13 +119,19 @@ def classify_scene_context(
         score(PrimaryScene.DESERT, 60)
     if facts.plateau or SceneFacet.GRASSLAND in facets:
         score(PrimaryScene.PLATEAU, 55)
-    if facts.forest or facets.intersection({SceneFacet.FOREST, SceneFacet.BAMBOO_FOREST}):
+    if facts.forest or facets.intersection(
+        {SceneFacet.FOREST, SceneFacet.BAMBOO_FOREST}
+    ):
         score(PrimaryScene.FOREST, 55)
     if facts.water_body or facets.intersection({SceneFacet.LAKE, SceneFacet.RESERVOIR}):
         score(PrimaryScene.INLAND_WATER, 55)
-    if facts.settlement or facets.intersection({SceneFacet.OLD_TOWN, SceneFacet.VILLAGE_STREET}):
+    if facts.settlement or facets.intersection(
+        {SceneFacet.OLD_TOWN, SceneFacet.VILLAGE_STREET}
+    ):
         score(PrimaryScene.VILLAGE, 50)
-    if facts.urban or facets.intersection({SceneFacet.SKYLINE, SceneFacet.ARCHITECTURE}):
+    if facts.urban or facets.intersection(
+        {SceneFacet.SKYLINE, SceneFacet.ARCHITECTURE}
+    ):
         score(PrimaryScene.URBAN, 45)
     if SceneFacet.RIVER in facets:
         score(PrimaryScene.INLAND_WATER, 35)
@@ -196,30 +210,40 @@ def context_fingerprint(
             str(request.weather.stale),
         )
     )
-    forecast_state = ":".join((
-        request.forecast.observed_at.astimezone(timezone.utc).isoformat(
-            timespec="minutes"
-        ),
-        str(round(request.forecast.next_hour_precipitation_mm, 1)),
-        str(round(request.forecast.next_three_hours_max_wind_speed_mps or 0, 1)),
-        str(request.forecast.thunder_next_three_hours),
-    ))
+    forecast_state = ":".join(
+        (
+            request.forecast.observed_at.astimezone(timezone.utc).isoformat(
+                timespec="minutes"
+            ),
+            str(round(request.forecast.next_hour_precipitation_mm, 1)),
+            str(round(request.forecast.next_three_hours_max_wind_speed_mps or 0, 1)),
+            str(request.forecast.thunder_next_three_hours),
+        )
+    )
     # Current opportunities are derived from individual hourly records, rather
     # than the aggregate forecast above.  Keep their bounded, non-identifying
     # state in the fingerprint so a Redis hit cannot return a window generated
     # from an earlier hourly forecast.
-    hourly_state = ",".join(sorted(
-        ":".join((
-            item.at.astimezone(timezone.utc).isoformat(timespec="minutes"),
-            item.condition,
-            str(round(item.cloud_cover_percent, 1)) if item.cloud_cover_percent is not None else "unknown",
-            str(round(item.wind_speed_mps, 1)),
-            str(round(item.precipitation_mm, 1)),
-            str(round(item.visibility_km, 1)) if item.visibility_km is not None else "unknown",
-            str(item.thunder),
-        ))
-        for item in request.forecast.hourly
-    ))
+    hourly_state = ",".join(
+        sorted(
+            ":".join(
+                (
+                    item.at.astimezone(timezone.utc).isoformat(timespec="minutes"),
+                    item.condition,
+                    str(round(item.cloud_cover_percent, 1))
+                    if item.cloud_cover_percent is not None
+                    else "unknown",
+                    str(round(item.wind_speed_mps, 1)),
+                    str(round(item.precipitation_mm, 1)),
+                    str(round(item.visibility_km, 1))
+                    if item.visibility_km is not None
+                    else "unknown",
+                    str(item.thunder),
+                )
+            )
+            for item in request.forecast.hourly
+        )
+    )
     air_state = ":".join(
         (
             str(request.weather.air_quality_index),
@@ -241,36 +265,47 @@ def context_fingerprint(
         )
     )
     corridor_state = ",".join(
-        ":".join((
-            request.route.route_id or "",
-            f"{sample.latitude:.4f}",
-            f"{sample.longitude:.4f}",
-            sample.expected_at.astimezone(timezone.utc).isoformat(timespec="minutes"),
-            f"{sample.progress:.4f}",
-        ))
+        ":".join(
+            (
+                request.route.route_id or "",
+                f"{sample.latitude:.4f}",
+                f"{sample.longitude:.4f}",
+                sample.expected_at.astimezone(timezone.utc).isoformat(
+                    timespec="minutes"
+                ),
+                f"{sample.progress:.4f}",
+            )
+        )
         for sample in request.route.corridor_samples
     )
     grid = f"{request.coordinate.latitude:.2f},{request.coordinate.longitude:.2f}"
-    raw = "|".join((
-        str(request.contract_version),
-        grid,
-        scene.value,
-        solar_state_value,
-        weather_state,
-        forecast_state,
-        hourly_state,
-        air_state,
-        warning_state,
-        request.route.mode,
-        request.route.stage,
-        request.intent,
-        str(facts.wildlife_opportunity),
-        str(facts.wildlife_safety),
-        ",".join(sorted(str(event.get("external_id", "")) for event in (astronomy_events or []))),
-        target.id if target is not None else "",
-        ",".join(sorted(item.id for item in (shooting_targets or []))),
-        corridor_state,
-    ))
+    raw = "|".join(
+        (
+            str(request.contract_version),
+            grid,
+            scene.value,
+            solar_state_value,
+            weather_state,
+            forecast_state,
+            hourly_state,
+            air_state,
+            warning_state,
+            request.route.mode,
+            request.route.stage,
+            request.intent,
+            str(facts.wildlife_opportunity),
+            str(facts.wildlife_safety),
+            ",".join(
+                sorted(
+                    str(event.get("external_id", ""))
+                    for event in (astronomy_events or [])
+                )
+            ),
+            target.id if target is not None else "",
+            ",".join(sorted(item.id for item in (shooting_targets or []))),
+            corridor_state,
+        )
+    )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
@@ -306,19 +341,24 @@ def evaluate(
         title: str | None = None,
         source_url: str | None = None,
     ) -> None:
-        events.append(ContextEvent.model_validate({
-            "id": event_id,
-            "channel": channel,
-            "source": source,
-            "observedAt": observed_at or request.weather.observed_at,
-            "expiresAt": event_expires_at or _evidence_expiry(event_id, generated_at),
-            "confidence": confidence,
-            "geoScope": geo_scope,
-            "severity": severity,
-            "allowedAction": action,
-            "title": title,
-            "sourceUrl": source_url,
-        }))
+        events.append(
+            ContextEvent.model_validate(
+                {
+                    "id": event_id,
+                    "channel": channel,
+                    "source": source,
+                    "observedAt": observed_at or request.weather.observed_at,
+                    "expiresAt": event_expires_at
+                    or _evidence_expiry(event_id, generated_at),
+                    "confidence": confidence,
+                    "geoScope": geo_scope,
+                    "severity": severity,
+                    "allowedAction": action,
+                    "title": title,
+                    "sourceUrl": source_url,
+                }
+            )
+        )
 
     for catalog_event in astronomy_events or []:
         definition_id = (
@@ -341,18 +381,67 @@ def evaluate(
         )
 
     if request.weather.thunder:
-        add("thunderstorm", "safety", "weather", 1, "openSafetyDetail", "critical", "region")
+        add(
+            "thunderstorm",
+            "safety",
+            "weather",
+            1,
+            "openSafetyDetail",
+            "critical",
+            "region",
+        )
     if request.weather.wind_speed_mps >= 15:
-        add("strong-wind", "safety", "weather", 0.9, "openSafetyDetail", "warning", "region")
+        add(
+            "strong-wind",
+            "safety",
+            "weather",
+            0.9,
+            "openSafetyDetail",
+            "warning",
+            "region",
+        )
     if request.weather.precipitation_mm >= 10:
-        add("heavy-rain", "safety", "weather", 0.9, "openSafetyDetail", "warning", "region")
+        add(
+            "heavy-rain",
+            "safety",
+            "weather",
+            0.9,
+            "openSafetyDetail",
+            "warning",
+            "region",
+        )
     if facts.wildlife_safety:
-        add("wildlife-safety", "wildlifeSafety", "official", 1, "openSafetyDetail", "warning", "region")
-    if not request.weather.stale and not request.weather.air_quality_stale and \
-            request.weather.air_quality_index is not None and request.weather.air_quality_index >= 150:
-        severity = "critical" if request.weather.air_quality_index >= 300 else \
-            "warning" if request.weather.air_quality_index >= 200 else "caution"
-        add("unhealthy-air", "safety", "weather", 0.95, "openSafetyDetail", severity, "region")
+        add(
+            "wildlife-safety",
+            "wildlifeSafety",
+            "official",
+            1,
+            "openSafetyDetail",
+            "warning",
+            "region",
+        )
+    if (
+        not request.weather.stale
+        and not request.weather.air_quality_stale
+        and request.weather.air_quality_index is not None
+        and request.weather.air_quality_index >= 150
+    ):
+        severity = (
+            "critical"
+            if request.weather.air_quality_index >= 300
+            else "warning"
+            if request.weather.air_quality_index >= 200
+            else "caution"
+        )
+        add(
+            "unhealthy-air",
+            "safety",
+            "weather",
+            0.95,
+            "openSafetyDetail",
+            severity,
+            "region",
+        )
 
     for warning in request.official_warnings:
         if warning.expires_at <= generated_at:
@@ -372,49 +461,152 @@ def evaluate(
 
     if not request.weather.stale:
         if facts.wildlife_opportunity:
-            add("regional-wildlife", "wildlifeOpportunity", "wildlifeHistorical", 0.5, "openWildlifeDetail", "info", "region")
+            add(
+                "regional-wildlife",
+                "wildlifeOpportunity",
+                "wildlifeHistorical",
+                0.5,
+                "openWildlifeDetail",
+                "info",
+                "region",
+            )
         if request.forecast.thunder_next_three_hours:
-            add("thunderstorm-forecast", "safety", "weather", 0.9, "openSafetyDetail", "warning")
-        if request.forecast.next_three_hours_max_wind_speed_mps is not None and \
-                request.forecast.next_three_hours_max_wind_speed_mps >= 15:
-            add("strong-wind-forecast", "safety", "weather", 0.8, "openSafetyDetail", "caution")
+            add(
+                "thunderstorm-forecast",
+                "safety",
+                "weather",
+                0.9,
+                "openSafetyDetail",
+                "warning",
+            )
+        if (
+            request.forecast.next_three_hours_max_wind_speed_mps is not None
+            and request.forecast.next_three_hours_max_wind_speed_mps >= 15
+        ):
+            add(
+                "strong-wind-forecast",
+                "safety",
+                "weather",
+                0.8,
+                "openSafetyDetail",
+                "caution",
+            )
         if request.forecast.next_hour_precipitation_mm >= 5:
             add("rain-soon", "safety", "weather", 0.8, "openSafetyDetail", "caution")
         edge_light = solar.day_phase in ("dawn", "sunset")
         clear_enough = request.weather.condition in ("clear", "cloudy")
         if scene is SceneType.CITY and solar.day_phase == "blueHour":
-            add("session.city.blue_hour", "opportunity", "solar", 0.9, "openShootingWindow", geo_scope="point")
-        if scene is SceneType.LAKE and request.weather.wind_speed_mps <= 3 and request.weather.precipitation_mm == 0 and solar.day_phase in ("dawn", "sunset", "blueHour"):
-            definition_id = "session.water.morning" if solar.day_phase == "dawn" else "session.water.evening"
-            add(definition_id, "opportunity", "rule", 0.82, "openShootingWindow", geo_scope="point")
-        if scene is SceneType.MOUNTAIN and edge_light and clear_enough and request.weather.visibility_km >= 10:
-            definition_id = "session.mountain.morning" if solar.day_phase == "dawn" else "session.mountain.evening"
-            add(definition_id, "opportunity", "rule", 0.72, "openShootingWindow", geo_scope="region")
-        if scene is SceneType.DESERT and request.weather.condition == "dust" and edge_light:
-            add("session.desert.side_light", "opportunity", "rule", 0.7, "openShootingWindow", geo_scope="region")
+            add(
+                "session.city.blue_hour",
+                "opportunity",
+                "solar",
+                0.9,
+                "openShootingWindow",
+                geo_scope="point",
+            )
+        if (
+            scene is SceneType.LAKE
+            and request.weather.wind_speed_mps <= 3
+            and request.weather.precipitation_mm == 0
+            and solar.day_phase in ("dawn", "sunset", "blueHour")
+        ):
+            definition_id = (
+                "session.water.morning"
+                if solar.day_phase == "dawn"
+                else "session.water.evening"
+            )
+            add(
+                definition_id,
+                "opportunity",
+                "rule",
+                0.82,
+                "openShootingWindow",
+                geo_scope="point",
+            )
+        if (
+            scene is SceneType.MOUNTAIN
+            and edge_light
+            and clear_enough
+            and request.weather.visibility_km >= 10
+        ):
+            definition_id = (
+                "session.mountain.morning"
+                if solar.day_phase == "dawn"
+                else "session.mountain.evening"
+            )
+            add(
+                definition_id,
+                "opportunity",
+                "rule",
+                0.72,
+                "openShootingWindow",
+                geo_scope="region",
+            )
+        if (
+            scene is SceneType.DESERT
+            and request.weather.condition == "dust"
+            and edge_light
+        ):
+            add(
+                "session.desert.side_light",
+                "opportunity",
+                "rule",
+                0.7,
+                "openShootingWindow",
+                geo_scope="region",
+            )
         if request.route.mode == "hiking" and request.route.stage == "active":
-            add("trail-return-risk", "safety", "rule", 0.8, "openRoute", "caution", "route")
+            add(
+                "trail-return-risk",
+                "safety",
+                "rule",
+                0.8,
+                "openRoute",
+                "caution",
+                "route",
+            )
 
-    creative = [event.id for event in events if event.channel in ("opportunity", "wildlifeOpportunity")]
-    safety = [event.id for event in events if event.channel in ("safety", "wildlifeSafety")]
+    creative = [
+        event.id
+        for event in events
+        if event.channel in ("opportunity", "wildlifeOpportunity")
+    ]
+    safety = [
+        event.id for event in events if event.channel in ("safety", "wildlifeSafety")
+    ]
     layout = "safety" if safety else "opportunity" if creative else "quiet"
-    manifest = Manifest.model_validate({
-        "layoutMode": layout,
-        "primaryEventId": creative[0] if creative else None,
-        "secondaryEventIds": creative[1:3],
-        "safetyEventIds": safety,
-    })
-    shooting_sessions = []
+    manifest = Manifest.model_validate(
+        {
+            "layoutMode": layout,
+            "primaryEventId": creative[0] if creative else None,
+            "secondaryEventIds": creative[1:3],
+            "safetyEventIds": safety,
+        }
+    )
+    # The public contract intentionally caps shooting sessions at two.  A
+    # route-aligned observation is more actionable than the generic solar
+    # fallback during an active/planned route, so retain it before filling the
+    # remaining slot with the earliest general session.
     shooting_sessions = sorted(
         filter(
             None,
             (
-                build_water_morning_session(request, scene, shooting_targets),
-                build_water_evening_session(request, scene, shooting_targets),
+                build_route_light_session(request, scene),
+                build_city_after_rain_session(request, scene),
+                build_water_morning_session(request, scene, shooting_targets)
+                if scene is SceneType.LAKE
+                else build_general_morning_session(request, scene),
+                build_water_evening_session(request, scene, shooting_targets)
+                if scene is SceneType.LAKE
+                else build_general_evening_session(request, scene),
             ),
         ),
-        key=lambda session: (session.start_at, session.id),
-    )
+        key=lambda session: (
+            0 if session.kind == "routeLightWindow" else 1,
+            session.start_at,
+            session.id,
+        ),
+    )[:2]
     allowed_actions = list(dict.fromkeys(event.allowed_action for event in events))
     response = {
         "contextId": f"ctx_{fingerprint}",
@@ -459,7 +651,7 @@ def evaluate(
         "allowedActions": allowed_actions,
         "manifest": manifest,
     }
-    response["contractVersion"] = 4
+    response["contractVersion"] = 5
     response["sceneContext"] = scene_context
     response["opportunityCatalogVersion"] = 1
     response["shootingSessions"] = shooting_sessions

@@ -12,33 +12,37 @@ from app.models import (
 from app.rules import evaluate
 
 
-def request_for(*, evidence=None, route=None, condition="clear", day_phase="sunset", stale=False):
-    return SnapshotRequest.model_validate({
-        "contractVersion": 4,
-        "coordinate": {"latitude": 30.25, "longitude": 120.15, "system": "wgs84"},
-        "observedAt": "2026-07-14T10:00:00+08:00",
-        "locale": "zh-CN",
-        "intent": "photography",
-        "route": route or {"mode": "none", "stage": "none"},
-        "evidence": evidence or {},
-        "weather": {
+def request_for(
+    *, evidence=None, route=None, condition="clear", day_phase="sunset", stale=False
+):
+    return SnapshotRequest.model_validate(
+        {
+            "contractVersion": 5,
+            "coordinate": {"latitude": 30.25, "longitude": 120.15, "system": "wgs84"},
             "observedAt": "2026-07-14T10:00:00+08:00",
-            "condition": condition,
-            "windSpeedMps": 2,
-            "precipitationMm": 0,
-            "visibilityKm": 20,
-            "thunder": False,
-            "stale": stale,
-        },
-        "forecast": {
-            "observedAt": "2026-07-14T10:00:00+08:00",
-            "nextHourPrecipitationMm": 0,
-            "nextThreeHoursMaxWindSpeedMps": 3,
-            "thunderNextThreeHours": False,
-        },
-        "officialWarnings": [],
-        "solar": {"dayPhase": day_phase},
-    })
+            "locale": "zh-CN",
+            "intent": "photography",
+            "route": route or {"mode": "none", "stage": "none"},
+            "evidence": evidence or {},
+            "weather": {
+                "observedAt": "2026-07-14T10:00:00+08:00",
+                "condition": condition,
+                "windSpeedMps": 2,
+                "precipitationMm": 0,
+                "visibilityKm": 20,
+                "thunder": False,
+                "stale": stale,
+            },
+            "forecast": {
+                "observedAt": "2026-07-14T10:00:00+08:00",
+                "nextHourPrecipitationMm": 0,
+                "nextThreeHoursMaxWindSpeedMps": 3,
+                "thunderNextThreeHours": False,
+            },
+            "officialWarnings": [],
+            "solar": {"dayPhase": day_phase},
+        }
+    )
 
 
 @pytest.mark.parametrize(
@@ -57,12 +61,56 @@ def test_physical_scenes_are_selected_from_explicit_evidence(evidence, route, sc
 
 @pytest.mark.parametrize("activity", ["driving", "hiking"])
 def test_activity_does_not_override_the_physical_scene(activity):
-    result = evaluate(
-        request_for(route={"mode": activity, "stage": "active"})
-    )
+    result = evaluate(request_for(route={"mode": activity, "stage": "active"}))
 
     assert result.scene == "unknown"
     assert result.scene_context.activity == activity
+
+
+def test_route_light_window_is_returned_ahead_of_generic_sessions():
+    body = request_for(
+        evidence={"urban": True},
+        route={
+            "mode": "driving",
+            "stage": "active",
+            "routeId": "route_haining_sunset",
+            "corridorSamples": [
+                {
+                    "latitude": 30.25,
+                    "longitude": 120.15,
+                    "system": "wgs84",
+                    "expectedAt": "2026-07-14T18:30:00+08:00",
+                    "progress": 0.3,
+                },
+                {
+                    "latitude": 30.28,
+                    "longitude": 120.2,
+                    "system": "wgs84",
+                    "expectedAt": "2026-07-14T19:00:00+08:00",
+                    "progress": 0.8,
+                },
+            ],
+        },
+    )
+    body.forecast.hourly = [
+        HourlyForecastInput.model_validate(
+            {
+                "at": (body.observed_at + timedelta(hours=offset)).isoformat(),
+                "condition": "clear",
+                "cloudCoverPercent": 35,
+                "windSpeedMps": 2,
+                "precipitationMm": 0,
+                "visibilityKm": 20,
+                "thunder": False,
+            }
+        )
+        for offset in range(24)
+    ]
+    result = evaluate(body)
+
+    assert len(result.shooting_sessions) <= 2
+    assert result.shooting_sessions[0].kind == "routeLightWindow"
+    assert result.shooting_sessions[0].target_candidates == []
 
 
 def test_stale_weather_keeps_safety_but_drops_creative_events():
@@ -155,14 +203,19 @@ def test_fingerprint_uses_a_grid_instead_of_exposing_coordinates():
 def test_active_reviewed_astronomy_event_preserves_title_and_https_authority():
     starts_at = datetime(2026, 7, 14, 1, tzinfo=timezone.utc)
     ends_at = datetime(2026, 7, 14, 4, tzinfo=timezone.utc)
-    result = evaluate(request_for(), astronomy_events=[{
-        "external_id": "meteor-2026",
-        "event_type": "meteorShower",
-        "title": "英仙座流星雨极大期",
-        "source_url": "https://science.nasa.gov/meteor-showers/",
-        "starts_at": starts_at,
-        "ends_at": ends_at,
-    }])
+    result = evaluate(
+        request_for(),
+        astronomy_events=[
+            {
+                "external_id": "meteor-2026",
+                "event_type": "meteorShower",
+                "title": "英仙座流星雨极大期",
+                "source_url": "https://science.nasa.gov/meteor-showers/",
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+            }
+        ],
+    )
 
     event = next(event for event in result.events if event.source == "astronomyCatalog")
     assert event.id == "event.astro.meteor_shower"
@@ -185,22 +238,27 @@ def test_astronomy_catalog_requires_traceable_https_source_and_ordered_times():
             "attribution": "NASA/JPL reviewed catalog",
             "version": "2026.07",
         },
-        "events": [{
-            "id": "meteor-2026",
-            "eventType": "meteorShower",
-            "startsAt": "2026-08-12T00:00:00Z",
-            "endsAt": "2026-08-13T00:00:00Z",
-            "title": "Reviewed meteor shower",
-            "sourceUrl": "https://example.test/catalog/meteor-2026",
-        }],
+        "events": [
+            {
+                "id": "meteor-2026",
+                "eventType": "meteorShower",
+                "startsAt": "2026-08-12T00:00:00Z",
+                "endsAt": "2026-08-13T00:00:00Z",
+                "title": "Reviewed meteor shower",
+                "sourceUrl": "https://example.test/catalog/meteor-2026",
+            }
+        ],
     }
     assert AstronomyEventsImport.model_validate(valid).events[0].id == "meteor-2026"
 
     invalid = valid | {
-        "events": [valid["events"][0] | {
-            "endsAt": "2026-08-11T00:00:00Z",
-            "sourceUrl": "http://example.test/private",
-        }]
+        "events": [
+            valid["events"][0]
+            | {
+                "endsAt": "2026-08-11T00:00:00Z",
+                "sourceUrl": "http://example.test/private",
+            }
+        ]
     }
     with pytest.raises(ValueError):
         AstronomyEventsImport.model_validate(invalid)

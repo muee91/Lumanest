@@ -6,8 +6,10 @@ import {
   validDiscoveryRequest,
   validDiscoveryResponse,
 } from '../src/discovery/proxy.mjs';
+import { nearbyPrewarmRequest, prewarmNearbyDiscovery } from '../src/discovery/prewarm.mjs';
 
 const request = {
+  activationType: 'user_manual',
   missionType: 'humanityEvents',
   focus: '早市 夜市 展览',
   locale: 'zh-CN',
@@ -110,4 +112,53 @@ test('discovery proxy hides upstream errors and malformed bodies', async () => {
   assert.deepEqual(malformed, { ok: false, error: 'upstream_unavailable' });
   const missing = await forwardDiscovery({ body: request, serviceUrl: '', internalToken: '' });
   assert.deepEqual(missing, { ok: false, error: 'not_configured' });
+});
+
+test('location refresh prewarm resolves a city transiently and only queues coarse discovery work', async () => {
+  const calls = [];
+  const result = await prewarmNearbyDiscovery({
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+    locale: 'zh-CN',
+    amapWebKey: 'amap-key',
+    serviceUrl: 'http://discovery-api:8001',
+    internalToken: 'internal-discovery-token',
+    sourcePolicies: [{ id: 'official-source', version: '2026-07', enabled: true }],
+    searchEnabled: true,
+    now: () => new Date('2026-07-19T00:00:00Z'),
+    fetcher: async (url, options = {}) => {
+      calls.push({ url, options });
+      if (url.hostname === 'restapi.amap.com') {
+        return new Response(JSON.stringify({
+          status: '1', regeocode: { addressComponent: { city: '杭州市', province: '浙江省' } },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        missionType: 'popularPlaces', status: 'pending', generatedAt: '2026-07-19T00:00:00Z',
+        expiresAt: null, retryAfterSeconds: 30, items: [],
+      }), { status: 202, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+  assert.deepEqual(result, { queued: true, status: 'pending' });
+  assert.equal(calls.length, 2);
+  const queued = JSON.parse(calls[1].options.body);
+  assert.equal(queued.activationType, 'foreground_opportunistic');
+  assert.equal(queued.missionType, 'popularPlaces');
+  assert.equal(queued.focus, '杭州周边近期值得了解的摄影地点与观景地');
+  assert.equal(queued.region.radiusMeters, 15_000);
+  assert.deepEqual(queued.sourcePolicies, [{ id: 'official-source', version: '2026-07' }]);
+});
+
+test('location refresh prewarm can be disabled before any external request', async () => {
+  let calls = 0;
+  const result = await prewarmNearbyDiscovery({
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+    locale: 'zh-CN', amapWebKey: 'amap-key', serviceUrl: 'http://discovery-api:8001',
+    internalToken: 'internal-discovery-token', sourcePolicies: [{ id: 'source', version: '1', enabled: true }],
+    enabled: false, searchEnabled: true, fetcher: async () => { calls += 1; throw new Error('must not request'); },
+  });
+  assert.deepEqual(result, { queued: false, reason: 'not_configured' });
+  assert.equal(calls, 0);
+  assert.equal(nearbyPrewarmRequest({
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' }, locale: 'zh-CN', city: '',
+  }), null);
 });

@@ -8,11 +8,12 @@ import 'package:luma_nest/src/core/photography/shooting_session.dart';
 abstract final class ContextFixtures {
   static final _baseTime = DateTime.utc(2026, 7, 11, 10);
 
-  static ContextSnapshot quietCity() {
+  static ContextSnapshot quietCity({DateTime? observedAt}) {
+    final eventTime = observedAt?.toUtc() ?? _baseTime;
     return ContextSnapshot(
       id: 'fixture-city-quiet',
-      observedAt: _baseTime,
-      expiresAt: _baseTime.add(const Duration(minutes: 30)),
+      observedAt: eventTime,
+      expiresAt: eventTime.add(const Duration(minutes: 30)),
       primaryScene: SceneType.city,
       dayPhase: DayPhase.day,
       weather: WeatherType.clear,

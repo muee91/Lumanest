@@ -1,0 +1,105 @@
+/* LumaNest 栖光 — LOGO Brand Sheet tokens
+   Derived from project V2Palette + existing lumanest-mark.svg identity.
+   Single brand primary hue (ridge green) with tints;
+   sun-orange is an explicit brand-identity token (the "光"), not a category hue. */
+
+:root {
+  /* Brand primary — ridge green (栖 / shelter) */
+  --ln-primary: #24574F;
+  --ln-primary-50: #F2F6F5;
+  --ln-primary-100: #DCE8E6;
+  --ln-primary-200: #B6CFCB;
+  --ln-primary-300: #8AB0AA;
+  --ln-primary-400: #4F8079;
+  --ln-primary-500: #24574F;
+  --ln-primary-600: #1E463F;
+  --ln-primary-700: #183831;
+  --ln-primary-800: #122A25;
+  --ln-primary-900: #0C1D19;
+
+  /* Brand identity — sun / light (光) — core to the logo, not category styling */
+  --ln-sun: #D77A45;
+  --ln-sun-soft: #E8A77B;
+
+  /* Brand identity — moss accent (existing V2Palette accent) */
+  --ln-moss: #819D4B;
+
+  /* Neutral / paper system */
+  --ln-paper: #EEE7D9;
+  --ln-paper-soft: #F5F1E8;
+  --ln-canvas: #F5F5F1;
+  --ln-ink: #171A18;
+  --ln-night: #17201D;
+  --ln-line: rgba(23, 26, 24, 0.12);
+
+  /* Semantic aliases (consumed by fill-html-head.mjs) */
+  --ln-background: #EEE7D9;
+  --ln-foreground: #171A18;
+  --ln-card: #F5F1E8;
+  --ln-card-foreground: #171A18;
+  --ln-popover: #F5F1E8;
+  --ln-popover-foreground: #171A18;
+  --ln-primary-foreground: #F5F1E8;
+  --ln-muted: #E4DDCD;
+  --ln-muted-foreground: #5C5852;
+  --ln-border: rgba(23, 26, 24, 0.14);
+  --ln-input: rgba(23, 26, 24, 0.14);
+  --ln-ring: #24574F;
+  --ln-radius-small: 4px;
+  --ln-radius-medium: 10px;
+  --ln-radius-large: 16px;
+  --ln-radius-full: 9999px;
+
+  /* Typography */
+  --ln-font-display: "Zcool XiaoWei", "Noto Serif SC", "Songti SC", "STSong", ui-serif, Georgia, serif;
+  --ln-font-body: "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ln-font-latin-display: "Cormorant Garamond", "Playfair Display", Georgia, ui-serif, serif;
+  --ln-font-latin-body: "Inter", "Helvetica Neue", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.dark {
+  --ln-background: #17201D;
+  --ln-foreground: #EEE7D9;
+  --ln-card: #1E2A26;
+  --ln-card-foreground: #EEE7D9;
+  --ln-popover: #1E2A26;
+  --ln-popover-foreground: #EEE7D9;
+  --ln-muted: #243330;
+  --ln-muted-foreground: #B6C0BB;
+  --ln-border: rgba(238, 231, 217, 0.14);
+  --ln-input: rgba(238, 231, 217, 0.14);
+}
+
+/* Typography classes */
+.ln-display {
+  font-family: var(--ln-font-display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+.ln-latin-display {
+  font-family: var(--ln-font-latin-display);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+.ln-body {
+  font-family: var(--ln-font-body);
+  font-weight: 400;
+  line-height: 1.55;
+}
+.ln-latin-body {
+  font-family: var(--ln-font-latin-body);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+.ln-eyebrow {
+  font-family: var(--ln-font-latin-body);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--ln-muted-foreground);
+}

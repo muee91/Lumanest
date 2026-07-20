@@ -6,15 +6,21 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.main import app
-from app.models import (ContextImportResult, PhotographyTarget, RouteState,
-                        SceneEvidence, ShootingTarget, SpatialFeaturesImport,
-                        WildlifeLayerArea)
+from app.models import (
+    ContextImportResult,
+    PhotographyTarget,
+    RouteState,
+    SceneEvidence,
+    ShootingTarget,
+    SpatialFeaturesImport,
+    WildlifeLayerArea,
+)
 from app.store import ContextStore
 
 
 def payload():
     return {
-        "contractVersion": 4,
+        "contractVersion": 5,
         "coordinate": {"latitude": 30.25, "longitude": 120.15, "system": "wgs84"},
         "observedAt": "2026-07-14T10:00:00+08:00",
         "locale": "zh-CN",
@@ -57,22 +63,94 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["contractVersion"] == 4
-        assert body["scene"] == "lake"
-        assert body["manifest"]["primaryEventId"] == "session.water.evening"
-        assert body["dataFreshness"] == {
+        assert body["contractVersion"] == 5
+        assert body["environment"]["scene"] == "lake"
+        assert body["environment"]["dataFreshness"] == {
             "context": "fresh",
             "weather": "fresh",
             "weatherObservedAt": "2026-07-14T10:00:00+08:00",
         }
-        assert body["weather"]["windSpeedMps"] == 2
-        assert body["sunMoon"]["moonPhase"] in {
-            "newMoon", "waxingCrescent", "firstQuarter", "waxingGibbous",
-            "fullMoon", "waningGibbous", "lastQuarter", "waningCrescent",
+        assert body["environment"]["weather"]["windSpeedMps"] == 2
+        assert body["environment"]["sunMoon"]["moonPhase"] in {
+            "newMoon",
+            "waxingCrescent",
+            "firstQuarter",
+            "waxingGibbous",
+            "fullMoon",
+            "waningGibbous",
+            "lastQuarter",
+            "waningCrescent",
         }
-        assert body["route"] == {"mode": "none", "stage": "none", "active": False}
-        assert body["allowedActions"] == ["openShootingWindow"]
+        assert body["environment"]["route"] == {
+            "mode": "none",
+            "stage": "none",
+            "active": False,
+        }
+        assert body["environment"]["allowedActions"] == ["openExplore"]
+        session_ids = {item["id"] for item in body["facts"]["shootingSessions"]}
+        for entry in body["entries"]:
+            for action in entry["actions"]:
+                if action["type"] == "openShootingWindow":
+                    assert action["targetId"] in session_ids
+        assert all(
+            event["allowedAction"] != "openShootingWindow"
+            for event in body["facts"]["events"]
+        )
         assert "latitude" not in body and "longitude" not in body
+
+
+def test_internal_evaluate_rejects_removed_v4_contract(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    old = payload()
+    old["contractVersion"] = 4
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=old,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+    assert response.status_code == 422
+
+
+def test_village_evaluate_exposes_detail_entries_for_both_solar_windows(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    body = payload()
+    body["evidence"] = {"settlement": True}
+    body["forecast"]["hourly"] = [
+        {
+            "at": (
+                datetime.fromisoformat(body["observedAt"])
+                + timedelta(hours=offset)
+            ).isoformat(),
+            "condition": "clear",
+            "cloudCoverPercent": 25,
+            "windSpeedMps": 2,
+            "precipitationMm": 0,
+            "visibilityKm": 20,
+            "thunder": False,
+        }
+        for offset in range(24)
+    ]
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=body,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["environment"]["scene"] == "village"
+    sessions = result["facts"]["shootingSessions"]
+    assert {item["kind"] for item in sessions} == {"generalMorning", "generalEvening"}
+    session_ids = {item["id"] for item in sessions}
+    actions = [
+        action
+        for entry in result["entries"]
+        for action in entry["actions"]
+        if action["type"] == "openShootingWindow"
+    ]
+    assert {action["targetId"] for action in actions} == session_ids
 
 
 def test_internal_evaluate_merges_generic_scene_with_reviewed_safety(monkeypatch):
@@ -91,31 +169,35 @@ def test_internal_evaluate_merges_generic_scene_with_reviewed_safety(monkeypatch
 
     assert response.status_code == 200
     body = response.json()
-    assert body["scene"] == "lake"
-    risk = next(event for event in body["events"] if event["id"] == "wildlife-safety")
+    assert body["environment"]["scene"] == "lake"
+    risk = next(
+        event for event in body["facts"]["events"] if event["id"] == "wildlife-safety"
+    )
     assert risk["channel"] == "wildlifeSafety"
     assert risk["source"] == "official"
 
 
 def test_internal_target_resolve_verifies_public_id_and_coordinate(monkeypatch):
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
-    target = ShootingTarget.model_validate({
-        "id": "target_0123456789abcdef01234567",
-        "name": "东岸审核湖岸",
-        "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
-        "supportedSessions": ["waterEvening"],
-        "viewBearingDegrees": 286,
-        "bearingToleranceDegrees": 25,
-        "accessModes": ["driving", "walking"],
-        "leadTimeMinutes": 12,
-        "arrivalRadiusMeters": 100,
-        "shorelineSide": "east",
-        "reviewedAt": "2026-07-01T00:00:00Z",
-        "reviewReference": "https://review.example/targets/east-bank",
-        "sourceAttribution": "审核目录",
-        "sourceLicense": "CC-BY-4.0",
-        "sourceUrl": "https://source.example/lakes/east-bank",
-    })
+    target = ShootingTarget.model_validate(
+        {
+            "id": "target_0123456789abcdef01234567",
+            "name": "东岸审核湖岸",
+            "coordinate": {"latitude": 30.251, "longitude": 120.151, "system": "wgs84"},
+            "supportedSessions": ["waterEvening"],
+            "viewBearingDegrees": 286,
+            "bearingToleranceDegrees": 25,
+            "accessModes": ["driving", "walking"],
+            "leadTimeMinutes": 12,
+            "arrivalRadiusMeters": 100,
+            "shorelineSide": "east",
+            "reviewedAt": "2026-07-01T00:00:00Z",
+            "reviewReference": "https://review.example/targets/east-bank",
+            "sourceAttribution": "审核目录",
+            "sourceLicense": "CC-BY-4.0",
+            "sourceUrl": "https://source.example/lakes/east-bank",
+        }
+    )
 
     async def resolve(_store, target_id, latitude, longitude):
         assert target_id == target.id
@@ -297,8 +379,11 @@ async def test_photography_target_store_requires_approved_public_static_point():
 
         def first(self):
             return {
-                "id": "f" * 64, "name": "东岸观景台", "target_type": "lakeshore",
-                "latitude": 30.251, "longitude": 120.151,
+                "id": "f" * 64,
+                "name": "东岸观景台",
+                "target_type": "lakeshore",
+                "latitude": 30.251,
+                "longitude": 120.151,
             }
 
     class Connection:
@@ -335,14 +420,16 @@ def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
 
     async def astronomy_events(_store, _moment):
-        return [{
-            "external_id": "meteor-2026",
-            "event_type": "meteorShower",
-            "title": "英仙座流星雨极大期",
-            "source_url": "https://science.nasa.gov/meteor-showers/",
-            "starts_at": datetime(2026, 7, 14, 1, tzinfo=timezone.utc),
-            "ends_at": datetime(2026, 7, 14, 4, tzinfo=timezone.utc),
-        }]
+        return [
+            {
+                "external_id": "meteor-2026",
+                "event_type": "meteorShower",
+                "title": "英仙座流星雨极大期",
+                "source_url": "https://science.nasa.gov/meteor-showers/",
+                "starts_at": datetime(2026, 7, 14, 1, tzinfo=timezone.utc),
+                "ends_at": datetime(2026, 7, 14, 4, tzinfo=timezone.utc),
+            }
+        ]
 
     monkeypatch.setattr(ContextStore, "active_astronomy_events", astronomy_events)
     with TestClient(app) as client:
@@ -353,7 +440,11 @@ def test_internal_evaluate_includes_only_bounded_astronomy_authority(monkeypatch
         )
 
     assert response.status_code == 200
-    event = next(item for item in response.json()["events"] if item["source"] == "astronomyCatalog")
+    event = next(
+        item
+        for item in response.json()["facts"]["events"]
+        if item["source"] == "astronomyCatalog"
+    )
     assert event["title"] == "英仙座流星雨极大期"
     assert event["sourceUrl"].startswith("https://")
     assert event["allowedAction"] == "openAstronomyDetail"
@@ -379,21 +470,25 @@ def test_internal_wildlife_layers_require_token_and_return_reviewed_areas(monkey
 
     async def fake_layers(_store, latitude, longitude, radius_km):
         assert (latitude, longitude, radius_km) == (30.25, 120.15, 20)
-        return [WildlifeLayerArea.model_validate({
-            "id": "a" * 64,
-            "name": "历史观察区域",
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [[
-                    [120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]
-                ]],
-            },
-            "source": {
-                "attribution": "Reviewed wildlife dataset",
-                "version": "2026.07",
-                "updatedAt": "2026-07-16T00:00:00Z",
-            },
-        })]
+        return [
+            WildlifeLayerArea.model_validate(
+                {
+                    "id": "a" * 64,
+                    "name": "历史观察区域",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [[120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]]
+                        ],
+                    },
+                    "source": {
+                        "attribution": "Reviewed wildlife dataset",
+                        "version": "2026.07",
+                        "updatedAt": "2026-07-16T00:00:00Z",
+                    },
+                }
+            )
+        ]
 
     monkeypatch.setattr(ContextStore, "wildlife_layers", fake_layers)
     path = "/internal/v1/wildlife/layers?latitude=30.25&longitude=120.15&radiusKm=20"
@@ -415,12 +510,14 @@ def test_internal_wildlife_layers_require_token_and_return_reviewed_areas(monkey
 
 def test_wildlife_layer_contract_rejects_points_and_radius_outside_policy(monkeypatch):
     with pytest.raises(ValidationError):
-        WildlifeLayerArea.model_validate({
-            "id": "b" * 64,
-            "name": "must not expose a point",
-            "geometry": {"type": "Point", "coordinates": [120.1, 30.1]},
-            "source": {"attribution": "fixture", "version": "1"},
-        })
+        WildlifeLayerArea.model_validate(
+            {
+                "id": "b" * 64,
+                "name": "must not expose a point",
+                "geometry": {"type": "Point", "coordinates": [120.1, 30.1]},
+                "source": {"attribution": "fixture", "version": "1"},
+            }
+        )
 
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
     with TestClient(app) as client:
@@ -437,14 +534,16 @@ async def test_wildlife_layer_store_filters_license_and_hides_sensitive_names():
 
     class FakeMappings:
         def all(self):
-            return [{
-                "id": "c" * 64,
-                "public_name": "历史观察区域",
-                "geometry": '{"type":"Polygon","coordinates":[[[120,30],[120.2,30],[120.2,30.2],[120,30]]]}',
-                "attribution": "Reviewed fixture",
-                "version": "2026.07",
-                "updated_at": datetime(2026, 7, 16, tzinfo=timezone.utc),
-            }]
+            return [
+                {
+                    "id": "c" * 64,
+                    "public_name": "历史观察区域",
+                    "geometry": '{"type":"Polygon","coordinates":[[[120,30],[120.2,30],[120.2,30.2],[120,30]]]}',
+                    "attribution": "Reviewed fixture",
+                    "version": "2026.07",
+                    "updated_at": datetime(2026, 7, 16, tzinfo=timezone.utc),
+                }
+            ]
 
     class FakeResult:
         def mappings(self):
@@ -478,18 +577,22 @@ async def test_wildlife_layer_store_filters_license_and_hides_sensitive_names():
     assert "sensitivity = 'sensitive'" in captured["statement"]
 
 
-def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(monkeypatch):
+def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(
+    monkeypatch,
+):
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
     request = payload()
     request.pop("solar")
     request["evidence"] = {}
-    request["officialWarnings"] = [{
-        "id": "abcdef123456",
-        "observedAt": "2026-07-14T09:55:00+08:00",
-        "expiresAt": "2026-07-14T12:00:00+08:00",
-        "severity": "critical",
-        "title": "雷电红色预警",
-    }]
+    request["officialWarnings"] = [
+        {
+            "id": "abcdef123456",
+            "observedAt": "2026-07-14T09:55:00+08:00",
+            "expiresAt": "2026-07-14T12:00:00+08:00",
+            "severity": "critical",
+            "title": "雷电红色预警",
+        }
+    ]
     with TestClient(app) as client:
         response = client.post(
             "/internal/v1/evaluate",
@@ -498,12 +601,14 @@ def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(m
         )
     assert response.status_code == 200
     body = response.json()
-    warning = next(event for event in body["events"] if event["source"] == "official")
+    warning = next(
+        event for event in body["facts"]["events"] if event["source"] == "official"
+    )
     assert warning["id"] == "weather-warning-abcdef123456"
     assert warning["severity"] == "critical"
     assert warning["title"] == "雷电红色预警"
     assert warning["allowedAction"] == "openSafetyDetail"
-    assert body["sunMoon"]["sunElevationDegrees"] is not None
+    assert body["environment"]["sunMoon"]["sunElevationDegrees"] is not None
 
 
 def spatial_import_payload():
@@ -524,7 +629,9 @@ def spatial_import_payload():
                     "id": "lake-1",
                     "geometry": {
                         "type": "Polygon",
-                        "coordinates": [[[120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]]],
+                        "coordinates": [
+                            [[120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]]
+                        ],
                     },
                     "properties": {"kind": "water", "name": "Reviewed lake"},
                 }
@@ -539,17 +646,24 @@ def test_internal_import_requires_token_and_returns_only_safe_metadata(monkeypat
 
     async def fake_import(_store, body):
         captured.append(body)
-        return ContextImportResult.model_validate({
-            "sourceId": body.source.id,
-            "datasetType": body.dataset_type,
-            "importedCount": len(body.feature_collection.features),
-            "enabled": body.source.enabled,
-            "cacheInvalidated": True,
-        })
+        return ContextImportResult.model_validate(
+            {
+                "sourceId": body.source.id,
+                "datasetType": body.dataset_type,
+                "importedCount": len(body.feature_collection.features),
+                "enabled": body.source.enabled,
+                "cacheInvalidated": True,
+            }
+        )
 
     monkeypatch.setattr(ContextStore, "import_dataset", fake_import)
     with TestClient(app) as client:
-        assert client.post("/internal/v1/imports", json=spatial_import_payload()).status_code == 401
+        assert (
+            client.post(
+                "/internal/v1/imports", json=spatial_import_payload()
+            ).status_code
+            == 401
+        )
         response = client.post(
             "/internal/v1/imports",
             json=spatial_import_payload(),
@@ -580,33 +694,68 @@ def test_import_rejects_unlicensed_enabled_source_and_sensitive_point(monkeypatc
     too_precise["source"]["enabled"] = False
     precise_feature = too_precise["featureCollection"]["features"][0]
     precise_feature["properties"]["sensitivity"] = "sensitive"
-    precise_feature["geometry"]["coordinates"] = [[
-        [120.0, 30.0], [120.001, 30.0], [120.001, 30.001], [120.0, 30.0]
-    ]]
+    precise_feature["geometry"]["coordinates"] = [
+        [[120.0, 30.0], [120.001, 30.0], [120.001, 30.001], [120.0, 30.0]]
+    ]
 
     with TestClient(app) as client:
-        assert client.post("/internal/v1/imports", json=unlicensed, headers=headers).status_code == 422
-        assert client.post("/internal/v1/imports", json=sensitive, headers=headers).status_code == 422
-        assert client.post("/internal/v1/imports", json=too_precise, headers=headers).status_code == 422
+        assert (
+            client.post(
+                "/internal/v1/imports", json=unlicensed, headers=headers
+            ).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                "/internal/v1/imports", json=sensitive, headers=headers
+            ).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                "/internal/v1/imports", json=too_precise, headers=headers
+            ).status_code
+            == 422
+        )
 
 
 def test_photography_target_import_requires_an_explicit_public_scene_point():
     valid = spatial_import_payload()
     valid["featureCollection"]["features"][0] = {
-        "type": "Feature", "id": "east-bank", "geometry": {
-            "type": "Point", "coordinates": [120.151, 30.251],
+        "type": "Feature",
+        "id": "east-bank",
+        "geometry": {
+            "type": "Point",
+            "coordinates": [120.151, 30.251],
         },
         "properties": {
-            "kind": "water", "name": "东岸观景台", "photographyTarget": True,
+            "kind": "water",
+            "name": "东岸观景台",
+            "photographyTarget": True,
             "targetType": "lakeshore",
         },
     }
-    assert SpatialFeaturesImport.model_validate(valid).feature_collection.features[0].properties.target_type == "lakeshore"
+    assert (
+        SpatialFeaturesImport.model_validate(valid)
+        .feature_collection.features[0]
+        .properties.target_type
+        == "lakeshore"
+    )
 
-    sensitive = valid | {"featureCollection": valid["featureCollection"] | {"features": [{
-        **valid["featureCollection"]["features"][0],
-        "properties": valid["featureCollection"]["features"][0]["properties"] | {"sensitivity": "sensitive"},
-    }]}}
+    sensitive = valid | {
+        "featureCollection": valid["featureCollection"]
+        | {
+            "features": [
+                {
+                    **valid["featureCollection"]["features"][0],
+                    "properties": valid["featureCollection"]["features"][0][
+                        "properties"
+                    ]
+                    | {"sensitivity": "sensitive"},
+                }
+            ]
+        }
+    }
     with pytest.raises(ValueError):
         SpatialFeaturesImport.model_validate(sensitive)
 
@@ -670,27 +819,42 @@ def test_import_requires_reviewed_source_categories_for_wildlife_evidence(monkey
     headers = {"X-Internal-Service-Token": "internal-test-token"}
     opportunity = spatial_import_payload()
     opportunity["featureCollection"]["features"][0]["properties"] = {
-        "kind": "protected", "name": "Reviewed observation area", "sensitivity": "sensitive",
+        "kind": "protected",
+        "name": "Reviewed observation area",
+        "sensitivity": "sensitive",
         "evidenceClass": "wildlifeOpportunity",
     }
     opportunity["featureCollection"]["features"][0]["geometry"] = {
         "type": "Polygon",
         "coordinates": [[[120.0, 30.0], [120.2, 30.0], [120.2, 30.2], [120.0, 30.0]]],
     }
+
     async def fake_import(_store, body):
-        return ContextImportResult.model_validate({
-            "sourceId": body.source.id,
-            "datasetType": body.dataset_type,
-            "importedCount": len(body.feature_collection.features),
-            "enabled": body.source.enabled,
-            "cacheInvalidated": True,
-        })
+        return ContextImportResult.model_validate(
+            {
+                "sourceId": body.source.id,
+                "datasetType": body.dataset_type,
+                "importedCount": len(body.feature_collection.features),
+                "enabled": body.source.enabled,
+                "cacheInvalidated": True,
+            }
+        )
 
     monkeypatch.setattr(ContextStore, "import_dataset", fake_import)
     with TestClient(app) as client:
-        assert client.post("/internal/v1/imports", json=opportunity, headers=headers).status_code == 422
+        assert (
+            client.post(
+                "/internal/v1/imports", json=opportunity, headers=headers
+            ).status_code
+            == 422
+        )
         opportunity["source"]["category"] = "wildlifeHistorical"
-        assert client.post("/internal/v1/imports", json=opportunity, headers=headers).status_code == 201
+        assert (
+            client.post(
+                "/internal/v1/imports", json=opportunity, headers=headers
+            ).status_code
+            == 201
+        )
 
 
 @pytest.fixture
@@ -704,7 +868,9 @@ def test_route_input_rejects_mode_stage_mismatch(mode, stage, internal_headers):
     request = payload()
     request["route"] = {"mode": mode, "stage": stage}
     with TestClient(app) as client:
-        response = client.post("/internal/v1/evaluate", json=request, headers=internal_headers)
+        response = client.post(
+            "/internal/v1/evaluate", json=request, headers=internal_headers
+        )
     assert response.status_code == 422
 
 
@@ -712,29 +878,48 @@ def test_route_input_accepts_none_none(internal_headers):
     request = payload()
     request["route"] = {"mode": "none", "stage": "none"}
     with TestClient(app) as client:
-        response = client.post("/internal/v1/evaluate", json=request, headers=internal_headers)
+        response = client.post(
+            "/internal/v1/evaluate", json=request, headers=internal_headers
+        )
     assert response.status_code == 200
-    assert response.json()["route"] == {"mode": "none", "stage": "none", "active": False}
+    assert response.json()["environment"]["route"] == {
+        "mode": "none",
+        "stage": "none",
+        "active": False,
+    }
 
 
-@pytest.mark.parametrize("stage,active", [
-    ("planned", False),
-    ("active", True),
-    ("paused", False),
-])
+@pytest.mark.parametrize(
+    "stage,active",
+    [
+        ("planned", False),
+        ("active", True),
+        ("paused", False),
+    ],
+)
 def test_route_input_accepts_driving_stages(stage, active, internal_headers):
     request = payload()
     request["route"] = {"mode": "driving", "stage": stage}
     with TestClient(app) as client:
-        response = client.post("/internal/v1/evaluate", json=request, headers=internal_headers)
+        response = client.post(
+            "/internal/v1/evaluate", json=request, headers=internal_headers
+        )
     assert response.status_code == 200
-    assert response.json()["route"] == {"mode": "driving", "stage": stage, "active": active}
+    assert response.json()["environment"]["route"] == {
+        "mode": "driving",
+        "stage": stage,
+        "active": active,
+    }
 
 
 def test_route_state_model_rejects_active_mismatch():
     # stage == "planned" requires active == False; True must be rejected.
     with pytest.raises(ValidationError):
-        RouteState.model_validate({"mode": "driving", "stage": "planned", "active": True})
+        RouteState.model_validate(
+            {"mode": "driving", "stage": "planned", "active": True}
+        )
     # stage == "active" requires active == True; False must be rejected.
     with pytest.raises(ValidationError):
-        RouteState.model_validate({"mode": "driving", "stage": "active", "active": False})
+        RouteState.model_validate(
+            {"mode": "driving", "stage": "active", "active": False}
+        )

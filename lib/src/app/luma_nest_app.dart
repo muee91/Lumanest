@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,8 +20,12 @@ import 'package:luma_nest/src/features/sky_opportunity/application/sky_opportuni
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_ambient.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_field_parameters.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_composer.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_preset.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_rendering_policy.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_preview_override.dart';
 
 class LumaNestApp extends StatelessWidget {
   const LumaNestApp({super.key, this.initialContext});
@@ -49,6 +54,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   bool _routeRefreshScheduled = false;
   String? _lastPhotographyWatchReconciliation;
   String? _lastCompanionRefresh;
+  AmbientPresetBundle? _ambientPresets;
 
   /// Becomes true while the user scrolls content so the ambient canvas can
   /// auto-decelerate per design §9.3.
@@ -61,11 +67,23 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     unawaited(LumaNestFeedbackService.instance.preload());
     unawaited(ref.read(journeyRouteContextRestorerProvider).restore());
     _router = createLumaNestRouter(initialContext: widget.initialContext);
+    unawaited(_loadAmbientPresets());
     configureShootingSessionNotificationNavigation(
       ref.read(shootingSessionNotificationServiceProvider),
       _handlePhotographyNotificationResponse,
     );
     _router.routerDelegate.addListener(_handleRouterChange);
+  }
+
+  Future<void> _loadAmbientPresets() async {
+    try {
+      final presets = await AmbientPresetBundle.load(rootBundle);
+      if (!mounted) return;
+      setState(() => _ambientPresets = presets);
+    } on Object {
+      // V1 remains the deterministic visual fallback if an asset is missing
+      // or malformed. Release builds must not fail to start for ambience.
+    }
   }
 
   @override
@@ -179,6 +197,23 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
           conserveDeviceEnergy: conserveDeviceEnergy ?? false,
           routeLocation: _routeLocation,
         );
+        final previewOverride = kDebugMode
+            ? ref.watch(ambientPreviewOverrideProvider)
+            : null;
+        final ambientSnapshot =
+            previewOverride?.snapshot ?? reconciliationSnapshot;
+        final ambientVisualState = _ambientVisualState(
+          ambientSnapshot,
+          skyOpportunity,
+        );
+        final ambientComposition =
+            previewOverride?.composition ??
+            _ambientComposition(
+              snapshot: ambientSnapshot,
+              visualState: ambientVisualState,
+              quality: ambientRendering.quality,
+              conserveEnergy: conserveDeviceEnergy ?? false,
+            );
         final darkStage = _routeLocation.startsWith('/inspiration');
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
@@ -201,11 +236,10 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
               if (preferences.ambientBackgroundEnabled &&
                   _routeLocation == '/today')
                 _TodayAmbientLayer(
+                  debugLabel: previewOverride?.label,
                   child: AmbientCanvas(
-                    visualState: _ambientVisualState(
-                      widget.initialContext ?? _snapshotValue(liveSnapshot),
-                      skyOpportunity,
-                    ),
+                    visualState: ambientVisualState,
+                    composition: ambientComposition,
                     reduceMotion:
                         ambientRendering.reduceMotion ||
                         systemDisablesAnimations,
@@ -259,11 +293,24 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     );
   }
 
-  ContextSnapshot? _snapshotValue(AsyncValue<ContextSnapshot>? snapshot) {
-    return snapshot?.when(
-      data: (value) => value,
-      loading: () => null,
-      error: (_, _) => null,
+  AmbientVisualComposition? _ambientComposition({
+    required ContextSnapshot? snapshot,
+    required AmbientVisualState? visualState,
+    required AmbientQualityTier quality,
+    required bool conserveEnergy,
+  }) {
+    if (snapshot == null || visualState == null || _ambientPresets == null) {
+      return null;
+    }
+    final preset = _ambientPresets!.select(
+      weather: snapshot.weather,
+      dayPhase: snapshot.dayPhase,
+      conserveEnergy: conserveEnergy || quality == AmbientQualityTier.static,
+    );
+    return const AmbientComposer().compose(
+      visualState: visualState,
+      preset: preset,
+      quality: quality,
     );
   }
 
@@ -297,9 +344,10 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
 }
 
 class _TodayAmbientLayer extends StatelessWidget {
-  const _TodayAmbientLayer({required this.child});
+  const _TodayAmbientLayer({required this.child, this.debugLabel});
 
   final Widget child;
+  final String? debugLabel;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -307,39 +355,69 @@ class _TodayAmbientLayer extends StatelessWidget {
     builder: (context, constraints) => Align(
       alignment: Alignment.topCenter,
       child: SizedBox(
-        height: constraints.maxHeight * .44,
+        height: constraints.maxHeight * .58,
         width: double.infinity,
-        child: Opacity(
-          opacity: .58,
-          child: ShaderMask(
-            blendMode: BlendMode.dstIn,
-            shaderCallback: (bounds) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.white,
-                Color(0xF2FFFFFF),
-                Color(0x8CFFFFFF),
-                Colors.transparent,
-              ],
-              stops: [0, .4, .72, 1],
-            ).createShader(bounds),
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (bounds) => const RadialGradient(
-                center: Alignment(.58, -.88),
-                radius: 1.38,
-                colors: [
-                  Colors.white,
-                  Color(0xE6FFFFFF),
-                  Color(0x73FFFFFF),
-                  Colors.transparent,
-                ],
-                stops: [0, .34, .7, 1],
-              ).createShader(bounds),
-              child: child,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Opacity(
+              opacity: .82,
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (bounds) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white,
+                    Color(0xF2FFFFFF),
+                    Color(0xB8FFFFFF),
+                    Colors.transparent,
+                  ],
+                  stops: [0, .48, .78, 1],
+                ).createShader(bounds),
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => const RadialGradient(
+                    center: Alignment(.58, -.88),
+                    radius: 1.38,
+                    colors: [
+                      Colors.white,
+                      Color(0xE6FFFFFF),
+                      Color(0x9CFFFFFF),
+                      Colors.transparent,
+                    ],
+                    stops: [0, .38, .76, 1],
+                  ).createShader(bounds),
+                  child: child,
+                ),
+              ),
             ),
-          ),
+            if (debugLabel != null)
+              Positioned(
+                top: 246,
+                right: 14,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .88),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      '调试预览 · $debugLabel',
+                      style: const TextStyle(
+                        color: Color(0xFF203A3B),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     ),

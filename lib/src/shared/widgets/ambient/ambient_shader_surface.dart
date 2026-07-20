@@ -107,11 +107,18 @@ class _AmbientShaderPainter extends CustomPainter {
             : visualState.motionIntensity,
       )
       ..setFloat(5, visualState.cloudOpacity)
-      ..setFloat(6, visualState.warmGlow);
-    _setColor(shader, 7, palette.topColor);
-    _setColor(shader, 11, palette.bottomColor);
-    _setColor(shader, 15, visualState.accentColor);
+      ..setFloat(6, visualState.warmGlow)
+      ..setFloat(7, visualState.stormFactor)
+      ..setFloat(8, _rainStreaksFor(visualState));
+    _setColor(shader, 9, palette.topColor);
+    _setColor(shader, 13, palette.bottomColor);
+    _setColor(shader, 17, visualState.accentColor);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+  }
+
+  double _rainStreaksFor(AmbientVisualState state) {
+    if (state.precipitation != AmbientPrecipitation.rain) return 0.0;
+    return state.precipitationIntensity;
   }
 
   void _setColor(FragmentShader shader, int index, Color color) {

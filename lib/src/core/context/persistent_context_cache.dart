@@ -124,6 +124,7 @@ class PersistentContextCache implements ContextCache {
     'routeMode': value.routeMode.name,
     'routeStage': value.routeStage.name,
     'allowedActions': value.allowedActions.map((value) => value.name).toList(),
+    'canonicalEntriesPresent': value.canonicalEntriesPresent,
     if (value.serverManifest != null)
       'serverManifest': _encodeManifest(value.serverManifest!),
   };
@@ -209,6 +210,7 @@ class PersistentContextCache implements ContextCache {
       routeStage: routeStage,
       allowedActions: _enumList(ContextAction.values, raw['allowedActions']),
       serverManifest: manifest as ServerManifest?,
+      canonicalEntriesPresent: raw['canonicalEntriesPresent'] == true,
     );
   }
 

@@ -279,5 +279,95 @@ void main() {
       expect(state.gustFactor, 1);
       expect(state.motionIntensity, .4);
     });
+
+    test(
+      'typhoon-class wind with rain activates storm factor and glass blur',
+      () {
+        final state = mapper.resolveSnapshot(
+          ContextSnapshot(
+            id: 'typhoon',
+            observedAt: DateTime.utc(2026, 7, 12),
+            expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+            primaryScene: SceneType.city,
+            dayPhase: DayPhase.day,
+            weather: WeatherType.rain,
+            activeRoute: false,
+            windSpeedMetersPerSecond: 32,
+            precipitationMillimeters: 12,
+            cloudCoverPercent: 95,
+          ),
+          Brightness.light,
+        );
+
+        // 8-grade threshold is 17.2 m/s; 32 m/s → (32-17.2)/30 ≈ 0.493.
+        expect(state.stormFactor, closeTo(0.493, 0.001));
+        // Glass blur combines precipitation, cloud and storm so it must be at
+        // least as strong as the raw precipitation channel.
+        expect(state.glassBlur, greaterThanOrEqualTo(state.precipitationIntensity));
+      },
+    );
+
+    test('storm factor stays zero below the 8-grade wind threshold', () {
+      final state = mapper.resolveSnapshot(
+        ContextSnapshot(
+          id: 'breeze',
+          observedAt: DateTime.utc(2026, 7, 12),
+          expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+          primaryScene: SceneType.city,
+          dayPhase: DayPhase.day,
+          weather: WeatherType.rain,
+          activeRoute: false,
+          windSpeedMetersPerSecond: 9,
+          precipitationMillimeters: 3,
+          cloudCoverPercent: 70,
+        ),
+        Brightness.light,
+      );
+
+      expect(state.stormFactor, 0);
+      // Ordinary rain still softens the scene through glass blur.
+      expect(state.glassBlur, greaterThan(0));
+    });
+
+    test('storm factor stays zero for non-rain weather even in strong wind', () {
+      final state = mapper.resolveSnapshot(
+        ContextSnapshot(
+          id: 'dust-storm',
+          observedAt: DateTime.utc(2026, 7, 12),
+          expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+          primaryScene: SceneType.desert,
+          dayPhase: DayPhase.day,
+          weather: WeatherType.dust,
+          activeRoute: false,
+          windSpeedMetersPerSecond: 25,
+          cloudCoverPercent: 30,
+        ),
+        Brightness.light,
+      );
+
+      // Dust storms may be violent but are not typhoons.
+      expect(state.stormFactor, 0);
+    });
+
+    test('glass blur saturates under combined storm and cloud load', () {
+      final state = mapper.resolveSnapshot(
+        ContextSnapshot(
+          id: 'saturated',
+          observedAt: DateTime.utc(2026, 7, 12),
+          expiresAt: DateTime.utc(2026, 7, 12, 0, 15),
+          primaryScene: SceneType.city,
+          dayPhase: DayPhase.day,
+          weather: WeatherType.rain,
+          activeRoute: false,
+          windSpeedMetersPerSecond: 60,
+          precipitationMillimeters: 40,
+          cloudCoverPercent: 100,
+        ),
+        Brightness.light,
+      );
+
+      expect(state.glassBlur, lessThanOrEqualTo(1));
+      expect(state.stormFactor, closeTo(1, 0.001));
+    });
   });
 }

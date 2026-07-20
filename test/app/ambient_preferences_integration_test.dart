@@ -83,7 +83,9 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('我的'));
     await tester.pump();
-    await tester.tap(find.text('隐私'));
+    await tester.tap(find.bySemanticsLabel('打开设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('隐私与感受'));
     await tester.pumpAndSettle();
     final highContrastObject = find.ancestor(
       of: find.text('高对比度'),

@@ -1,0 +1,147 @@
+openapi: 3.1.0
+info:
+  title: LumaNest 7Timer Data Source API
+  version: 1.0.0
+  description: Optional normalized access to 7Timer ASTRO, METEO and TWO data. It is not a safety or photography-opportunity API.
+paths:
+  /v1/weather/7timer:
+    post:
+      operationId: fetchSevenTimerForecast
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SevenTimerRequest'
+      responses:
+        '200':
+          description: Normalized provider data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SevenTimerForecast'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/ProviderUnavailable'
+        '503':
+          $ref: '#/components/responses/ProviderDisabled'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: { type: string }
+    SevenTimerRequest:
+      type: object
+      additionalProperties: false
+      required: [latitude, longitude, product]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        product: { type: string, enum: [astro, meteo, two] }
+    RangeValue:
+      type: object
+      additionalProperties: false
+      required: [level, min, max, unit]
+      properties:
+        level: { type: integer }
+        min: { type: [number, 'null'] }
+        max: { type: [number, 'null'] }
+        unit: { type: string }
+    Wind:
+      type: [object, 'null']
+      additionalProperties: false
+      required: [direction, speed]
+      properties:
+        direction: { type: [string, 'null'] }
+        speed:
+          oneOf:
+            - $ref: '#/components/schemas/RangeValue'
+            - type: 'null'
+    AstroPoint:
+      type: object
+      required: [validAt, cloudCover, seeing, transparency, humidity, wind, temperatureCelsius, liftedIndex, precipitationType]
+      properties:
+        validAt: { type: string, format: date-time }
+        cloudCover: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        seeing: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        transparency: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        humidity: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        wind: { $ref: '#/components/schemas/Wind' }
+        temperatureCelsius: { type: [number, 'null'] }
+        liftedIndex: { type: [number, 'null'] }
+        precipitationType: { type: [string, 'null'] }
+    MeteoPoint:
+      type: object
+      required: [validAt, totalCloudCover, lowCloudCover, middleCloudCover, highCloudCover, humidityProfile, windProfile, pressureMslHpa, precipitation, snowDepth]
+      properties:
+        validAt: { type: string, format: date-time }
+        totalCloudCover: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        lowCloudCover: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        middleCloudCover: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        highCloudCover: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        humidityProfile: { type: array, items: { type: object } }
+        windProfile: { type: array, items: { type: object } }
+        pressureMslHpa: { type: [number, 'null'] }
+        precipitation: { type: [object, 'null'] }
+        snowDepth: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+    TwoPoint:
+      type: object
+      required: [validAt, cloudCover, temperatureMinCelsius, temperatureMaxCelsius, humidity, wind, liftedIndex, weatherCode]
+      properties:
+        validAt: { type: string, format: date-time }
+        cloudCover: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        temperatureMinCelsius: { type: [number, 'null'] }
+        temperatureMaxCelsius: { type: [number, 'null'] }
+        humidity: { oneOf: [{ $ref: '#/components/schemas/RangeValue' }, { type: 'null' }] }
+        wind: { $ref: '#/components/schemas/Wind' }
+        liftedIndex: { type: [number, 'null'] }
+        weatherCode: { type: [string, 'null'] }
+    SevenTimerForecast:
+      type: object
+      additionalProperties: false
+      required: [source, product, sourceInitAt, fetchedAt, sourceStatus, cacheStatus, isStaleCache, points]
+      properties:
+        source: { type: string, const: 7timer }
+        product: { type: string, enum: [astro, meteo, two] }
+        sourceInitAt: { type: string, format: date-time }
+        fetchedAt: { type: string, format: date-time }
+        sourceStatus: { type: string, enum: [fresh, aging, stale] }
+        cacheStatus: { type: string, enum: [miss, hit, stale] }
+        isStaleCache: { type: boolean }
+        points:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/AstroPoint'
+              - $ref: '#/components/schemas/MeteoPoint'
+              - $ref: '#/components/schemas/TwoPoint'
+  responses:
+    InvalidRequest:
+      description: Invalid request
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    RateLimited:
+      description: Rate limited
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ProviderUnavailable:
+      description: Provider unavailable and no stale cache exists
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ProviderDisabled:
+      description: Provider disabled by runtime configuration
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

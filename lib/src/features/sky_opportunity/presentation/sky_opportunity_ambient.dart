@@ -29,6 +29,8 @@ class SkyOpportunityAmbientMapper {
         ? const Color(0xFFFFBF61)
         : const Color(0xFFFFD0BE);
     return AmbientVisualState(
+      weather: base.weather,
+      dayPhase: base.dayPhase,
       palette: AmbientPalette(
         topColor: Color.lerp(base.palette.topColor, targetTop, strength)!,
         bottomColor: Color.lerp(
@@ -46,6 +48,8 @@ class SkyOpportunityAmbientMapper {
       warmGlow: base.warmGlow,
       precipitation: base.precipitation,
       accentColor: Color.lerp(base.accentColor, targetTop, strength)!,
+      stormFactor: base.stormFactor,
+      glassBlur: base.glassBlur,
     );
   }
 }

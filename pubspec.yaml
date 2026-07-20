@@ -54,7 +54,6 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_local_notifications: ^22.0.1
   timezone: ^0.11.1
-  sensors_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
@@ -85,9 +84,11 @@ flutter:
   assets:
     - assets/brand/lumanest-mark.svg
     - assets/audio/
+    - assets/ambient/
 
   shaders:
     - shaders/lumanest_ambient.frag
+    - shaders/lumanest_ambient_v2.frag
 
   fonts:
     - family: ZcoolXiaoWei

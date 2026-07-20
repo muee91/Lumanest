@@ -9,6 +9,8 @@ import 'package:luma_nest/src/features/explore/infrastructure/resilient_nearby_p
 import 'package:luma_nest/src/features/explore/infrastructure/verified_place_media_repository.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_candidate_ranker.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_discovery_context.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_discovery_engine.dart';
 import 'package:luma_nest/src/features/explore/domain/popular_place_evidence.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/data_broker_popular_place_repository.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
@@ -116,6 +118,10 @@ final nearbyCategoryProvider = Provider<NearbyPlaceCategory>((ref) {
   return ref.watch(exploreIntentProvider).category;
 });
 
+final nearbyDiscoveryEngineProvider = Provider<NearbyDiscoveryEngine>((ref) {
+  return const NearbyDiscoveryEngine();
+});
+
 final nearbyPlaceCacheProvider = Provider<NearbyPlaceCache>((ref) {
   return PersistentNearbyPlaceCache(SharedPreferencesAsync());
 });
@@ -195,43 +201,125 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
     throw const NearbyPlaceFailure(NearbyPlaceFailureKind.response);
   }
   final category = ref.watch(nearbyCategoryProvider);
-  final places = await ref
-      .watch(nearbyPlaceRepositoryProvider)
-      .fetchNearby(
-        center: location,
-        category: category,
-        radiusMeters: area.radiusMeters,
-      );
+  // Explore is a discovery surface, not a single POI request.  A temporary
+  // AMap failure or an over-specific keyword must not prevent source-backed
+  // candidates from arriving, so begin both independent lanes together.
+  final placesFuture = fetchOptionalNearbyPlaces(
+    ref.watch(nearbyPlaceRepositoryProvider),
+    center: location,
+    category: category,
+    radiusMeters: area.radiusMeters,
+  );
   final candidateMode =
       category == NearbyPlaceCategory.sunriseCandidate ||
       category == NearbyPlaceCategory.nightSkyCandidate;
-  if (!candidateMode) return places;
+  final discoveryEnabled = switch (category) {
+    NearbyPlaceCategory.viewpoint ||
+    NearbyPlaceCategory.sunriseCandidate ||
+    NearbyPlaceCategory.nightSkyCandidate ||
+    NearbyPlaceCategory.waterfront ||
+    NearbyPlaceCategory.humanity => true,
+    _ => false,
+  };
+  final discoveryContext = NearbyDiscoveryContext(
+    origin: snapshot.location ?? location,
+    searchCenter: location,
+    radiusMeters: area.radiusMeters,
+    intent: category,
+    mode: NearbyDiscoveryMode.explicit,
+    now: ref.watch(currentTimeProvider)(),
+    snapshot: snapshot,
+  );
+  if (!discoveryEnabled) {
+    final places = await placesFuture;
+    return ref
+        .watch(nearbyDiscoveryEngineProvider)
+        .rank(places, discoveryContext)
+        .places;
+  }
 
-  final nearestCity = places
-      .map((place) => place.cityName)
-      .whereType<String>()
-      .firstOrNull;
-  final evidence = await ref
-      .watch(popularPlaceEvidenceRepositoryProvider)
-      .fetch(
-        center: location,
-        radiusMeters: area.radiusMeters,
-        focus:
-            '${nearestCity ?? '当前位置'}及周边${category == NearbyPlaceCategory.sunriseCandidate ? '日出' : '夜空'}摄影地点',
-      );
+  // Source-backed discovery enriches the real POI result, but it is not the
+  // source of truth for the map. If the optional evidence endpoint is
+  // unavailable, keep the provider usable with AMap/cache data instead of
+  // replacing a real list with an error state.
+  final evidenceFuture = fetchOptionalPopularPlaceEvidence(
+    ref.watch(popularPlaceEvidenceRepositoryProvider),
+    center: location,
+    radiusMeters: area.radiusMeters,
+    // The worker resolves a coarse region independently.  Do not wait for a
+    // POI response merely to obtain its city label.
+    focus: _discoveryFocus(category, null),
+  );
+  final (places, evidence) = await (placesFuture, evidenceFuture).wait;
   final merged = NearbyCandidateRanker.mergeEvidence(
     places,
     evidence,
     category,
   );
   final shortlist = NearbyCandidateRanker.shortlist(merged);
-  final routed = await _withDrivingTimes(
-    shortlist,
-    origin: location,
-    repository: ref.watch(drivingRouteRepositoryProvider),
-  );
-  return NearbyCandidateRanker.rank(routed, radiusMeters: area.radiusMeters);
+  final routed = candidateMode
+      ? await _withDrivingTimes(
+          shortlist,
+          origin: location,
+          repository: ref.watch(drivingRouteRepositoryProvider),
+        )
+      : shortlist;
+  return ref
+      .watch(nearbyDiscoveryEngineProvider)
+      .rank(routed, discoveryContext)
+      .places;
 });
+
+/// Evidence is an optional enrichment layer. A discovery outage must not
+/// hide real AMap or cached POIs from the Explore map.
+Future<List<PopularPlaceEvidence>> fetchOptionalPopularPlaceEvidence(
+  PopularPlaceEvidenceRepository repository, {
+  required GeoPoint center,
+  required int radiusMeters,
+  required String focus,
+}) async {
+  try {
+    return await repository.fetch(
+      center: center,
+      radiusMeters: radiusMeters,
+      focus: focus,
+    );
+  } on Object {
+    return const <PopularPlaceEvidence>[];
+  }
+}
+
+/// AMap is the authoritative lane for POIs, but not the only lane Explore can
+/// show.  Treat its unavailable response as an empty lane so verified
+/// discovery evidence and the user's next actions remain visible.
+Future<List<NearbyPlace>> fetchOptionalNearbyPlaces(
+  NearbyPlaceRepository repository, {
+  required GeoPoint center,
+  required NearbyPlaceCategory category,
+  required int radiusMeters,
+}) async {
+  try {
+    return await repository.fetchNearby(
+      center: center,
+      category: category,
+      radiusMeters: radiusMeters,
+    );
+  } on Object {
+    return const <NearbyPlace>[];
+  }
+}
+
+String _discoveryFocus(NearbyPlaceCategory category, String? city) {
+  final region = city?.trim().isNotEmpty == true ? city!.trim() : '当前位置';
+  final subject = switch (category) {
+    NearbyPlaceCategory.sunriseCandidate => '日出摄影地点',
+    NearbyPlaceCategory.nightSkyCandidate => '夜空摄影地点',
+    NearbyPlaceCategory.waterfront => '水岸公园和滨水景观地点',
+    NearbyPlaceCategory.humanity => '人文街巷、传统建筑和文化空间',
+    _ => '公开资料提及的观景地点',
+  };
+  return '$region及周边$subject';
+}
 
 Future<List<NearbyPlace>> _withDrivingTimes(
   List<NearbyPlace> places, {

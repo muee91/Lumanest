@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
@@ -13,6 +14,7 @@ import 'package:luma_nest/src/presentation_v2/shell/v2_app_shell.dart';
 import 'package:luma_nest/src/presentation_v2/today/v2_today_page.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_debug_page.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-today');
@@ -154,20 +156,32 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/insight/:id',
-        pageBuilder: (context, state) =>
-            _v2DetailPage(state, child: const V2InspirationPage()),
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2InspirationPage(initialNoteId: state.pathParameters['id']),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/place/:id',
-        pageBuilder: (context, state) =>
-            _v2DetailPage(state, child: const V2ExplorePage()),
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2ExplorePage(placeId: state.pathParameters['id']),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/route-detail/:id',
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2RoutePage(routeId: state.pathParameters['id']),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/profile/settings',
         pageBuilder: (context, state) =>
-            _v2DetailPage(state, child: const V2RoutePage()),
+            _v2DetailPage(state, child: const V2ProfileSettingsPage()),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
@@ -187,6 +201,13 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         pageBuilder: (context, state) =>
             _v2DetailPage(state, child: const V2ProfilePrivacyPage()),
       ),
+      if (kDebugMode)
+        GoRoute(
+          parentNavigatorKey: rootNavigatorKey,
+          path: '/ambient-debug',
+          pageBuilder: (context, state) =>
+              _v2DetailPage(state, child: const AmbientDebugPage()),
+        ),
     ],
   );
 }

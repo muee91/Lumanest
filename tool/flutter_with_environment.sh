@@ -22,4 +22,12 @@ jq '{
 }' "$source_file" > "$safe_file"
 
 cd "$workspace_root"
-flutter "$@" --dart-define-from-file="$safe_file"
+command_name="${1:-}"
+case "$command_name" in
+  build|run|test|drive)
+    flutter "$@" --dart-define-from-file="$safe_file"
+    ;;
+  *)
+    flutter "$@"
+    ;;
+esac

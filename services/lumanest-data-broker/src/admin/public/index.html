@@ -229,6 +229,39 @@
               </div>
             </section>
 
+            <section class="settings-card seven-timer-settings">
+              <header class="settings-card-head"><div><p class="card-kicker">PROFESSIONAL WEATHER SOURCE</p><h3>7Timer 专业气象源</h3><p>作为专业气象补充源统一监控；不参与主天气、安全预警或摄影结论。</p></div><span class="section-index">04</span></header>
+              <div class="seven-timer-layout">
+                <section class="settings-group numeric-policy">
+                  <div class="group-head"><div><h4>接入策略</h4><p>开关和缓存参数保存后立即生效。</p></div></div>
+                  <div class="setting-rows">
+                    <label class="switch-row"><span><strong>7Timer Provider</strong><small>ASTRO / METEO / TWO 总开关</small></span><input name="sevenTimerProviderEnabled" type="checkbox"></label>
+                    <label class="setting-row"><span><strong>请求超时</strong><small>2,000–30,000 毫秒</small></span><input name="sevenTimerTimeoutMs" type="number" min="2000" max="30000"></label>
+                    <label class="setting-row"><span><strong>最多尝试</strong><small>1–2 次</small></span><input name="sevenTimerMaxAttempts" type="number" min="1" max="2"></label>
+                    <label class="setting-row"><span><strong>ASTRO 新鲜缓存</strong><small>秒</small></span><input name="sevenTimerAstroFreshTtlSeconds" type="number" min="1800" max="21600"></label>
+                    <label class="setting-row"><span><strong>METEO 新鲜缓存</strong><small>秒</small></span><input name="sevenTimerMeteoFreshTtlSeconds" type="number" min="1800" max="21600"></label>
+                    <label class="setting-row"><span><strong>TWO 新鲜缓存</strong><small>秒</small></span><input name="sevenTimerTwoFreshTtlSeconds" type="number" min="3600" max="43200"></label>
+                    <label class="setting-row"><span><strong>陈旧缓存窗口</strong><small>秒</small></span><input name="sevenTimerStaleTtlSeconds" type="number" min="10800" max="86400"></label>
+                    <label class="setting-row"><span><strong>检测超时</strong><small>2,000–15,000 毫秒</small></span><input name="sevenTimerAdminTestTimeoutMs" type="number" min="2000" max="15000"></label>
+                    <label class="setting-row"><span><strong>检测冷却</strong><small>3–300 秒</small></span><input name="sevenTimerAdminTestCooldownSeconds" type="number" min="3" max="300"></label>
+                    <label class="setting-row"><span><strong>检测并发</strong><small>1–3 个产品</small></span><input name="sevenTimerAdminTestMaxConcurrency" type="number" min="1" max="3"></label>
+                  </div>
+                </section>
+                <section class="settings-group seven-timer-health">
+                  <div class="group-head"><div><h4>健康与溯源</h4><p id="seven-timer-overall">尚未读取运行状态</p></div><button id="refresh-seven-timer" type="button" class="secondary compact-button">刷新</button></div>
+                  <p id="seven-timer-resource-summary" class="seven-timer-resource-summary">等待资源指标</p>
+                  <div id="seven-timer-products" class="seven-timer-products" aria-live="polite"></div>
+                  <div class="seven-timer-test">
+                    <label>产品<select id="seven-timer-test-product"><option value="astro">ASTRO</option><option value="meteo">METEO</option><option value="two">TWO</option></select></label>
+                    <label>纬度<input id="seven-timer-test-latitude" type="number" min="-90" max="90" step="0.001" value="31.230"></label>
+                    <label>经度<input id="seven-timer-test-longitude" type="number" min="-180" max="180" step="0.001" value="121.474"></label>
+                    <button id="test-seven-timer" type="button">手动检测</button>
+                  </div>
+                  <p class="inline-warning">检测坐标只用于本次请求，不保存、不写入审计；审计仅记录产品、结果与 Trace ID。</p>
+                </section>
+              </div>
+            </section>
+
             <section class="settings-card debug-setting">
               <div><p class="card-kicker">DIAGNOSTICS</p><h3>诊断日志</h3><p>只在定位问题时临时启用，避免长期产生额外日志。</p></div>
               <label class="switch-row"><span><strong>调试日志</strong><small>记录更详细的服务诊断信息</small></span><input name="debugLogging" type="checkbox"></label>
@@ -240,7 +273,7 @@
         <section class="page" data-panel="simulation" hidden>
           <div class="simulation-lab-head">
             <section class="settings-card simulation-config">
-              <header class="settings-card-head compact-head"><div><p class="card-kicker">DEVELOPER TOOLS</p><h3>场景实验室</h3><p>向已配对的 Debug App 注入经过 V4 契约校验的临时场景。</p></div><span class="section-index">LAB</span></header>
+              <header class="settings-card-head compact-head"><div><p class="card-kicker">DEVELOPER TOOLS</p><h3>场景实验室</h3><p>向已配对的 Debug App 注入经过 V5 契约校验的临时场景。</p></div><span class="section-index">LAB</span></header>
               <div class="simulation-picker">
                 <label>场景模板<select id="simulation-preset" aria-describedby="simulation-preset-description"></select></label>
                 <div class="preset-summary"><strong id="simulation-preset-title">等待读取场景</strong><p id="simulation-preset-description">场景模板由 Broker 提供并进行严格校验。</p><div id="simulation-preset-tags" class="preset-tags"></div></div>

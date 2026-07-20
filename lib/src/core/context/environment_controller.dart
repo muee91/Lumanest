@@ -174,6 +174,17 @@ class EnvironmentLoader {
   ) async {
     final cached = await cache.readLatest();
     if (cached != null) {
+      // Reject severely expired cache (>24h) to avoid misleading the user
+      // with outdated safety or weather guidance.
+      final age = now().toUtc().difference(cached.observedAt.toUtc());
+      if (age > const Duration(hours: 24)) {
+        logger?.warning(
+          LogCategory.contextCache,
+          'cache.expired_rejected',
+          data: {LogDataKey.cache: 'expired', LogDataKey.reason: kind.name},
+        );
+        throw EnvironmentLoadFailure(kind, cause: cause);
+      }
       logger?.warning(
         LogCategory.contextCache,
         'cache.stale_hit',

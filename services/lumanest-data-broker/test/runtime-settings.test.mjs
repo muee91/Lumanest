@@ -67,6 +67,21 @@ test('fills omitted settings from immutable defaults', () => {
   assert.equal(value.sunsetbotFreshTtlSeconds, 5_400);
   assert.equal(value.sunsetbotStaleTtlSeconds, 21_600);
   assert.equal(value.skyOpportunityNotificationEnabled, false);
+  assert.equal(value.sevenTimerProviderEnabled, true);
+  assert.equal(value.sevenTimerAdminTestTimeoutMs, 8_000);
+  assert.equal(value.sevenTimerAdminTestCooldownSeconds, 10);
+  assert.equal(value.sevenTimerAdminTestMaxConcurrency, 1);
+  assert.equal(value.sevenTimerAstroFreshTtlSeconds, 10_800);
+});
+
+test('keeps every 7Timer fresh TTL within its stale fallback window', () => {
+  assert.throws(
+    () => validateRuntimeSettings({
+      sevenTimerTwoFreshTtlSeconds: 43_200,
+      sevenTimerStaleTtlSeconds: 10_800,
+    }),
+    /sevenTimerStaleTtlSeconds/,
+  );
 });
 
 test('keeps SunsetBot cache, concurrency and product thresholds internally ordered', () => {

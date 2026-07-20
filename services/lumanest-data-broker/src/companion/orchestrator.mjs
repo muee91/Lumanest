@@ -141,7 +141,7 @@ function seededCreative(snapshot, generatedAt, limit) {
 }
 
 function visibleInsights(snapshot) {
-  return (snapshot.events ?? [])
+  return (snapshot.facts?.events ?? [])
     .map((event) => eventInsight(event, snapshot))
     .filter(Boolean)
     .filter((insight) => Number.isFinite(Date.parse(insight.expiresAt)));
@@ -160,6 +160,10 @@ export class CompanionStore {
     if (!object(snapshot) || typeof snapshot.contextId !== 'string') return;
     this.snapshots.set(snapshot.contextId, Object.freeze(structuredClone(snapshot)));
     while (this.snapshots.size > 24) this.snapshots.delete(this.snapshots.keys().next().value);
+  }
+
+  snapshot(contextId) {
+    return this.snapshots.get(contextId) ?? null;
   }
 
   refresh(request, idempotencyKey) {

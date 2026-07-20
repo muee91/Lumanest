@@ -39,6 +39,7 @@ migrate_working_dir/
 **/.pytest_cache/
 **/__pycache__/
 **/*.egg-info/
+.playwright-cli/
 
 # Symbolication related
 app.*.symbols

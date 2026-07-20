@@ -1,6 +1,12 @@
 from datetime import datetime, timezone
 
-from app.models import ActivityState, PrimaryScene, SceneEvidence, SceneFacet, SnapshotRequest
+from app.models import (
+    ActivityState,
+    PrimaryScene,
+    SceneEvidence,
+    SceneFacet,
+    SnapshotRequest,
+)
 from app.rules import classify_scene_context
 
 
@@ -8,7 +14,7 @@ def _request(*, evidence: SceneEvidence, route: dict | None = None) -> SnapshotR
     observed_at = datetime(2026, 7, 18, 10, tzinfo=timezone.utc)
     return SnapshotRequest.model_validate(
         {
-            "contractVersion": 4,
+            "contractVersion": 5,
             "coordinate": {"latitude": 30.25, "longitude": 120.15},
             "observedAt": observed_at,
             "route": route or {"mode": "none", "stage": "none"},

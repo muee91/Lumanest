@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>栖光 LOGO 品牌稿</title>
+    <style id="theme-vars">
+/* LumaNest 栖光 — LOGO Brand Sheet tokens
+   Derived from project V2Palette + existing lumanest-mark.svg identity.
+   Single brand primary hue (ridge green) with tints;
+   sun-orange is an explicit brand-identity token (the "光"), not a category hue. */
+
+:root {
+  /* Brand primary — ridge green (栖 / shelter) */
+  --ln-primary: #24574F;
+  --ln-primary-50: #F2F6F5;
+  --ln-primary-100: #DCE8E6;
+  --ln-primary-200: #B6CFCB;
+  --ln-primary-300: #8AB0AA;
+  --ln-primary-400: #4F8079;
+  --ln-primary-500: #24574F;
+  --ln-primary-600: #1E463F;
+  --ln-primary-700: #183831;
+  --ln-primary-800: #122A25;
+  --ln-primary-900: #0C1D19;
+
+  /* Brand identity — sun / light (光) — core to the logo, not category styling */
+  --ln-sun: #D77A45;
+  --ln-sun-soft: #E8A77B;
+
+  /* Brand identity — moss accent (existing V2Palette accent) */
+  --ln-moss: #819D4B;
+
+  /* Neutral / paper system */
+  --ln-paper: #EEE7D9;
+  --ln-paper-soft: #F5F1E8;
+  --ln-canvas: #F5F5F1;
+  --ln-ink: #171A18;
+  --ln-night: #17201D;
+  --ln-line: rgba(23, 26, 24, 0.12);
+
+  /* Semantic aliases (consumed by fill-html-head.mjs) */
+  --ln-background: #EEE7D9;
+  --ln-foreground: #171A18;
+  --ln-card: #F5F1E8;
+  --ln-card-foreground: #171A18;
+  --ln-popover: #F5F1E8;
+  --ln-popover-foreground: #171A18;
+  --ln-primary-foreground: #F5F1E8;
+  --ln-muted: #E4DDCD;
+  --ln-muted-foreground: #5C5852;
+  --ln-border: rgba(23, 26, 24, 0.14);
+  --ln-input: rgba(23, 26, 24, 0.14);
+  --ln-ring: #24574F;
+  --ln-radius-small: 4px;
+  --ln-radius-medium: 10px;
+  --ln-radius-large: 16px;
+  --ln-radius-full: 9999px;
+
+  /* Typography */
+  --ln-font-display: "Zcool XiaoWei", "Noto Serif SC", "Songti SC", "STSong", ui-serif, Georgia, serif;
+  --ln-font-body: "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ln-font-latin-display: "Cormorant Garamond", "Playfair Display", Georgia, ui-serif, serif;
+  --ln-font-latin-body: "Inter", "Helvetica Neue", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.dark {
+  --ln-background: #17201D;
+  --ln-foreground: #EEE7D9;
+  --ln-card: #1E2A26;
+  --ln-card-foreground: #EEE7D9;
+  --ln-popover: #1E2A26;
+  --ln-popover-foreground: #EEE7D9;
+  --ln-muted: #243330;
+  --ln-muted-foreground: #B6C0BB;
+  --ln-border: rgba(238, 231, 217, 0.14);
+  --ln-input: rgba(238, 231, 217, 0.14);
+}
+
+/* Typography classes */
+.ln-display {
+  font-family: var(--ln-font-display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+.ln-latin-display {
+  font-family: var(--ln-font-latin-display);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+.ln-body {
+  font-family: var(--ln-font-body);
+  font-weight: 400;
+  line-height: 1.55;
+}
+.ln-latin-body {
+  font-family: var(--ln-font-latin-body);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+.ln-eyebrow {
+  font-family: var(--ln-font-latin-body);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--ln-muted-foreground);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--ln-background);
+    --color-foreground: var(--ln-foreground);
+    --color-card: var(--ln-card);
+    --color-card-foreground: var(--ln-card-foreground);
+    --color-popover: var(--ln-popover);
+    --color-popover-foreground: var(--ln-popover-foreground);
+    --color-primary: var(--ln-primary);
+    --color-primary-foreground: var(--ln-primary-foreground);
+    --color-muted: var(--ln-muted);
+    --color-muted-foreground: var(--ln-muted-foreground);
+    --color-border: var(--ln-border);
+    --color-input: var(--ln-input);
+    --color-ring: var(--ln-ring);
+    --radius-sm: var(--ln-radius-small);
+    --radius-md: var(--ln-radius-medium);
+    --radius-lg: var(--ln-radius-large);
+  }
+  @layer base {
+    body { background: var(--ln-background); color: var(--ln-foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--ln-background); }
+      .text-background { color: var(--ln-background); }
+      .border-background { border-color: var(--ln-background); }
+      .ring-background { --tw-ring-color: var(--ln-background); }
+      .bg-foreground { background-color: var(--ln-foreground); }
+      .text-foreground { color: var(--ln-foreground); }
+      .border-foreground { border-color: var(--ln-foreground); }
+      .ring-foreground { --tw-ring-color: var(--ln-foreground); }
+      .bg-card { background-color: var(--ln-card); }
+      .text-card { color: var(--ln-card); }
+      .border-card { border-color: var(--ln-card); }
+      .ring-card { --tw-ring-color: var(--ln-card); }
+      .bg-card-foreground { background-color: var(--ln-card-foreground); }
+      .text-card-foreground { color: var(--ln-card-foreground); }
+      .border-card-foreground { border-color: var(--ln-card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--ln-card-foreground); }
+      .bg-popover { background-color: var(--ln-popover); }
+      .text-popover { color: var(--ln-popover); }
+      .border-popover { border-color: var(--ln-popover); }
+      .ring-popover { --tw-ring-color: var(--ln-popover); }
+      .bg-popover-foreground { background-color: var(--ln-popover-foreground); }
+      .text-popover-foreground { color: var(--ln-popover-foreground); }
+      .border-popover-foreground { border-color: var(--ln-popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--ln-popover-foreground); }
+      .bg-primary { background-color: var(--ln-primary); }
+      .text-primary { color: var(--ln-primary); }
+      .border-primary { border-color: var(--ln-primary); }
+      .ring-primary { --tw-ring-color: var(--ln-primary); }
+      .bg-primary-foreground { background-color: var(--ln-primary-foreground); }
+      .text-primary-foreground { color: var(--ln-primary-foreground); }
+      .border-primary-foreground { border-color: var(--ln-primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--ln-primary-foreground); }
+      .bg-muted { background-color: var(--ln-muted); }
+      .text-muted { color: var(--ln-muted); }
+      .border-muted { border-color: var(--ln-muted); }
+      .ring-muted { --tw-ring-color: var(--ln-muted); }
+      .bg-muted-foreground { background-color: var(--ln-muted-foreground); }
+      .text-muted-foreground { color: var(--ln-muted-foreground); }
+      .border-muted-foreground { border-color: var(--ln-muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--ln-muted-foreground); }
+      .bg-border { background-color: var(--ln-border); }
+      .text-border { color: var(--ln-border); }
+      .border-border { border-color: var(--ln-border); }
+      .ring-border { --tw-ring-color: var(--ln-border); }
+      .bg-input { background-color: var(--ln-input); }
+      .text-input { color: var(--ln-input); }
+      .border-input { border-color: var(--ln-input); }
+      .ring-input { --tw-ring-color: var(--ln-input); }
+      .bg-ring { background-color: var(--ln-ring); }
+      .text-ring { color: var(--ln-ring); }
+      .border-ring { border-color: var(--ln-ring); }
+      .ring-ring { --tw-ring-color: var(--ln-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased">
+    <main>
+      <!-- 隐藏的 SVG symbol 定义：复用于全页 -->
+      <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+        <defs>
+          <!-- 弧线组：栖 / shelter（山脊绿） -->
+          <symbol id="ln-arc" viewBox="0 0 120 100">
+            <path d="M 10 72 Q 30 18 60 16 Q 90 14 110 72" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/>
+          </symbol>
+          <!-- 日轮组：光 / light（日橙） -->
+          <symbol id="ln-sun-disc" viewBox="0 0 120 100">
+            <circle cx="60" cy="52" r="18" fill="currentColor"/>
+          </symbol>
+          <!-- 地平线点缀（苔绿） -->
+          <symbol id="ln-horizon" viewBox="0 0 120 100">
+            <line x1="18" y1="80" x2="102" y2="80" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+          </symbol>
+        </defs>
+      </svg>
+
+      <div style="max-width:1240px;margin:0 auto;padding:48px 56px 64px">
+
+        <!-- ===== 1. MASTHEAD ===== -->
+        <header style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--ln-line);padding-bottom:20px;margin-bottom:56px">
+          <div>
+            <p class="ln-eyebrow" style="margin:0 0 6px">Lumanest Brand System</p>
+            <h1 style="font-family:var(--ln-font-display);font-size:1.75rem;letter-spacing:0.02em;margin:0;line-height:1.15">栖光 / LumaNest</h1>
+          </div>
+          <p class="ln-latin-body" style="font-size:0.68rem;color:var(--ln-muted-foreground);margin:0">v1.0 &middot; 2026.07</p>
+        </header>
+
+        <!-- ===== 2. HERO LOCKUP ===== -->
+        <section style="text-align:center;padding:56px 0 72px">
+          <!-- 主标志 -->
+          <div style="display:inline-flex;align-items:center;justify-content:center;margin-bottom:18px">
+            <svg width="80" height="66" style="flex-shrink:0"><use href="#ln-arc" style="color:var(--ln-primary)"/><use href="#ln-sun-disc" style="color:var(--ln-sun)"/><use href="#ln-horizon" style="color:var(--ln-moss)"/></svg>
+          </div>
+          <!-- 字标 -->
+          <div style="margin-bottom:10px">
+            <span class="ln-display" style="font-size:3rem;color:var(--ln-ink);vertical-align:baseline">栖光</span>
+          </div>
+          <div style="margin-bottom:22px">
+            <span class="ln-latin-display" style="font-size:1.5rem;color:var(--ln-primary);letter-spacing:0.12em">LumaNest</span>
+          </div>
+          <!-- 品牌线 -->
+          <p class="ln-display" style="font-size:0.95rem;color:var(--ln-muted-foreground);margin:0;letter-spacing:0.12em">循光而行，择光而栖</p>
+        </section>
+
+        <!-- ===== 3. SYMBOL SHOWCASE + CONSTRUCTION ===== -->
+        <section style="margin-bottom:72px">
+          <p class="ln-eyebrow" style="margin:0 0 28px">Symbol Mark</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start">
+            <!-- 大符号展示 -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:56px 40px;display:flex;align-items:center;justify-content:center">
+              <svg width="320" height="267"><use href="#ln-arc" style="color:var(--ln-primary)"/><use href="#ln-sun-disc" style="color:var(--ln-sun)"/><use href="#ln-horizon" style="color:var(--ln-moss)"/></svg>
+            </div>
+            <!-- 构造网格 -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px;position:relative">
+              <p class="ln-latin-body" style="font-size:0.65rem;margin:0 0 24px;color:var(--ln-muted-foreground)">Construction Grid</p>
+              <svg viewBox="0 0 240 200" width="240" height="200" style="display:block;margin:0 auto">
+                <!-- 构造辅助线 -->
+                <!-- 弧形中心参考圆 -->
+                <circle cx="120" cy="-20" r="100" fill="none" stroke="var(--ln-primary)" stroke-width="0.5" stroke-dasharray="4 3" opacity="0.25"/>
+                <!-- 日轮构造圆 -->
+                <circle cx="120" cy="104" r="36" fill="none" stroke="var(--ln-sun)" stroke-width="0.5" stroke-dasharray="4 3" opacity="0.35"/>
+                <!-- 弧顶到日轮中心垂直线 -->
+                <line x1="120" y1="0" x2="120" y2="200" stroke="var(--ln-primary)" stroke-width="0.4" stroke-dasharray="3 4" opacity="0.2"/>
+                <!-- 黄金比例 1:1.618 水平参考线 -->
+                <line x1="20" y1="122" x2="220" y2="122" stroke="var(--ln-moss)" stroke-width="0.4" stroke-dasharray="2 3" opacity="0.3"/>
+                <text x="224" y="126" fill="var(--ln-moss)" font-size="7" font-family="Inter,sans-serif" opacity="0.6">φ</text>
+                <!-- 日轮中心点 -->
+                <circle cx="120" cy="104" r="1.5" fill="var(--ln-sun)" opacity="0.5"/>
+                <!-- 安全空间框（虚线矩形） -->
+                <rect x="16" y="4" width="208" height="172" rx="2" fill="none" stroke="var(--ln-ink)" stroke-width="0.5" stroke-dasharray="5 4" opacity="0.18"/>
+                <!-- 实际标志 -->
+                <path d="M 20 144 Q 60 36 120 32 Q 180 28 220 144" fill="none" stroke="var(--ln-primary)" stroke-width="3.5" stroke-linecap="round"/>
+                <circle cx="120" cy="104" r="18" fill="var(--ln-sun)"/>
+                <line x1="36" y1="160" x2="204" y2="160" stroke="var(--ln-moss)" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>
+                <!-- 标注 -->
+                <text x="100" y="12" fill="var(--ln-primary)" font-size="6.5" font-family="Inter,sans-serif" opacity="0.55">ridge arc R=100</text>
+                <text x="142" y="108" fill="var(--ln-sun)" font-size="6.5" font-family="Inter,sans-serif" opacity="0.6">r=18</text>
+                <text x="32" y="172" fill="var(--ln-moss)" font-size="6.5" font-family="Inter,sans-serif" opacity="0.5">horizon accent</text>
+                <text x="222" y="10" fill="var(--ln-ink)" font-size="6" font-family="Inter,sans-serif" opacity="0.35">clear space</text>
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 4. VARIATIONS ===== -->
+        <section style="margin-bottom:72px">
+          <p class="ln-eyebrow" style="margin:0 0 28px">Variations</p>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:20px">
+            <!-- a) Full-color -->
+            <div>
+              <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:24px">
+                <svg width="120" height="100"><use href="#ln-arc" style="color:var(--ln-primary)"/><use href="#ln-sun-disc" style="color:var(--ln-sun)"/><use href="#ln-horizon" style="color:var(--ln-moss)"/></svg>
+              </div>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:10px 0 0;color:var(--ln-muted-foreground);text-align:center">Full Color</p>
+            </div>
+            <!-- b) Monochrome ink -->
+            <div>
+              <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:24px">
+                <svg width="120" height="100"><use href="#ln-arc" style="color:var(--ln-ink)"/><use href="#ln-sun-disc" style="color:var(--ln-ink)"/><use href="#ln-horizon" style="color:var(--ln-ink)"/></svg>
+              </div>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:10px 0 0;color:var(--ln-muted-foreground);text-align:center">Monochrome</p>
+            </div>
+            <!-- c) Reversed on ridge green -->
+            <div>
+              <div style="background:var(--ln-primary);border-radius:var(--ln-radius-medium);aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:24px">
+                <svg width="120" height="100"><use href="#ln-arc" style="color:var(--ln-paper)"/><use href="#ln-sun-disc" style="color:var(--ln-paper)"/><use href="#ln-horizon" style="color:var(--ln-paper)"/></svg>
+              </div>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:10px 0 0;color:var(--ln-muted-foreground);text-align:center">Ridge Green</p>
+            </div>
+            <!-- d) Reversed on night -->
+            <div>
+              <div style="background:var(--ln-night);border-radius:var(--ln-radius-medium);aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:24px">
+                <svg width="120" height="100"><use href="#ln-arc" style="color:var(--ln-paper)"/><use href="#ln-sun-disc" style="color:var(--ln-paper)"/><use href="#ln-horizon" style="color:var(--ln-paper)"/></svg>
+              </div>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:10px 0 0;color:var(--ln-muted-foreground);text-align:center">Night</p>
+            </div>
+            <!-- e) App icon application -->
+            <div>
+              <div style="background:var(--ln-primary);border-radius:22.37%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:24px;position:relative">
+                <svg width="100" height="84"><use href="#ln-arc" style="color:var(--ln-paper)"/><use href="#ln-sun-disc" style="color:var(--ln-sun-soft)"/><use href="#ln-horizon" style="color:var(--ln-paper);opacity:0.6"/></svg>
+              </div>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:10px 0 0;color:var(--ln-muted-foreground);text-align:center">App Icon</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 5. WORDMARK LOCKUPS ===== -->
+        <section style="margin-bottom:72px">
+          <p class="ln-eyebrow" style="margin:0 0 28px">Wordmark Lockups</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px">
+            <!-- Horizontal -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px 32px;display:flex;align-items:center;gap:16px">
+              <svg width="48" height="40" style="flex-shrink:0"><use href="#ln-arc" style="color:var(--ln-primary)"/><use href="#ln-sun-disc" style="color:var(--ln-sun)"/><use href="#ln-horizon" style="color:var(--ln-moss)"/></svg>
+              <div>
+                <span class="ln-display" style="font-size:1.6rem;color:var(--ln-ink)">栖光</span>
+                <span class="ln-latin-display" style="font-size:1rem;color:var(--ln-primary);margin-left:10px;letter-spacing:0.08em">LumaNest</span>
+              </div>
+            </div>
+            <!-- Stacked -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px 32px;text-align:center">
+              <div style="display:flex;justify-content:center;margin-bottom:12px">
+                <svg width="56" height="46"><use href="#ln-arc" style="color:var(--ln-primary)"/><use href="#ln-sun-disc" style="color:var(--ln-sun)"/><use href="#ln-horizon" style="color:var(--ln-moss)"/></svg>
+              </div>
+              <div class="ln-display" style="font-size:1.6rem;color:var(--ln-ink);margin-bottom:4px">栖光</div>
+              <div class="ln-latin-display" style="font-size:0.95rem;color:var(--ln-primary);letter-spacing:0.1em">LumaNest</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 6. CLEAR SPACE & MINIMUM SIZE ===== -->
+        <section style="margin-bottom:72px">
+          <p class="ln-eyebrow" style="margin:0 0 28px">Clear Space &amp; Minimum Size</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start">
+            <!-- Clear space -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px;display:flex;align-items:center;justify-content:center">
+              <div style="position:relative;display:inline-block">
+                <!-- 安全空间虚线框 -->
+                <div style="position:absolute;inset:-22px;border:1.5px dashed var(--ln-primary);border-radius:var(--ln-radius-small);opacity:0.35"></div>
+                <!-- 标注 X -->
+                <div style="position:absolute;top:-36px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px">
+                  <div style="width:18px;height:1px;background:var(--ln-primary);opacity:0.5"></div>
+                  <span style="font-family:Inter,sans-serif;font-size:0.6rem;color:var(--ln-primary);opacity:0.7">x</span>
+                  <div style="width:18px;height:1px;background:var(--ln-primary);opacity:0.5"></div>
+                </div>
+                <div style="position:absolute;top:50%;left:-36px;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:4px">
+                  <div style="width:1px;height:18px;background:var(--ln-primary);opacity:0.5"></div>
+                  <span style="font-family:Inter,sans-serif;font-size:0.6rem;color:var(--ln-primary);opacity:0.7">x</span>
+                  <div style="width:1px;height:18px;background:var(--ln-primary);opacity:0.5"></div>
+                </div>
+                <svg width="120" height="100"><use href="#ln-arc" style="color:var(--ln-primary)"/><use href="#ln-sun-disc" style="color:var(--ln-sun)"/><use href="#ln-horizon" style="color:var(--ln-moss)"/></svg>
+              </div>
+            </div>
+            <!-- Minimum size -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px">
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 24px;color:var(--ln-muted-foreground)">Minimum Size — Digital</p>
+              <div style="display:flex;align-items:end;gap:32px">
+                <div style="text-align:center">
+                  <svg width="24" height="20" style="display:block;margin:0 auto 8px"><use href="#ln-arc" style="color:var(--ln-ink)"/><use href="#ln-sun-disc" style="color:var(--ln-ink)"/><use href="#ln-horizon" style="color:var(--ln-ink)"/></svg>
+                  <span style="font-family:Inter,sans-serif;font-size:0.6rem;color:var(--ln-muted-foreground)">24px</span>
+                </div>
+                <div style="text-align:center">
+                  <svg width="36" height="30" style="display:block;margin:0 auto 8px"><use href="#ln-arc" style="color:var(--ln-ink)"/><use href="#ln-sun-disc" style="color:var(--ln-ink)"/><use href="#ln-horizon" style="color:var(--ln-ink)"/></svg>
+                  <span style="font-family:Inter,sans-serif;font-size:0.6rem;color:var(--ln-muted-foreground)">36px</span>
+                </div>
+                <div style="text-align:center">
+                  <svg width="48" height="40" style="display:block;margin:0 auto 8px"><use href="#ln-arc" style="color:var(--ln-ink)"/><use href="#ln-sun-disc" style="color:var(--ln-ink)"/><use href="#ln-horizon" style="color:var(--ln-ink)"/></svg>
+                  <span style="font-family:Inter,sans-serif;font-size:0.6rem;color:var(--ln-muted-foreground)">48px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 7. COLOR PALETTE ===== -->
+        <section style="margin-bottom:72px">
+          <p class="ln-eyebrow" style="margin:0 0 28px">Color Palette</p>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+            <!-- 山脊绿 -->
+            <div>
+              <div style="background:var(--ln-primary);border-radius:var(--ln-radius-small);aspect-ratio:1.6/1;margin-bottom:12px"></div>
+              <p class="ln-body" style="font-size:0.82rem;margin:0 0 2px;color:var(--ln-foreground)">山脊绿</p>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 4px;color:var(--ln-muted-foreground)">#24574F</p>
+              <p class="ln-body" style="font-size:0.7rem;margin:0;color:var(--ln-muted-foreground)">主色 / 弧线</p>
+            </div>
+            <!-- 日橙 -->
+            <div>
+              <div style="background:var(--ln-sun);border-radius:var(--ln-radius-small);aspect-ratio:1.6/1;margin-bottom:12px"></div>
+              <p class="ln-body" style="font-size:0.82rem;margin:0 0 2px;color:var(--ln-foreground)">日橙</p>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 4px;color:var(--ln-muted-foreground)">#D77A45</p>
+              <p class="ln-body" style="font-size:0.7rem;margin:0;color:var(--ln-muted-foreground)">品牌色 / 日轮</p>
+            </div>
+            <!-- 苔绿 -->
+            <div>
+              <div style="background:var(--ln-moss);border-radius:var(--ln-radius-small);aspect-ratio:1.6/1;margin-bottom:12px"></div>
+              <p class="ln-body" style="font-size:0.82rem;margin:0 0 2px;color:var(--ln-foreground)">苔绿</p>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 4px;color:var(--ln-muted-foreground)">#819D4B</p>
+              <p class="ln-body" style="font-size:0.7rem;margin:0;color:var(--ln-muted-foreground)">点缀 / 地平线</p>
+            </div>
+            <!-- 暖纸 -->
+            <div>
+              <div style="background:var(--ln-paper);border-radius:var(--ln-radius-small);aspect-ratio:1.6/1;margin-bottom:12px;border:1px solid var(--ln-border)"></div>
+              <p class="ln-body" style="font-size:0.82rem;margin:0 0 2px;color:var(--ln-foreground)">暖纸</p>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 4px;color:var(--ln-muted-foreground)">#EEE7D9</p>
+              <p class="ln-body" style="font-size:0.7rem;margin:0;color:var(--ln-muted-foreground)">底色 / 纸面</p>
+            </div>
+            <!-- 墨 -->
+            <div>
+              <div style="background:var(--ln-ink);border-radius:var(--ln-radius-small);aspect-ratio:1.6/1;margin-bottom:12px"></div>
+              <p class="ln-body" style="font-size:0.82rem;margin:0 0 2px;color:var(--ln-foreground)">墨</p>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 4px;color:var(--ln-muted-foreground)">#171A18</p>
+              <p class="ln-body" style="font-size:0.7rem;margin:0;color:var(--ln-muted-foreground)">文字 / 单色版</p>
+            </div>
+            <!-- 夜 -->
+            <div>
+              <div style="background:var(--ln-night);border-radius:var(--ln-radius-small);aspect-ratio:1.6/1;margin-bottom:12px"></div>
+              <p class="ln-body" style="font-size:0.82rem;margin:0 0 2px;color:var(--ln-foreground)">夜</p>
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 4px;color:var(--ln-muted-foreground)">#17201D</p>
+              <p class="ln-body" style="font-size:0.7rem;margin:0;color:var(--ln-muted-foreground)">反白底 / 暗色</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 8. TYPOGRAPHY SPECIMEN ===== -->
+        <section style="margin-bottom:56px">
+          <p class="ln-eyebrow" style="margin:0 0 28px">Typography</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px">
+            <!-- 中文品牌字 -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px">
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 16px;color:var(--ln-muted-foreground)">Brand Display — CJK</p>
+              <p class="ln-display" style="font-size:3.2rem;margin:0 0 12px;color:var(--ln-ink)">栖光</p>
+              <p class="ln-display" style="font-size:1.1rem;margin:0 0 16px;color:var(--ln-ink)">循光而行，择光而栖</p>
+              <p class="ln-body" style="font-size:0.75rem;margin:0;color:var(--ln-muted-foreground)">Zcool XiaoWei / Noto Serif SC<br/>品牌主字，仅用于品牌标识与字标</p>
+            </div>
+            <!-- 拉丁品牌字 -->
+            <div style="background:var(--ln-card);border-radius:var(--ln-radius-medium);padding:40px">
+              <p class="ln-latin-body" style="font-size:0.6rem;margin:0 0 16px;color:var(--ln-muted-foreground)">Brand Display — Latin</p>
+              <p class="ln-latin-display" style="font-size:2.8rem;margin:0 0 12px;color:var(--ln-ink)">LumaNest</p>
+              <p class="ln-latin-display" style="font-size:1rem;margin:0 0 16px;color:var(--ln-primary);letter-spacing:0.1em">Follow the light, dwell where it rests</p>
+              <p class="ln-body" style="font-size:0.75rem;margin:0;color:var(--ln-muted-foreground)">Cormorant Garamond / Playfair Display<br/>拉丁字标，品牌英文名专用</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== 9. FOOTER ===== -->
+        <footer style="border-top:1px solid var(--ln-line);padding-top:20px;display:flex;justify-content:space-between;align-items:center">
+          <p class="ln-latin-body" style="font-size:0.6rem;margin:0;color:var(--ln-muted-foreground)">LumaNest Brand Identity</p>
+          <p class="ln-latin-body" style="font-size:0.6rem;margin:0;color:var(--ln-muted-foreground)">v1.0 &middot; 2026</p>
+        </footer>
+
+      </div>
+    </main>
+</body>
+</html>

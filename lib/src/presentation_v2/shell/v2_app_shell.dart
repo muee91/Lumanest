@@ -24,6 +24,9 @@ class V2AppShell extends ConsumerWidget {
             ? Colors.transparent
             : V2Palette.canvas,
         extendBody: true,
+        // The Explore map is a fixed viewport. Its search keyboard overlays
+        // the lower map instead of resizing the whole page and camera surface.
+        resizeToAvoidBottomInset: navigationShell.currentIndex != 1,
         body: navigationShell,
         bottomNavigationBar: V2ObjectNavigationDock(
           currentIndex: navigationShell.currentIndex,

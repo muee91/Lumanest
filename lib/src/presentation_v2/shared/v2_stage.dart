@@ -34,12 +34,14 @@ class V2TopLine extends StatelessWidget {
     required this.secondary,
     this.action,
     this.onAction,
+    this.trailing,
   });
 
   final String primary;
   final String secondary;
   final String? action;
   final VoidCallback? onAction;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -90,6 +92,7 @@ class V2TopLine extends StatelessWidget {
             ),
           ),
         ),
+      if (trailing != null) ...[const SizedBox(width: 6), trailing!],
     ],
   );
 }

@@ -130,6 +130,9 @@ export function createAdminServer({
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
+  getSevenTimerHealth = async () => ({ provider: '7timer', enabled: false, status: 'unknown', products: [] }),
+  getBrokerHealth = async () => ({ status: 'unknown' }),
+  testSevenTimer = async () => ({ ok: false, error: 'not_configured' }),
   getShootingCalibration = async () => ({ ok: false, error: 'not_configured' }),
   importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
   simulationEnabled = false,
@@ -189,6 +192,38 @@ export function createAdminServer({
       return json(response, 200, {
         developerTools: { simulationEnabled: simulationEnabled && simulationRegistry != null },
       });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/services/7timer') {
+      return json(response, 200, await getSevenTimerHealth());
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/health') {
+      const [runtime, sevenTimer] = await Promise.all([getBrokerHealth(), getSevenTimerHealth()]);
+      const status = runtime.status === 'healthy' && ['healthy', 'unknown', 'disabled'].includes(sevenTimer.status)
+        ? 'healthy' : 'degraded';
+      return json(response, 200, { status, checkedAt: new Date().toISOString(), runtime, services: { sevenTimer } });
+    }
+    if (request.method === 'POST' && url.pathname === '/admin-api/services/7timer/test') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      const { product, latitude, longitude } = parsed.value ?? {};
+      if (!['astro', 'meteo', 'two'].includes(product) ||
+          typeof latitude !== 'number' || latitude < -90 || latitude > 90 ||
+          typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
+        return json(response, 400, { error: 'invalid_request' });
+      }
+      const result = await testSevenTimer({ product, latitude, longitude });
+      auditLog.record({
+        remoteAddress,
+        operation: 'test_7timer',
+        fields: ['product'],
+        result: result.ok ? 'ok' : result.error,
+        details: { product, traceId: result.traceId ?? null },
+      });
+      const testStatus = result.ok ? 200 : result.error === 'disabled' ? 409
+        : ['test_in_progress', 'test_cooldown', 'test_busy'].includes(result.error) ? 429 : 503;
+      return json(response, testStatus, result.ok
+        ? { ok: true, product, traceId: result.traceId, pointCount: result.body.points.length, sourceInitAt: result.body.sourceInitAt, sourceStatus: result.body.sourceStatus }
+        : { ok: false, product, error: result.error, traceId: result.traceId ?? null, retryAfterSeconds: result.retryAfterSeconds ?? null });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/llm/providers') {
       return json(response, 200, { providers: publicProviderCatalog() });

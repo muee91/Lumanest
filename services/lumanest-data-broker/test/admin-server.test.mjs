@@ -11,7 +11,7 @@ import { AuditLog } from '../src/admin/audit-log.mjs';
 import { validateRuntimeSettings } from '../src/admin/runtime-settings.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
 
-async function withAdmin(run, { simulationEnabled = false, simulationRegistry = null } = {}) {
+async function withAdmin(run, { simulationEnabled = false, simulationRegistry = null, sevenTimer = null } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
   const authService = new AdminAuthService({
     filePath: join(directory, 'auth.json'),
@@ -36,9 +36,12 @@ async function withAdmin(run, { simulationEnabled = false, simulationRegistry = 
       return snapshot;
     },
   };
+  const auditLog = new AuditLog();
   const server = createAdminServer({
-    authService, runtimeConfig, auditLog: new AuditLog(),
+    authService, runtimeConfig, auditLog,
     testConnection: async () => ({ status: 'ok' }),
+    getSevenTimerHealth: async () => sevenTimer?.health ?? ({ provider: '7timer', enabled: true, status: 'unknown', products: [] }),
+    testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
     clearCache: async () => operations.push('clear'),
     restart: async () => operations.push('restart'),
     testLLMProfile: async (profileId) => ({ status: 'ok', profileId }),
@@ -74,7 +77,7 @@ async function withAdmin(run, { simulationEnabled = false, simulationRegistry = 
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
-    await run({ baseUrl: `http://127.0.0.1:${server.address().port}`, operations });
+    await run({ baseUrl: `http://127.0.0.1:${server.address().port}`, operations, auditLog });
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(directory, { recursive: true, force: true });
@@ -175,6 +178,28 @@ test('mutations require CSRF and supported operations remain authenticated', asy
   });
 });
 
+test('7Timer health is authenticated and manual tests return sanitized traceable results', async () => {
+  await withAdmin(async ({ baseUrl, auditLog }) => {
+    const credentials = await login(baseUrl);
+    const get = await fetch(`${baseUrl}/admin-api/services/7timer`, { headers: { Cookie: credentials.cookie } });
+    assert.equal(get.status, 200);
+    assert.equal((await get.json()).provider, '7timer');
+    const headers = { Cookie: credentials.cookie, 'X-CSRF-Token': credentials.csrf, 'Content-Type': 'application/json' };
+    const testResponse = await fetch(`${baseUrl}/admin-api/services/7timer/test`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ product: 'astro', latitude: 31.23, longitude: 121.47 }),
+    });
+    assert.equal(testResponse.status, 200);
+    const value = await testResponse.json();
+    assert.equal(value.traceId, 'trace-test');
+    assert.equal('latitude' in value, false);
+    assert.equal('longitude' in value, false);
+    const entry = auditLog.list().find((item) => item.operation === 'test_7timer');
+    assert.deepEqual(entry.details, { product: 'astro', traceId: 'trace-test' });
+    assert.doesNotMatch(JSON.stringify(entry), /31\.23|121\.47/);
+  }, { sevenTimer: { health: { provider: '7timer', enabled: true, status: 'unknown', products: [] }, test: () => ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }) } });
+});
+
 test('rejects request bodies larger than 16 KiB before processing', async () => {
   await withAdmin(async ({ baseUrl }) => {
     const response = await fetch(`${baseUrl}/admin-api/login`, {
@@ -258,7 +283,7 @@ test('shooting calibration is authenticated and exposes aggregate rows only', as
 
 test('scene lab is capability-gated and controls opaque debug sessions only', async () => {
   const registry = new SimulationRegistry();
-  registry.register('debugsession2345678', { contractVersion: 4 });
+  registry.register('debugsession2345678', { contractVersion: 5 });
   await withAdmin(async ({ baseUrl }) => {
     const credentials = await login(baseUrl);
     const readHeaders = { Cookie: credentials.cookie };

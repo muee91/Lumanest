@@ -1,0 +1,12 @@
+{
+  "treeVersion": 1,
+  "nodes": [
+    {
+      "nodeId": "page-logo-mark",
+      "nodeType": "leaf",
+      "status": "planned",
+      "dependsOn": [],
+      "output": "pages/logo-mark.html"
+    }
+  ]
+}

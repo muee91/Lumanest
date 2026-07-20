@@ -108,7 +108,7 @@ void main() {
     );
   });
 
-  test('older database versions are discarded instead of migrated', () async {
+  test('pre-release schemas rebuild to the schema 16 baseline', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-clean-schema-',
@@ -132,7 +132,7 @@ void main() {
     old.execute(
       "INSERT INTO saved_places VALUES ('old', '旧机位', 'viewpoint', 30, 120)",
     );
-    old.execute('PRAGMA user_version = 1');
+    old.execute('PRAGMA user_version = 14');
     old.close();
 
     final current = AppDatabase(NativeDatabase(file));
@@ -144,7 +144,7 @@ void main() {
       isEmpty,
     );
     expect(await current.select(current.shootingSessionResults).get(), isEmpty);
-    expect(current.schemaVersion, 14);
+    expect(current.schemaVersion, 16);
   });
 
   test('base region is a replaceable local singleton', () async {

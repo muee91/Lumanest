@@ -72,7 +72,9 @@ void main() {
 
   test('location failure restores only a stale current cache', () async {
     final cache = InMemoryContextCache();
-    await cache.write(ContextFixtures.quietCity());
+    await cache.write(
+      ContextFixtures.quietCity(observedAt: now.subtract(const Duration(hours: 1))),
+    );
 
     final result = await loader(
       locations: _FailingLocation(),
@@ -87,7 +89,9 @@ void main() {
     'Broker failure restores stale cache and never builds local facts',
     () async {
       final cache = InMemoryContextCache();
-      await cache.write(ContextFixtures.quietCity());
+      await cache.write(
+        ContextFixtures.quietCity(observedAt: now.subtract(const Duration(hours: 1))),
+      );
 
       final result = await loader(
         remote: _Remote.failure(),

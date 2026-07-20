@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +23,24 @@ class V2ProfilePage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const V2TopLine(primary: '我的栖光', secondary: '个人控制中心'),
+          V2TopLine(
+            primary: '我的栖光',
+            secondary: '个人内容与记录',
+            trailing: V2Pressable(
+              key: const Key('v2-profile-settings-entry'),
+              onTap: () => showProfileSettingsPanel(context),
+              compact: true,
+              semanticLabel: '打开设置',
+              child: const Padding(
+                padding: EdgeInsets.all(10),
+                child: Icon(
+                  CupertinoIcons.gear,
+                  color: V2Palette.ink,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           Expanded(
             flex: 5,
@@ -32,42 +50,212 @@ class V2ProfilePage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          _V2RecentStrip(library: library),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _V2ControlEntry(
-                  icon: CupertinoIcons.slider_horizontal_3,
-                  label: '风格',
-                  color: V2Palette.mossSoft,
-                  onTap: () => context.push('/profile/style'),
-                ),
+          V2Pressable(
+            onTap: () => context.push('/profile/library'),
+            color: V2Palette.paper,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.archivebox, color: V2Palette.moss),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '我留下的',
+                      style: TextStyle(
+                        color: V2Palette.ink,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  Icon(CupertinoIcons.chevron_right, color: V2Palette.mutedInk),
+                ],
               ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: _V2ControlEntry(
-                  icon: CupertinoIcons.archivebox,
-                  label: '留下的',
-                  color: V2Palette.skySoft,
-                  onTap: () => context.push('/profile/library'),
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: _V2ControlEntry(
-                  icon: CupertinoIcons.lock_shield,
-                  label: '隐私',
-                  color: V2Palette.emberSoft,
-                  onTap: () => context.push('/profile/privacy'),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+Future<void> showProfileSettingsPanel(BuildContext context) =>
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '关闭设置',
+      barrierColor: Colors.black.withValues(alpha: .52),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          const _ProfileSettingsPanel(),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+
+class _ProfileSettingsPanel extends StatelessWidget {
+  const _ProfileSettingsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: SizedBox(
+        width: (width * .82).clamp(300, 390),
+        height: double.infinity,
+        child: Material(
+          color: V2Palette.paper,
+          borderRadius: const BorderRadius.horizontal(
+            left: Radius.circular(30),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(26, 18, 22, 24),
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: Container(
+                    width: 74,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: const Text(
+                      '设置',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _panelEntry(
+                  context,
+                  icon: CupertinoIcons.slider_horizontal_3,
+                  title: '我的观看方式',
+                  detail: '题材、行动方式、器材和 AI 表达密度',
+                  route: '/profile/style',
+                ),
+                _panelEntry(
+                  context,
+                  icon: CupertinoIcons.lock_shield,
+                  title: '隐私与感受',
+                  detail: '动态、高对比、匿名反馈和本地活动清理',
+                  route: '/profile/privacy',
+                ),
+                _panelEntry(
+                  context,
+                  icon: CupertinoIcons.archivebox,
+                  title: '我留下的',
+                  detail: '地点、纸条和拍摄记录',
+                  route: '/profile/library',
+                ),
+                _panelEntry(
+                  context,
+                  icon: CupertinoIcons.info,
+                  title: '关于栖光',
+                  detail: '版本与产品说明',
+                  onTap: () => showAboutDialog(
+                    context: context,
+                    applicationName: '栖光',
+                    applicationLegalese: '环境感知摄影助手',
+                  ),
+                ),
+                if (kDebugMode)
+                  _panelEntry(
+                    context,
+                    icon: CupertinoIcons.lab_flask,
+                    title: '动态背景实验室',
+                    detail: '仅开发调试可见',
+                    route: '/ambient-debug',
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _panelEntry(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String detail,
+    String? route,
+    VoidCallback? onTap,
+  }) => InkWell(
+    onTap:
+        onTap ??
+        () {
+          Navigator.of(context).pop();
+          if (route != null) context.push(route);
+        },
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: V2Palette.line)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: V2Palette.ink, size: 23),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            CupertinoIcons.chevron_right,
+            color: V2Palette.line,
+            size: 19,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _V2UnderstandingObject extends StatelessWidget {
@@ -169,121 +357,89 @@ class _V2UnderstandingObject extends StatelessWidget {
   }
 }
 
-class _V2RecentStrip extends StatelessWidget {
-  const _V2RecentStrip({required this.library});
-  final AsyncValue<UserLibraryState> library;
+class V2ProfileSettingsPage extends StatelessWidget {
+  const V2ProfileSettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 58,
-    child: library.when(
-      loading: () => const V2LoadingObject(label: '正在读取本地内容'),
-      error: (_, _) => const Align(
-        alignment: Alignment.centerLeft,
-        child: Text('本地内容暂时不可读'),
-      ),
-      data: (value) {
-        final recentNote = value.savedNotes.firstOrNull;
-        final recentPlace = value.savedPlaces.firstOrNull;
-        if (recentNote == null && recentPlace == null) {
-          return const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '最近留下的内容会在这里出现',
-              style: TextStyle(color: V2Palette.mutedInk),
-            ),
-          );
-        }
-        return Row(
-          children: [
-            if (recentNote != null)
-              Expanded(
-                child: _V2RecentObject(
-                  icon: CupertinoIcons.sparkles,
-                  text: recentNote.displayLabel,
-                ),
-              ),
-            if (recentNote != null && recentPlace != null)
-              const SizedBox(width: 10),
-            if (recentPlace != null)
-              Expanded(
-                child: _V2RecentObject(
-                  icon: CupertinoIcons.location,
-                  text: recentPlace.name,
-                ),
-              ),
-          ],
-        );
-      },
-    ),
-  );
-}
-
-class _V2RecentObject extends StatelessWidget {
-  const _V2RecentObject({required this.icon, required this.text});
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 15),
-    decoration: BoxDecoration(
-      color: V2Palette.paper,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: V2Palette.line),
-    ),
-    child: Row(
+  Widget build(BuildContext context) => _V2SecondaryPage(
+    title: '设置',
+    subtitle: '调整栖光的表达、隐私和设备行为。',
+    child: ListView(
+      padding: EdgeInsets.zero,
       children: [
-        Icon(icon, color: V2Palette.moss, size: 18),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: V2Palette.ink,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+        _V2SettingsEntry(
+          icon: CupertinoIcons.slider_horizontal_3,
+          title: '我的观看方式',
+          detail: '题材、行动方式、器材和 AI 表达密度',
+          onTap: () => context.push('/profile/style'),
         ),
+        const SizedBox(height: 12),
+        _V2SettingsEntry(
+          icon: CupertinoIcons.lock_shield,
+          title: '隐私与感受',
+          detail: '动态、高对比、匿名反馈和本地活动清理',
+          onTap: () => context.push('/profile/privacy'),
+        ),
+        if (kDebugMode) ...[
+          const SizedBox(height: 12),
+          _V2SettingsEntry(
+            icon: CupertinoIcons.lab_flask,
+            title: '动态背景实验室',
+            detail: '仅开发调试可见',
+            onTap: () => context.push('/ambient-debug'),
+          ),
+        ],
       ],
     ),
   );
 }
 
-class _V2ControlEntry extends StatelessWidget {
-  const _V2ControlEntry({
+class _V2SettingsEntry extends StatelessWidget {
+  const _V2SettingsEntry({
     required this.icon,
-    required this.label,
-    required this.color,
+    required this.title,
+    required this.detail,
     required this.onTap,
   });
+
   final IconData icon;
-  final String label;
-  final Color color;
+  final String title;
+  final String detail;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => V2Pressable(
     onTap: onTap,
-    color: color,
-    compact: true,
+    color: V2Palette.paper,
     child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      child: Row(
         children: [
-          Icon(icon, color: V2Palette.ink, size: 22),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: V2Palette.ink,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+          Icon(icon, color: V2Palette.moss, size: 21),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
+          const Icon(CupertinoIcons.chevron_right, color: V2Palette.mutedInk),
         ],
       ),
     ),

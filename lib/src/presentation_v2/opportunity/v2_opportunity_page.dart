@@ -11,6 +11,7 @@ import 'package:luma_nest/src/features/library/application/user_library_controll
 import 'package:luma_nest/src/presentation_v2/shared/v2_opportunity_object.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
+import 'package:luma_nest/src/presentation_v2/ai/v2_ask_luma_nest.dart';
 
 class V2OpportunityPage extends ConsumerWidget {
   const V2OpportunityPage({
@@ -123,6 +124,18 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     color: V2Palette.moss,
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AskLumaNestButton(
+                  label: '问这个窗口',
+                  onTap: () => showAskLumaNestSheet(
+                    context,
+                    snapshot: widget.snapshot,
+                    session: session,
+                    judgement: decision.reason,
+                    eventIds: [session.id],
+                    surface: 'shootingWindow',
                   ),
                 ),
               ],
@@ -316,6 +329,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   };
 
   static String _eyebrow(ShootingSessionKind kind) => switch (kind) {
+    ShootingSessionKind.generalMorning => '晨间光线',
+    ShootingSessionKind.generalEvening => '晚间光线',
     ShootingSessionKind.waterMorning => '水岸晨光',
     ShootingSessionKind.waterEvening => '水岸晚光',
     ShootingSessionKind.mountainMorning => '山地晨光',

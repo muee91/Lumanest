@@ -32,6 +32,13 @@ MissionType = Literal[
     "seasonalSignals",
 ]
 
+DiscoveryActivationType = Literal[
+    "user_manual",
+    "foreground_opportunistic",
+    "ai_verification",
+    "admin_backfill",
+]
+
 
 class DiscoveryRegion(StrictModel):
     latitude: float = Field(ge=-90, le=90)
@@ -64,6 +71,7 @@ class DiscoveryRouteCorridor(StrictModel):
 
 
 class DiscoveryRequest(StrictModel):
+    activation_type: DiscoveryActivationType = Field(alias="activationType")
     mission_type: MissionType = Field(alias="missionType")
     focus: str = Field(min_length=1, max_length=180)
     locale: str = Field(min_length=2, max_length=16, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$")
@@ -153,6 +161,7 @@ class ExtractedCandidate(StrictModel):
     kind: Literal["candidate_viewpoint", "attraction", "event"]
     title: str = Field(min_length=1, max_length=120)
     summary: str | None = Field(default=None, max_length=280)
+    address_hint: str | None = Field(default=None, alias="addressHint", max_length=300)
     coordinate: ExtractionCoordinate | None = None
     coordinate_evidence: str | None = Field(default=None, alias="coordinateEvidence", min_length=3, max_length=120)
     starts_at: datetime | None = Field(default=None, alias="startsAt")
@@ -167,3 +176,16 @@ class BrokerExtractionResponse(StrictModel):
 class BrokerDeterministicResponse(StrictModel):
     candidates: list[ExtractedCandidate] = Field(max_length=6)
     evidence: list[BrokerSearchResult] = Field(max_length=6)
+
+
+class PlaceResolutionRequest(StrictModel):
+    query: str = Field(min_length=1, max_length=240)
+    address_hint: str | None = Field(default=None, alias="addressHint", max_length=300)
+    region: DiscoveryRegion
+    locale: str = Field(min_length=2, max_length=16)
+
+
+class PlaceResolutionResponse(StrictModel):
+    status: Literal["resolved", "ambiguous", "not_found", "failed"]
+    place: dict | None = None
+    evidence: BrokerSearchResult | None = None

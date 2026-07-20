@@ -32,6 +32,8 @@ abstract final class LocalCreativeAffinity {
   }
 
   static String _kind(ShootingSessionKind kind) => switch (kind) {
+    ShootingSessionKind.generalMorning => 'session.general.morning',
+    ShootingSessionKind.generalEvening => 'session.general.evening',
     ShootingSessionKind.waterMorning => 'session.water.morning',
     ShootingSessionKind.waterEvening => 'session.water.evening',
     ShootingSessionKind.mountainMorning => 'session.mountain.morning',

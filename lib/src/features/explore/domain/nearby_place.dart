@@ -149,6 +149,7 @@ class NearbyPlace {
     this.drivingDistanceMeters,
     this.sourceEvidenceCount = 0,
     this.aiDiscovered = false,
+    this.reviewedTarget = false,
     this.media = const [],
     this.cachedAt,
   });
@@ -168,6 +169,7 @@ class NearbyPlace {
   final int? drivingDistanceMeters;
   final int sourceEvidenceCount;
   final bool aiDiscovered;
+  final bool reviewedTarget;
   final List<NearbyPlaceMedia> media;
   final DateTime? cachedAt;
 
@@ -199,6 +201,7 @@ class NearbyPlace {
     int? drivingDistanceMeters,
     int? sourceEvidenceCount,
     bool? aiDiscovered,
+    bool? reviewedTarget,
     List<NearbyPlaceMedia>? media,
     NearbyAdministrativeRelation? administrativeRelation,
     DateTime? cachedAt,
@@ -220,6 +223,7 @@ class NearbyPlace {
     drivingDistanceMeters: drivingDistanceMeters ?? this.drivingDistanceMeters,
     sourceEvidenceCount: sourceEvidenceCount ?? this.sourceEvidenceCount,
     aiDiscovered: aiDiscovered ?? this.aiDiscovered,
+    reviewedTarget: reviewedTarget ?? this.reviewedTarget,
     media: media ?? this.media,
     cachedAt: cachedAt ?? this.cachedAt,
   );

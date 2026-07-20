@@ -63,7 +63,9 @@ test('overview presents an operational dashboard without claiming health before 
   assert.match(html, /id="runtime-summary"/);
   assert.match(html, /id="capability-grid"/);
   assert.match(html, /id="refresh-overview"/);
-  assert.match(script, /\$\('#broker-status'\)\.textContent='在线'/);
+  assert.match(script, /api\('health'\)/);
+  assert.match(script, /renderBrokerHealth/);
+  assert.doesNotMatch(script, /\$\('#broker-status'\)\.textContent='在线'/);
   assert.match(script, /qweatherPrivateKey\?\.configured&&config\.services\.keyId\?\.configured&&config\.services\.projectId\?\.configured/);
   assert.match(script, /appendServiceRow/);
   assert.match(script, /appendCapability/);

@@ -49,8 +49,12 @@ void main() {
     await tester.tap(find.bySemanticsLabel('我的'));
     await tester.pump();
     expect(find.text('栖光如何理解我'), findsOneWidget);
-    expect(find.text('风格'), findsOneWidget);
-    expect(find.text('留下的'), findsOneWidget);
-    expect(find.text('隐私'), findsOneWidget);
+    expect(find.byKey(const Key('v2-profile-settings-entry')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('v2-profile-settings-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('我的观看方式'), findsOneWidget);
+    expect(find.text('隐私与感受'), findsOneWidget);
   });
 }

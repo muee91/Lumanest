@@ -6,7 +6,6 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
-import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
@@ -19,10 +18,9 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (response) {
-          response['contractVersion'] = 4;
           final session = _shootingSessionBody();
           session['targetCandidates'] = [_shootingTargetBody()];
-          response['shootingSessions'] = [session];
+          _facts(response)['shootingSessions'] = [session];
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -117,32 +115,35 @@ void main() {
     },
   );
 
-  test('debug feedback carries only the ephemeral simulation headers', () async {
-    final transport = _FakeTransport()..fixedResponse = {'accepted': true};
-    final repository = DataBrokerContextRepository(
-      brokerBaseUrl: 'https://broker.example',
-      serviceToken: 'service-token',
-      debugSimulationSession: 'debugsession2345678',
-      transport: transport,
-    );
+  test(
+    'debug feedback carries only the ephemeral simulation headers',
+    () async {
+      final transport = _FakeTransport()..fixedResponse = {'accepted': true};
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        debugSimulationSession: 'debugsession2345678',
+        transport: transport,
+      );
 
-    await repository.upload(
-      session: ContextFixtures.waterEveningSession(
-        observedAt: DateTime.utc(2026, 7, 14, 2),
-      ),
-      outcome: ShootingSessionOutcome.captured,
-      reasons: const {},
-    );
+      await repository.upload(
+        session: ContextFixtures.waterEveningSession(
+          observedAt: DateTime.utc(2026, 7, 14, 2),
+        ),
+        outcome: ShootingSessionOutcome.captured,
+        reasons: const {},
+      );
 
-    expect(transport.headers, {
-      'Authorization': 'Bearer service-token',
-      'X-LumaNest-Debug-Session': 'debugsession2345678',
-      'X-LumaNest-Debug-Contract': '4',
-    });
-    expect(transport.body.toString(), isNot(contains('debugsession2345678')));
-  });
+      expect(transport.headers, {
+        'Authorization': 'Bearer service-token',
+        'X-LumaNest-Debug-Session': 'debugsession2345678',
+        'X-LumaNest-Debug-Contract': '5',
+      });
+      expect(transport.body.toString(), isNot(contains('debugsession2345678')));
+    },
+  );
 
-  test('uses only the strict V4 request and response contract', () async {
+  test('uses only the strict V5 request and response contract', () async {
     final transport = _FakeTransport();
     final repository = DataBrokerContextRepository(
       brokerBaseUrl: 'https://broker.example',
@@ -156,7 +157,7 @@ void main() {
 
     expect(transport.uri.path, '/v1/context/snapshot');
     expect(transport.headers, {'Authorization': 'Bearer service-token'});
-    expect(transport.body['contractVersion'], 4);
+    expect(transport.body['contractVersion'], 5);
     expect(transport.body.containsKey('deviceId'), isFalse);
     expect(transport.body.containsKey('weather'), isFalse);
     expect(transport.body.containsKey('evidence'), isFalse);
@@ -174,11 +175,8 @@ void main() {
     expect(result.airQualityCategory, '优');
     expect(result.airQualityStale, isFalse);
     expect(result.solarAzimuthDegrees, 280);
-    expect(result.serverManifest, isNotNull);
-    expect(result.serverManifest!.layout, ServerManifestLayout.opportunity);
-    expect(result.serverManifest!.primaryEventId, 'session.water.evening');
-    expect(result.serverManifest!.secondaryEventIds, isEmpty);
-    expect(result.serverManifest!.safetyEventIds, isEmpty);
+    expect(result.entries, isEmpty);
+    expect(result.serverManifest, isNull);
   });
 
   test(
@@ -186,10 +184,8 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (response) {
-          response['contractVersion'] = 4;
-          response['shootingSessions'] = <Object?>[];
-          response['opportunityCatalogVersion'] = 1;
-          response['sceneContext'] = {
+          _facts(response)['shootingSessions'] = <Object?>[];
+          _environment(response)['sceneContext'] = {
             'primaryScene': 'inlandWater',
             'facets': ['lake', 'reflectiveSurface'],
             'activity': 'driving',
@@ -246,23 +242,20 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['scene'] = 'village';
-          body['weather'] = {
-            ...(body['weather']! as Map),
+          final environment = _environment(body);
+          final facts = _facts(body);
+          environment['scene'] = 'village';
+          environment['weather'] = {
+            ...(environment['weather']! as Map),
+            'condition': 'unknown',
             'airQualityIndex': null,
             'airQualityCategory': null,
             'primaryPollutant': null,
             'airQualityObservedAt': null,
             'airQualityStale': true,
           };
-          body['events'] = <Object?>[];
-          body['allowedActions'] = <Object?>[];
-          body['manifest'] = {
-            'layoutMode': 'quiet',
-            'primaryEventId': null,
-            'secondaryEventIds': <Object?>[],
-            'safetyEventIds': <Object?>[],
-          };
+          facts['events'] = <Object?>[];
+          environment['allowedActions'] = <Object?>[];
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -276,6 +269,7 @@ void main() {
       );
 
       expect(result.primaryScene, SceneType.village);
+      expect(result.weather, WeatherType.unknown);
       expect(result.airQualityIndex, isNull);
       expect(result.airQualityStale, isTrue);
       expect(result.events, isEmpty);
@@ -353,7 +347,7 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['route'] = {
+          _environment(body)['route'] = {
             'mode': 'driving',
             'stage': 'active',
             'active': true,
@@ -380,7 +374,11 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['route'] = {'mode': 'none', 'stage': 'planned', 'active': false};
+          _environment(body)['route'] = {
+            'mode': 'none',
+            'stage': 'planned',
+            'active': false,
+          };
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -409,7 +407,11 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['route'] = {'mode': 'driving', 'stage': 'none', 'active': false};
+          _environment(body)['route'] = {
+            'mode': 'driving',
+            'stage': 'none',
+            'active': false,
+          };
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -473,7 +475,7 @@ void main() {
     final transport = _FakeTransport()
       ..mutateResponse = (body) {
         body['unexpected'] = true;
-        (body['weather']! as Map)['windSpeedMps'] = double.nan;
+        (_environment(body)['weather']! as Map)['windSpeedMps'] = double.nan;
       };
     final repository = DataBrokerContextRepository(
       brokerBaseUrl: 'https://broker.example',
@@ -525,7 +527,7 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['events'] = [
+          _facts(body)['events'] = [
             {
               'id': 'regional-wildlife',
               'channel': 'wildlifeOpportunity',
@@ -538,12 +540,6 @@ void main() {
               'allowedAction': 'openExplore',
             },
           ];
-          body['manifest'] = {
-            'layoutMode': 'opportunity',
-            'primaryEventId': 'regional-wildlife',
-            'secondaryEventIds': <String>[],
-            'safetyEventIds': <String>[],
-          };
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -558,7 +554,7 @@ void main() {
 
       expect(result.opportunityIds, ['regional-wildlife']);
       expect(result.wildlifeEventIds, ['regional-wildlife']);
-      expect(result.serverManifest!.primaryEventId, 'regional-wildlife');
+      expect(result.serverManifest, isNull);
     },
   );
 
@@ -567,7 +563,7 @@ void main() {
     () async {
       final transport = _FakeTransport()
         ..mutateResponse = (body) {
-          body['events'] = [
+          _facts(body)['events'] = [
             {
               'id': 'event.astro.meteor_shower',
               'channel': 'opportunity',
@@ -582,13 +578,7 @@ void main() {
               'sourceUrl': 'https://science.nasa.gov/meteor-showers/',
             },
           ];
-          body['allowedActions'] = ['openAstronomyDetail'];
-          body['manifest'] = {
-            'layoutMode': 'opportunity',
-            'primaryEventId': 'event.astro.meteor_shower',
-            'secondaryEventIds': <String>[],
-            'safetyEventIds': <String>[],
-          };
+          _environment(body)['allowedActions'] = ['openAstronomyDetail'];
         };
       final repository = DataBrokerContextRepository(
         brokerBaseUrl: 'https://broker.example',
@@ -609,152 +599,6 @@ void main() {
       expect(result.allowedActions, [ContextAction.openAstronomyDetail]);
     },
   );
-
-  group('server manifest', () {
-    DataBrokerContextRepository repositoryWithManifest({
-      required void Function(Map<String, Object?> body) mutate,
-    }) {
-      final transport = _FakeTransport()..mutateResponse = mutate;
-      return DataBrokerContextRepository(
-        brokerBaseUrl: 'https://broker.example',
-        serviceToken: 'service-token',
-        transport: transport,
-      );
-    }
-
-    Future<void> expectRejects(DataBrokerContextRepository repository) async {
-      await expectLater(
-        repository.fetchSnapshot(
-          location: _location(),
-          observedAt: DateTime.utc(2026, 7, 14, 2),
-        ),
-        throwsA(
-          isA<RemoteContextFailure>().having(
-            (failure) => failure.kind,
-            'kind',
-            RemoteContextFailureKind.response,
-          ),
-        ),
-      );
-    }
-
-    test(
-      'parses a complete manifest with primary, secondary, and safety',
-      () async {
-        final repository = repositoryWithManifest(mutate: _withRichManifest);
-        final result = await repository.fetchSnapshot(
-          location: _location(),
-          observedAt: DateTime.utc(2026, 7, 14, 2),
-        );
-
-        final manifest = result.serverManifest!;
-        expect(manifest.layout, ServerManifestLayout.opportunity);
-        expect(manifest.primaryEventId, 'session.water.evening');
-        expect(manifest.secondaryEventIds, [
-          'event.sky.sunset_glow',
-          'event.atmosphere.morning_mist',
-        ]);
-        expect(manifest.safetyEventIds, ['storm-alert']);
-      },
-    );
-
-    test('rejects when primaryEventId does not exist', () async {
-      final repository = repositoryWithManifest(
-        mutate: (body) {
-          _withRichManifest(body);
-          (body['manifest']! as Map)['primaryEventId'] = 'missing';
-        },
-      );
-      await expectRejects(repository);
-    });
-
-    test(
-      'rejects when primaryEventId references a non-opportunity channel',
-      () async {
-        final repository = repositoryWithManifest(
-          mutate: (body) {
-            _withRichManifest(body);
-            (body['manifest']! as Map)['primaryEventId'] = 'storm-alert';
-          },
-        );
-        await expectRejects(repository);
-      },
-    );
-
-    test(
-      'rejects when a secondaryEventId references a non-opportunity channel',
-      () async {
-        final repository = repositoryWithManifest(
-          mutate: (body) {
-            _withRichManifest(body);
-            (body['manifest']! as Map)['secondaryEventIds'] = ['storm-alert'];
-          },
-        );
-        await expectRejects(repository);
-      },
-    );
-
-    test('rejects when secondaryEventIds contains duplicates', () async {
-      final repository = repositoryWithManifest(
-        mutate: (body) {
-          _withRichManifest(body);
-          (body['manifest']! as Map)['secondaryEventIds'] = [
-            'event.sky.sunset_glow',
-            'event.sky.sunset_glow',
-          ];
-        },
-      );
-      await expectRejects(repository);
-    });
-
-    test('rejects when a safetyEventId does not exist', () async {
-      final repository = repositoryWithManifest(
-        mutate: (body) {
-          _withRichManifest(body);
-          (body['manifest']! as Map)['safetyEventIds'] = ['missing'];
-        },
-      );
-      await expectRejects(repository);
-    });
-
-    test(
-      'rejects when a safetyEventId references a non-safety channel',
-      () async {
-        final repository = repositoryWithManifest(
-          mutate: (body) {
-            _withRichManifest(body);
-            (body['manifest']! as Map)['safetyEventIds'] = [
-              'session.water.evening',
-            ];
-          },
-        );
-        await expectRejects(repository);
-      },
-    );
-
-    test('rejects when safetyEventIds contains duplicates', () async {
-      final repository = repositoryWithManifest(
-        mutate: (body) {
-          _withRichManifest(body);
-          (body['manifest']! as Map)['safetyEventIds'] = [
-            'storm-alert',
-            'storm-alert',
-          ];
-        },
-      );
-      await expectRejects(repository);
-    });
-
-    test('rejects an unknown layoutMode', () async {
-      final repository = repositoryWithManifest(
-        mutate: (body) {
-          _withRichManifest(body);
-          (body['manifest']! as Map)['layoutMode'] = 'creative';
-        },
-      );
-      await expectRejects(repository);
-    });
-  });
 }
 
 LocationReading _location() => LocationReading(
@@ -762,187 +606,6 @@ LocationReading _location() => LocationReading(
   recordedAt: DateTime.utc(2026, 7, 14, 2),
   accuracyMeters: 8,
 );
-
-void _withRichManifest(Map<String, Object?> body) {
-  body['events'] = [
-    {
-      'id': 'session.water.evening',
-      'channel': 'opportunity',
-      'source': 'rule',
-      'observedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'confidence': 0.82,
-      'geoScope': 'point',
-      'severity': 'info',
-      'allowedAction': 'openExplore',
-    },
-    {
-      'id': 'event.sky.sunset_glow',
-      'channel': 'opportunity',
-      'source': 'solar',
-      'observedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'confidence': 0.7,
-      'geoScope': 'point',
-      'severity': 'info',
-      'allowedAction': 'openExplore',
-    },
-    {
-      'id': 'event.atmosphere.morning_mist',
-      'channel': 'opportunity',
-      'source': 'rule',
-      'observedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'confidence': 0.6,
-      'geoScope': 'point',
-      'severity': 'info',
-      'allowedAction': 'openExplore',
-    },
-    {
-      'id': 'storm-alert',
-      'channel': 'safety',
-      'source': 'weather',
-      'observedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'confidence': 0.9,
-      'geoScope': 'region',
-      'severity': 'warning',
-      'allowedAction': 'openExplore',
-    },
-  ];
-  body['manifest'] = {
-    'layoutMode': 'opportunity',
-    'primaryEventId': 'session.water.evening',
-    'secondaryEventIds': [
-      'event.sky.sunset_glow',
-      'event.atmosphere.morning_mist',
-    ],
-    'safetyEventIds': ['storm-alert'],
-  };
-}
-
-void _withWildlifeSafety(Map<String, Object?> body) {
-  body['events'] = [
-    {
-      'id': 'session.water.evening',
-      'channel': 'opportunity',
-      'source': 'rule',
-      'observedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'confidence': 0.82,
-      'geoScope': 'point',
-      'severity': 'info',
-      'allowedAction': 'openExplore',
-    },
-    {
-      'id': 'bear-risk',
-      'channel': 'wildlifeSafety',
-      'source': 'official',
-      'observedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'confidence': 0.88,
-      'geoScope': 'region',
-      'severity': 'warning',
-      'allowedAction': 'openSafetyDetail',
-    },
-  ];
-  body['manifest'] = {
-    'layoutMode': 'safety',
-    'primaryEventId': 'session.water.evening',
-    'secondaryEventIds': <String>[],
-    'safetyEventIds': ['bear-risk'],
-  };
-}
-
-class _FakeTransport implements ContextDataTransport {
-  late Uri uri;
-  late Map<String, String> headers;
-  late Map<String, Object?> body;
-  Object? error;
-  void Function(Map<String, Object?> body)? mutateResponse;
-  Map<String, Object?>? fixedResponse;
-
-  @override
-  Future<Map<String, Object?>> post(
-    Uri uri, {
-    required Map<String, String> headers,
-    required Map<String, Object?> body,
-  }) async {
-    if (error case final failure?) throw failure;
-    this.uri = uri;
-    this.headers = headers;
-    this.body = body;
-    if (fixedResponse case final fixed?) return Map.of(fixed);
-    final response = <String, Object?>{
-      'contractVersion': 4,
-      'contextId': 'ctx_1234567890abcdef12345678',
-      'generatedAt': '2026-07-14T02:00:00Z',
-      'expiresAt': '2026-07-14T02:15:00Z',
-      'scene': 'lake',
-      'sceneContext': {
-        'primaryScene': 'inlandWater',
-        'facets': ['lake', 'reflectiveSurface'],
-        'activity': 'stationary',
-        'scores': {'inlandWater': 55},
-        'reviewedOverride': false,
-      },
-      'opportunityCatalogVersion': 1,
-      'fingerprint': '1234567890abcdef12345678',
-      'stale': false,
-      'dataFreshness': {
-        'context': 'fresh',
-        'weather': 'fresh',
-        'weatherObservedAt': '2026-07-14T02:00:00Z',
-      },
-      'weather': {
-        'condition': 'clear',
-        'temperatureCelsius': 26,
-        'windSpeedMps': 2,
-        'windDirectionDegrees': 90,
-        'precipitationMm': 0,
-        'visibilityKm': 20,
-        'cloudCoverPercent': null,
-        'thunder': false,
-        'airQualityIndex': 42,
-        'airQualityCategory': '优',
-        'primaryPollutant': null,
-        'airQualityObservedAt': '2026-07-14T02:00:00Z',
-        'airQualityStale': false,
-      },
-      'sunMoon': {
-        'dayPhase': 'sunset',
-        'sunElevationDegrees': 4,
-        'sunAzimuthDegrees': 280,
-        'moonPhase': 'waxingCrescent',
-        'moonIllumination': .2,
-      },
-      'route': {'mode': 'none', 'stage': 'none', 'active': false},
-      'events': [
-        {
-          'id': 'session.water.evening',
-          'channel': 'opportunity',
-          'source': 'rule',
-          'observedAt': '2026-07-14T02:00:00Z',
-          'expiresAt': '2026-07-14T02:15:00Z',
-          'confidence': 0.82,
-          'geoScope': 'point',
-          'severity': 'info',
-          'allowedAction': 'openExplore',
-        },
-      ],
-      'allowedActions': ['openExplore'],
-      'manifest': {
-        'layoutMode': 'opportunity',
-        'primaryEventId': 'session.water.evening',
-        'secondaryEventIds': [],
-        'safetyEventIds': [],
-      },
-      'shootingSessions': <Object?>[],
-    };
-    mutateResponse?.call(response);
-    return response;
-  }
-}
 
 Map<String, Object?> _shootingSessionBody() => {
   'id': 'session_0123456789abcdef01234567',
@@ -1013,3 +676,131 @@ Map<String, Object?> _shootingTargetBody() => {
   'sourceLicense': 'CC-BY-4.0',
   'sourceUrl': 'https://source.example/lakes/east-bank',
 };
+
+class _FakeTransport implements ContextDataTransport {
+  late Uri uri;
+  late Map<String, String> headers;
+  late Map<String, Object?> body;
+  Object? error;
+  void Function(Map<String, Object?> body)? mutateResponse;
+  Map<String, Object?>? fixedResponse;
+
+  @override
+  Future<Map<String, Object?>> post(
+    Uri uri, {
+    required Map<String, String> headers,
+    required Map<String, Object?> body,
+  }) async {
+    if (error case final failure?) throw failure;
+    this.uri = uri;
+    this.headers = headers;
+    this.body = body;
+    if (fixedResponse case final fixed?) return Map.of(fixed);
+    final response = <String, Object?>{
+      'contractVersion': 5,
+      'contextId': 'ctx_1234567890abcdef12345678',
+      'snapshotRevision': 1,
+      'generatedAt': '2026-07-14T02:00:00Z',
+      'expiresAt': '2026-07-14T02:15:00Z',
+      'sourceRevisions': {'weather': 1, 'solar': 1, 'scene': 1, 'route': 1},
+      'stale': false,
+      'environment': {
+        'scene': 'lake',
+        'sceneContext': {
+          'primaryScene': 'inlandWater',
+          'facets': ['lake', 'reflectiveSurface'],
+          'activity': 'stationary',
+          'scores': {'inlandWater': 55},
+          'reviewedOverride': false,
+        },
+        'dataFreshness': {
+          'context': 'fresh',
+          'weather': 'fresh',
+          'weatherObservedAt': '2026-07-14T02:00:00Z',
+        },
+        'weather': {
+          'condition': 'clear',
+          'temperatureCelsius': 26,
+          'windSpeedMps': 2,
+          'windDirectionDegrees': 90,
+          'precipitationMm': 0,
+          'visibilityKm': 20,
+          'cloudCoverPercent': null,
+          'thunder': false,
+          'airQualityIndex': 42,
+          'airQualityCategory': '优',
+          'primaryPollutant': null,
+          'airQualityObservedAt': '2026-07-14T02:00:00Z',
+          'airQualityStale': false,
+        },
+        'sunMoon': {
+          'dayPhase': 'sunset',
+          'sunElevationDegrees': 4,
+          'sunAzimuthDegrees': 280,
+          'moonPhase': 'waxingCrescent',
+          'moonIllumination': .2,
+        },
+        'route': {'mode': 'none', 'stage': 'none', 'active': false},
+        'allowedActions': ['openExplore'],
+      },
+      'facts': {
+        'events': [
+          {
+            'id': 'session.water.evening',
+            'channel': 'opportunity',
+            'source': 'rule',
+            'observedAt': '2026-07-14T02:00:00Z',
+            'expiresAt': '2026-07-14T02:15:00Z',
+            'confidence': 0.82,
+            'geoScope': 'point',
+            'severity': 'info',
+            'allowedAction': 'openExplore',
+          },
+        ],
+        'shootingSessions': <Object?>[],
+      },
+      'entries': <Object?>[],
+      'refreshHints': {
+        'weather': 'ttl:600',
+        'solar': 'phase-boundary',
+        'opportunities': 'solar-or-weather-delta',
+      },
+    };
+    mutateResponse?.call(response);
+    return response;
+  }
+}
+
+void _withWildlifeSafety(Map<String, Object?> body) {
+  _facts(body)['events'] = [
+    {
+      'id': 'session.water.evening',
+      'channel': 'opportunity',
+      'source': 'rule',
+      'observedAt': '2026-07-14T02:00:00Z',
+      'expiresAt': '2026-07-14T02:15:00Z',
+      'confidence': 0.82,
+      'geoScope': 'point',
+      'severity': 'info',
+      'allowedAction': 'openExplore',
+    },
+    {
+      'id': 'bear-risk',
+      'channel': 'wildlifeSafety',
+      'source': 'official',
+      'observedAt': '2026-07-14T02:00:00Z',
+      'expiresAt': '2026-07-14T02:15:00Z',
+      'confidence': 0.88,
+      'geoScope': 'region',
+      'severity': 'warning',
+      'allowedAction': 'openSafetyDetail',
+    },
+  ];
+  _environment(body)['allowedActions'] = ['openExplore', 'openSafetyDetail'];
+}
+
+Map<String, Object?> _environment(Map<String, Object?> body) =>
+    body['environment']! as Map<String, Object?>;
+
+Map<String, Object?> _facts(Map<String, Object?> body) =>
+    body['facts']! as Map<String, Object?>;

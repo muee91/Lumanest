@@ -2,6 +2,7 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/context/server_manifest.dart';
+import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
 
@@ -9,7 +10,7 @@ enum SceneType { unknown, city, lake, mountain, desert, village }
 
 enum DayPhase { dawn, day, sunset, blueHour, night }
 
-enum WeatherType { clear, cloudy, rain, snow, dust }
+enum WeatherType { clear, cloudy, rain, snow, dust, unknown }
 
 enum ContextDataFreshness { fresh, stale }
 
@@ -69,11 +70,14 @@ class ContextSnapshot {
     this.routeStage = ContextRouteStage.none,
     List<ContextAction> allowedActions = const [],
     this.serverManifest,
+    List<ContextEntry> entries = const [],
+    this.canonicalEntriesPresent = false,
   }) : opportunityIds = List.unmodifiable(opportunityIds),
        safetyEventIds = List.unmodifiable(safetyEventIds),
        wildlifeEventIds = List.unmodifiable(wildlifeEventIds),
        events = List.unmodifiable(events),
        shootingSessions = List.unmodifiable(shootingSessions),
+       entries = List.unmodifiable(entries),
        allowedActions = List.unmodifiable(allowedActions);
 
   final String id;
@@ -89,7 +93,7 @@ class ContextSnapshot {
   final List<String> wildlifeEventIds;
   final List<ContextEvent> events;
 
-  /// V4 explainable, non-probabilistic shooting sessions.
+  /// Explainable, non-probabilistic shooting sessions in the current contract.
   final List<ShootingSession> shootingSessions;
   final RegionalWildlifeActivity? wildlifeActivity;
   final GeoPoint? location;
@@ -117,6 +121,8 @@ class ContextSnapshot {
   final ContextRouteStage routeStage;
   final List<ContextAction> allowedActions;
   final ServerManifest? serverManifest;
+  final List<ContextEntry> entries;
+  final bool canonicalEntriesPresent;
 
   /// Composite scene state used by the v5 cache and catalog engine. Local
   /// deterministic snapshots derive it from [primaryScene] when necessary.
@@ -171,6 +177,8 @@ class ContextSnapshot {
           .toSet()
           .toList(growable: false),
       serverManifest: serverManifest,
+      entries: entries,
+      canonicalEntriesPresent: canonicalEntriesPresent,
     );
   }
 
@@ -234,6 +242,8 @@ class ContextSnapshot {
       routeStage: routeStage,
       allowedActions: allowedActions,
       serverManifest: serverManifest,
+      entries: entries,
+      canonicalEntriesPresent: canonicalEntriesPresent,
     );
   }
 
@@ -283,6 +293,8 @@ class ContextSnapshot {
       routeStage: routeStage,
       allowedActions: allowedActions,
       serverManifest: serverManifest,
+      entries: entries,
+      canonicalEntriesPresent: canonicalEntriesPresent,
     );
   }
 
@@ -346,6 +358,8 @@ class ContextSnapshot {
       routeStage: routeStage,
       allowedActions: allowedActions,
       serverManifest: serverManifest,
+      entries: entries,
+      canonicalEntriesPresent: canonicalEntriesPresent,
     );
   }
 }

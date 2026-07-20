@@ -8,7 +8,9 @@ from app.models import BrokerSearchResult, ExtractedCandidate
 from app.store import RefreshJob, RegionReference
 from app.worker import (
     BrokerClient,
+    CRAWL_CACHE_SECONDS,
     MAX_RETRIES,
+    enrich_evidence_with_crawl,
     is_admissible,
     is_deterministic_admissible,
     parse_job,
@@ -25,6 +27,8 @@ def job(attempt: int = 0) -> RefreshJob:
         ),
         expires_at=int(time.time()) + 600,
         attempt=attempt,
+        activation_type="foreground_opportunistic",
+        dedupe_key="b" * 64,
     )
 
 
@@ -42,6 +46,9 @@ def mission_job(mission_type: str) -> RefreshJob:
             value.region.radius_meters,
         ),
         value.expires_at,
+        0,
+        value.activation_type,
+        value.dedupe_key,
     )
 
 
@@ -146,6 +153,49 @@ async def test_extraction_forwards_vetted_source_attribution_license_and_version
 
 
 @pytest.mark.asyncio
+async def test_process_job_never_sends_more_than_eight_selected_evidence_to_extract():
+    class Redis:
+        async def set(self, *_args, **_kwargs):
+            pass
+
+    class Store:
+        async def record_refresh(self, *_args):
+            pass
+
+        async def persist_candidates(self, *_args):
+            pass
+
+    class Broker:
+        def __init__(self):
+            self.forwarded = None
+
+        async def search(self, _job):
+            values = []
+            for index in range(24):
+                values.append(BrokerSearchResult.model_validate({
+                    "sourceId": f"source-{index}",
+                    "publisher": f"Publisher {index}",
+                    "license": "public-web-reference",
+                    "version": "2026-07-19",
+                    "title": f"杭州活动 {index}",
+                    "snippet": "杭州活动 地址 时间",
+                    "url": f"https://source-{index}.example/event",
+                    "publishedAt": "2026-07-19T00:00:00Z",
+                }))
+            return values
+
+        async def extract(self, _job, evidence):
+            self.forwarded = evidence
+            return []
+
+    broker = Broker()
+    await process_job(Redis(), Store(), broker, job())
+
+    assert broker.forwarded is not None
+    assert len(broker.forwarded) == 8
+
+
+@pytest.mark.asyncio
 async def test_broker_failure_has_a_bounded_retry_state_and_persists_no_item():
     class Redis:
         def __init__(self):
@@ -234,3 +284,36 @@ async def test_route_and_opening_jobs_use_deterministic_adapter_without_search_o
         assert broker.search_called is False
         assert broker.extract_called is False
         assert redis.sets[-1][0][1] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_crawler_is_a_bounded_cached_evidence_fallback_not_a_candidate_source():
+    class Redis:
+        def __init__(self):
+            self.setex_calls = []
+
+        async def get(self, _key):
+            return None
+
+        async def setex(self, *args):
+            self.setex_calls.append(args)
+
+    class Crawler:
+        def __init__(self):
+            self.calls = []
+
+        async def crawl(self, url, policy):
+            self.calls.append((url, policy))
+            return {
+                "status": "success",
+                "cleanedMarkdown": "杭州西湖观景点的公开正文资料。" * 12,
+            }
+
+    redis = Redis()
+    crawler = Crawler()
+    enriched = await enrich_evidence_with_crawl(redis, [source()], crawler)
+
+    assert len(crawler.calls) == 1
+    assert crawler.calls[0][1].domain == "example.test"
+    assert enriched[0].snippet.startswith("杭州西湖观景点")
+    assert redis.setex_calls[0][1] == CRAWL_CACHE_SECONDS

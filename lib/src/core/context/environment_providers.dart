@@ -197,6 +197,10 @@ final environmentLoaderProvider = Provider<EnvironmentLoader>((ref) {
 });
 
 class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
+  /// Monotonically increasing generation to prevent a stale background refresh
+  /// from overwriting a newer manual refresh result.
+  int _generation = 0;
+
   @override
   Future<ContextSnapshot> build() async {
     final loader = ref.watch(environmentLoaderProvider);
@@ -232,9 +236,13 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
   }
 
   Future<void> _refreshInBackground(EnvironmentLoader loader) async {
+    final generation = _generation;
     try {
       final snapshot = await _load(loader, trigger: 'background');
-      if (ref.mounted) state = AsyncData(snapshot);
+      // Only commit if no manual refresh has superseded this background load.
+      if (ref.mounted && generation == _generation) {
+        state = AsyncData(snapshot);
+      }
     } on Object {
       // The cached snapshot remains the safe visible state. `_load` already
       // records a sanitized failure category without exposing raw errors.
@@ -242,6 +250,8 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
   }
 
   Future<void> refresh() async {
+    // Increment generation so any in-flight background refresh becomes stale.
+    _generation++;
     // A manual refresh is a content update, not a navigation state change.
     // Keep the last safe snapshot visible while RefreshIndicator describes the
     // in-flight request; replacing it with AsyncLoading makes the whole Today

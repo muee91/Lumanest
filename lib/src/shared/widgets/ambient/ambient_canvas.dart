@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_colors.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_rendering_policy.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_field_parameters.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_shader_surface.dart';
+import 'package:luma_nest/src/shared/widgets/ambient/ambient_v2_shader_surface.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart';
 
 /// A static, non-interactive environment color layer.
@@ -23,6 +26,7 @@ class AmbientCanvas extends StatefulWidget {
     super.key,
     this.palette,
     this.visualState,
+    this.composition,
     this.reduceMotion = false,
     this.reduceFlashing = false,
     this.showWeatherTexture = true,
@@ -33,6 +37,7 @@ class AmbientCanvas extends StatefulWidget {
 
   final AmbientPalette? palette;
   final AmbientVisualState? visualState;
+  final AmbientVisualComposition? composition;
   final bool reduceMotion;
   final bool reduceFlashing;
   final bool showWeatherTexture;
@@ -51,7 +56,7 @@ class AmbientCanvas extends StatefulWidget {
 }
 
 class _AmbientCanvasState extends State<AmbientCanvas>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   AnimationController? _controller;
   CurvedAnimation? _curvedAnimation;
 
@@ -63,8 +68,11 @@ class _AmbientCanvasState extends State<AmbientCanvas>
   AnimationController? _thunderController;
   Timer? _thunderTimer;
   late final math.Random _thunderRandom;
+  final Stopwatch _shaderClock = Stopwatch();
+  bool _appVisible = true;
 
-  bool get _shouldAnimate => !widget.reduceMotion && widget.intensity > 0;
+  bool get _shouldAnimate =>
+      _appVisible && !widget.reduceMotion && widget.intensity > 0;
 
   void _startAnimation() {
     _stopAnimation();
@@ -72,6 +80,7 @@ class _AmbientCanvasState extends State<AmbientCanvas>
       duration: const Duration(seconds: 20),
       vsync: this,
     )..repeat(reverse: true);
+    _shaderClock.start();
     _curvedAnimation = CurvedAnimation(
       parent: _controller!,
       curve: Curves.easeInOut,
@@ -82,6 +91,7 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     _controller?.stop();
     _curvedAnimation?.dispose();
     _controller?.dispose();
+    _shaderClock.stop();
     _controller = null;
     _curvedAnimation = null;
   }
@@ -158,7 +168,7 @@ class _AmbientCanvasState extends State<AmbientCanvas>
 
   void _scheduleThunder() {
     _thunderTimer?.cancel();
-    final seconds = 8 + _thunderRandom.nextInt(25);
+    final seconds = 5 + _thunderRandom.nextInt(12);
     _thunderTimer = Timer(Duration(seconds: seconds), () async {
       if (!mounted || !_shouldThunder) return;
       await _thunderController?.forward(from: 0);
@@ -187,6 +197,7 @@ class _AmbientCanvasState extends State<AmbientCanvas>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _gustRandom = math.Random();
     _thunderRandom = math.Random();
     widget.interactionSuppressed?.addListener(_handleSuppression);
@@ -210,6 +221,7 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     // new weather snapshot (gustFactor) or route intensity update takes effect.
     if (motionChanged ||
         widget.visualState != oldWidget.visualState ||
+        widget.composition != oldWidget.composition ||
         widget.intensity != oldWidget.intensity) {
       _ensureGust();
     }
@@ -222,11 +234,22 @@ class _AmbientCanvasState extends State<AmbientCanvas>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.interactionSuppressed?.removeListener(_handleSuppression);
     _stopAnimation();
     _stopGust();
     _stopThunder();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final visible = state == AppLifecycleState.resumed;
+    if (_appVisible == visible) return;
+    _appVisible = visible;
+    _syncAnimation();
+    _ensureGust();
+    _ensureThunder();
   }
 
   @override
@@ -305,11 +328,12 @@ class _AmbientCanvasState extends State<AmbientCanvas>
       );
     }
 
-    final precipIntensity =
-        ((visualState?.precipitationIntensity ?? 0) * intensity).clamp(
-          0.0,
-          1.0,
-        );
+    // Foreground glass blur — a single lens-layer shared by every weather
+    // kind. Sigma is driven by the semantic glassBlur channel so rain, cloud
+    // and storm all soften the scene through one continuous cue, without the
+    // discrete drop shapes of the previous Heartfelt layer.
+    final glassSigma = ((visualState?.glassBlur ?? 0) * intensity * 1.5)
+        .clamp(0.0, 1.5);
 
     return SizedBox.expand(
       child: IgnorePointer(
@@ -317,22 +341,17 @@ class _AmbientCanvasState extends State<AmbientCanvas>
           fit: StackFit.expand,
           children: [
             gradientLayer,
-            if (cloudOpacity > 0.001)
+            if (cloudOpacity > 0.001 && widget.composition == null)
               ColoredBox(color: Colors.grey.withValues(alpha: cloudOpacity)),
             if (warmGlow > 0.001)
               ColoredBox(
                 color: const Color(0xFFFF7043).withValues(alpha: warmGlow),
               ),
-            if (widget.showWeatherTexture && precipIntensity > 0.01)
-              CustomPaint(
-                painter: _PrecipitationTexturePainter(
-                  intensity: precipIntensity,
-                  directionDegrees: visualState!.flowDirection,
-                  isSnow:
-                      visualState.precipitation == AmbientPrecipitation.snow,
-                  phase: _curvedAnimation?.value ?? 0,
-                ),
-              ),
+            // Weather textures are now expressed as continuous noise fields
+            // inside both V1 and V2 shaders (rain streaks, typhoon spiral,
+            // cloud turbulence, dust haze, golden-hour disc). The discrete
+            // precipitation / dust / star painters have been removed so the
+            // background reads as a single macro-realistic atmosphere.
             if (widget.showWeatherTexture &&
                 visualState?.thunderstorm == true &&
                 !widget.reduceFlashing &&
@@ -340,6 +359,17 @@ class _AmbientCanvasState extends State<AmbientCanvas>
               _ThunderPulse(
                 animation: _thunderController,
                 intensity: intensity,
+              ),
+            if (glassSigma > 0.01)
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(
+                    sigmaX: glassSigma,
+                    sigmaY: glassSigma,
+                    tileMode: ui.TileMode.mirror,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
               ),
           ],
         ),
@@ -355,11 +385,44 @@ class _AmbientCanvasState extends State<AmbientCanvas>
     if (visualState == null || widget.renderer == AmbientRenderer.staticField) {
       return fallback;
     }
+    final composition = widget.composition;
+    if (composition != null) {
+      final fps = switch (composition.quality) {
+        AmbientQualityTier.full => 60.0,
+        AmbientQualityTier.balanced => 30.0,
+        AmbientQualityTier.reduced => 15.0,
+        AmbientQualityTier.static => 0.0,
+      };
+      final elapsed = _shaderClock.elapsedMicroseconds / 1000000.0;
+      final quantizedTime = fps <= 0 ? 0.0 : (elapsed * fps).floor() / fps;
+      return AmbientV2ShaderSurface(
+        field: composition.field,
+        time: quantizedTime,
+        stormFactor: (visualState.stormFactor * widget.intensity).clamp(
+          0.0,
+          1.0,
+        ),
+        rainStreaks: precipIntensityFor(visualState),
+        flowRadians: visualState.flowRadians,
+        weatherKind: visualState.weather.index.toDouble(),
+        dayPhaseKind: visualState.dayPhase.index.toDouble(),
+        cloudOpacity: visualState.cloudOpacity,
+        warmGlow: visualState.warmGlow,
+        child: fallback,
+      );
+    }
     return AmbientShaderSurface(
       visualState: visualState,
       time: widget.reduceMotion ? 0 : time * 20,
       lowQuality: widget.renderer == AmbientRenderer.reducedFragment,
       child: fallback,
+    );
+  }
+
+  double precipIntensityFor(AmbientVisualState visualState) {
+    return (visualState.precipitationIntensity * widget.intensity).clamp(
+      0.0,
+      1.0,
     );
   }
 
@@ -393,52 +456,6 @@ class _AmbientCanvasState extends State<AmbientCanvas>
       ),
     );
   }
-}
-
-class _PrecipitationTexturePainter extends CustomPainter {
-  const _PrecipitationTexturePainter({
-    required this.intensity,
-    required this.directionDegrees,
-    required this.isSnow,
-    required this.phase,
-  });
-
-  final double intensity;
-  final double directionDegrees;
-  final bool isSnow;
-  final double phase;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: .05 + intensity * .1)
-      ..strokeWidth = isSnow ? 2 : 1;
-    final radians = directionDegrees * math.pi / 180;
-    final slant = math.sin(radians) * (8 + intensity * 22);
-    final length = isSnow ? 3 + intensity * 6 : 12 + intensity * 34;
-    final spacing = (42 - intensity * 24).clamp(16, 42);
-    final fall = (phase * (isSnow ? 18 : 90)) % spacing;
-    for (var x = -length; x < size.width + length; x += spacing) {
-      for (var y = 0.0; y < size.height; y += spacing * 1.6) {
-        final start = Offset(
-          x + (isSnow ? math.sin(y + phase * 8) * 4 : 0),
-          y + fall,
-        );
-        if (isSnow) {
-          canvas.drawCircle(start, 1.2 + intensity * .9, paint);
-        } else {
-          canvas.drawLine(start, start + Offset(slant, length), paint);
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PrecipitationTexturePainter oldDelegate) =>
-      oldDelegate.intensity != intensity ||
-      oldDelegate.directionDegrees != directionDegrees ||
-      oldDelegate.isSnow != isSnow ||
-      oldDelegate.phase != phase;
 }
 
 class _ThunderPulse extends StatelessWidget {

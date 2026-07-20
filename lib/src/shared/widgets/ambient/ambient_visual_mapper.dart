@@ -5,6 +5,8 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 /// background behavior. This deliberately contains no AI-generated values.
 class AmbientVisualState {
   const AmbientVisualState({
+    required this.weather,
+    required this.dayPhase,
     required this.palette,
     required this.flowDirection,
     required this.motionIntensity,
@@ -15,7 +17,12 @@ class AmbientVisualState {
     required this.warmGlow,
     required this.precipitation,
     required this.accentColor,
+    required this.stormFactor,
+    required this.glassBlur,
   });
+
+  final WeatherType weather;
+  final DayPhase dayPhase;
 
   final AmbientPalette palette;
 
@@ -50,7 +57,54 @@ class AmbientVisualState {
   /// A restrained scene color for the fragment field; never an AI value.
   final Color accentColor;
 
+  /// Typhoon-class storm strength (0.0–1.0). Derived from sustained wind
+  /// speed at or above the 8-grade threshold (17.2 m/s) combined with rain.
+  /// Drives a rotating spiral field with a calm eye in the shader.
+  final double stormFactor;
+
+  /// Foreground glass blur amount (0.0–1.0). Composed from precipitation
+  /// intensity, cloud opacity and storm factor so every weather kind can
+  /// soften the scene through one shared lens-layer without discrete drops.
+  final double glassBlur;
+
   double get flowRadians => flowDirection * 3.141592653589793 / 180;
+
+  @override
+  bool operator ==(Object other) {
+    return other is AmbientVisualState &&
+        other.weather == weather &&
+        other.dayPhase == dayPhase &&
+        other.palette == palette &&
+        other.flowDirection == flowDirection &&
+        other.motionIntensity == motionIntensity &&
+        other.precipitationIntensity == precipitationIntensity &&
+        other.thunderstorm == thunderstorm &&
+        other.cloudOpacity == cloudOpacity &&
+        other.gustFactor == gustFactor &&
+        other.warmGlow == warmGlow &&
+        other.precipitation == precipitation &&
+        other.accentColor == accentColor &&
+        other.stormFactor == stormFactor &&
+        other.glassBlur == glassBlur;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    weather,
+    dayPhase,
+    palette,
+    flowDirection,
+    motionIntensity,
+    precipitationIntensity,
+    thunderstorm,
+    cloudOpacity,
+    gustFactor,
+    warmGlow,
+    precipitation,
+    accentColor,
+    stormFactor,
+    glassBlur,
+  );
 }
 
 enum AmbientPrecipitation { none, rain, snow }
@@ -74,7 +128,7 @@ class AmbientPalette {
 class AmbientVisualMapper {
   const AmbientVisualMapper();
 
-  static const _dayPhaseBlendRatio = 0.15;
+  static const _dayPhaseBlendRatio = 0.32;
   static const _sceneBlendRatio = 0.06;
 
   AmbientPalette resolve(
@@ -96,14 +150,21 @@ class AmbientVisualMapper {
     final rain = snapshot.precipitationMillimeters ?? 0;
     final cloudCover =
         snapshot.cloudCoverPercent ?? _estimatedCloudCover(snapshot.weather);
+    final precipitationIntensity = _precipitationIntensity(
+      snapshot.weather,
+      rain,
+    );
+    final stormFactor = _estimateStormFactor(snapshot.weather, wind);
     return AmbientVisualState(
+      weather: snapshot.weather,
+      dayPhase: snapshot.dayPhase,
       palette: _applySceneAccent(
         resolve(snapshot.weather, snapshot.dayPhase, brightness),
         snapshot.primaryScene,
       ),
       flowDirection: (snapshot.windDirectionDegrees ?? 0) % 360,
       motionIntensity: (0.08 + wind / 30).clamp(0.08, 0.4),
-      precipitationIntensity: _precipitationIntensity(snapshot.weather, rain),
+      precipitationIntensity: precipitationIntensity,
       thunderstorm: snapshot.safetyEventIds.contains('thunderstorm'),
       cloudOpacity: (cloudCover / 100 * 0.4).clamp(0.0, 0.4),
       gustFactor: _estimateGustFactor(snapshot.weather, wind),
@@ -118,6 +179,12 @@ class AmbientVisualMapper {
         _ => AmbientPrecipitation.none,
       },
       accentColor: _accentForScene(snapshot.primaryScene),
+      stormFactor: stormFactor,
+      glassBlur: _resolveGlassBlur(
+        precipitationIntensity,
+        (cloudCover / 100 * 0.4).clamp(0.0, 0.4),
+        stormFactor,
+      ),
     );
   }
 
@@ -139,6 +206,7 @@ class AmbientVisualMapper {
       WeatherType.rain => 90,
       WeatherType.snow => 85,
       WeatherType.dust => 20,
+      WeatherType.unknown => 50,
     };
   }
 
@@ -152,8 +220,33 @@ class AmbientVisualMapper {
       WeatherType.rain => 0.45,
       WeatherType.snow => 0.30,
       WeatherType.dust => 0.60,
+      WeatherType.unknown => 0.15,
     };
     return (base + wind / 40).clamp(0.0, 1.0);
+  }
+
+  /// Typhoon-class storm factor. Active only when rain is falling and the
+  /// sustained wind crosses the Beaufort 8 threshold (17.2 m/s). The shader
+  /// uses this to drive a rotating spiral field with a calm eye; ordinary
+  /// rain or wind never triggers it.
+  static double _estimateStormFactor(WeatherType weather, double wind) {
+    if (weather != WeatherType.rain) return 0.0;
+    const threshold = 17.2;
+    if (wind <= threshold) return 0.0;
+    return ((wind - threshold) / 30.0).clamp(0.0, 1.0);
+  }
+
+  /// Foreground glass blur composed from precipitation, cloud and storm so a
+  /// single lens-layer softens every weather kind. Rain contributes the
+  /// strongest cue, cloud adds a haze baseline and storm amplifies both.
+  static double _resolveGlassBlur(
+    double precipitationIntensity,
+    double cloudOpacity,
+    double stormFactor,
+  ) {
+    final base = precipitationIntensity * 0.55 + cloudOpacity * 1.5;
+    final amplified = base + stormFactor * 0.25;
+    return amplified.clamp(0.0, 1.0);
   }
 
   /// Resolves the alpenglow warm渗透 factor. Alpenglow only appears during
@@ -173,6 +266,7 @@ class AmbientVisualMapper {
       WeatherType.dust => 0.3,
       WeatherType.rain => 0.0,
       WeatherType.snow => 0.0,
+      WeatherType.unknown => 0.0,
     };
     final cloudDim = (cloudCover / 40).clamp(0.0, 1.0);
     return (base * (1 - cloudDim * 0.6)).clamp(0.0, 1.0);
@@ -250,6 +344,10 @@ class AmbientVisualMapper {
         topColor: Color(0xFFE6DAC8),
         bottomColor: Color(0xFFD3C4A6),
       ),
+      WeatherType.unknown => const AmbientPalette(
+        topColor: Color(0xFFD7DEE0),
+        bottomColor: Color(0xFFCBCFCD),
+      ),
     };
   }
 
@@ -274,6 +372,10 @@ class AmbientVisualMapper {
       WeatherType.dust => const AmbientPalette(
         topColor: Color(0xFF2C2620),
         bottomColor: Color(0xFF201C16),
+      ),
+      WeatherType.unknown => const AmbientPalette(
+        topColor: Color(0xFF242932),
+        bottomColor: Color(0xFF171B22),
       ),
     };
   }

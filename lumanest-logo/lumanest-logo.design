@@ -1,0 +1,26 @@
+{
+  "data": [
+    {
+      "id": "page-logo-mark",
+      "title": "栖光 LOGO 品牌稿",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1784484145000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/logo-mark.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "栖光 LOGO",
+    "designLibrary": null
+  }
+}

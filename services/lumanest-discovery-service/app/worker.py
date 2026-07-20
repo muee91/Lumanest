@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
 import time
 from dataclasses import dataclass
@@ -15,8 +17,14 @@ from .models import (
     BrokerExtractionResponse,
     BrokerSearchResponse,
     BrokerSearchResult,
+    ExtractionCoordinate,
     ExtractedCandidate,
+    PlaceResolutionRequest,
+    PlaceResolutionResponse,
 )
+from .crawl.selectors import select_evidence
+from .crawl.client import Crawl4AIPageCrawler, PageCrawler
+from .crawl.url_guard import UrlPolicy, UrlRejected
 from .store import (
     PENDING_SECONDS,
     REFRESH_GROUP,
@@ -29,6 +37,10 @@ from .store import (
 
 HEARTBEAT_KEY = "discovery:worker:heartbeat"
 MAX_RETRIES = 2
+CRAWL_CACHE_SECONDS = 6 * 60 * 60
+CRAWL_FAILURE_CACHE_SECONDS = 15 * 60
+CRAWL_MIN_SNIPPET_CHARS = 260
+MAX_CRAWLS_PER_JOB = 3
 FORBIDDEN_CONTENT = (
     "wildlife", "animal", "bear", "tiger", "snake", "risk", "danger", "hazard", "warning",
     "emergency", "safety", "popular", "trending", "top", "热度", "热门", "人气",
@@ -119,6 +131,33 @@ class BrokerClient:
         except Exception as error:
             raise BrokerFailure("invalid_deterministic_response") from error
 
+    async def resolve_place(self, job: RefreshJob, candidate: ExtractedCandidate) -> tuple[ExtractedCandidate, BrokerSearchResult] | None:
+        payload = PlaceResolutionRequest(
+            query=candidate.title,
+            addressHint=candidate.address_hint,
+            region={
+                "latitude": job.region.latitude,
+                "longitude": job.region.longitude,
+                "radiusMeters": job.region.radius_meters,
+            },
+            locale=job.region.locale,
+        ).model_dump(by_alias=True, mode="json")
+        raw = await self._post("/internal/v1/discovery/resolve-place", payload)
+        try:
+            response = PlaceResolutionResponse.model_validate(raw)
+        except Exception as error:
+            raise BrokerFailure("invalid_place_resolution_response") from error
+        if response.status != "resolved" or response.place is None or response.evidence is None:
+            return None
+        coordinate = response.place.get("coordinate")
+        if not isinstance(coordinate, dict):
+            return None
+        resolved = candidate.model_copy(update={
+            "coordinate": ExtractionCoordinate.model_validate(coordinate),
+            "coordinate_evidence": response.evidence.snippet.split("坐标：")[-1][:120],
+        })
+        return resolved, response.evidence
+
     async def _post(self, path: str, payload: dict[str, Any]) -> Any:
         if not self.configured:
             raise BrokerFailure("broker_not_configured")
@@ -182,6 +221,8 @@ def parse_job(values: dict[str, str]) -> RefreshJob | None:
         radius_meters = int(values["radiusMeters"])
         expires_at = int(values["expiresAt"])
         attempt = int(values.get("attempt", "0"))
+        activation_type = values["activationType"]
+        dedupe_key = values["dedupeKey"]
     except (KeyError, TypeError, ValueError):
         return None
     if (
@@ -191,6 +232,8 @@ def parse_job(values: dict[str, str]) -> RefreshJob | None:
             "routeConditions", "openingAndClosure", "seasonalSignals",
         } or not 100 <= radius_meters <= 50_000
         or not 0 <= attempt <= MAX_RETRIES or expires_at <= int(time.time())
+        or activation_type not in {"user_manual", "foreground_opportunistic", "ai_verification", "admin_backfill"}
+        or len(dedupe_key) != 64
     ):
         return None
     # Stream values must itself be a grid-centre, not a conveniently rounded raw point.
@@ -205,6 +248,8 @@ def parse_job(values: dict[str, str]) -> RefreshJob | None:
         ),
         expires_at=expires_at,
         attempt=attempt,
+        activation_type=activation_type,
+        dedupe_key=dedupe_key,
     )
 
 
@@ -313,18 +358,100 @@ def distance_km(latitude_a: float, longitude_a: float, latitude_b: float, longit
 
 async def retry_or_fail(redis: Redis, store: DiscoveryStore, job: RefreshJob) -> None:
     next_attempt = job.attempt + 1
-    key = f"discovery:refresh:{job.fingerprint}"
+    key = f"discovery:refresh:{job.dedupe_key}"
     if next_attempt > MAX_RETRIES:
         await redis.set(key, "failed", ex=PENDING_SECONDS)
         await store.record_refresh(job, "failed")
         return
-    retry = RefreshJob(job.fingerprint, job.region, job.expires_at, next_attempt)
+    retry = RefreshJob(
+        job.fingerprint,
+        job.region,
+        job.expires_at,
+        next_attempt,
+        job.activation_type,
+        job.dedupe_key,
+    )
     await redis.set(key, f"retry:{next_attempt}", ex=PENDING_SECONDS)
     await redis.xadd(REFRESH_STREAM, retry.stream_values(), maxlen=10_000, approximate=True)
     await store.record_refresh(retry, "attempted")
 
 
-async def process_job(redis: Redis, store: DiscoveryStore, broker: BrokerClient, job: RefreshJob) -> None:
+def _crawler_enabled() -> bool:
+    return os.getenv("DISCOVERY_CRAWLER_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _crawl_cache_key(item: BrokerSearchResult) -> str:
+    return f"discovery:crawl:{hashlib.sha256(str(item.url).encode('utf-8')).hexdigest()}"
+
+
+def _cleaned_window(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split()).strip()
+    return normalized[:1_200] if len(normalized) >= 80 else None
+
+
+async def enrich_evidence_with_crawl(
+    redis: Redis,
+    evidence: list[BrokerSearchResult],
+    crawler: PageCrawler | None,
+) -> list[BrokerSearchResult]:
+    """Use Crawl4AI only when search snippets are too thin for extraction.
+
+    Every page URL first passed Broker source-policy validation. The crawler
+    pins the request and any redirect to that exact host, caches only a bounded
+    cleaned text window, and never creates a candidate by itself.
+    """
+    if crawler is None or not evidence:
+        return evidence
+    needs_more_context = len(evidence) < 3 or any(len(item.snippet.strip()) < CRAWL_MIN_SNIPPET_CHARS for item in evidence)
+    if not needs_more_context:
+        return evidence
+    replacements: dict[str, BrokerSearchResult] = {}
+    for item in evidence[:MAX_CRAWLS_PER_JOB]:
+        key = _crawl_cache_key(item)
+        cached = None
+        try:
+            cached = await redis.get(key)
+        except Exception:
+            cached = None
+        if cached:
+            try:
+                window = _cleaned_window(json.loads(cached).get("window"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                window = None
+            if window is not None:
+                replacements[str(item.url)] = item.model_copy(update={"snippet": window})
+                continue
+        try:
+            hostname = item.url.host
+            if not hostname:
+                continue
+            result = await crawler.crawl(str(item.url), UrlPolicy(domain=hostname))
+            window = _cleaned_window(result.get("cleanedMarkdown")) if result.get("status") == "success" else None
+        except (UrlRejected, ValueError, OSError):
+            window = None
+        except Exception:
+            window = None
+        try:
+            if window is None:
+                await redis.setex(key, CRAWL_FAILURE_CACHE_SECONDS, json.dumps({"window": None}))
+            else:
+                await redis.setex(key, CRAWL_CACHE_SECONDS, json.dumps({"window": window}))
+        except Exception:
+            pass
+        if window is not None:
+            replacements[str(item.url)] = item.model_copy(update={"snippet": window})
+    return [replacements.get(str(item.url), item) for item in evidence]
+
+
+async def process_job(
+    redis: Redis,
+    store: DiscoveryStore,
+    broker: BrokerClient,
+    job: RefreshJob,
+    crawler: PageCrawler | None = None,
+) -> None:
     try:
         await store.record_refresh(job, "attempted")
         if job.region.mission_type in {"routeConditions", "openingAndClosure"}:
@@ -339,12 +466,38 @@ async def process_job(redis: Redis, store: DiscoveryStore, broker: BrokerClient,
         else:
             evidence = await broker.search(job)
             if not evidence:
-                await redis.set(f"discovery:refresh:{job.fingerprint}", "completed", ex=CACHE_TTL)
+                await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
                 return
-            extracted = await broker.extract(job, evidence)
-            admitted = [(candidate, linked) for candidate in extracted if (linked := is_admissible(candidate, evidence, job))]
+            selected = select_evidence(
+                evidence,
+                mission_type=job.region.mission_type,
+                focus=job.region.focus,
+                maximum=8,
+                max_per_domain=2,
+            )
+            if not selected:
+                await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
+                return
+            selected = await enrich_evidence_with_crawl(redis, selected, crawler)
+            extracted = await broker.extract(job, selected)
+            evidence_pool = list(selected)
+            resolved_candidates: list[ExtractedCandidate] = []
+            for candidate in extracted:
+                if candidate.coordinate is not None:
+                    resolved_candidates.append(candidate)
+                    continue
+                resolved = await broker.resolve_place(job, candidate)
+                if resolved is None:
+                    continue
+                resolved_candidate, coordinate_evidence = resolved
+                resolved_candidate = resolved_candidate.model_copy(update={
+                    "source_indexes": [*resolved_candidate.source_indexes[:3], len(evidence_pool)],
+                })
+                evidence_pool.append(coordinate_evidence)
+                resolved_candidates.append(resolved_candidate)
+            admitted = [(candidate, linked) for candidate in resolved_candidates if (linked := is_admissible(candidate, evidence_pool, job))]
         await store.persist_candidates(job, admitted)
-        await redis.set(f"discovery:refresh:{job.fingerprint}", "completed", ex=CACHE_TTL)
+        await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
     except (BrokerFailure, RuntimeError):
         await retry_or_fail(redis, store, job)
 
@@ -357,20 +510,27 @@ async def handle_entry(
     redis: Redis,
     store: DiscoveryStore,
     broker: BrokerClient,
+    crawler: PageCrawler | None,
     entry_id: str,
     values: dict[str, str],
 ) -> None:
     """ACK only after the job reached a bounded terminal/retry hand-off."""
     job = parse_job(values)
     if job is not None:
-        await process_job(redis, store, broker, job)
+        await process_job(redis, store, broker, job, crawler)
     await redis.xack(REFRESH_STREAM, REFRESH_GROUP, entry_id)
     # ACK alone retains the coarse region reference indefinitely in a Stream.
     # Once retry/terminal state has been handed off, remove this processed entry.
     await redis.xdel(REFRESH_STREAM, entry_id)
 
 
-async def reclaim_once(redis: Redis, store: DiscoveryStore, broker: BrokerClient, start_id: str) -> str:
+async def reclaim_once(
+    redis: Redis,
+    store: DiscoveryStore,
+    broker: BrokerClient,
+    crawler: PageCrawler | None,
+    start_id: str,
+) -> str:
     """Recover a bounded page of crash-left messages and return its stream cursor."""
     reclaimed = await redis.xautoclaim(
         REFRESH_STREAM,
@@ -384,7 +544,7 @@ async def reclaim_once(redis: Redis, store: DiscoveryStore, broker: BrokerClient
     next_start_id = str(reclaimed[0]) if reclaimed else "0-0"
     entries = reclaimed[1] if reclaimed and len(reclaimed) > 1 else []
     for entry_id, values in entries:
-        await handle_entry(redis, store, broker, entry_id, values)
+        await handle_entry(redis, store, broker, crawler, entry_id, values)
     return next_start_id
 
 
@@ -395,13 +555,16 @@ async def run() -> None:
     client = Redis.from_url(redis_url, decode_responses=True)
     store = DiscoveryStore(os.getenv("DATABASE_URL"), None)
     broker = BrokerClient(os.getenv("DISCOVERY_BROKER_URL", "").rstrip("/"), os.getenv("DISCOVERY_WORKER_TOKEN", ""))
+    crawler: PageCrawler | None = Crawl4AIPageCrawler(
+        timeout_ms=int(os.getenv("DISCOVERY_CRAWLER_TIMEOUT_MS", "12000")),
+    ) if _crawler_enabled() else None
     try:
         try:
             await client.xgroup_create(REFRESH_STREAM, REFRESH_GROUP, id="0", mkstream=True)
         except ResponseError as error:
             if "BUSYGROUP" not in str(error):
                 raise
-        reclaim_cursor = await reclaim_once(client, store, broker, "0-0")
+        reclaim_cursor = await reclaim_once(client, store, broker, crawler, "0-0")
         while True:
             await client.set(HEARTBEAT_KEY, "ok", ex=20)
             batches = await client.xreadgroup(
@@ -412,11 +575,11 @@ async def run() -> None:
                 block=5000,
             )
             if not batches:
-                reclaim_cursor = await reclaim_once(client, store, broker, reclaim_cursor)
+                reclaim_cursor = await reclaim_once(client, store, broker, crawler, reclaim_cursor)
                 continue
             _, entries = batches[0]
             entry_id, values = entries[0]
-            await handle_entry(client, store, broker, entry_id, values)
+            await handle_entry(client, store, broker, crawler, entry_id, values)
     finally:
         await store.close()
         await client.aclose()

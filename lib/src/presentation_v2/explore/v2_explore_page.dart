@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:amap_map/amap_map.dart';
 import 'package:flutter/cupertino.dart';
@@ -8,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
@@ -20,12 +22,18 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
+import 'package:luma_nest/src/presentation_v2/ai/v2_ask_luma_nest.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class V2ExplorePage extends ConsumerWidget {
-  const V2ExplorePage({super.key, this.focus = ExploreFocus.photography});
+  const V2ExplorePage({
+    super.key,
+    this.focus = ExploreFocus.photography,
+    this.placeId,
+  });
 
   final ExploreFocus focus;
+  final String? placeId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -60,14 +68,15 @@ class V2ExplorePage extends ConsumerWidget {
               ref.read(mapConsentControllerProvider.notifier).grantConsent(),
         ),
       ),
-      MapConsentReady() => _V2ExploreMap(focus: focus),
+      MapConsentReady() => _V2ExploreMap(focus: focus, placeId: placeId),
     };
   }
 }
 
 class _V2ExploreMap extends ConsumerStatefulWidget {
-  const _V2ExploreMap({required this.focus});
+  const _V2ExploreMap({required this.focus, this.placeId});
   final ExploreFocus focus;
+  final String? placeId;
 
   @override
   ConsumerState<_V2ExploreMap> createState() => _V2ExploreMapState();
@@ -84,18 +93,18 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   LocationSearchResult? _selectedSearchResult;
   AmapExploreMarkerIcons? _markerIcons;
   int _searchGeneration = 0;
-  double _panelFraction = .12;
+  double _panelFraction = 0;
+  bool _panelDragging = false;
   bool _initialized = false;
   bool _intentPickerOpen = false;
+  bool _searchOpen = false;
   bool _ignoreNextCameraMoveEnd = false;
+  Timer? _ignoreCameraResetTimer;
+  bool? _lastMediaResolved;
 
   @override
   void initState() {
     super.initState();
-    if (widget.focus == ExploreFocus.sunrise ||
-        widget.focus == ExploreFocus.nightSky) {
-      _panelFraction = .5;
-    }
     _searchController.addListener(_onSearchChanged);
     unawaited(_loadMarkerIcons());
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -120,10 +129,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   void didUpdateWidget(covariant _V2ExploreMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focus == widget.focus) return;
-    if (widget.focus == ExploreFocus.sunrise ||
-        widget.focus == ExploreFocus.nightSky) {
-      _panelFraction = .5;
-    }
+    _panelFraction = 0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(exploreIntentProvider.notifier).activate(widget.focus);
@@ -153,6 +159,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _ignoreCameraResetTimer?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     _mapController?.disponse();
@@ -186,6 +193,45 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
           setState(() => _searchResults = AsyncError(error, stack));
         }
       }
+    });
+  }
+
+  void _openSearch() {
+    setState(() {
+      _searchOpen = true;
+      _intentPickerOpen = false;
+      _panelFraction = 0;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _debounce?.cancel();
+    _searchGeneration += 1;
+    _searchController.clear();
+    _searchFocus.unfocus();
+    setState(() {
+      _searchOpen = false;
+      _searchResults = null;
+      _panelFraction = 0;
+    });
+  }
+
+  void _selectSearchShortcut(ExploreCreativeIntent intent) {
+    _debounce?.cancel();
+    _searchGeneration += 1;
+    _searchController.clear();
+    _searchFocus.unfocus();
+    ref.read(exploreIntentProvider.notifier).chooseCreativeIntent(intent);
+    ref.read(nearbySearchAreaProvider.notifier).resetRadius();
+    setState(() {
+      _searchOpen = false;
+      _searchResults = null;
+      _selectedPlace = null;
+      _selectedSearchResult = null;
+      _panelFraction = .68;
     });
   }
 
@@ -233,6 +279,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
       }
     });
     final places = ref.watch(nearbyPlacesProvider);
+    _selectInitialPlace(places);
     final intent = ref.watch(exploreIntentProvider);
     final searchArea = ref.watch(nearbySearchAreaProvider);
     final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(origin);
@@ -240,9 +287,27 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final panelHeight = constraints.maxHeight * _panelFraction;
-        final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-        final bottomPadding = MediaQuery.paddingOf(context).bottom;
+        // `padding.bottom` inside an extended Scaffold already includes the
+        // navigation bar; use the physical safe inset to avoid counting the
+        // dock twice and leaving a gap below the handle.
+        final bottomSafeArea = MediaQuery.viewPaddingOf(context).bottom;
+        final bottomInset = _searchOpen
+            ? 0.0
+            : MediaQuery.viewInsetsOf(context).bottom;
+        // Keep the sheet attached to the physical bottom like the reference.
+        // Its collapsed body sits behind navigation and only the top handle
+        // remains visible above the dock.
+        final navigationClearance = 64 + 12 + bottomSafeArea;
+        final availablePanelHeight = constraints.maxHeight - bottomInset;
+        final collapsedPanelHeight = navigationClearance + 40;
+        final collapsedPanelFraction =
+            collapsedPanelHeight / availablePanelHeight;
+        final effectivePanelFraction = _panelFraction.clamp(
+          collapsedPanelFraction,
+          .82,
+        );
+        final panelExpanded =
+            effectivePanelFraction > collapsedPanelFraction + .04;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -283,68 +348,87 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                     .markMapMoved(ChinaCoordinateConverter.gcj02ToWgs84(gcj));
               },
             ),
-            Positioned(
-              left: 18,
-              right: 18,
-              top: MediaQuery.paddingOf(context).top + 12,
-              child: _V2SearchObject(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                onClear: () {
-                  _searchController.clear();
-                  _searchFocus.unfocus();
-                },
+            if (_searchOpen)
+              Positioned(
+                left: 18,
+                right: 18,
+                top: MediaQuery.paddingOf(context).top + 12,
+                child: _V2SearchObject(
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                  onClose: _closeSearch,
+                  onClear: () => _searchController.clear(),
+                ),
+              )
+            else
+              Positioned(
+                right: 18,
+                top: MediaQuery.paddingOf(context).top + 12,
+                child: _V2MapControlButton(
+                  icon: CupertinoIcons.search,
+                  label: '选择地点或搜索',
+                  onTap: _openSearch,
+                ),
               ),
-            ),
-            Positioned(
-              left: 18,
-              top: MediaQuery.paddingOf(context).top + 82,
-              child: _V2IntentObject(
-                intent: intent.creativeIntent,
-                category: intent.category,
-                expanded: _intentPickerOpen,
-                onOpen: () =>
-                    setState(() => _intentPickerOpen = !_intentPickerOpen),
+            if (_searchOpen && _searchController.text.trim().isEmpty)
+              Positioned(
+                left: 18,
+                right: 18,
+                top: MediaQuery.paddingOf(context).top + 82,
+                child: _V2SearchShortcutObject(onSelect: _selectSearchShortcut),
               ),
-            ),
-            Positioned(
-              right: 18,
-              top: MediaQuery.paddingOf(context).top + 82,
-              child: _V2MapControlButton(
-                icon: CupertinoIcons.location_fill,
-                label: '回到当前位置',
-                onTap: () => _returnToCurrentLocation(origin),
+            if (!_searchOpen)
+              Positioned(
+                left: 18,
+                top: MediaQuery.paddingOf(context).top + 12,
+                child: _V2IntentObject(
+                  intent: intent.creativeIntent,
+                  category: intent.category,
+                  expanded: _intentPickerOpen,
+                  onOpen: () =>
+                      setState(() => _intentPickerOpen = !_intentPickerOpen),
+                ),
               ),
-            ),
-            if (searchArea.hasPendingMapArea && !_intentPickerOpen)
+            if (!_searchOpen)
+              Positioned(
+                right: 18,
+                top: MediaQuery.paddingOf(context).top + 72,
+                child: _V2MapControlButton(
+                  icon: CupertinoIcons.location_fill,
+                  label: '回到当前位置',
+                  onTap: () => _returnToCurrentLocation(origin),
+                ),
+              ),
+            if (searchArea.hasPendingMapArea &&
+                !_intentPickerOpen &&
+                !_searchOpen)
               Positioned(
                 left: 0,
                 right: 0,
-                top: MediaQuery.paddingOf(context).top + 142,
+                top: MediaQuery.paddingOf(context).top + 128,
                 child: Center(
                   child: _V2SearchMapAreaObject(onTap: _searchCurrentMapArea),
                 ),
               ),
-            if (_intentPickerOpen)
+            if (_intentPickerOpen && !_searchOpen)
               Positioned(
                 left: 18,
                 right: 18,
-                top: MediaQuery.paddingOf(context).top + 142,
+                top: MediaQuery.paddingOf(context).top + 72,
                 child: _V2IntentPickerObject(
                   selectedCategory: intent.category,
                   onSelect: _selectExploreIntent,
                 ),
               ),
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 180),
+              duration: _panelDragging
+                  ? Duration.zero
+                  : const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
-              left: 12,
-              right: 12,
-              bottom: bottomInset + bottomPadding + 80,
-              height: panelHeight.clamp(
-                92,
-                (constraints.maxHeight - bottomInset) * .68,
-              ),
+              left: 0,
+              right: 0,
+              bottom: bottomInset,
+              height: availablePanelHeight * effectivePanelFraction,
               child: _V2ExploreResultObject(
                 focus: intent.activeFocus,
                 category: intent.category,
@@ -352,23 +436,66 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 searchResults: _searchResults,
                 selectedPlace: _selectedPlace,
                 selectedSearchResult: _selectedSearchResult,
-                expanded: _panelFraction > .3,
-                onDrag: (delta) => setState(() {
+                expanded: panelExpanded,
+                bottomContentInset: navigationClearance,
+                regionLabel: _regionLabel(snapshot),
+                onAsk: () => showAskLumaNestSheet(
+                  context,
+                  snapshot: snapshot,
+                  surface: 'explore',
+                  places: places.asData?.value ?? const [],
+                  judgement: intent.creativeIntent?.label ?? '附近发现',
+                ),
+                onDragStart: () => setState(() {
+                  _panelDragging = true;
+                  _panelFraction = effectivePanelFraction;
+                }),
+                onDragUpdate: (delta) => setState(() {
                   _panelFraction =
-                      (_panelFraction - delta / constraints.maxHeight).clamp(
-                        .12,
-                        .68,
+                      (_panelFraction - delta / availablePanelHeight).clamp(
+                        collapsedPanelFraction,
+                        .82,
                       );
                 }),
-                onSnap: () => setState(() {
-                  _panelFraction = _panelFraction > .34 ? .68 : .12;
-                }),
+                onDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  final target = velocity <= -550
+                      ? .82
+                      : velocity >= 550
+                      ? collapsedPanelFraction
+                      : _panelFraction >= .38
+                      ? .82
+                      : collapsedPanelFraction;
+                  LumaNestFeedbackService.instance.play(
+                    LumaNestSound.click,
+                    volume: 0,
+                    haptic: LumaNestHaptic.lightImpact,
+                  );
+                  setState(() {
+                    _panelDragging = false;
+                    _panelFraction = target;
+                  });
+                },
+                onToggle: () {
+                  LumaNestFeedbackService.instance.play(
+                    LumaNestSound.click,
+                    volume: 0,
+                    haptic: LumaNestHaptic.lightImpact,
+                  );
+                  setState(() {
+                    _panelDragging = false;
+                    _panelFraction = panelExpanded
+                        ? collapsedPanelFraction
+                        : .82;
+                  });
+                },
                 onPlace: _selectPlace,
                 onSearchResult: _selectSearchResult,
                 onClearSelection: _clearSelection,
                 onRoute: _openRoute,
                 onSave: _toggleSave,
                 onSearchMapArea: _searchCurrentMapArea,
+                onChooseTheme: () => setState(() => _intentPickerOpen = true),
                 onMediaResolved: _resolveSelectedMediaLayout,
               ),
             ),
@@ -376,6 +503,35 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
         );
       },
     );
+  }
+
+  String _regionLabel(ContextSnapshot snapshot) {
+    return switch (snapshot.primaryScene) {
+      SceneType.city => '城市附近',
+      SceneType.lake => '水岸附近',
+      SceneType.mountain => '山地附近',
+      SceneType.desert => '荒野附近',
+      SceneType.village => '村落附近',
+      SceneType.unknown => '当前区域',
+    };
+  }
+
+  void _selectInitialPlace(AsyncValue<List<NearbyPlace>> places) {
+    final id = widget.placeId;
+    if (id == null || _selectedPlace != null) return;
+    final match = places.asData?.value
+        .where((place) => place.id == id)
+        .firstOrNull;
+    if (match == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedPlace != null) return;
+      setState(() {
+        _selectedPlace = match;
+        _selectedSearchResult = null;
+        _panelFraction = .5;
+      });
+      _focusPoint(match.point);
+    });
   }
 
   void _selectExploreIntent(ExploreCreativeIntent intent) {
@@ -395,7 +551,12 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   }
 
   void _searchCurrentMapArea() {
+    final hasPendingArea = ref.read(nearbySearchAreaProvider).hasPendingMapArea;
     ref.read(nearbySearchAreaProvider.notifier).searchPendingArea();
+    // In the empty state the map may not have moved yet.  Keep this action
+    // meaningful by refreshing the current area instead of presenting a dead
+    // control.
+    if (!hasPendingArea) ref.invalidate(nearbyPlacesProvider);
     setState(() {
       _selectedPlace = null;
       _selectedSearchResult = null;
@@ -416,7 +577,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
     ref.read(nearbySearchAreaProvider.notifier).returnToLocation(queryCenter);
     final controller = _mapController;
     if (controller != null) {
-      _ignoreNextCameraMoveEnd = true;
+      _setIgnoreNextCameraMoveEnd();
       unawaited(
         controller.moveCamera(
           CameraUpdate.newCameraPosition(
@@ -434,7 +595,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
       _searchResults = null;
       _selectedPlace = null;
       _selectedSearchResult = null;
-      _panelFraction = .12;
+      _panelFraction = .68;
     });
   }
 
@@ -442,8 +603,10 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
     final icons = _markerIcons;
     if (icons == null) return const <Marker>{};
     final result = <Marker>{};
+    final nearbyPoints = <GeoPoint>[];
     for (final place in places.asData?.value ?? const <NearbyPlace>[]) {
       final point = ChinaCoordinateConverter.wgs84ToGcj02(place.point);
+      nearbyPoints.add(place.point);
       final selected = _selectedPlace?.id == place.id;
       result.add(
         Marker(
@@ -460,6 +623,14 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
     }
     for (final item
         in _searchResults?.asData?.value ?? const <LocationSearchResult>[]) {
+      // Skip search results that overlap with an existing nearby place marker
+      // (within ~50m, approx 0.00045° lat) to avoid ambiguous tap targets.
+      final tooClose = nearbyPoints.any(
+        (p) =>
+            (p.latitude - item.point.latitude).abs() < 0.00045 &&
+            (p.longitude - item.point.longitude).abs() < 0.00045,
+      );
+      if (tooClose) continue;
       final point = ChinaCoordinateConverter.wgs84ToGcj02(item.point);
       final selected = _selectedSearchResult?.id == item.id;
       result.add(
@@ -478,6 +649,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
 
   void _selectPlace(NearbyPlace place) {
     _searchFocus.unfocus();
+    _lastMediaResolved = null;
     setState(() {
       _selectedPlace = place;
       _selectedSearchResult = null;
@@ -498,6 +670,9 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
 
   void _resolveSelectedMediaLayout(bool hasMedia) {
     if (!mounted || _selectedPlace == null) return;
+    // Avoid redundant setState when the resolved state hasn't changed.
+    if (_lastMediaResolved == hasMedia) return;
+    _lastMediaResolved = hasMedia;
     final next = hasMedia ? .68 : .5;
     if (_panelFraction == next) return;
     setState(() => _panelFraction = next);
@@ -513,7 +688,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
 
   void _focusPoint(GeoPoint point) {
     final gcj = ChinaCoordinateConverter.wgs84ToGcj02(point);
-    _ignoreNextCameraMoveEnd = true;
+    _setIgnoreNextCameraMoveEnd();
     unawaited(
       _mapController?.moveCamera(
         CameraUpdate.newCameraPosition(
@@ -544,16 +719,28 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
           ),
         );
   }
+
+  /// Sets [_ignoreNextCameraMoveEnd] with a safety reset timer so the flag
+  /// cannot remain stuck if the camera animation is interrupted by user touch.
+  void _setIgnoreNextCameraMoveEnd() {
+    _ignoreNextCameraMoveEnd = true;
+    _ignoreCameraResetTimer?.cancel();
+    _ignoreCameraResetTimer = Timer(const Duration(milliseconds: 700), () {
+      _ignoreNextCameraMoveEnd = false;
+    });
+  }
 }
 
 class _V2SearchObject extends StatelessWidget {
   const _V2SearchObject({
     required this.controller,
     required this.focusNode,
+    required this.onClose,
     required this.onClear,
   });
   final TextEditingController controller;
   final FocusNode focusNode;
+  final VoidCallback onClose;
   final VoidCallback onClear;
 
   @override
@@ -568,7 +755,10 @@ class _V2SearchObject extends StatelessWidget {
       focusNode: focusNode,
       decoration: InputDecoration(
         hintText: '搜索地点',
-        prefixIcon: const Icon(CupertinoIcons.search, color: V2Palette.ink),
+        prefixIcon: IconButton(
+          onPressed: onClose,
+          icon: const Icon(CupertinoIcons.chevron_left, color: V2Palette.ink),
+        ),
         suffixIcon: controller.text.isEmpty
             ? null
             : IconButton(
@@ -577,6 +767,108 @@ class _V2SearchObject extends StatelessWidget {
               ),
         border: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(vertical: 17),
+      ),
+    ),
+  );
+}
+
+class _V2SearchShortcutObject extends StatelessWidget {
+  const _V2SearchShortcutObject({required this.onSelect});
+
+  final ValueChanged<ExploreCreativeIntent> onSelect;
+
+  static const _items = <(String, ExploreCreativeIntent)>[
+    ('景点', ExploreCreativeIntent.viewpoint),
+    ('美食', ExploreCreativeIntent.food),
+    ('停车场', ExploreCreativeIntent.parking),
+    ('加油站', ExploreCreativeIntent.fuel),
+    ('拍摄补给', ExploreCreativeIntent.supplies),
+    ('人文街巷', ExploreCreativeIntent.humanity),
+  ];
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: V2Palette.paper.withValues(alpha: .94),
+    elevation: 14,
+    shadowColor: Colors.black26,
+    borderRadius: BorderRadius.circular(24),
+    clipBehavior: Clip.antiAlias,
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '附近候选',
+              style: TextStyle(
+                color: V2Palette.ink,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 3),
+            const Text(
+              '选择类别后查看当前位置附近结果',
+              style: TextStyle(
+                color: V2Palette.mutedInk,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final itemWidth = (constraints.maxWidth - 8) / 2;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final (label, intent) in _items)
+                      SizedBox(
+                        width: itemWidth,
+                        child: V2Pressable(
+                          onTap: () => onSelect(intent),
+                          compact: true,
+                          color: V2Palette.canvas,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 11,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _intentIcon(intent.category),
+                                  color: V2Palette.moss,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: V2Palette.ink,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -854,14 +1146,20 @@ class _V2ExploreResultObject extends ConsumerWidget {
     required this.selectedPlace,
     required this.selectedSearchResult,
     required this.expanded,
-    required this.onDrag,
-    required this.onSnap,
+    required this.bottomContentInset,
+    required this.regionLabel,
+    required this.onAsk,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.onToggle,
     required this.onPlace,
     required this.onSearchResult,
     required this.onClearSelection,
     required this.onRoute,
     required this.onSave,
     required this.onSearchMapArea,
+    required this.onChooseTheme,
     required this.onMediaResolved,
   });
   final ExploreFocus? focus;
@@ -871,14 +1169,20 @@ class _V2ExploreResultObject extends ConsumerWidget {
   final NearbyPlace? selectedPlace;
   final LocationSearchResult? selectedSearchResult;
   final bool expanded;
-  final ValueChanged<double> onDrag;
-  final VoidCallback onSnap;
+  final double bottomContentInset;
+  final String regionLabel;
+  final VoidCallback onAsk;
+  final VoidCallback onDragStart;
+  final ValueChanged<double> onDragUpdate;
+  final ValueChanged<DragEndDetails> onDragEnd;
+  final VoidCallback onToggle;
   final ValueChanged<NearbyPlace> onPlace;
   final ValueChanged<LocationSearchResult> onSearchResult;
   final VoidCallback onClearSelection;
   final void Function(String, GeoPoint) onRoute;
   final ValueChanged<NearbyPlace> onSave;
   final VoidCallback onSearchMapArea;
+  final VoidCallback onChooseTheme;
   final ValueChanged<bool> onMediaResolved;
 
   @override
@@ -907,7 +1211,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
         candidateCount == null ? '正在整理日出候选' : '明日日出 · $candidateCount处候选',
       ExploreFocus.nightSky =>
         candidateCount == null ? '正在整理夜空候选' : '夜空拍摄 · $candidateCount处候选',
-      _ => searchResults == null ? '附近${_categoryTitle(category)}' : '搜索结果',
+      _ => searchResults == null ? '$regionLabel · 附近发现' : '搜索结果',
     };
     final headerTitle = selectedPlace != null
         ? candidateMode
@@ -916,70 +1220,117 @@ class _V2ExploreResultObject extends ConsumerWidget {
         : selectedSearchResult != null
         ? '地点详情'
         : defaultTitle;
-    return Material(
-      color: V2Palette.paper,
-      elevation: 16,
-      shadowColor: Colors.black38,
-      borderRadius: BorderRadius.circular(32),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onSnap,
-            onVerticalDragUpdate: (details) => onDrag(details.delta.dy),
-            onVerticalDragEnd: (_) => onSnap(),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 11, 20, 8),
-              child: Column(
-                children: [
-                  const V2GrabHandle(),
-                  const SizedBox(height: 9),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          headerTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: V2Palette.ink,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -.4,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        expanded
-                            ? '收起'
-                            : candidateMode
-                            ? '上拉看候选'
-                            : '向上探索',
-                        style: const TextStyle(
-                          color: V2Palette.moss,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+    if (!expanded) {
+      return Material(
+        color: Colors.transparent,
+        elevation: 16,
+        shadowColor: Colors.black26,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        clipBehavior: Clip.antiAlias,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: V2Palette.paper.withValues(alpha: .88),
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: .82)),
+              ),
+            ),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                height: 40,
+                width: double.infinity,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onToggle,
+                  onVerticalDragStart: (_) => onDragStart(),
+                  onVerticalDragUpdate: (details) =>
+                      onDragUpdate(details.delta.dy),
+                  onVerticalDragEnd: onDragEnd,
+                  child: const Center(child: V2GrabHandle()),
+                ),
               ),
             ),
           ),
-          if (expanded)
-            Expanded(
-              child: _body(
-                context,
-                library,
-                candidateMode: candidateMode,
-                candidateCount: candidateCount ?? 0,
-                mediaHeaders: mediaHeaders,
-                selectedMedia: selectedMedia,
-              ),
+        ),
+      );
+    }
+    return Material(
+      color: Colors.transparent,
+      elevation: 16,
+      shadowColor: Colors.black38,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      clipBehavior: Clip.antiAlias,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: V2Palette.paper.withValues(alpha: .88),
+            border: Border(
+              top: BorderSide(color: Colors.white.withValues(alpha: .82)),
             ),
-        ],
+          ),
+          child: Column(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onToggle,
+                onVerticalDragStart: (_) => onDragStart(),
+                onVerticalDragUpdate: (details) =>
+                    onDragUpdate(details.delta.dy),
+                onVerticalDragEnd: onDragEnd,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 11, 20, 8),
+                  child: Column(
+                    children: [
+                      const V2GrabHandle(),
+                      const SizedBox(height: 9),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              headerTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: V2Palette.ink,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -.4,
+                              ),
+                            ),
+                          ),
+                          const Text(
+                            '下拉收起',
+                            style: TextStyle(
+                              color: V2Palette.moss,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottomContentInset),
+                  child: _body(
+                    context,
+                    library,
+                    candidateMode: candidateMode,
+                    candidateCount: candidateCount ?? 0,
+                    mediaHeaders: mediaHeaders,
+                    selectedMedia: selectedMedia,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1059,10 +1410,24 @@ class _V2ExploreResultObject extends ConsumerWidget {
       ),
       data: (items) {
         if (items.isEmpty) {
-          return _V2NoNearbyResults(category: category);
+          return _V2NoNearbyResults(
+            category: category,
+            regionLabel: regionLabel,
+            onSearchArea: onSearchMapArea,
+            onChooseTheme: onChooseTheme,
+            onAsk: onAsk,
+          );
         }
         return Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 2, 18, 8),
+              child: _ExploreDiscoveryLead(
+                regionLabel: regionLabel,
+                category: category,
+                onAsk: onAsk,
+              ),
+            ),
             if (candidateMode)
               Container(
                 width: double.infinity,
@@ -1139,6 +1504,8 @@ class _V2ExploreResultObject extends ConsumerWidget {
   static String _placeDetail(NearbyPlace place) => [
     _distance(place.distanceMeters),
     if (place.address?.isNotEmpty == true) place.address!,
+    if (place.sourceEvidenceCount > 0) '公开资料${place.sourceEvidenceCount}条',
+    if (place.aiDiscovered) '资料发现',
     if (place.isOfflineCache) '离线缓存',
   ].join(' · ');
 
@@ -1169,41 +1536,227 @@ class _V2ExploreResultObject extends ConsumerWidget {
 }
 
 class _V2NoNearbyResults extends StatelessWidget {
-  const _V2NoNearbyResults({required this.category});
+  const _V2NoNearbyResults({
+    required this.category,
+    required this.regionLabel,
+    required this.onSearchArea,
+    required this.onChooseTheme,
+    required this.onAsk,
+  });
 
   final NearbyPlaceCategory category;
+  final String regionLabel;
+  final VoidCallback onSearchArea;
+  final VoidCallback onChooseTheme;
+  final VoidCallback onAsk;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 30),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(_intentIcon(category), color: V2Palette.moss, size: 31),
-          const SizedBox(height: 12),
-          Text(
-            '附近暂未找到${_categoryTitle(category)}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: V2Palette.ink,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+          decoration: BoxDecoration(
+            color: V2Palette.canvas,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: V2Palette.line),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: V2Palette.mossSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(_intentIcon(category), color: V2Palette.moss),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$regionLabel还没有${_categoryTitle(category)}',
+                      style: const TextStyle(
+                        color: V2Palette.ink,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      '这只说明当前主题的地点与资料线索不足，不等于这里没有值得看的内容。',
+                      style: TextStyle(
+                        color: V2Palette.mutedInk,
+                        fontSize: 11.5,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        V2Pressable(
+          onTap: onChooseTheme,
+          color: V2Palette.night,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+            child: Row(
+              children: [
+                Icon(CupertinoIcons.compass, color: Colors.white, size: 18),
+                SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    '换一个探索主题',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  color: Colors.white70,
+                  size: 15,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 7),
-          const Text(
-            '移动地图后选择“搜索此区域”，或换一个探索主题。',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: V2Palette.mutedInk,
-              fontSize: 12,
-              height: 1.4,
-              fontWeight: FontWeight.w600,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: V2Pressable(
+                onTap: onSearchArea,
+                compact: true,
+                color: V2Palette.mossSoft,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 11),
+                  child: Center(
+                    child: Text(
+                      '搜索此区域',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: V2Pressable(
+                onTap: onAsk,
+                compact: true,
+                color: V2Palette.paper,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 11),
+                  child: Center(
+                    child: Text(
+                      '问问栖光',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _ExploreDiscoveryLead extends StatelessWidget {
+  const _ExploreDiscoveryLead({
+    required this.regionLabel,
+    required this.category,
+    required this.onAsk,
+  });
+
+  final String regionLabel;
+  final NearbyPlaceCategory category;
+  final VoidCallback onAsk;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+    decoration: BoxDecoration(
+      color: V2Palette.canvas,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: V2Palette.line),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                regionLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${_categoryTitle(category)}  ·  附近发现',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 10.5,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        V2Pressable(
+          onTap: onAsk,
+          compact: true,
+          color: V2Palette.night,
+          semanticLabel: '问附近地点为什么值得看',
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CupertinoIcons.sparkles, color: Colors.white, size: 14),
+                SizedBox(width: 5),
+                Text(
+                  '问附近',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

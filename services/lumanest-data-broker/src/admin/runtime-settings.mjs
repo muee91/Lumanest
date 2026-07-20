@@ -5,6 +5,8 @@ const definitions = Object.freeze({
   wildlifeCacheTtlMinutes: Object.freeze({ type: 'integer', minimum: 5, maximum: 1_440, defaultValue: 60 }),
   elevationCacheTtlMinutes: Object.freeze({ type: 'integer', minimum: 60, maximum: 10_080, defaultValue: 1_440 }),
   elevationMaximumSamples: Object.freeze({ type: 'integer', minimum: 2, maximum: 64, defaultValue: 64 }),
+  discoveryLocationWarmupEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
+  discoveryLocationWarmupRadiusMeters: Object.freeze({ type: 'integer', minimum: 5_000, maximum: 30_000, defaultValue: 15_000 }),
   upstreamTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 10_000 }),
   minimumOpportunityConfidence: Object.freeze({ type: 'number', minimum: 0, maximum: 1, defaultValue: 0.5 }),
   sunsetbotProviderEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
@@ -26,6 +28,17 @@ const definitions = Object.freeze({
   skyOpportunityDisplayThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: .20 }),
   skyOpportunityPaperThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: .60 }),
   skyOpportunityNotificationThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: 1.00 }),
+  sevenTimerProviderEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
+  sevenTimerTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 12_000 }),
+  sevenTimerMaxAttempts: Object.freeze({ type: 'integer', minimum: 1, maximum: 2, defaultValue: 2 }),
+  sevenTimerRetryDelayMs: Object.freeze({ type: 'integer', minimum: 100, maximum: 5_000, defaultValue: 500 }),
+  sevenTimerAstroFreshTtlSeconds: Object.freeze({ type: 'integer', minimum: 1_800, maximum: 21_600, defaultValue: 10_800 }),
+  sevenTimerMeteoFreshTtlSeconds: Object.freeze({ type: 'integer', minimum: 1_800, maximum: 21_600, defaultValue: 10_800 }),
+  sevenTimerTwoFreshTtlSeconds: Object.freeze({ type: 'integer', minimum: 3_600, maximum: 43_200, defaultValue: 21_600 }),
+  sevenTimerStaleTtlSeconds: Object.freeze({ type: 'integer', minimum: 10_800, maximum: 86_400, defaultValue: 43_200 }),
+  sevenTimerAdminTestTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 15_000, defaultValue: 8_000 }),
+  sevenTimerAdminTestCooldownSeconds: Object.freeze({ type: 'integer', minimum: 3, maximum: 300, defaultValue: 10 }),
+  sevenTimerAdminTestMaxConcurrency: Object.freeze({ type: 'integer', minimum: 1, maximum: 3, defaultValue: 1 }),
   debugLogging: Object.freeze({ type: 'boolean', defaultValue: false }),
 });
 
@@ -78,6 +91,14 @@ export function validateRuntimeSettings(input = {}, { partial = false } = {}) {
     if (result.skyOpportunityPaperThreshold < result.skyOpportunityDisplayThreshold ||
         result.skyOpportunityNotificationThreshold < result.skyOpportunityPaperThreshold) {
       throw new RangeError('sky opportunity thresholds must remain ordered');
+    }
+    const maximumSevenTimerFreshTtl = Math.max(
+      result.sevenTimerAstroFreshTtlSeconds,
+      result.sevenTimerMeteoFreshTtlSeconds,
+      result.sevenTimerTwoFreshTtlSeconds,
+    );
+    if (result.sevenTimerStaleTtlSeconds < maximumSevenTimerFreshTtl) {
+      throw new RangeError('sevenTimerStaleTtlSeconds must not be below a fresh TTL');
     }
   }
   return Object.freeze(result);

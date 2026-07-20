@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -23,6 +24,7 @@ import 'package:x_amap_base/x_amap_base.dart';
 class V2RoutePage extends ConsumerWidget {
   const V2RoutePage({
     super.key,
+    this.routeId,
     this.destinationName,
     this.destinationLatitude,
     this.destinationLongitude,
@@ -30,6 +32,7 @@ class V2RoutePage extends ConsumerWidget {
   });
 
   final String? destinationName;
+  final String? routeId;
   final double? destinationLatitude;
   final double? destinationLongitude;
   final RouteTravelMode travelMode;
@@ -38,9 +41,19 @@ class V2RoutePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recent = library?.recentRoute;
-    final name = destinationName ?? recent?.name;
-    final latitude = destinationLatitude ?? recent?.latitude;
-    final longitude = destinationLongitude ?? recent?.longitude;
+    final saved = routeId == null
+        ? null
+        : library?.savedRoutes
+              .where((route) => route.id == routeId)
+              .firstOrNull;
+    final savedDestination = saved?.destination;
+    final name = destinationName ?? savedDestination?.name ?? recent?.name;
+    final latitude =
+        destinationLatitude ?? savedDestination?.latitude ?? recent?.latitude;
+    final longitude =
+        destinationLongitude ??
+        savedDestination?.longitude ??
+        recent?.longitude;
     if (name == null || latitude == null || longitude == null) {
       return V2PageStage(
         child: V2EmptyObject(
@@ -156,7 +169,7 @@ class _V2LiveRoute extends ConsumerStatefulWidget {
 class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   AMapController? _controller;
   bool _fitOnce = false;
-  bool _syncedPlan = false;
+  String? _syncedRouteRevision;
 
   @override
   void dispose() {
@@ -175,6 +188,10 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
       '${widget.destination.point.latitude.toStringAsFixed(6)}:'
       '${widget.destination.point.longitude.toStringAsFixed(6)}:'
       '${widget.destination.travelMode.name}';
+
+  String get _routeRevision =>
+      '$_routeKey:${widget.route.durationSeconds}:${widget.route.polyline.length}:'
+      '${widget.route.sourceId ?? ''}';
 
   @override
   Widget build(BuildContext context) {
@@ -196,8 +213,9 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (!_syncedPlan) {
-        _syncedPlan = true;
+      if (_syncedRouteRevision != _routeRevision) {
+        _syncedRouteRevision = _routeRevision;
+        _replaceCorridor(departureAt: DateTime.now());
         _syncPlannedRoute();
       }
       if (_fitOnce || _controller == null || points.isEmpty) return;
@@ -303,11 +321,32 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     );
   }
 
+  /// Keep the bounded, transient corridor alongside the route lifecycle.
+  /// It is deliberately reconstructed locally from the loaded route and never
+  /// persisted: the environment request only needs three coarse arrival
+  /// samples to align light and weather with this one route.
+  void _replaceCorridor({required DateTime departureAt}) {
+    final controller = ref.read(routeCorridorContextProvider.notifier);
+    if (widget.route.polyline.length < 2 || widget.route.durationSeconds < 1) {
+      controller.clear();
+      return;
+    }
+    controller.replace(
+      RouteCorridorContext.fromPolyline(
+        polyline: widget.route.polyline,
+        durationSeconds: widget.route.durationSeconds,
+        departureAt: departureAt,
+        routeSeed: _routeKey,
+      ),
+    );
+  }
+
   Future<void> _start() async {
     try {
       await ref
           .read(userLibraryProvider.notifier)
           .startJourney(_savedDestination, routeKey: _routeKey);
+      _replaceCorridor(departureAt: DateTime.now());
       ref.read(routeContextStateProvider.notifier).start();
     } on ActiveJourneyConflict {
       if (!mounted) return;

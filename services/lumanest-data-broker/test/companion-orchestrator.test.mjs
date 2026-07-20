@@ -32,7 +32,7 @@ test('refresh uses snapshot facts, excludes safety and keeps a 20-60 inventory',
     contextId: request.snapshotId,
     generatedAt: now.toISOString(),
     route: { active: false },
-    events: [
+    facts: { events: [
       {
         id: 'session.city.blue_hour', channel: 'opportunity', source: 'solar',
         observedAt: now.toISOString(), expiresAt: '2026-07-18T11:00:00Z',
@@ -43,7 +43,7 @@ test('refresh uses snapshot facts, excludes safety and keeps a 20-60 inventory',
         observedAt: now.toISOString(), expiresAt: '2026-07-18T11:00:00Z',
         geoScope: 'region', confidence: 1, allowedAction: 'openSafetyDetail',
       },
-    ],
+    ] },
   });
 
   const first = store.refresh(request, 'refresh:12345678');

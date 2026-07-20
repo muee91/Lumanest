@@ -4,6 +4,9 @@ import pytest
 
 from app.models import SceneType, SnapshotRequest
 from app.shooting_sessions import (
+    build_general_evening_session,
+    build_general_morning_session,
+    build_route_light_session,
     build_water_evening_session,
     build_water_morning_session,
 )
@@ -16,6 +19,7 @@ def request(
     forecast_age_hours: int = 0,
     hourly_visibility_km: float = 20,
     critical_warning: bool = False,
+    scene: SceneType = SceneType.LAKE,
     observed_at: datetime | None = None,
 ) -> SnapshotRequest:
     observed_at = observed_at or datetime(2026, 7, 14, 2, tzinfo=timezone.utc)
@@ -33,7 +37,7 @@ def request(
     ]
     return SnapshotRequest.model_validate(
         {
-            "contractVersion": 4,
+            "contractVersion": 5,
             "coordinate": {
                 "latitude": 30.25,
                 "longitude": 120.15,
@@ -43,7 +47,13 @@ def request(
             "locale": "zh-CN",
             "intent": "photography",
             "route": {"mode": "none", "stage": "none"},
-            "evidence": {"waterBody": True},
+            "evidence": {
+                "waterBody": scene is SceneType.LAKE,
+                "settlement": scene is SceneType.VILLAGE,
+                "urban": scene is SceneType.CITY,
+                "mountainous": scene is SceneType.MOUNTAIN,
+                "aridLand": scene is SceneType.DESERT,
+            },
             "weather": {
                 "observedAt": observed_at.isoformat(),
                 "condition": "cloudy",
@@ -82,9 +92,9 @@ def test_solar_crossings_use_product_sunset_and_blue_hour_thresholds():
     window = next_evening_window(body.coordinate, body.observed_at)
 
     assert window is not None
-    assert solar_state(body.coordinate, window.sunset).elevation_degrees == pytest.approx(
-        -0.833, abs=0.2
-    )
+    assert solar_state(
+        body.coordinate, window.sunset
+    ).elevation_degrees == pytest.approx(-0.833, abs=0.2)
     assert solar_state(
         body.coordinate, window.blue_hour_start
     ).elevation_degrees == pytest.approx(-4, abs=0.2)
@@ -105,9 +115,9 @@ def test_solar_crossings_use_product_sunrise_and_morning_blue_hour_thresholds():
     assert solar_state(
         body.coordinate, window.blue_hour_end
     ).elevation_degrees == pytest.approx(-4, abs=0.2)
-    assert solar_state(body.coordinate, window.sunrise).elevation_degrees == pytest.approx(
-        -0.833, abs=0.2
-    )
+    assert solar_state(
+        body.coordinate, window.sunrise
+    ).elevation_degrees == pytest.approx(-0.833, abs=0.2)
     assert window.blue_hour_start < window.blue_hour_end < window.sunrise
 
 
@@ -121,9 +131,7 @@ def test_water_morning_interpolates_forecast_and_explains_phases():
     assert {phase.kind for phase in session.phases}.issuperset(
         {"morningBlueHour", "sunrise"}
     )
-    assert session.primary_phase in {
-        "morningBlueHour", "sunrise", "reflection"
-    }
+    assert session.primary_phase in {"morningBlueHour", "sunrise", "reflection"}
     assert session.rule_version == "water-morning.1"
     assert session.recommended_capabilities == ["tripod"]
     assert all(sample.at.minute != 0 for sample in session.trend_samples)
@@ -197,9 +205,7 @@ def test_water_evening_evidence_matches_the_primary_phase_peak():
 
 
 def test_water_evening_marks_old_forecast_confidence_as_limited():
-    session = build_water_evening_session(
-        request(forecast_age_hours=4), SceneType.LAKE
-    )
+    session = build_water_evening_session(request(forecast_age_hours=4), SceneType.LAKE)
 
     assert session is not None
     assert session.confidence_band == "limited"
@@ -211,12 +217,95 @@ def test_water_evening_hard_gate_withholds_unsafe_session():
 
 def test_water_evening_hard_gate_withholds_active_critical_warning():
     assert (
-        build_water_evening_session(
-            request(critical_warning=True), SceneType.LAKE
-        )
+        build_water_evening_session(request(critical_warning=True), SceneType.LAKE)
         is None
     )
 
 
 def test_water_evening_requires_lake_or_reviewed_target():
     assert build_water_evening_session(request(), SceneType.CITY) is None
+
+
+def test_village_gets_a_real_morning_session_without_a_fake_target():
+    session = build_general_morning_session(request(scene=SceneType.VILLAGE), SceneType.VILLAGE)
+
+    assert session is not None
+    assert session.kind == "generalMorning"
+    assert session.title == "村落晨光窗口"
+    assert session.target_candidates == []
+    assert session.primary_phase in {"morningBlueHour", "sunrise"}
+
+
+def test_city_evening_session_opens_detail_and_stays_target_free():
+    session = build_general_evening_session(request(scene=SceneType.CITY), SceneType.CITY)
+
+    assert session is not None
+    assert session.kind == "cityBlueHour"
+    assert session.title == "城市日落与蓝调窗口"
+    assert session.target_candidates == []
+    assert {phase.kind for phase in session.phases} == {"sunset", "blueHour"}
+
+
+def test_route_light_window_is_observation_only_and_deterministic():
+    body = request()
+    body.route = body.route.model_validate(
+        {
+            "mode": "driving",
+            "stage": "active",
+            "routeId": "route_haining_sunset",
+            "corridorSamples": [
+                {
+                    "latitude": 30.25,
+                    "longitude": 120.15,
+                    "system": "wgs84",
+                    "expectedAt": "2026-07-14T10:30:00+00:00",
+                    "progress": 0.3,
+                },
+                {
+                    "latitude": 30.28,
+                    "longitude": 120.2,
+                    "system": "wgs84",
+                    "expectedAt": "2026-07-14T11:00:00+00:00",
+                    "progress": 0.8,
+                },
+            ],
+        }
+    )
+
+    session = build_route_light_session(body, SceneType.CITY)
+
+    assert session is not None
+    assert session.kind == "routeLightWindow"
+    assert session.title == "沿途光线观察"
+    assert session.target_candidates == []
+    assert session.rule_version == "route-light-window.1"
+    assert session.id == build_route_light_session(body, SceneType.CITY).id
+
+
+def test_route_light_window_withholds_when_the_corridor_is_unsafe():
+    body = request(thunder=True)
+    body.route = body.route.model_validate(
+        {
+            "mode": "driving",
+            "stage": "active",
+            "routeId": "route_haining_sunset",
+            "corridorSamples": [
+                {
+                    "latitude": 30.25,
+                    "longitude": 120.15,
+                    "system": "wgs84",
+                    "expectedAt": "2026-07-14T10:30:00+00:00",
+                    "progress": 0.3,
+                },
+                {
+                    "latitude": 30.28,
+                    "longitude": 120.2,
+                    "system": "wgs84",
+                    "expectedAt": "2026-07-14T11:00:00+00:00",
+                    "progress": 0.8,
+                },
+            ],
+        }
+    )
+
+    assert build_route_light_session(body, SceneType.CITY) is None

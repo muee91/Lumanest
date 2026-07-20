@@ -61,6 +61,7 @@ class DataBrokerPopularPlaceEvidenceRepository
         '$brokerBaseUrl/v1/explore/discover',
         body: {
           'missionType': 'popularPlaces',
+          'activationType': 'foreground_opportunistic',
           'focus': focus,
           'locale': 'zh-CN',
           'region': {

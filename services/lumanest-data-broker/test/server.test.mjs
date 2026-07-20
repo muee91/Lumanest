@@ -81,18 +81,16 @@ async function withServer(run, {
   }
 }
 
-function v4SnapshotBody() {
+function snapshotFixtureParts() {
   return {
-    contractVersion: 4,
     contextId: 'ctx_1234567890abcdef12345678',
     generatedAt: '2026-07-14T02:00:00Z',
     expiresAt: '2026-07-14T02:15:00Z',
-    scene: 'lake', fingerprint: '1234567890abcdef12345678', stale: false,
+    scene: 'lake', stale: false,
     sceneContext: {
       primaryScene: 'inlandWater', facets: ['lake', 'reflectiveSurface'],
       activity: 'stationary', scores: { inlandWater: 55 }, reviewedOverride: false,
     },
-    opportunityCatalogVersion: 1,
     dataFreshness: { context: 'fresh', weather: 'fresh', weatherObservedAt: '2026-07-14T02:00:00Z' },
     weather: {
       condition: 'cloudy', temperatureCelsius: 26, windSpeedMps: 1.8,
@@ -107,7 +105,6 @@ function v4SnapshotBody() {
     },
     route: { mode: 'none', stage: 'none', active: false },
     events: [], allowedActions: [],
-    manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
     shootingSessions: [{
       id: 'session_0123456789abcdef01234567', kind: 'waterEvening', title: '湖岸晚间窗口',
       startAt: '2026-07-14T02:10:00Z', endAt: '2026-07-14T03:10:00Z',
@@ -129,8 +126,26 @@ function v4SnapshotBody() {
   };
 }
 
+function v5SnapshotBody() {
+  const fixture = snapshotFixtureParts();
+  return {
+    contractVersion: 5, contextId: fixture.contextId, snapshotRevision: 1,
+    generatedAt: fixture.generatedAt, expiresAt: fixture.expiresAt,
+    sourceRevisions: { weather: 1, solar: 1, scene: 1, route: 1 }, stale: fixture.stale,
+    environment: {
+      scene: fixture.scene, dataFreshness: fixture.dataFreshness, weather: fixture.weather,
+      sunMoon: fixture.sunMoon, route: fixture.route, sceneContext: fixture.sceneContext,
+      allowedActions: fixture.allowedActions,
+    },
+    facts: { events: fixture.events, shootingSessions: fixture.shootingSessions },
+    entries: [],
+    refreshHints: { weather: 'ttl:600', solar: 'phase-boundary', opportunities: 'solar-or-weather-delta' },
+  };
+}
+
 function discoveryRequestBody(overrides = {}) {
   return {
+    activationType: 'user_manual',
     missionType: 'humanityEvents',
     focus: '早市 夜市 展览',
     locale: 'zh-CN',
@@ -156,10 +171,10 @@ test('health check never requires a service token', async () => {
 test('companion refresh, inventory and feedback enforce current contracts', async () => {
   const now = new Date('2026-07-18T10:00:00Z');
   const companionStore = new CompanionStore({ now: () => now });
-  const snapshot = v4SnapshotBody();
+  const snapshot = v5SnapshotBody();
   snapshot.contextId = 'ctx_1234567890abcdef12345678';
   snapshot.generatedAt = now.toISOString();
-  snapshot.events = [{
+  snapshot.facts.events = [{
     id: 'session.water.evening', channel: 'opportunity', source: 'rule',
     observedAt: now.toISOString(), expiresAt: '2026-07-18T11:00:00Z',
     confidence: .82, geoScope: 'point', severity: 'info',
@@ -207,6 +222,40 @@ test('companion refresh, inventory and feedback enforce current contracts', asyn
     });
     assert.equal(feedback.status, 200);
     assert.equal((await feedback.json()).accepted, true);
+  }, { companionStore, now: () => now });
+});
+
+test('inspiration assistant accepts the bounded creative question', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'creative',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+        placeSummaries: [],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.match(body.answer, /湖岸晚间窗口/);
+    assert.equal(body.source, 'template');
   }, { companionStore, now: () => now });
 });
 
@@ -295,7 +344,7 @@ test('discovery extract rejects unsafe schema abuse and never falls back to arbi
 test('context snapshot accepts only the current bounded contract and forwards with an internal token', async () => {
   let upstreamRequest;
   const requestBody = {
-    contractVersion: 4,
+    contractVersion: 5,
     coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
     observedAt: '2026-07-14T10:00:00+08:00',
     locale: 'zh-CN',
@@ -312,7 +361,7 @@ test('context snapshot accepts only the current bounded contract and forwards wi
       body: JSON.stringify(requestBody),
     });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).scene, 'lake');
+    assert.equal((await response.json()).environment.scene, 'lake');
   }, {
     contextServiceUrl: 'http://context-service:8000',
     contextInternalToken: 'internal-context-token',
@@ -345,7 +394,7 @@ test('context snapshot accepts only the current bounded contract and forwards wi
         }), { status: 200 });
       }
       upstreamRequest = { url, options };
-      return new Response(JSON.stringify(v4SnapshotBody()), { status: 200 });
+      return new Response(JSON.stringify(v5SnapshotBody()), { status: 200 });
     },
   });
   assert.equal(upstreamRequest.url.pathname, '/internal/v1/evaluate');
@@ -395,9 +444,9 @@ test('context snapshot rejects identity fields without contacting the context se
   assert.equal(calls, 0);
 });
 
-test('active debug simulation returns V4 sessions and never forwards simulated feedback', async () => {
+test('active debug simulation returns V5 sessions and never forwards simulated feedback', async () => {
   const registry = new SimulationRegistry();
-  registry.register('debugsession2345678', { contractVersion: 4 });
+  registry.register('debugsession2345678', { contractVersion: 5 });
   const controlId = registry.list()[0].controlId;
   assert.equal(registry.activate(controlId, 'lake-sunset').ok, true);
   let upstreamCalls = 0;
@@ -406,12 +455,12 @@ test('active debug simulation returns V4 sessions and never forwards simulated f
       Authorization: 'Bearer test-service-token',
       'Content-Type': 'application/json',
       'X-LumaNest-Debug-Session': 'debugsession2345678',
-      'X-LumaNest-Debug-Contract': '4',
+      'X-LumaNest-Debug-Contract': '5',
     };
     const snapshot = await fetch(`${baseUrl}/v1/context/snapshot`, {
       method: 'POST', headers,
       body: JSON.stringify({
-        contractVersion: 4,
+        contractVersion: 5,
         coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
         observedAt: '2026-07-18T10:00:00+08:00',
         locale: 'zh-CN', intent: 'photography',
@@ -420,16 +469,16 @@ test('active debug simulation returns V4 sessions and never forwards simulated f
     });
     assert.equal(snapshot.status, 200);
     const simulated = await snapshot.json();
-    assert.equal(simulated.shootingSessions.length, 1);
-    assert.equal(simulated.shootingSessions[0].kind, 'waterEvening');
+    assert.equal(simulated.facts.shootingSessions.length, 1);
+    assert.equal(simulated.facts.shootingSessions[0].kind, 'waterEvening');
 
     const feedback = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
       method: 'POST', headers,
       body: JSON.stringify({
         contractVersion: 2,
-        ruleVersion: simulated.shootingSessions[0].ruleVersion,
-        conditionBand: simulated.shootingSessions[0].conditionBand,
-        factors: simulated.shootingSessions[0].factors.map(({ id, effect }) => ({ id, effect })),
+        ruleVersion: simulated.facts.shootingSessions[0].ruleVersion,
+        conditionBand: simulated.facts.shootingSessions[0].conditionBand,
+        factors: simulated.facts.shootingSessions[0].factors.map(({ id, effect }) => ({ id, effect })),
         outcome: 'captured', reasons: [], targetId: null,
       }),
     });
@@ -469,7 +518,7 @@ test('target session verifies the reviewed target before fetching target weather
       }),
     });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).shootingSessions[0].conditionBand, 'good');
+    assert.equal((await response.json()).facts.shootingSessions[0].conditionBand, 'good');
   }, {
     contextServiceUrl: 'http://context-service:8000',
     contextInternalToken: 'internal-context-token',
@@ -495,7 +544,7 @@ test('target session verifies the reviewed target before fetching target weather
       }
       assert.equal(url.pathname, '/internal/v1/evaluate');
       evaluatedBody = JSON.parse(options.body);
-      return new Response(JSON.stringify(v4SnapshotBody()), { status: 200 });
+      return new Response(JSON.stringify(v5SnapshotBody()), { status: 200 });
     },
   });
   assert.deepEqual(evaluatedBody.coordinate, target.coordinate);

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "projectName": "栖光 LOGO",
+    "projectDir": "/Users/muee/Documents/on-the-way/lumanest-logo",
+    "deviceType": "desktop",
+    "operatingMode": "free-explore",
+    "intentProfile": {
+      "caseFamily": "graphic_design",
+      "graphicStrategy": "layout-static",
+      "routingReason": "LOGO brand sheet needs precise editable vector geometry (SVG) + exact wordmark text; not bitmap-first."
+    },
+    "styleDefinitionBrief": "山野摄影陪伴品牌'栖光 LumaNest'的 LOGO 品牌稿：山脊绿 + 日橙 + 暖纸的克制自然主义，极简几何，可缩放矢量，编辑设计感。",
+    "designRead": "brand-sheet / brand-internal / 自然克制 / 中密度 / 避免装饰性渐变与emoji图标",
+    "designDials": { "layoutVariance": 2, "motionIntensity": 1, "visualDensity": 3 },
+    "styleContinuityAnchors": {
+      "palette": {
+        "primary": "#24574F (山脊绿 ridge green — 栖/shelter)",
+        "sun": "#D77A45 (日橙 sun — 光/light, core logo identity color)",
+        "moss": "#819D4B (苔绿 accent)",
+        "paper": "#EEE7D9 (暖纸 background)",
+        "paperSoft": "#F5F1E8",
+        "ink": "#171A18",
+        "night": "#17201D"
+      },
+      "typographySystem": {
+        "cjkDisplay": "Zcool XiaoWei / Noto Serif SC (品牌字, 用于'栖光'字标)",
+        "latinDisplay": "Cormorant Garamond / Playfair Display (LumaNest 拉丁字标)",
+        "body": "PingFang SC / Noto Sans SC",
+        "latinBody": "Inter (eyebrow/labels)"
+      },
+      "shapeSystem": { "radiusScale": "sm 4 / md 10 / lg 16 / full 9999", "note": "LOGO本身的圆角与几何需精确，不滥用大圆角" },
+      "surfaceDepthModel": "border-led, static shadow alpha <= 0.05; brand sheet是平面印刷质感，避免浮起阴影"
+    },
+    "generationTree": {
+      "nodes": [
+        { "nodeId": "page-logo-mark", "nodeType": "leaf", "status": "planned", "output": "pages/logo-mark.html" }
+      ]
+    }
+  },
+  "designSource": {
+    "operatingMode": "free-explore",
+    "styleConstraints": {
+      "radiusMax": 16,
+      "staticShadowAlphaMax": 0.05
+    },
+    "cssPath": "colors_and_type.css",
+    "brandPrefix": "ln"
+  },
+  "pagePlan": [
+    {
+      "pageId": "page-logo-mark",
+      "htmlSrc": "pages/logo-mark.html",
+      "title": "栖光 LOGO 品牌稿",
+      "targetDevice": "desktop",
+      "requirements": "Single-page brand sheet showcasing the LumaNest logo. Inline SVG logo with precise vector geometry. Sections: (1) Hero — primary logo lockup (symbol + 栖光 wordmark + LumaNest latin) on warm paper; (2) Symbol — the mark alone large with construction grid (circles, golden ratio, clear-space margins); (3) Variations — full-color / monochrome ink / reversed-on-ridge-green / reversed-on-night / app-icon application (rounded square); (4) Wordmark lockups — horizontal + stacked; (5) Color palette swatches with hex; (6) Clear space & minimum size rules. All logo artwork must be inline SVG with exact geometry — NO raster images, NO emoji. Use brand tokens from colors_and_type.css."
+    }
+  ]
+}
