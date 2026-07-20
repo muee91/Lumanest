@@ -80,6 +80,13 @@ class DataBrokerAssistantModel implements AssistantModel {
     Dio? dio,
   }) : _dio = dio ?? Dio();
 
+  static const _allowedSurfaces = {
+    'today',
+    'explore',
+    'inspiration',
+    'shootingWindow',
+  };
+
   final String brokerBaseUrl;
   final String serviceToken;
   final Dio _dio;
@@ -97,6 +104,14 @@ class DataBrokerAssistantModel implements AssistantModel {
     if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) {
       throw const AssistantFailure(AssistantFailureKind.unconfigured);
     }
+    if (!_allowedSurfaces.contains(surface) || !intent.allowsRemoteRewrite) {
+      throw const AssistantFailure(AssistantFailureKind.invalidRequest);
+    }
+    // Nearby candidate names are not server-authoritative yet. The official
+    // client therefore never transports a place summary to the LLM endpoint.
+    if (places.isNotEmpty) {
+      throw const AssistantFailure(AssistantFailureKind.invalidRequest);
+    }
     try {
       final response = await _dio.post<Object?>(
         '$brokerBaseUrl/v1/assistant',
@@ -104,16 +119,12 @@ class DataBrokerAssistantModel implements AssistantModel {
           'snapshotId': snapshot.id,
           'surface': surface,
           'questionType': intent.type.name,
-          'eventIds': eventIds.take(3).toList(growable: false),
+          'eventIds': eventIds
+              .where((id) => RegExp(r'^[a-zA-Z0-9._-]{1,96}$').hasMatch(id))
+              .take(3)
+              .toList(growable: false),
           'tone': tone.name,
-          'placeSummaries': [
-            for (final place in places.take(8))
-              {
-                'name': place.name,
-                'category': place.category.name,
-                'distanceMeters': place.distanceMeters,
-              },
-          ],
+          'placeSummaries': const <Object?>[],
         },
         cancelToken: cancelToken,
         options: Options(
@@ -136,7 +147,7 @@ class DataBrokerAssistantModel implements AssistantModel {
         'template' => AssistantAnswerSource.template,
         _ => throw const AssistantFailure(AssistantFailureKind.invalidResponse),
       };
-      if (answer.isEmpty || answer.length > 240) {
+      if (answer.isEmpty || answer.runes.length > 80 || RegExp(r'https?://|[\r\n]').hasMatch(answer)) {
         throw const AssistantFailure(AssistantFailureKind.invalidResponse);
       }
       final contextIds = raw['usedFactIds'] ?? raw['citedEventIds'];
@@ -145,12 +156,19 @@ class DataBrokerAssistantModel implements AssistantModel {
         answer: answer,
         source: source,
         contextEventIds: contextIds is List
-            ? contextIds.whereType<String>().take(12).toList(growable: false)
+            ? contextIds
+                  .whereType<String>()
+                  .where((id) => RegExp(r'^[a-zA-Z0-9._-]{1,96}$').hasMatch(id))
+                  .take(12)
+                  .toList(growable: false)
             : const [],
         expiresAt: expiresAt is String ? DateTime.tryParse(expiresAt)?.toUtc() : null,
       );
       if (result.isExpired) {
-        throw const AssistantFailure(AssistantFailureKind.snapshotExpired, statusCode: 410);
+        throw const AssistantFailure(
+          AssistantFailureKind.snapshotExpired,
+          statusCode: 410,
+        );
       }
       return result;
     } on AssistantFailure {
@@ -172,14 +190,7 @@ class DataBrokerAssistantModel implements AssistantModel {
 
   AssistantFailure _failureForResponse(Response<Object?> response) {
     final status = response.statusCode;
-    final raw = response.data;
-    final error = raw is Map
-        ? (raw['error'] is String
-              ? raw['error'] as String
-              : raw['error'] is Map
-              ? (raw['error'] as Map)['code'] as String?
-              : null)
-        : null;
+    final error = _errorCode(response.data);
     final retryAfter = int.tryParse(response.headers.value('retry-after') ?? '');
     final kind = switch (status) {
       400 => AssistantFailureKind.invalidRequest,
@@ -195,5 +206,15 @@ class DataBrokerAssistantModel implements AssistantModel {
       statusCode: status,
       retryAfterSeconds: retryAfter,
     );
+  }
+
+  String? _errorCode(Object? raw) {
+    if (raw is! Map) return null;
+    final error = raw['error'];
+    if (error is String) return error;
+    if (error is Map && error['code'] is String) {
+      return error['code'] as String;
+    }
+    return null;
   }
 }
