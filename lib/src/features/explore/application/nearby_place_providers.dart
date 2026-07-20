@@ -1,22 +1,26 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
-import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
-import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
-import 'package:luma_nest/src/features/explore/infrastructure/amap_nearby_place_repository.dart';
-import 'package:luma_nest/src/features/explore/infrastructure/nearby_place_cache.dart';
-import 'package:luma_nest/src/features/explore/infrastructure/resilient_nearby_place_repository.dart';
-import 'package:luma_nest/src/features/explore/infrastructure/verified_place_media_repository.dart';
+import 'package:luma_nest/src/core/entry/context_entry.dart';
+import 'package:luma_nest/src/core/entry/context_entry_providers.dart';
+import 'package:luma_nest/src/core/entry/context_entry_store.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_candidate_ranker.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_discovery_context.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_discovery_engine.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_discovery_result.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place_repository.dart';
 import 'package:luma_nest/src/features/explore/domain/popular_place_evidence.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/amap_nearby_place_repository.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/data_broker_popular_place_repository.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/nearby_place_cache.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/resilient_nearby_place_repository.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/verified_place_media_repository.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:luma_nest/src/core/location/geo_point.dart';
 
 class NearbySearchArea {
   const NearbySearchArea({
@@ -201,9 +205,6 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
     throw const NearbyPlaceFailure(NearbyPlaceFailureKind.response);
   }
   final category = ref.watch(nearbyCategoryProvider);
-  // Explore is a discovery surface, not a single POI request.  A temporary
-  // AMap failure or an over-specific keyword must not prevent source-backed
-  // candidates from arriving, so begin both independent lanes together.
   final placesFuture = fetchOptionalNearbyPlaces(
     ref.watch(nearbyPlaceRepositoryProvider),
     center: location,
@@ -230,32 +231,23 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
     now: ref.watch(currentTimeProvider)(),
     snapshot: snapshot,
   );
+
   if (!discoveryEnabled) {
     final places = await placesFuture;
-    return ref
+    final result = ref
         .watch(nearbyDiscoveryEngineProvider)
-        .rank(places, discoveryContext)
-        .places;
+        .rank(places, discoveryContext);
+    return _publishNearbyDiscovery(ref, result);
   }
 
-  // Source-backed discovery enriches the real POI result, but it is not the
-  // source of truth for the map. If the optional evidence endpoint is
-  // unavailable, keep the provider usable with AMap/cache data instead of
-  // replacing a real list with an error state.
   final evidenceFuture = fetchOptionalPopularPlaceEvidence(
     ref.watch(popularPlaceEvidenceRepositoryProvider),
     center: location,
     radiusMeters: area.radiusMeters,
-    // The worker resolves a coarse region independently.  Do not wait for a
-    // POI response merely to obtain its city label.
     focus: _discoveryFocus(category, null),
   );
   final (places, evidence) = await (placesFuture, evidenceFuture).wait;
-  final merged = NearbyCandidateRanker.mergeEvidence(
-    places,
-    evidence,
-    category,
-  );
+  final merged = NearbyCandidateRanker.mergeEvidence(places, evidence, category);
   final shortlist = NearbyCandidateRanker.shortlist(merged);
   final routed = candidateMode
       ? await _withDrivingTimes(
@@ -264,14 +256,37 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
           repository: ref.watch(drivingRouteRepositoryProvider),
         )
       : shortlist;
-  return ref
+  final result = ref
       .watch(nearbyDiscoveryEngineProvider)
-      .rank(routed, discoveryContext)
-      .places;
+      .rank(routed, discoveryContext);
+  return _publishNearbyDiscovery(ref, result);
 });
 
-/// Evidence is an optional enrichment layer. A discovery outage must not
-/// hide real AMap or cached POIs from the Explore map.
+List<NearbyPlace> _publishNearbyDiscovery(
+  Ref ref,
+  NearbyDiscoveryResult result,
+) {
+  final store = ref.read(contextEntryStoreProvider);
+  final nextIds = result.entries.map((entry) => entry.id).toSet();
+  final removeIds = store
+      .query(const EntryQuery(surface: EntrySurface.explore, kind: EntryKind.place))
+      .where(
+        (entry) =>
+            entry.sourceNamespace == 'lumanest.local-entry-adapter' &&
+            !nextIds.contains(entry.id),
+      )
+      .map((entry) => entry.id)
+      .toSet();
+  store.apply(
+    EntryBatch(
+      entries: result.entries,
+      sourceRevision: result.observedAt.toUtc().microsecondsSinceEpoch,
+      removeIds: removeIds,
+    ),
+  );
+  return result.places;
+}
+
 Future<List<PopularPlaceEvidence>> fetchOptionalPopularPlaceEvidence(
   PopularPlaceEvidenceRepository repository, {
   required GeoPoint center,
@@ -289,9 +304,6 @@ Future<List<PopularPlaceEvidence>> fetchOptionalPopularPlaceEvidence(
   }
 }
 
-/// AMap is the authoritative lane for POIs, but not the only lane Explore can
-/// show.  Treat its unavailable response as an empty lane so verified
-/// discovery evidence and the user's next actions remain visible.
 Future<List<NearbyPlace>> fetchOptionalNearbyPlaces(
   NearbyPlaceRepository repository, {
   required GeoPoint center,
