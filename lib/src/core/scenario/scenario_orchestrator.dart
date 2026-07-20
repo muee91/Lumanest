@@ -138,14 +138,14 @@ class ScenarioOrchestrator {
       );
     }
 
-    final deduped = _dedupe(entries, now);
-    final blockingSafety = deduped
+    final qualified = _qualify(entries, now);
+    final blockingSafety = qualified
         .where((entry) => entry.kind == EntryKind.safety)
         .firstOrNull;
     // Keep the safety entry isolated in its own slot. A safety alert should
     // not erase a valid creative entry: the Today surface can collapse the
     // alert into a persistent strip and reveal this primary entry.
-    final primary = deduped
+    final primary = qualified
         .where((entry) => entry.kind != EntryKind.safety)
         .firstOrNull;
     final quiet = primary == null && blockingSafety == null;
@@ -182,6 +182,37 @@ class ScenarioOrchestrator {
       },
     );
   }
+
+  /// Produces a deterministic qualified list in display order.
+  ///
+  /// Suppression is directional: a higher-ranked entry may suppress a later
+  /// entry by referring to its id, source id, dedupe key, kind, or any of its
+  /// own suppression aliases. This keeps conflict policy in the Entry layer
+  /// instead of scattering it across presentation widgets.
+  static List<ContextEntry> _qualify(
+    List<ContextEntry> entries,
+    DateTime now,
+  ) {
+    final deduped = _dedupe(entries, now);
+    final selected = <ContextEntry>[];
+    final activeSuppressionKeys = <String>{};
+
+    for (final entry in deduped) {
+      if (_entryKeys(entry).any(activeSuppressionKeys.contains)) continue;
+      selected.add(entry);
+      activeSuppressionKeys.addAll(entry.suppressionKeys);
+    }
+
+    return List.unmodifiable(selected);
+  }
+
+  static Set<String> _entryKeys(ContextEntry entry) => {
+    entry.id,
+    entry.sourceId,
+    entry.dedupeKey,
+    'kind:${entry.kind.name}',
+    ...entry.suppressionKeys.map((key) => 'alias:$key'),
+  };
 
   static List<ContextEntry> _dedupe(List<ContextEntry> entries, DateTime now) {
     final byKey = <String, ContextEntry>{};
