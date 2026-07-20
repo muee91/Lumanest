@@ -51,6 +51,17 @@ function placeTokens(value) {
   return tokens(value, pattern);
 }
 
+function hasUnsupportedPlace(answer, template, extraNames = []) {
+  const allowedPlaces = new Set([
+    ...placeTokens(template),
+    ...extraNames.flatMap((name) => [...placeTokens(name), name]),
+  ]);
+  for (const place of placeTokens(answer)) {
+    if (!allowedPlaces.has(place) && !template.includes(place)) return true;
+  }
+  return false;
+}
+
 function guardAssistant(user, candidate) {
   const answer = compact(candidate.answer);
   const template = compact(user.templateAnswer);
@@ -79,16 +90,11 @@ function guardAssistant(user, candidate) {
     return { ok: false, reason: 'unsupported_probability' };
   }
 
-  const allowedPlaces = new Set([
-    ...placeTokens(template),
-    ...(Array.isArray(user.placeSummaries)
-      ? user.placeSummaries.flatMap((place) => typeof place?.name === 'string' ? [...placeTokens(place.name), place.name.trim()] : [])
-      : []),
-  ]);
-  for (const place of placeTokens(answer)) {
-    if (!allowedPlaces.has(place) && !template.includes(place)) {
-      return { ok: false, reason: 'unsupported_place' };
-    }
+  const extraNames = Array.isArray(user.placeSummaries)
+    ? user.placeSummaries.flatMap((place) => typeof place?.name === 'string' ? [place.name.trim()] : [])
+    : [];
+  if (hasUnsupportedPlace(answer, template, extraNames)) {
+    return { ok: false, reason: 'unsupported_place' };
   }
 
   return { ok: true };
@@ -103,6 +109,9 @@ function guardNarrative(user, candidate) {
   const answerNumbers = tokens(summary, /\d+(?:\.\d+)?(?:\s*(?:%|m\/s|mm|km|米|公里|分钟|小时|点|分))?/gu);
   const allowedNumbers = tokens(template, /\d+(?:\.\d+)?(?:\s*(?:%|m\/s|mm|km|米|公里|分钟|小时|点|分))?/gu);
   if (!isSubset(answerNumbers, allowedNumbers)) return { ok: false, reason: 'unsupported_number' };
+  if (unsupportedTerms(summary, template, equipmentTerms).length > 0) {
+    return { ok: false, reason: 'unsupported_equipment' };
+  }
   if (unsupportedTerms(summary, template, safetyTerms).length > 0) {
     return { ok: false, reason: 'unsupported_safety_claim' };
   }
@@ -111,6 +120,9 @@ function guardNarrative(user, candidate) {
   }
   if (unsupportedTerms(summary, template, probabilityTerms).length > 0 || /\d+(?:\.\d+)?\s*%/.test(summary)) {
     return { ok: false, reason: 'unsupported_probability' };
+  }
+  if (hasUnsupportedPlace(summary, template)) {
+    return { ok: false, reason: 'unsupported_place' };
   }
 
   if (candidate.noteLabels == null || typeof candidate.noteLabels !== 'object' || Array.isArray(candidate.noteLabels)) {
@@ -122,7 +134,10 @@ function guardNarrative(user, candidate) {
     if (!allowedIds.has(id) || [...label].length < 2 || [...label].length > 8 || /\d|https?:\/\//i.test(label)) {
       return { ok: false, reason: 'invalid_labels' };
     }
-    if (unsupportedTerms(label, template, safetyTerms).length > 0 || unsupportedTerms(label, template, actionTerms).length > 0) {
+    if (unsupportedTerms(label, template, equipmentTerms).length > 0 ||
+        unsupportedTerms(label, template, safetyTerms).length > 0 ||
+        unsupportedTerms(label, template, actionTerms).length > 0 ||
+        hasUnsupportedPlace(label, template)) {
       return { ok: false, reason: 'unsupported_label_claim' };
     }
   }
