@@ -21,10 +21,14 @@ export class LLMRouteMetrics {
   }
 }
 
+/// Process-level safety fuse, not a per-user quota. Authentication/IP rate
+/// limiting remains at the Broker boundary. The generous default prevents one
+/// repeated prompt shape from consuming unbounded provider capacity without
+/// blocking normal users who happen to ask the same photography question.
 export class LLMPromptBudget {
   #buckets = new Map();
 
-  constructor({ now = () => new Date(), assistantLimit = 12, assistantWindowMs = 60_000 } = {}) {
+  constructor({ now = () => new Date(), assistantLimit = 300, assistantWindowMs = 60_000 } = {}) {
     this.now = now;
     this.assistantLimit = assistantLimit;
     this.assistantWindowMs = assistantWindowMs;
