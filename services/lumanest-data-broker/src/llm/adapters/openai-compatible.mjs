@@ -9,7 +9,9 @@ export function openAICompatibleRequest(profile, prompt) {
       headers,
       body: JSON.stringify({
         model: profile.model,
-        temperature: 0.4,
+        temperature: 0.3,
+        max_tokens: 300,
+        stream: false,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: prompt.system },
