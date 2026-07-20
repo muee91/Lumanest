@@ -142,9 +142,6 @@ class ScenarioOrchestrator {
     final blockingSafety = qualified
         .where((entry) => entry.kind == EntryKind.safety)
         .firstOrNull;
-    // Keep the safety entry isolated in its own slot. A safety alert should
-    // not erase a valid creative entry: the Today surface can collapse the
-    // alert into a persistent strip and reveal this primary entry.
     final primary = qualified
         .where((entry) => entry.kind != EntryKind.safety)
         .firstOrNull;
@@ -183,12 +180,64 @@ class ScenarioOrchestrator {
     );
   }
 
+  /// Composes the Explore surface from the same canonical Entry stream used by
+  /// Today. Map rendering may continue to use NearbyPlace domain objects, but
+  /// recommendation order, conflict handling and capacity are decided here.
+  SurfaceComposition composeExplore({
+    required Iterable<ContextEntry> entries,
+    required DateTime now,
+    required int revision,
+    String id = 'composition_explore',
+  }) {
+    final moment = now.toUtc();
+    final qualified = _qualify(
+      entries
+          .where(
+            (entry) =>
+                entry.allowedSurfaces.contains(EntrySurface.explore) &&
+                !entry.isExpiredAt(moment),
+          )
+          .toList(growable: false),
+      moment,
+    );
+    final safety = qualified
+        .where((entry) => entry.kind == EntryKind.safety)
+        .firstOrNull;
+    final creative = qualified
+        .where((entry) => entry.kind != EntryKind.safety)
+        .toList(growable: false);
+    final places = creative
+        .where((entry) => entry.kind == EntryKind.place)
+        .toList(growable: false);
+    final primary = creative.firstOrNull;
+    final slots = <CompositionSlot, ContextEntry>{
+      CompositionSlot.blockingSafety: ?safety,
+      CompositionSlot.primary: ?primary,
+      CompositionSlot.mapHighlight: ?places.firstOrNull,
+      CompositionSlot.secondaryA: ?creative.skip(1).firstOrNull,
+      CompositionSlot.secondaryB: ?creative.skip(2).firstOrNull,
+    };
+    final judgement = safety != null
+        ? '先确认风险，再决定往哪里探索。'
+        : primary?.presentation.judgement ??
+              primary?.presentation.title ??
+              '附近暂时没有达到展示条件的发现。';
+    return SurfaceComposition(
+      id: id,
+      surface: EntrySurface.explore,
+      revision: revision,
+      generatedAt: moment,
+      slots: slots,
+      judgement: judgement,
+      narrativeFacts: {
+        if (safety != null) 'safety_override',
+        if (primary == null) 'quiet',
+        ...slots.values.map((entry) => entry.sourceId),
+      },
+    );
+  }
+
   /// Produces a deterministic qualified list in display order.
-  ///
-  /// Suppression is directional: a higher-ranked entry may suppress a later
-  /// entry by referring to its id, source id, dedupe key, kind, or any of its
-  /// own suppression aliases. This keeps conflict policy in the Entry layer
-  /// instead of scattering it across presentation widgets.
   static List<ContextEntry> _qualify(
     List<ContextEntry> entries,
     DateTime now,
