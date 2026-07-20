@@ -9,7 +9,7 @@ void main() {
     expect(intent!.type, AssistantQuestionType.timing);
     expect(intent.availableMinutes, 20);
     expect(intent.transportMode, AssistantTransportMode.driving);
-    expect(intent.allowsRemoteRewrite, isTrue);
+    expect(intent.allowsRemoteRewrite, isFalse);
   });
 
   test('keeps safety and nearby intents deterministic', () {
@@ -28,12 +28,14 @@ void main() {
     expect(intent!.type, AssistantQuestionType.prepare);
     expect(intent.equipmentFocus, AssistantEquipmentFocus.telephoto);
     expect(intent.prefersConcise, isTrue);
+    expect(intent.allowsRemoteRewrite, isFalse);
   });
 
   test('rejects empty, oversized and unrelated input', () {
     expect(AssistantIntentParser.parse(''), isNull);
     expect(AssistantIntentParser.parse('你好'), isNull);
-    expect(AssistantIntentParser.parse('为什么${'很' * 250}'), isNull);
+    final oversized = '为什么${List.filled(250, '很').join()}';
+    expect(AssistantIntentParser.parse(oversized), isNull);
   });
 
   test('conversation keeps only the latest eight completed turns', () {
