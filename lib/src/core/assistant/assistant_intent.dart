@@ -42,12 +42,16 @@ class AssistantIntent {
   final AssistantEquipmentFocus equipmentFocus;
   final bool prefersConcise;
 
-  /// Safety and nearby-place answers remain deterministic. Safety must never
-  /// be rewritten by a model, and nearby names currently originate on-device
-  /// rather than from an authoritative server-side place store.
+  /// Safety, nearby-place and locally constrained answers remain
+  /// deterministic. The current broker contract has no fact fields for the
+  /// user's available time, transport mode or requested equipment, so sending
+  /// those turns to the model would silently discard the constraint.
   bool get allowsRemoteRewrite =>
       type != AssistantQuestionType.safety &&
-      type != AssistantQuestionType.nearby;
+      type != AssistantQuestionType.nearby &&
+      availableMinutes == null &&
+      transportMode == AssistantTransportMode.unknown &&
+      equipmentFocus == AssistantEquipmentFocus.none;
 
   String get contextKey => [
     type.name,
