@@ -170,15 +170,21 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
     final remoteInsights =
         ref.watch(companionInventoryProvider).asData?.value ?? const [];
     final remoteByNote = <String, CompanionInsight>{};
+    final modelInspirations = <InspirationNote>[];
     final notes = <InspirationNote>[];
     for (final insight in remoteInsights) {
       final note = insight.toInspirationNote(now);
       if (note == null || remoteByNote.containsKey(note.id)) continue;
       remoteByNote[note.id] = insight;
       notes.add(note);
+      if (insight.channel == InsightChannel.creativePrompt) {
+        modelInspirations.add(note);
+      }
     }
     notes.addAll(
-      localNotes.where((note) => !remoteByNote.containsKey(note.id)),
+      localNotes.where(
+        (note) => note.isFactual && !remoteByNote.containsKey(note.id),
+      ),
     );
 
     return Material(
@@ -194,7 +200,7 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _conversationStart(notes),
+                    _conversationStart(modelInspirations),
                     if (notes.isEmpty) ...[
                       const SizedBox(height: 14),
                       TextButton.icon(
@@ -290,13 +296,12 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
         ),
       );
 
-  Widget _conversationStart(List<InspirationNote> notes) {
+  Widget _conversationStart(List<InspirationNote> modelInspirations) {
     final suggestions = <String>{
       '附近适合拍什么？',
       '什么时候出发？',
       '需要带什么器材？',
       '日出和银河去哪？',
-      ...notes.map((note) => note.label),
     }.take(5).toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,6 +348,107 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
             ),
           ],
         ),
+        if (modelInspirations.isNotEmpty) ...[
+          const SizedBox(height: 22),
+          Padding(
+            padding: const EdgeInsets.only(left: 39, right: 2),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '为你筛过的灵感',
+                    style: TextStyle(
+                      color: V2Palette.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: V2Palette.mossSoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    '模型筛选',
+                    style: TextStyle(
+                      color: V2Palette.moss,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 9),
+          SizedBox(
+            key: const Key('v2-model-inspiration-strip'),
+            height: 112,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 39, right: 2),
+              itemCount: modelInspirations.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final note = modelInspirations[index];
+                return InkWell(
+                  onTap: () => _openTopic(note.label),
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: 210,
+                    padding: const EdgeInsets.fromLTRB(13, 11, 13, 10),
+                    decoration: BoxDecoration(
+                      color: V2Palette.canvas,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: V2Palette.line),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          note.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: V2Palette.ink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Expanded(
+                          child: Text(
+                            note.detail,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: V2Palette.mutedInk,
+                              fontSize: 11,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                        const Align(
+                          alignment: Alignment.centerRight,
+                          child: Icon(
+                            CupertinoIcons.arrow_up_right,
+                            color: V2Palette.moss,
+                            size: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         const Padding(
           padding: EdgeInsets.only(left: 39),

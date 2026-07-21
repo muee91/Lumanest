@@ -94,6 +94,7 @@ import {
   validIdempotencyKey,
   validInsightFeedbackRequest,
 } from './companion/orchestrator.mjs';
+import { selectCreativeWithModel } from './companion/model-selector.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
 const amapPhotoHosts = new Set(['aos-comment.amap.com', 'store.is.autonavi.com']);
@@ -1219,7 +1220,21 @@ export function createTokenBrokerServer({
   const elevationCache = new Map();
   const placeMediaCache = new Map();
   const assistantPlaceCache = new Map();
-  const companion = companionStore ?? new CompanionStore({ now });
+  const companion = companionStore ?? new CompanionStore({
+    now,
+    selectCreative: ({ snapshot, candidates, maximum }) => {
+      const active = configurationSource.snapshot();
+      return selectCreativeWithModel({
+        snapshot,
+        candidates,
+        maximum,
+        profiles: active.llmProfiles,
+        routing: active.llmRouting,
+        aiEnabled: active.settings.aiEnabled,
+        fetcher,
+      });
+    },
+  });
   return createServer(async (request, response) => {
     const configuration = configurationSource.snapshot();
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
@@ -1353,7 +1368,7 @@ export function createTokenBrokerServer({
         writeApiError(response, 400, 'invalid_snapshot');
         return;
       }
-      const result = companion.refresh(body, idempotencyKey);
+      const result = await companion.refresh(body, idempotencyKey);
       if (!result.ok) {
         writeApiError(response, result.error === 'invalid_snapshot' ? 400 : 502, result.error);
         return;

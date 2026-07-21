@@ -221,14 +221,14 @@ test('companion refresh, inventory and feedback enforce current contracts', asyn
     assert.equal(refresh.status, 200);
     const refreshed = await refresh.json();
     assert.equal(refreshed.primaryInsight.channel, 'photographyOpportunity');
-    assert.equal(refreshed.partial, false);
+    assert.equal(refreshed.partial, true);
 
     const inventory = await fetch(`${baseUrl}/v1/inspiration/inventory?limit=20`, {
       headers: { Authorization: 'Bearer test-service-token' },
     });
     assert.equal(inventory.status, 200);
     const listed = await inventory.json();
-    assert.equal(listed.items.length, 20);
+    assert.equal(listed.items.length, 1);
     assert.equal(listed.items.some((item) => item.channel === 'safety'), false);
 
     const feedback = await fetch(`${baseUrl}/v1/insights/${listed.items[0].id}/feedback`, {

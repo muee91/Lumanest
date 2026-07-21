@@ -128,16 +128,22 @@ function creativeInsight(prompt, snapshot, generatedAt) {
   });
 }
 
-function seededCreative(snapshot, generatedAt, limit) {
+function seededCreativePrompts(snapshot, generatedAt, limit) {
   const date = generatedAt.toISOString().slice(0, 10);
+  const rawScene = snapshot.environment?.sceneContext?.primaryScene ?? snapshot.environment?.scene ?? '';
+  const scene = new Map([
+    ['city', 'urban'], ['lake', 'inlandWater'], ['mountain', 'mountain'],
+    ['desert', 'desert'], ['village', 'village'],
+  ]).get(rawScene) ?? rawScene;
   return creativePrompts
     .map((prompt) => ({
       prompt,
+      affinity: prompt.sceneAffinity.includes(scene) ? 0 : 1,
       order: createHash('sha256').update(`${snapshot.contextId}\0${date}\0${prompt.id}`).digest('hex'),
     }))
-    .sort((left, right) => left.order.localeCompare(right.order))
+    .sort((left, right) => left.affinity - right.affinity || left.order.localeCompare(right.order))
     .slice(0, limit)
-    .map(({ prompt }) => creativeInsight(prompt, snapshot, generatedAt));
+    .map(({ prompt }) => prompt);
 }
 
 function visibleInsights(snapshot) {
@@ -148,8 +154,9 @@ function visibleInsights(snapshot) {
 }
 
 export class CompanionStore {
-  constructor({ now = () => new Date() } = {}) {
+  constructor({ now = () => new Date(), selectCreative = null } = {}) {
     this.now = now;
+    this.selectCreative = selectCreative;
     this.snapshots = new Map();
     this.inventory = [];
     this.refreshReceipts = new Map();
@@ -166,13 +173,47 @@ export class CompanionStore {
     return this.snapshots.get(contextId) ?? null;
   }
 
-  refresh(request, idempotencyKey) {
-    if (this.refreshReceipts.has(idempotencyKey)) return this.refreshReceipts.get(idempotencyKey);
+  async refresh(request, idempotencyKey) {
+    if (this.refreshReceipts.has(idempotencyKey)) {
+      return await this.refreshReceipts.get(idempotencyKey);
+    }
+    const task = this.#refresh(request);
+    this.refreshReceipts.set(idempotencyKey, task);
+    const result = await task;
+    this.refreshReceipts.set(idempotencyKey, result);
+    return result;
+  }
+
+  async #refresh(request) {
     const snapshot = this.snapshots.get(request.snapshotId);
     if (snapshot == null) return Object.freeze({ ok: false, error: 'invalid_snapshot' });
     const generatedAt = this.now();
     const factual = visibleInsights(snapshot);
-    const creative = seededCreative(snapshot, generatedAt, 36);
+    const promptPool = seededCreativePrompts(snapshot, generatedAt, 24);
+    let selectedIds = [];
+    if (typeof this.selectCreative === 'function') {
+      try {
+        const selection = await this.selectCreative({
+          snapshot,
+          candidates: promptPool.map((prompt) => Object.freeze({
+            id: prompt.id,
+            label: prompt.shortLabel,
+            guide: prompt.guide,
+            sceneAffinity: prompt.sceneAffinity,
+            techniqueTags: prompt.techniqueTags,
+          })),
+          maximum: 6,
+        });
+        if (Array.isArray(selection)) selectedIds = [...new Set(selection)].slice(0, 6);
+      } catch {
+        selectedIds = [];
+      }
+    }
+    const promptsById = new Map(promptPool.map((prompt) => [prompt.id, prompt]));
+    const creative = selectedIds
+      .map((id) => promptsById.get(id))
+      .filter(Boolean)
+      .map((prompt) => creativeInsight(prompt, snapshot, generatedAt));
     const candidates = [...factual, ...creative]
       .filter((insight) => insight.channel !== 'safety' && insight.canEnterBottle)
       .sort((left, right) => right.priority - left.priority || left.id.localeCompare(right.id))
@@ -190,10 +231,9 @@ export class CompanionStore {
           expiredIds: [...priorIds].filter((id) => !candidates.some((item) => item.id === id)),
         }),
         nextRefreshAt: new Date(generatedAt.getTime() + 30 * 60_000).toISOString(),
-        partial: false,
+        partial: creative.length === 0,
       }),
     });
-    this.refreshReceipts.set(idempotencyKey, result);
     return result;
   }
 
@@ -204,9 +244,9 @@ export class CompanionStore {
     const items = filtered.slice(cursor, cursor + limit);
     const next = cursor + items.length;
     return Object.freeze({
-      targetSize: 36,
-      minimumSize: 20,
-      maximumSize: 60,
+      targetSize: 8,
+      minimumSize: 0,
+      maximumSize: 12,
       items,
       nextCursor: next < filtered.length ? String(next) : null,
     });

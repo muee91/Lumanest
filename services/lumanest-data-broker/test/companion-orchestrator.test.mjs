@@ -25,9 +25,12 @@ test('validates bounded refresh, feedback and idempotency contracts', () => {
   assert.equal(validIdempotencyKey('short'), false);
 });
 
-test('refresh uses snapshot facts, excludes safety and keeps a 20-60 inventory', () => {
+test('refresh keeps facts and only admits model-selected creative candidates', async () => {
   const now = new Date('2026-07-18T10:00:00Z');
-  const store = new CompanionStore({ now: () => now });
+  const store = new CompanionStore({
+    now: () => now,
+    selectCreative: async ({ candidates }) => candidates.slice(0, 5).map((item) => item.id),
+  });
   store.rememberSnapshot({
     contextId: request.snapshotId,
     generatedAt: now.toISOString(),
@@ -46,23 +49,46 @@ test('refresh uses snapshot facts, excludes safety and keeps a 20-60 inventory',
     ] },
   });
 
-  const first = store.refresh(request, 'refresh:12345678');
-  const repeated = store.refresh(request, 'refresh:12345678');
+  const first = await store.refresh(request, 'refresh:12345678');
+  const repeated = await store.refresh(request, 'refresh:12345678');
   const inventory = store.listInventory();
 
   assert.strictEqual(repeated, first);
   assert.equal(first.ok, true);
   assert.equal(first.body.primaryInsight.channel, 'photographyOpportunity');
-  assert.equal(inventory.items.length >= 20, true);
-  assert.equal(inventory.items.length <= 60, true);
+  assert.equal(inventory.items.length, 6);
+  assert.equal(inventory.items.filter((item) => item.channel === 'creativePrompt').length, 5);
   assert.equal(inventory.items.some((item) => item.channel === 'safety'), false);
+  assert.equal(first.body.partial, false);
 });
 
-test('feedback is idempotent and only records known inventory insights', () => {
+test('model failure exposes no deterministic creative fallback', async () => {
   const now = new Date('2026-07-18T10:00:00Z');
-  const store = new CompanionStore({ now: () => now });
+  const store = new CompanionStore({
+    now: () => now,
+    selectCreative: async () => { throw new Error('model unavailable'); },
+  });
+  store.rememberSnapshot({
+    contextId: request.snapshotId,
+    generatedAt: now.toISOString(),
+    route: { active: false },
+    facts: { events: [] },
+  });
+
+  const result = await store.refresh(request, 'refresh:model-failure');
+
+  assert.equal(result.body.partial, true);
+  assert.deepEqual(store.listInventory().items, []);
+});
+
+test('feedback is idempotent and only records known inventory insights', async () => {
+  const now = new Date('2026-07-18T10:00:00Z');
+  const store = new CompanionStore({
+    now: () => now,
+    selectCreative: async ({ candidates }) => candidates.slice(0, 3).map((item) => item.id),
+  });
   store.rememberSnapshot({ contextId: request.snapshotId, generatedAt: now.toISOString(), events: [] });
-  store.refresh(request, 'refresh:abcdefgh');
+  await store.refresh(request, 'refresh:abcdefgh');
   const insightId = store.listInventory({ limit: 1 }).items[0].id;
 
   const first = store.feedback(insightId, 'saved', 'feedback:12345678');
