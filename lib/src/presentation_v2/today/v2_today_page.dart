@@ -15,6 +15,8 @@ import 'package:luma_nest/src/core/scenario/scenario_providers.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
+import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
+import 'package:luma_nest/src/features/explore/application/region_discovery_highlight.dart';
 import 'package:luma_nest/src/presentation_v2/entry/entry_action_dispatcher.dart';
 import 'package:luma_nest/src/presentation_v2/entry/entry_card_registry.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
@@ -54,6 +56,9 @@ class V2TodayPage extends ConsumerWidget {
           onManualLocation: () => _openManualLocation(context),
         ),
         data: (value) {
+          final briefState = initialSnapshot == null
+              ? ref.watch(regionBriefControllerProvider)
+              : const RegionBriefState.idle();
           return _V2TodayContent(
             snapshot: value,
             composition: ref.watch(todaySurfaceCompositionProvider(value)),
@@ -65,6 +70,10 @@ class V2TodayPage extends ConsumerWidget {
                       .asData
                       ?.value ??
                   ref.read(environmentLocationDisplayProvider),
+            ),
+            regionalHighlight: selectRegionDiscoveryHighlight(
+              briefState.brief,
+              now: ref.read(currentTimeProvider)(),
             ),
             onRefresh: initialSnapshot == null
                 ? () => ref.read(environmentSnapshotProvider.notifier).refresh()
@@ -89,12 +98,14 @@ class _V2TodayContent extends StatefulWidget {
     required this.snapshot,
     required this.composition,
     required this.location,
+    required this.regionalHighlight,
     required this.onRefresh,
   });
 
   final ContextSnapshot snapshot;
   final SurfaceComposition composition;
   final EnvironmentLocationDisplay location;
+  final RegionDiscoveryHighlight? regionalHighlight;
   final Future<void> Function()? onRefresh;
 
   static EnvironmentLocationDisplay _todayLocationDisplay(
@@ -198,6 +209,13 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                       '/session/${Uri.encodeComponent(session.id)}',
                     ),
                   ),
+                  if (widget.regionalHighlight case final highlight?) ...[
+                    SizedBox(height: compact ? 12 : 16),
+                    _V2RegionalDiscoveryCard(
+                      highlight: highlight,
+                      onTap: () => context.go('/explore'),
+                    ),
+                  ],
                   SizedBox(height: compact ? 14 : 18),
                   Row(
                     children: [
@@ -238,6 +256,91 @@ class _V2TodayContentState extends State<_V2TodayContent> {
     DayPhase.blueHour => '蓝调',
     DayPhase.night => '夜间',
   };
+}
+
+class _V2RegionalDiscoveryCard extends StatelessWidget {
+  const _V2RegionalDiscoveryCard({
+    required this.highlight,
+    required this.onTap,
+  });
+
+  final RegionDiscoveryHighlight highlight;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => V2Pressable(
+    key: const Key('v2-regional-discovery-card'),
+    semanticLabel: '查看${highlight.regionName}区域发现：${highlight.title}',
+    onTap: onTap,
+    compact: true,
+    color: V2Palette.paper.withValues(alpha: .88),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(15, 13, 13, 13),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: V2Palette.mossSoft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              CupertinoIcons.sparkles,
+              color: V2Palette.moss,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '栖光发现 · ${highlight.regionName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.moss,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  highlight.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  highlight.summary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            CupertinoIcons.chevron_right,
+            color: V2Palette.mutedInk,
+            size: 16,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _V2SafetyAlertButton extends StatelessWidget {

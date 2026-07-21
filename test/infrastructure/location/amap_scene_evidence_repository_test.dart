@@ -72,10 +72,42 @@ void main() {
       );
       expect(
         (await parse([
-          {'name': '古村落', 'type': '地名地址信息'},
+          {'name': '古村落', 'type': '地名地址信息', 'distance': '0'},
         ])).settlement,
         isTrue,
       );
+    },
+  );
+
+  test(
+    'does not turn an urban address into a village from a nearby label',
+    () async {
+      final pois = <Map<String, String>>[
+        for (var index = 0; index < 11; index++)
+          {'name': '城市设施$index', 'type': '生活服务', 'distance': '${index + 1}'},
+        {'name': '曹家河', 'type': '地名地址信息;普通地名;村庄级地名', 'distance': '387.254'},
+      ];
+      final repository = AmapSceneEvidenceRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'token',
+        transport: _FakeTransport({
+          'status': '1',
+          'regeocode': {
+            'addressComponent': {'citycode': '0573'},
+            'aois': [
+              {'name': '城投·山语兰亭', 'type': '120302', 'distance': '0'},
+            ],
+            'pois': pois,
+          },
+        }),
+      );
+
+      final evidence = await repository.fetch(
+        const GeoPoint(latitude: 30.52, longitude: 120.69),
+      );
+
+      expect(evidence.settlement, isFalse);
+      expect(evidence.urban, isTrue);
     },
   );
 

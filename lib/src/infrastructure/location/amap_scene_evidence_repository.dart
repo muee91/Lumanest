@@ -57,7 +57,11 @@ class AmapSceneEvidenceRepository implements SceneEvidenceRepository {
   );
   static final _aridTerms = RegExp(r'沙漠|戈壁|沙地|雅丹');
   static final _settlementTerms = RegExp(r'古镇|古村|村落|村庄|民族村');
+  static final _villagePlaceType = RegExp(r'村庄级地名');
   static final _semanticPoiType = RegExp(r'风景|地名|公园|自然');
+  static const _containingAoiDistanceMeters = 100.0;
+  static const _immediateSettlementDistanceMeters = 100.0;
+  static const _namedSettlementDistanceMeters = 200.0;
 
   @override
   Future<SceneEvidence> fetch(GeoPoint location) async {
@@ -76,9 +80,11 @@ class AmapSceneEvidenceRepository implements SceneEvidenceRepository {
     final regeocode = Map<String, Object?>.from(body['regeocode'] as Map);
     final semanticTexts = <String>[];
     final aois = regeocode['aois'];
+    var settlement = false;
     if (aois is List) {
       for (final raw in aois.whereType<Map>()) {
         semanticTexts.add('${raw['name'] ?? ''} ${raw['type'] ?? ''}');
+        settlement = settlement || _isLocalSettlement(raw, aoi: true);
       }
     }
     final pois = regeocode['pois'];
@@ -90,13 +96,13 @@ class AmapSceneEvidenceRepository implements SceneEvidenceRepository {
         if (_semanticPoiType.hasMatch(type)) {
           semanticTexts.add('${raw['name'] ?? ''} $type');
         }
+        settlement = settlement || _isLocalSettlement(raw);
       }
     }
     final semanticContext = semanticTexts.join(' ');
     final water = _waterTerms.hasMatch(semanticContext);
     final mountain = _mountainTerms.hasMatch(semanticContext);
     final arid = _aridTerms.hasMatch(semanticContext);
-    final settlement = _settlementTerms.hasMatch(semanticContext);
     final address = regeocode['addressComponent'];
     final hasCityCode =
         address is Map && '${address['citycode'] ?? ''}'.isNotEmpty;
@@ -110,5 +116,25 @@ class AmapSceneEvidenceRepository implements SceneEvidenceRepository {
       settlement: settlement,
       source: SceneEvidenceSource.amapSemanticEntities,
     );
+  }
+
+  static bool _isLocalSettlement(Map raw, {bool aoi = false}) {
+    final name = '${raw['name'] ?? ''}';
+    final type = '${raw['type'] ?? ''}';
+    final distance = switch (raw['distance']) {
+      num value when value.isFinite && value >= 0 => value.toDouble(),
+      String value => double.tryParse(value),
+      _ => null,
+    };
+    if (distance == null || !distance.isFinite || distance < 0) return false;
+    if (aoi) {
+      return distance <= _containingAoiDistanceMeters &&
+          _settlementTerms.hasMatch('$name $type');
+    }
+    if (_villagePlaceType.hasMatch(type)) {
+      return distance <= _immediateSettlementDistanceMeters;
+    }
+    return distance <= _namedSettlementDistanceMeters &&
+        _settlementTerms.hasMatch(name);
   }
 }

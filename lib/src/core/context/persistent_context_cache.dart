@@ -21,7 +21,9 @@ class PersistentContextCache implements ContextCache {
     this.storageKey = 'environment_context_snapshot_v1',
   });
 
-  static const _version = 5;
+  // Version 6 invalidates snapshots produced before nearby regional POIs were
+  // separated from the physical scene at the user's current position.
+  static const _version = 6;
   final SharedPreferencesAsync _preferences;
   final String storageKey;
 

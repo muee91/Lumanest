@@ -34,7 +34,7 @@ import {
 import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
 import { forwardRegionBrief } from './discovery/region-brief-proxy.mjs';
 import { regionBriefGrid, validRegionBriefRequest } from './discovery/region-brief-contract.mjs';
-import { prewarmNearbyDiscovery } from './discovery/prewarm.mjs';
+import { prewarmRegionBriefDiscovery } from './discovery/prewarm.mjs';
 import {
   extractDiscoveryCandidates,
   normalizedDiscoverySearchRequest,
@@ -2040,10 +2040,10 @@ export function createTokenBrokerServer({
       });
       writeJson(response, 200, result.body);
       // The client must receive the refreshed environment immediately. Nearby
-      // discovery is cache-first background work and is deliberately detached
+      // Regional discovery is cache-first background work and is deliberately detached
       // from this request; only the Broker performs the transient city lookup.
       setImmediate(() => {
-        void prewarmNearbyDiscovery({
+        void prewarmRegionBriefDiscovery({
           coordinate: body.coordinate,
           locale: body.locale,
           amapWebKey: configuration.amapWebKey,

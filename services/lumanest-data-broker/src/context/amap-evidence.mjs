@@ -6,7 +6,29 @@ const waterTerms = /湖|水库|湿地|河流|江河|海湾|海滩|滩涂/;
 const mountainTerms = /雪山|山峰|山脉|峡谷|垭口|山(?=\s|$)|峰(?=\s|$)|岭(?=\s|$)/;
 const aridTerms = /沙漠|戈壁|沙地|雅丹/;
 const settlementTerms = /古镇|古村|村落|村庄|民族村/;
+const villagePlaceType = /村庄级地名/;
 const semanticPoiType = /风景|地名|公园|自然/;
+const containingAoiDistanceMeters = 100;
+const immediateSettlementDistanceMeters = 100;
+const namedSettlementDistanceMeters = 200;
+
+function distanceMeters(value) {
+  const raw = value?.distance;
+  if (raw == null || raw === '') return Number.POSITIVE_INFINITY;
+  const distance = Number(raw);
+  return Number.isFinite(distance) && distance >= 0 ? distance : Number.POSITIVE_INFINITY;
+}
+
+function isLocalSettlement(value, { aoi = false } = {}) {
+  const name = String(value?.name ?? '');
+  const type = String(value?.type ?? '');
+  const distance = distanceMeters(value);
+  if (aoi) {
+    return distance <= containingAoiDistanceMeters && settlementTerms.test(`${name} ${type}`);
+  }
+  if (villagePlaceType.test(type)) return distance <= immediateSettlementDistanceMeters;
+  return distance <= namedSettlementDistanceMeters && settlementTerms.test(name);
+}
 
 function outsideMainland(latitude, longitude) {
   return longitude < 72.004 || longitude > 137.8347 ||
@@ -51,9 +73,11 @@ export function parseAmapSceneEvidence(body) {
       typeof body.regeocode !== 'object' || Array.isArray(body.regeocode)) return null;
   const semanticTexts = [];
   const aois = Array.isArray(body.regeocode.aois) ? body.regeocode.aois : [];
+  let settlement = false;
   for (const value of aois) {
     if (value == null || typeof value !== 'object' || Array.isArray(value)) continue;
     semanticTexts.push(`${value.name ?? ''} ${value.type ?? ''}`);
+    settlement ||= isLocalSettlement(value, { aoi: true });
   }
   const pois = Array.isArray(body.regeocode.pois) ? body.regeocode.pois : [];
   let poiCount = 0;
@@ -62,12 +86,12 @@ export function parseAmapSceneEvidence(body) {
     poiCount += 1;
     const type = String(value.type ?? '');
     if (semanticPoiType.test(type)) semanticTexts.push(`${value.name ?? ''} ${type}`);
+    settlement ||= isLocalSettlement(value);
   }
   const semanticContext = semanticTexts.join(' ');
   const waterBody = waterTerms.test(semanticContext);
   const mountainous = mountainTerms.test(semanticContext);
   const aridLand = aridTerms.test(semanticContext);
-  const settlement = settlementTerms.test(semanticContext);
   const address = body.regeocode.addressComponent;
   const hasCityCode = address != null && typeof address === 'object' &&
     !Array.isArray(address) && String(address.citycode ?? '').length > 0;

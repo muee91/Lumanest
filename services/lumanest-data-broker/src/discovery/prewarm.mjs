@@ -3,6 +3,16 @@ import { forwardDiscovery } from './proxy.mjs';
 
 const defaultRadiusMeters = 15_000;
 const maximumRadiusMeters = 30_000;
+const regionBriefMissionFocus = Object.freeze({
+  popularPlaces: '摄影地点与观景地',
+  hiddenPlaces: '小众地点与地方空间',
+  humanityEvents: '近期活动、表演与市集',
+  localStories: '区域身份、历史与地方故事',
+  openingAndClosure: '场馆开放、闭馆与通行变化',
+  seasonalSignals: '当前季节特征与摄影题材',
+  localFoodAndSpecialties: '地方食物、特产与市场线索',
+  culturalEtiquette: '当地文化礼仪与拍摄边界',
+});
 
 function validCoordinate(value) {
   return value != null && typeof value === 'object' && value.system === 'wgs84' &&
@@ -41,6 +51,27 @@ export function nearbyPrewarmRequest({ coordinate, locale, city, now = new Date(
     routeCorridor: null,
     interests: ['photography'],
   });
+}
+
+export function regionBriefPrewarmRequests({
+  coordinate,
+  locale,
+  city,
+  now = new Date(),
+  radiusMeters = defaultRadiusMeters,
+}) {
+  const popular = nearbyPrewarmRequest({ coordinate, locale, city, now, radiusMeters });
+  if (popular == null) return [];
+  const endsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1_000).toISOString();
+  const placeName = city.trim().slice(0, 80);
+  return Object.entries(regionBriefMissionFocus).map(([missionType, focus]) => Object.freeze({
+    ...popular,
+    missionType,
+    focus: locale === 'zh-CN'
+      ? `${placeName}周边${focus}`
+      : `Verified regional photography context around ${placeName}: ${missionType}`,
+    timeRange: { startsAt: popular.timeRange.startsAt, endsAt },
+  }));
 }
 
 /**
@@ -92,4 +123,61 @@ export async function prewarmNearbyDiscovery({
   return result.ok
     ? { queued: result.body.status !== 'ready', status: result.body.status }
     : { queued: false, reason: result.error };
+}
+
+/**
+ * Schedules the complete Region Brief mission bundle after a context refresh.
+ * Discovery's coarse-grid single-flight and per-mission cooldown absorb
+ * repeated app refreshes; the Broker never persists the input coordinate.
+ */
+export async function prewarmRegionBriefDiscovery({
+  coordinate,
+  locale,
+  amapWebKey,
+  serviceUrl,
+  internalToken,
+  sourcePolicies,
+  fetcher = fetch,
+  timeoutMs = 8_000,
+  now = () => new Date(),
+  radiusMeters = defaultRadiusMeters,
+  enabled = true,
+  searchEnabled = true,
+}) {
+  if (!enabled || !searchEnabled || !validCoordinate(coordinate) ||
+      !enabledPolicies(sourcePolicies) || !serviceUrl || !internalToken) {
+    return { queued: false, reason: 'not_configured' };
+  }
+  const city = await resolveSkyOpportunityCity({
+    latitude: coordinate.latitude,
+    longitude: coordinate.longitude,
+    amapWebKey,
+    fetcher,
+    timeoutMs: Math.min(timeoutMs, 5_000),
+  });
+  if (!city.ok || !city.requestedCity) return { queued: false, reason: 'city_unavailable' };
+  const requests = regionBriefPrewarmRequests({
+    coordinate,
+    locale,
+    city: city.requestedCity,
+    now: now(),
+    radiusMeters,
+  });
+  if (requests.length === 0) return { queued: false, reason: 'invalid_request' };
+  const results = await Promise.all(requests.map((body) => forwardDiscovery({
+    body,
+    serviceUrl,
+    internalToken,
+    sourcePolicies,
+    fetcher,
+    timeoutMs,
+  })));
+  const accepted = results.filter((result) => result.ok);
+  if (accepted.length === 0) {
+    return { queued: false, reason: results[0]?.error ?? 'upstream_unavailable' };
+  }
+  return {
+    queued: accepted.some((result) => result.body.status !== 'ready'),
+    acceptedMissions: accepted.length,
+  };
 }

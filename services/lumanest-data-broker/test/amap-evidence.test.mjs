@@ -22,7 +22,7 @@ test('parses five scene evidence classes without returning source entities', () 
     status: '1',
     regeocode: {
       addressComponent: { citycode: '0571' },
-      aois: [{ name, type }],
+      aois: [{ name, type, distance: '0' }],
       pois: Array.from({ length: 12 }, (_, index) => ({ name: `地点${index}`, type })),
     },
   });
@@ -35,6 +35,49 @@ test('parses five scene evidence classes without returning source entities', () 
   assert.deepEqual(Object.keys(city).sort(), [
     'aridLand', 'mountainous', 'settlement', 'urban', 'waterBody',
   ]);
+});
+
+test('does not classify an urban address from a nearby village-grade label', () => {
+  const evidence = parseAmapSceneEvidence({
+    status: '1',
+    regeocode: {
+      addressComponent: { citycode: '0573' },
+      aois: [{ name: '城投·山语兰亭', type: '120302', distance: '0' }],
+      pois: [
+        ...Array.from({ length: 11 }, (_, index) => ({
+          name: `城市设施${index}`,
+          type: '生活服务',
+          distance: String(index + 1),
+        })),
+        {
+          name: '曹家河',
+          type: '地名地址信息;普通地名;村庄级地名',
+          distance: '387.254',
+        },
+      ],
+    },
+  });
+
+  assert.equal(evidence.settlement, false);
+  assert.equal(evidence.urban, true);
+});
+
+test('accepts a village-grade entity only at the current place', () => {
+  const evidence = parseAmapSceneEvidence({
+    status: '1',
+    regeocode: {
+      addressComponent: { citycode: '0573' },
+      aois: [],
+      pois: [{
+        name: '曹家河',
+        type: '地名地址信息;普通地名;村庄级地名',
+        distance: '35',
+      }],
+    },
+  });
+
+  assert.equal(evidence.settlement, true);
+  assert.equal(evidence.urban, false);
 });
 
 test('fetches only bounded AMap regeo parameters and returns sanitized evidence', async () => {

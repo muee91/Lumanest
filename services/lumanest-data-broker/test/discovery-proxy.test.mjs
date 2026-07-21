@@ -6,7 +6,12 @@ import {
   validDiscoveryRequest,
   validDiscoveryResponse,
 } from '../src/discovery/proxy.mjs';
-import { nearbyPrewarmRequest, prewarmNearbyDiscovery } from '../src/discovery/prewarm.mjs';
+import {
+  nearbyPrewarmRequest,
+  prewarmNearbyDiscovery,
+  prewarmRegionBriefDiscovery,
+  regionBriefPrewarmRequests,
+} from '../src/discovery/prewarm.mjs';
 
 const request = {
   activationType: 'user_manual',
@@ -161,4 +166,55 @@ test('location refresh prewarm can be disabled before any external request', asy
   assert.equal(nearbyPrewarmRequest({
     coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' }, locale: 'zh-CN', city: '',
   }), null);
+});
+
+test('context refresh prewarms the complete regional brief mission bundle', async () => {
+  const queuedMissions = [];
+  const result = await prewarmRegionBriefDiscovery({
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+    locale: 'zh-CN',
+    amapWebKey: 'amap-key',
+    serviceUrl: 'http://discovery-api:8001',
+    internalToken: 'internal-discovery-token',
+    sourcePolicies: [{ id: 'official-source', version: '2026-07', enabled: true }],
+    searchEnabled: true,
+    now: () => new Date('2026-07-19T00:00:00Z'),
+    fetcher: async (url, options = {}) => {
+      if (url.hostname === 'restapi.amap.com') {
+        return new Response(JSON.stringify({
+          status: '1', regeocode: { addressComponent: { city: '杭州市', province: '浙江省' } },
+        }), { status: 200 });
+      }
+      const body = JSON.parse(options.body);
+      queuedMissions.push(body.missionType);
+      return new Response(JSON.stringify({
+        missionType: body.missionType,
+        status: 'pending',
+        generatedAt: '2026-07-19T00:00:00Z',
+        expiresAt: null,
+        retryAfterSeconds: 30,
+        items: [],
+      }), { status: 202, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+
+  assert.deepEqual(result, { queued: true, acceptedMissions: 8 });
+  assert.deepEqual(queuedMissions.sort(), [
+    'culturalEtiquette',
+    'hiddenPlaces',
+    'humanityEvents',
+    'localFoodAndSpecialties',
+    'localStories',
+    'openingAndClosure',
+    'popularPlaces',
+    'seasonalSignals',
+  ]);
+  const requests = regionBriefPrewarmRequests({
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+    locale: 'zh-CN',
+    city: '杭州',
+    now: new Date('2026-07-19T00:00:00Z'),
+  });
+  assert.equal(requests.length, 8);
+  assert.equal(requests.every((item) => item.activationType === 'foreground_opportunistic'), true);
 });

@@ -47,10 +47,17 @@ final regionBriefCacheProvider = Provider<RegionBriefLocalCache>((ref) {
 });
 
 class RegionBriefController extends Notifier<RegionBriefState> {
+  static const _maximumAutomaticRetries = 4;
+
   int _generation = 0;
+  int _automaticRetries = 0;
+  Timer? _retryTimer;
 
   @override
   RegionBriefState build() {
+    _retryTimer?.cancel();
+    _automaticRetries = 0;
+    ref.onDispose(() => _retryTimer?.cancel());
     ref.watch(environmentSnapshotProvider);
     ref.watch(explorationSceneProfileProvider);
     unawaited(load());
@@ -58,6 +65,8 @@ class RegionBriefController extends Notifier<RegionBriefState> {
   }
 
   Future<void> load({bool manual = false}) async {
+    _retryTimer?.cancel();
+    if (manual) _automaticRetries = 0;
     final generation = ++_generation;
     var previous = state.brief;
     state = RegionBriefState(
@@ -130,6 +139,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             : RegionBriefLoadStatus.ready,
         brief: brief,
       );
+      _scheduleRetryIfNeeded(brief);
     } on RegionBriefFailure catch (error) {
       if (generation != _generation || !ref.mounted) return;
       state = RegionBriefState(
@@ -149,6 +159,26 @@ class RegionBriefController extends Notifier<RegionBriefState> {
         errorCode: 'unavailable',
       );
     }
+  }
+
+  void _scheduleRetryIfNeeded(RegionBrief brief) {
+    if ((brief.status != RegionBriefStatus.pending &&
+            brief.status != RegionBriefStatus.unavailable) ||
+        brief.refresh.retryAfter == null ||
+        _automaticRetries >= _maximumAutomaticRetries) {
+      return;
+    }
+    final requested = brief.refresh.retryAfter!;
+    final delay = requested < const Duration(seconds: 5)
+        ? const Duration(seconds: 5)
+        : requested > const Duration(minutes: 1)
+        ? const Duration(minutes: 1)
+        : requested;
+    _retryTimer = Timer(delay, () {
+      if (!ref.mounted) return;
+      _automaticRetries += 1;
+      unawaited(load());
+    });
   }
 
   static int _radiusFor(ExplorationSceneProfile profile) =>
