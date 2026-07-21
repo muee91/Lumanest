@@ -59,12 +59,15 @@ class ContextStore:
             SELECT spatial_features.kind, spatial_features.evidence_class, source_registry.category
             FROM spatial_features
             JOIN source_registry ON source_registry.id = spatial_features.source_id
-            WHERE enabled = TRUE
+            WHERE spatial_features.enabled = TRUE
               AND source_registry.enabled = TRUE
               AND source_registry.license_status = 'approved'
               AND ST_Intersects(
-                geometry,
-                ST_Transform(ST_SetSRID(ST_Point(:longitude, :latitude), 4326), ST_SRID(geometry))
+                spatial_features.geometry,
+                ST_Transform(
+                    ST_SetSRID(ST_Point(:longitude, :latitude), 4326),
+                    ST_SRID(spatial_features.geometry)
+                )
               )
             LIMIT 32
         """)

@@ -196,7 +196,7 @@ class DiscoveryStore:
             region_id=region_id,
             latitude=latitude,
             longitude=longitude,
-            locale=request.locale.lower(),
+            locale=request.locale,
             mission_type=request.mission_type,
             focus=request.focus,
             radius_meters=request.region.radius_meters,

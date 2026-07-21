@@ -239,6 +239,7 @@ async def test_refresh_stream_uses_only_a_ttl_bound_coarse_region_not_client_coo
     assert calls[1][1] == REFRESH_STREAM
     assert values["regionId"].startswith("g")
     assert values["latitude"] == "30.275"
+    assert values["locale"] == "zh-CN"
     assert values["activationType"] == "foreground_opportunistic"
     assert len(values["dedupeKey"]) == 64
     assert values["longitude"] == "120.175"
