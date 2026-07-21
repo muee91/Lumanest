@@ -29,6 +29,44 @@ PENDING_SECONDS = 1800
 REFRESH_STREAM = "discovery:refresh:stream"
 REFRESH_GROUP = "discovery-workers"
 REGION_GRID_DEGREES = 0.05
+CANDIDATE_QUERY_SQL = """
+    SELECT places.id, places.kind, LEFT(places.name, 120) AS name,
+           LEFT(places.summary, 280) AS summary, places.verification,
+           ST_Y(places.geometry) AS latitude, ST_X(places.geometry) AS longitude,
+           ROUND(ST_Distance(
+               places.geometry::geography,
+               ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography
+           ))::integer AS distance_meters,
+           LEFT(places.address, 200) AS address, places.starts_at, places.ends_at,
+           evidence.provider, LEFT(evidence.title, 200) AS evidence_title, evidence.source_url,
+           evidence.retrieved_at, evidence.source_id, evidence.source_version
+    FROM discovery.places AS places
+    JOIN LATERAL (
+        SELECT evidence.provider, evidence.title, evidence.source_url, evidence.retrieved_at,
+               source_document.source_id, source_document.source_version
+        FROM discovery.evidence AS evidence
+        JOIN discovery.source_documents AS source_document
+          ON source_document.id = evidence.source_document_id
+        WHERE evidence.place_id = places.id
+          AND evidence.review_status = 'approved'
+          AND evidence.title IS NOT NULL
+          AND evidence.title <> ''
+        ORDER BY evidence.retrieved_at DESC
+        LIMIT 4
+    ) AS evidence ON TRUE
+    WHERE places.published = TRUE
+      AND places.kind = ANY(CAST(:kinds AS text[]))
+      AND (places.valid_until IS NULL OR places.valid_until > NOW())
+      AND ST_DWithin(
+            places.geometry::geography,
+            ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography,
+            :radius_meters
+      )
+    ORDER BY distance_meters ASC, places.updated_at DESC
+    LIMIT 80
+"""
+
+
 @dataclass(frozen=True)
 class FreshnessRule:
     valid_seconds: int
@@ -130,7 +168,13 @@ class DiscoveryStore:
         if self.engine is not None:
             try:
                 async with self.engine.connect() as connection:
-                    database = (await connection.execute(text("SELECT 1"))).scalar_one() == 1
+                    await connection.execute(text(CANDIDATE_QUERY_SQL), {
+                        "latitude": 0.0,
+                        "longitude": 0.0,
+                        "radius_meters": 0,
+                        "kinds": ["__readiness_probe__"],
+                    })
+                    database = True
             except Exception:
                 database = False
         if self.redis is not None:
@@ -494,42 +538,7 @@ class DiscoveryStore:
             "localFoodAndSpecialties": ("attraction",),
             "culturalEtiquette": ("attraction",),
         }[request.mission_type]
-        query = text("""
-            SELECT places.id, places.kind, LEFT(places.name, 120) AS name,
-                   LEFT(places.summary, 280) AS summary, places.verification,
-                   ST_Y(places.geometry) AS latitude, ST_X(places.geometry) AS longitude,
-                   ROUND(ST_Distance(
-                       places.geometry::geography,
-                       ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography
-                   ))::integer AS distance_meters,
-                   LEFT(places.address, 200) AS address, places.starts_at, places.ends_at,
-                   evidence.provider, LEFT(evidence.title, 200) AS evidence_title, evidence.source_url,
-                   evidence.retrieved_at, source_document.source_id, source_document.source_version
-            FROM discovery.places AS places
-            JOIN LATERAL (
-                SELECT evidence.provider, evidence.title, evidence.source_url, evidence.retrieved_at,
-                       source_document.source_id, source_document.source_version
-                FROM discovery.evidence AS evidence
-                JOIN discovery.source_documents AS source_document
-                  ON source_document.id = evidence.source_document_id
-                WHERE evidence.place_id = places.id
-                  AND evidence.review_status = 'approved'
-                  AND evidence.title IS NOT NULL
-                  AND evidence.title <> ''
-                ORDER BY retrieved_at DESC
-                LIMIT 4
-            ) AS evidence ON TRUE
-            WHERE places.published = TRUE
-              AND places.kind = ANY(CAST(:kinds AS text[]))
-              AND (places.valid_until IS NULL OR places.valid_until > NOW())
-              AND ST_DWithin(
-                    places.geometry::geography,
-                    ST_SetSRID(ST_Point(:longitude, :latitude), 4326)::geography,
-                    :radius_meters
-              )
-            ORDER BY distance_meters ASC, places.updated_at DESC
-            LIMIT 80
-        """)
+        query = text(CANDIDATE_QUERY_SQL)
         try:
             async with self.engine.connect() as connection:
                 rows = (await connection.execute(

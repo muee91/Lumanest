@@ -224,7 +224,7 @@ verify_live_discovery() {
   services=$(compose_live config --services) || return 1
   if printf '%s\n' "$services" | grep -qx 'discovery-api'; then
     compose_live exec -T discovery-api python -c \
-      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
+      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/readyz', timeout=3)" >/dev/null
   fi
 }
 

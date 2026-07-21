@@ -59,6 +59,21 @@ def test_health_is_public_and_internal_discovery_requires_its_own_token(monkeypa
         assert client.post("/internal/v1/discover", json=payload()).status_code == 401
 
 
+def test_readiness_returns_failure_status_when_storage_is_degraded(monkeypatch):
+    async def degraded(_store):
+        return {"postgres": False, "redis": True}
+
+    monkeypatch.setattr(DiscoveryStore, "readiness", degraded)
+    with TestClient(app) as client:
+        response = client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "degraded",
+        "dependencies": {"postgres": False, "redis": True},
+    }
+
+
 def test_internal_discovery_uses_fixed_contract_and_rejects_extra_fields(monkeypatch):
     monkeypatch.setenv("DISCOVERY_INTERNAL_TOKEN", "discovery-test-token")
 
@@ -170,6 +185,8 @@ async def test_store_returns_only_approved_evidence_with_a_nonempty_title():
     assert items[0].evidence[0].title == "公开目录记录"
     assert "review_status = 'approved'" in captured["sql"]
     assert "title IS NOT NULL" in captured["sql"]
+    assert "evidence.retrieved_at, evidence.source_id" in captured["sql"]
+    assert "evidence.retrieved_at, source_document.source_id" not in captured["sql"]
     assert captured["parameters"]["kinds"] == ["event"]
 
 

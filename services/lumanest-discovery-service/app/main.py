@@ -34,9 +34,11 @@ async def healthz() -> dict[str, str]:
 
 
 @app.get("/readyz")
-async def readyz(request: Request) -> dict[str, object]:
+async def readyz(request: Request, response: Response) -> dict[str, object]:
     dependencies = await request.app.state.store.readiness()
-    return {"status": "ok" if all(dependencies.values()) else "degraded", "dependencies": dependencies}
+    ready = all(dependencies.values())
+    response.status_code = 200 if ready else 503
+    return {"status": "ok" if ready else "degraded", "dependencies": dependencies}
 
 
 @app.post(

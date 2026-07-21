@@ -306,7 +306,7 @@ verify_previous_discovery() {
   services=$(compose_previous config --services) || return 1
   if printf '%s\n' "$services" | grep -qx 'discovery-api'; then
     compose_previous exec -T discovery-api python -c \
-      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
+      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/readyz', timeout=3)" >/dev/null
   fi
 }
 
@@ -529,7 +529,7 @@ verify_http_boundary '<title>栖光 · 管理台</title>'
 compose_release exec -T context-service python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" >/dev/null
 compose_release exec -T discovery-api python -c \
-  "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz', timeout=3)" >/dev/null
+  "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/readyz', timeout=3)" >/dev/null
 verify_release_discovery_worker
 
 # last-backup is written first; current-release is the final commit marker.
