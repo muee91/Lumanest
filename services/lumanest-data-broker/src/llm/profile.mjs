@@ -14,6 +14,23 @@ function boundedString(value, name, { minimum = 1, maximum }) {
   return normalized;
 }
 
+function privateOllamaHostname(hostname) {
+  const value = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (value === 'localhost' || value.endsWith('.localhost') || value.endsWith('.local')) return true;
+  // Single-label names cover explicitly configured Docker/private DNS service
+  // names such as `ollama`, which are not publicly routable hostnames.
+  if (!value.includes('.') && !value.includes(':')) return true;
+  const octets = value.split('.').map(Number);
+  if (octets.length === 4 && octets.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+    return octets[0] === 10 || octets[0] === 127 ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168) ||
+      (octets[0] === 169 && octets[1] === 254) ||
+      (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127);
+  }
+  return value === '::1' || /^f[cd][0-9a-f]*:/i.test(value) || /^fe[89ab][0-9a-f]*:/i.test(value);
+}
+
 export function validateLLMProfile(input, { existing = null } = {}) {
   if (input == null || typeof input !== 'object' || Array.isArray(input)) {
     throw new TypeError('LLM profile must be an object');
@@ -46,6 +63,13 @@ export function validateLLMProfile(input, { existing = null } = {}) {
   }
   if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
     throw new TypeError('baseUrl must use HTTP or HTTPS');
+  }
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new TypeError('baseUrl must not contain credentials');
+  }
+  if (parsedUrl.protocol === 'http:' &&
+      (providerId !== 'ollama' || !privateOllamaHostname(parsedUrl.hostname))) {
+    throw new TypeError('baseUrl must use HTTPS unless it is a private Ollama endpoint');
   }
 
   let apiKey = input.apiKey;

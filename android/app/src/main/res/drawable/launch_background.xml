@@ -6,5 +6,5 @@
         android:width="132dp"
         android:height="132dp"
         android:gravity="center"
-        android:drawable="@drawable/lumanest_launch_mark" />
+        android:drawable="@drawable/lumanest_launch_logo" />
 </layer-list>

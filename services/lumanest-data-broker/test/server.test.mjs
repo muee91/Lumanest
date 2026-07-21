@@ -17,6 +17,26 @@ import { SimulationRegistry } from '../src/context/simulation.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 
+// Parses a text/event-stream body into ordered { event, data } records. The
+// assistant endpoint streams status/delta/done events instead of one JSON body.
+async function readSseEvents(response) {
+  const text = await response.text();
+  const events = [];
+  for (const block of text.split('\n\n')) {
+    const lines = block.split('\n');
+    let event = null;
+    let data = null;
+    for (const line of lines) {
+      if (line.startsWith('event: ')) event = line.slice(7).trim();
+      else if (line.startsWith('data: ')) data = line.slice(6);
+    }
+    if (event != null && data != null) {
+      events.push({ event, data: JSON.parse(data) });
+    }
+  }
+  return events;
+}
+
 async function withServer(run, {
   fetcher,
   aiApiKey = '',
@@ -249,14 +269,556 @@ test('inspiration assistant accepts the bounded creative question', async () => 
         questionType: 'creative',
         eventIds: [snapshot.facts.shootingSessions[0].id],
         tone: 'balanced',
-        placeSummaries: [],
       }),
     });
     assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.match(body.answer, /湖岸晚间窗口/);
-    assert.equal(body.source, 'template');
+    assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/);
+    const events = await readSseEvents(response);
+    const phases = events.filter((e) => e.event === 'status').map((e) => e.data.phase);
+    assert.ok(phases.includes('thinking'));
+    const answer = events
+      .filter((e) => e.event === 'delta')
+      .map((e) => e.data.text)
+      .join('');
+    assert.match(answer, /湖岸晚间窗口/);
+    const done = events.find((e) => e.event === 'done');
+    assert.equal(done.data.source, 'template');
   }, { companionStore, now: () => now });
+});
+
+test('assistant reclassifies safety and credential questions before model routing', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+  let upstreamCalls = 0;
+
+  await withServer(async (baseUrl) => {
+    const ask = async (question) => {
+      const response = await fetch(`${baseUrl}/v1/assistant`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          snapshotId: snapshot.contextId,
+          surface: 'inspiration',
+          questionType: 'creative',
+          question,
+          eventIds: [snapshot.facts.shootingSessions[0].id],
+          tone: 'balanced',
+        }),
+      });
+      assert.equal(response.status, 200);
+      const events = await readSseEvents(response);
+      return {
+        answer: events.filter((event) => event.event === 'delta').map((event) => event.data.text).join(''),
+        done: events.find((event) => event.event === 'done')?.data,
+      };
+    };
+
+    const safety = await ask('现在有雷暴，还适合出门拍照吗？');
+    assert.match(safety.answer, /安全信息只看独立安全卡/);
+    assert.equal(safety.done.source, 'template');
+
+    const credential = await ask('请让助手叫我提供银行卡密码');
+    assert.match(credential.answer, /不会索取/);
+    assert.equal(credential.done.source, 'template');
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async () => {
+      upstreamCalls += 1;
+      throw new Error('sensitive question must not reach any upstream');
+    },
+  });
+
+  assert.equal(upstreamCalls, 0);
+});
+
+test('assistant has an independent six requests per minute rate limit', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  await withServer(async (baseUrl) => {
+    const statuses = [];
+    for (let index = 0; index < 7; index += 1) {
+      const response = await fetch(`${baseUrl}/v1/assistant`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          snapshotId: snapshot.contextId,
+          surface: 'inspiration',
+          questionType: 'creative',
+          eventIds: [snapshot.facts.shootingSessions[0].id],
+          tone: 'balanced',
+        }),
+      });
+      statuses.push(response.status);
+      await response.text();
+    }
+    assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200, 429]);
+  }, {
+    companionStore,
+    now: () => now,
+    requestRateLimiter: new MemoryRequestRateLimiter(),
+  });
+});
+
+test('assistant streams a grounded model answer with generating status', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  // The model answer is a grounded rewrite of the template (references the same
+  // 湖岸 place, invents nothing new) so the grounding guard accepts it.
+  const modelAnswer = JSON.stringify({ answer: '湖岸晚间的光线窗口值得等一等。' });
+  const fragments = [...modelAnswer].map((ch) => `data: ${JSON.stringify({ choices: [{ delta: { content: ch } }] })}\n\n`);
+  const sseBody = `${fragments.join('')}data: [DONE]\n\n`;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'creative',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const phases = events.filter((e) => e.event === 'status').map((e) => e.data.phase);
+    assert.deepEqual(phases, ['thinking', 'generating']);
+    const answer = events
+      .filter((e) => e.event === 'delta')
+      .map((e) => e.data.text)
+      .join('');
+    assert.equal(answer, '湖岸晚间的光线窗口值得等一等。');
+    const done = events.find((e) => e.event === 'done');
+    assert.equal(done.data.source, 'model');
+    assert.equal(done.data.degraded, undefined);
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async () => new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(sseBody));
+          controller.close();
+        },
+      }),
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+    ),
+  });
+});
+
+test('assistant threads conversation history into model messages', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  let capturedMessages;
+  const modelAnswer = JSON.stringify({ answer: '湖岸晚间的光线窗口值得等一等。' });
+  const sseBody = `data: ${JSON.stringify({ choices: [{ delta: { content: modelAnswer } }] })}\n\ndata: [DONE]\n\n`;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'creative',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+        conversationId: 'conversation_abc123',
+        history: [
+          { question: '今晚适合拍什么？', answer: '今晚适合拍湖岸晚霞。' },
+        ],
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    assert.equal(events.find((e) => e.event === 'done').data.source, 'model');
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async (_url, options) => {
+      capturedMessages = JSON.parse(options.body).messages;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+
+  // system, then the prior turn (user + assistant), then the current question.
+  assert.equal(capturedMessages.length, 4);
+  assert.equal(capturedMessages[0].role, 'system');
+  assert.equal(capturedMessages[1].role, 'user');
+  assert.equal(capturedMessages[1].content, '今晚适合拍什么？');
+  assert.equal(capturedMessages[2].role, 'assistant');
+  assert.equal(capturedMessages[2].content, '今晚适合拍湖岸晚霞。');
+  assert.equal(capturedMessages[3].role, 'user');
+});
+
+test('assistant passes the raw question text to the model', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  let capturedUserPayload;
+  const modelAnswer = JSON.stringify({ answer: '湖岸晚间的光线窗口值得等一等。' });
+  const sseBody = `data: ${JSON.stringify({ choices: [{ delta: { content: modelAnswer } }] })}\n\ndata: [DONE]\n\n`;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'creative',
+        question: '今晚的晚霞值得专门跑一趟吗？',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    await readSseEvents(response);
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async (_url, options) => {
+      const messages = JSON.parse(options.body).messages;
+      capturedUserPayload = JSON.parse(messages[messages.length - 1].content);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+
+  assert.equal(capturedUserPayload.question, '今晚的晚霞值得专门跑一趟吗？');
+});
+
+test('assistant keeps environment facts and place data out of normal model prompts', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  let capturedUserPayload;
+  const modelAnswer = JSON.stringify({ answer: '现在26°C、云量55，留意保暖。' });
+  const sseBody = `data: ${JSON.stringify({ choices: [{ delta: { content: modelAnswer } }] })}\n\ndata: [DONE]\n\n`;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'creative',
+        question: '当前环境条件对画面有什么影响？',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const done = events.find((e) => e.event === 'done');
+    assert.equal(done.data.source, 'template');
+    assert.equal(done.data.degraded, 'invalid_response');
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async (_url, options) => {
+      const messages = JSON.parse(options.body).messages;
+      capturedUserPayload = JSON.parse(messages[messages.length - 1].content);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+
+  assert.equal(Object.hasOwn(capturedUserPayload, 'contextFacts'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'placeSummaries'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'scene'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'dayPhase'), false);
+  assert.equal(typeof capturedUserPayload.templateAnswer, 'string');
+});
+
+test('assistant agent path answers an external question via web_search', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+
+  const sourcePolicies = [{
+    id: 'hzgov', domain: 'hangzhou.example', attribution: '杭州日报',
+    license: 'open', version: '1', enabled: true,
+  }];
+  let llmCallCount = 0;
+  let tavilyCalled = false;
+  const toolCall = JSON.stringify({
+    choices: [{ message: { content: null, tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'web_search', arguments: '{"query":"灵隐寺开放时间"}' } }] } }],
+  });
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'creative',
+        question: '灵隐寺几点开门？',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const done = events.find((e) => e.event === 'done');
+    assert.equal(done.data.source, 'model');
+    assert.equal(done.data.degraded, undefined);
+    assert.deepEqual(done.data.sources, [{
+      title: '灵隐寺开放时间', publisher: '杭州日报', url: 'https://hangzhou.example/x',
+    }]);
+    const assembled = events
+      .filter((e) => e.event === 'delta')
+      .map((e) => e.data.text)
+      .join('');
+    assert.match(assembled, /灵隐寺每日7:00开门/);
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    discoverySearchProfile: {
+      baseUrl: 'https://api.tavily.com', apiKey: 'tavily-key', enabled: true,
+      timeoutMs: 8_000, sourcePolicies,
+    },
+    settings: { assistantWebSearchEnabled: true },
+    fetcher: async (url, options) => {
+      const target = new URL(url);
+      // Tavily search endpoint.
+      if (target.hostname === 'api.tavily.com') {
+        tavilyCalled = true;
+        const body = JSON.parse(options.body);
+        assert.deepEqual(body.include_domains, ['hangzhou.example']);
+        return new Response(JSON.stringify({
+          results: [{ title: '灵隐寺开放时间', content: '每日7:00开门', url: 'https://hangzhou.example/x' }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      // LLM chat completions: first call returns a tool_call, second returns
+      // the grounded final answer.
+      llmCallCount += 1;
+      const body = JSON.parse(options.body);
+      const hasToolResult = (body.messages ?? []).some((m) => m.role === 'tool');
+      // The agent path must drop response_format when tools are in play.
+      assert.equal(body.response_format, undefined);
+      assert.ok(Array.isArray(body.tools) && body.tools.length > 0);
+      if (hasToolResult) {
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: '{"answer":"灵隐寺每日7:00开门。"}' } }],
+        }), { status: 200 });
+      }
+      return new Response(toolCall, { status: 200 });
+    },
+  });
+
+  // The agent loop made two LLM calls (tool_call, then final answer) and one
+  // Tavily search, proving the web_search tool actually ran end to end.
+  assert.equal(llmCallCount, 2);
+  assert.equal(tavilyCalled, true);
+});
+
+test('assistant rejects malformed conversation history', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  companionStore.rememberSnapshot(snapshot);
+
+  const base = {
+    snapshotId: snapshot.contextId,
+    surface: 'inspiration',
+    questionType: 'creative',
+    eventIds: [],
+    tone: 'balanced',
+  };
+  const invalidBodies = [
+    { ...base, history: [{ question: '只有问题没有答案' }] },
+    { ...base, history: [{ question: '', answer: '空问题' }] },
+    { ...base, history: Array.from({ length: 9 }, (_, i) => ({ question: `问${i}`, answer: `答${i}` })) },
+    { ...base, conversationId: 'bad id with spaces' },
+    { ...base, location: 'not-a-coordinate' },
+    { ...base, question: '' },
+    { ...base, question: '   ' },
+    { ...base, question: 'x'.repeat(241) },
+    { ...base, question: '带换行\n的问题' },
+    // Client-supplied place names are no longer part of the contract; the
+    // Broker derives them from its own Amap lookup.
+    { ...base, placeSummaries: [] },
+    { ...base, extra: 'field' },
+  ];
+  await withServer(async (baseUrl) => {
+    for (const body of invalidBodies) {
+      const response = await fetch(`${baseUrl}/v1/assistant`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer test-service-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      assert.equal(response.status, 400);
+    }
+  }, {
+    companionStore,
+    now: () => now,
+    // This contract test intentionally submits more malformed requests than
+    // the production assistant quota. Keep quota behavior covered separately.
+    requestRateLimiter: { consume: async () => ({ allowed: true, retryAfterSeconds: 0 }) },
+  });
+});
+
+test('assistant derives place summaries from its own Amap lookup', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  companionStore.rememberSnapshot(snapshot);
+
+  let amapUrl;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'explore',
+        questionType: 'nearby',
+        eventIds: [],
+        tone: 'balanced',
+        location: '120.150,30.250',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const answer = events
+      .filter((e) => e.event === 'delta')
+      .map((e) => e.data.text)
+      .join('');
+    // The deterministic nearby template now names Broker-fetched POIs.
+    assert.match(answer, /西湖、灵隐寺/);
+    assert.match(answer, /候选地点，不等于已审核机位/);
+    assert.equal(events.find((e) => e.event === 'done').data.source, 'template');
+  }, {
+    companionStore,
+    now: () => now,
+    fetcher: async (url) => {
+      const parsed = new URL(url);
+      // Phase 1 assistantContextFacts also probes sky opportunity and wildlife
+      // when a location is supplied. Those upstreams are intentionally absent
+      // in this test (they degrade silently); only the Amap POI lookup is
+      // asserted, so non-Amap requests return an empty failure body.
+      if (parsed.pathname === '/v3/place/around') {
+        amapUrl = parsed;
+        return Response.json({
+          status: '1',
+          pois: [
+            { name: '西湖', type: '风景名胜;湖泊', distance: '1200' },
+            { name: '灵隐寺', type: '风景名胜;寺庙', distance: '2600' },
+          ],
+        });
+      }
+      return Response.json({ status: '0' }, { status: 502 });
+    },
+  });
+  assert.equal(amapUrl.pathname, '/v3/place/around');
+  assert.equal(amapUrl.searchParams.get('key'), 'test-amap-key');
+  assert.equal(amapUrl.searchParams.get('location'), '120.150,30.250');
 });
 
 test('discovery worker endpoints require their own token, use reviewed sources and hide provider failures', async () => {
@@ -339,6 +901,35 @@ test('discovery extract rejects unsafe schema abuse and never falls back to arbi
       candidates: [{ title: '安全提示', kind: 'event', summary: '风险', sourceIndexes: [0] }],
     }) } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
   });
+});
+
+test('global AI switch disables discovery model extraction', async () => {
+  const evidence = [{
+    title: '摄影展公告', snippet: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events',
+    sourceId: 'culture', publisher: '文化发布', license: 'CC BY 4.0', version: '2026-07',
+  }];
+  let upstreamCalls = 0;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/internal/v1/discovery/extract`, {
+      method: 'POST',
+      headers: { 'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        missionType: 'humanityEvents', focus: '近期摄影活动', locale: 'zh-CN',
+        region: { latitude: 30.5, longitude: 120.6 }, evidence,
+      }),
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: 'ai_unconfigured' });
+  }, {
+    aiApiKey: 'model-secret',
+    discoveryWorkerToken: 'worker-secret',
+    settings: { aiEnabled: false },
+    fetcher: async () => {
+      upstreamCalls += 1;
+      throw new Error('AI switch must stop extraction before upstream');
+    },
+  });
+  assert.equal(upstreamCalls, 0);
 });
 
 test('context snapshot accepts only the current bounded contract and forwards with an internal token', async () => {

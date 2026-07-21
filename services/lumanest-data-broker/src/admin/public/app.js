@@ -71,12 +71,14 @@ function renderConfig(config){
   appendServiceRow({name:'7Timer',description:'专业气象补充源 · 健康状态待读取',status:'attention',label:'未检测',target:'runtime',id:'seven-timer-overview-row'});
   $('#runtime-summary').replaceChildren();
   appendSummary('AI 文案',config.settings?.aiEnabled?'启用':'关闭',config.settings?.aiEnabled?'positive':'muted');
+  appendSummary('助手联网搜索',config.settings?.assistantWebSearchEnabled?'启用':'关闭',config.settings?.assistantWebSearchEnabled?'warning-text':'muted');
   appendSummary('AI 超时',`${config.settings?.aiTimeoutMs??'—'} ms`);
   appendSummary('上游超时',`${config.settings?.upstreamTimeoutMs??'—'} ms`);
   appendSummary('野生动物范围',`${config.settings?.wildlifeRadiusKm??'—'} km`);
   appendSummary('调试日志',config.settings?.debugLogging?'启用':'关闭',config.settings?.debugLogging?'warning-text':'muted');
   $('#capability-grid').replaceChildren();
   appendCapability({name:'AI 创作表达',detail:config.llm?.primaryProfileId?'已绑定主模型档案':'本地文案仍可独立运行',enabled:Boolean(config.settings?.aiEnabled&&config.llm?.primaryProfileId)});
+  appendCapability({name:'助手联网搜索',detail:'独立于探索搜索，回答展示可点击来源',enabled:Boolean(config.settings?.assistantWebSearchEnabled&&searchReady)});
   appendCapability({name:'审核来源探索',detail:`${enabledSourceCount} 条已启用来源政策`,enabled:searchReady});
   appendCapability({name:'首页机会对象',detail:'朝霞与晚霞机会按阈值出现',enabled:Boolean(config.settings?.sunsetbotProviderEnabled&&config.settings?.skyOpportunityCardEnabled)});
   appendCapability({name:'机会通知',detail:'只在达到独立通知阈值时触发',enabled:Boolean(config.settings?.sunsetbotProviderEnabled&&config.settings?.skyOpportunityNotificationEnabled)});

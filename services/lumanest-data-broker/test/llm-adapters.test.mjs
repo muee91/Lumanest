@@ -72,7 +72,8 @@ test('Gemini adapter uses GenerateContent and extracts candidate text', async ()
     },
   });
   assert.equal(captured.url.pathname, '/v1/models/model-id:generateContent');
-  assert.equal(captured.url.searchParams.get('key'), 'secret-key');
+  assert.equal(captured.url.searchParams.has('key'), false);
+  assert.equal(captured.options.headers['x-goog-api-key'], 'secret-key');
   const body = JSON.parse(captured.options.body);
   assert.equal(body.systemInstruction.parts[0].text, prompt.system);
   assert.deepEqual(result, { ok: true, text: '{"summary":"gemini"}' });
@@ -101,4 +102,88 @@ test('adapters classify timeout and malformed success responses', async () => {
     fetcher: async () => new Response('{}', { status: 200 }),
   });
   assert.deepEqual(malformed, { ok: false, error: 'invalid_response' });
+});
+
+test('adapter combines caller cancellation with the provider timeout', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let observedSignal;
+  const result = await requestNarrative({
+    profile: profile('openai_compatible'),
+    prompt,
+    signal: controller.signal,
+    fetcher: async (_url, options) => {
+      observedSignal = options.signal;
+      throw new DOMException('cancelled', 'AbortError');
+    },
+  });
+
+  assert.equal(observedSignal.aborted, true);
+  assert.deepEqual(result, { ok: false, error: 'timeout' });
+});
+
+test('openai_compatible with tools drops response_format and parses tool_calls', async () => {
+  let captured;
+  const result = await requestNarrative({
+    profile: profile('openai_compatible'),
+    prompt,
+    tools: [{
+      type: 'function',
+      function: { name: 'web_search', description: 'search the web', parameters: { type: 'object', properties: { query: { type: 'string' } } } },
+    }],
+    fetcher: async (url, options) => {
+      captured = { url, options };
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'web_search', arguments: '{"query":"灵隐寺开放时间"}' } }],
+          },
+        }],
+      }), { status: 200 });
+    },
+  });
+  const body = JSON.parse(captured.options.body);
+  // JSON mode must be dropped when tools are in play (OpenAI rejects the combo
+  // and it would suppress tool_calls).
+  assert.equal(body.response_format, undefined);
+  assert.deepEqual(body.tool_choice, 'auto');
+  assert.equal(Array.isArray(body.tools), true);
+  // The agent loop receives a protocol-agnostic tool call with parsed args.
+  assert.equal(result.ok, true);
+  assert.equal(result.text, '');
+  assert.deepEqual(result.toolCalls, [{ id: 'call_1', name: 'web_search', arguments: { query: '灵隐寺开放时间' } }]);
+});
+
+test('openai_compatible with tools surfaces a plain text answer with null toolCalls', async () => {
+  const result = await requestNarrative({
+    profile: profile('openai_compatible'),
+    prompt,
+    tools: [{ type: 'function', function: { name: 'web_search', parameters: { type: 'object' } } }],
+    fetcher: async () => new Response(JSON.stringify({
+      choices: [{ message: { content: '{"answer":"无需搜索"}' } }],
+    }), { status: 200 }),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.text, '{"answer":"无需搜索"}');
+  assert.equal(result.toolCalls, null);
+});
+
+test('anthropic and gemini degrade gracefully when tools are requested but unsupported', async () => {
+  // These protocols do not yet expose withTools/extractToolCalls, so passing
+  // tools must fall back to a plain chat completion rather than failing.
+  for (const protocol of ['anthropic_messages', 'google_generate_content']) {
+    const result = await requestNarrative({
+      profile: profile(protocol),
+      prompt,
+      tools: [{ type: 'function', function: { name: 'web_search', parameters: { type: 'object' } } }],
+      fetcher: async () => new Response(JSON.stringify(
+        protocol === 'anthropic_messages'
+          ? { content: [{ type: 'text', text: '{"answer":"ok"}' }] }
+          : { candidates: [{ content: { parts: [{ text: '{"answer":"ok"}' }] } }] },
+      ), { status: 200 }),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.toolCalls, undefined);
+  }
 });

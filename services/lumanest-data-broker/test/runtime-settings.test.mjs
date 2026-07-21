@@ -62,6 +62,7 @@ test('fills omitted settings from immutable defaults', () => {
   assert.deepEqual(value, defaultRuntimeSettings);
   assert.equal(Object.isFrozen(defaultRuntimeSettings), true);
   assert.equal(value.aiEnabled, true);
+  assert.equal(value.assistantWebSearchEnabled, false);
   assert.equal(value.debugLogging, false);
   assert.equal(value.sunsetbotProviderEnabled, true);
   assert.equal(value.sunsetbotFreshTtlSeconds, 5_400);

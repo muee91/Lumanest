@@ -1,5 +1,6 @@
 const definitions = Object.freeze({
   aiEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
+  assistantWebSearchEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
   aiTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 8_000 }),
   wildlifeRadiusKm: Object.freeze({ type: 'integer', minimum: 5, maximum: 50, defaultValue: 20 }),
   wildlifeCacheTtlMinutes: Object.freeze({ type: 'integer', minimum: 5, maximum: 1_440, defaultValue: 60 }),

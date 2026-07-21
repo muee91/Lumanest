@@ -355,7 +355,11 @@ class _TodayAmbientLayer extends StatelessWidget {
     builder: (context, constraints) => Align(
       alignment: Alignment.topCenter,
       child: SizedBox(
-        height: constraints.maxHeight * .58,
+        key: const Key('today-ambient-fade-surface'),
+        // Keep the render surface full-height and fade its color out near the
+        // top. Android Impeller/BackdropFilter can expose a one-pixel seam at
+        // an intermediate compositing boundary even after alpha reaches zero.
+        height: constraints.maxHeight,
         width: double.infinity,
         child: Stack(
           fit: StackFit.expand,
@@ -373,7 +377,7 @@ class _TodayAmbientLayer extends StatelessWidget {
                     Color(0xB8FFFFFF),
                     Colors.transparent,
                   ],
-                  stops: [0, .48, .78, 1],
+                  stops: [0, .28, .45, .58],
                 ).createShader(bounds),
                 child: ShaderMask(
                   blendMode: BlendMode.dstIn,

@@ -44,14 +44,13 @@ test('validates an explicitly created provider profile', () => {
   assert.equal(Object.isFrozen(profile), true);
 });
 
-test('custom OpenAI-compatible profiles accept an explicit endpoint', () => {
-  const profile = validateLLMProfile({
+test('remote keyed profiles require HTTPS', () => {
+  assert.throws(() => validateLLMProfile({
     id: 'studio-model', name: '工作室模型', providerId: 'custom_openai',
     protocol: 'openai_compatible', apiKey: 'local-secret',
     baseUrl: 'http://192.168.100.20:11434/v1', model: 'my-model',
     enabled: true, timeoutMs: 30_000, allowFallback: true,
-  });
-  assert.equal(profile.baseUrl, 'http://192.168.100.20:11434/v1');
+  }), /must use HTTPS/);
 });
 
 test('Ollama profile may omit an API key', () => {
@@ -61,6 +60,21 @@ test('Ollama profile may omit an API key', () => {
     model: 'local-model', enabled: true, timeoutMs: 30_000, allowFallback: false,
   });
   assert.equal(profile.apiKey, '');
+});
+
+test('Ollama HTTP is limited to loopback, private IP and private DNS endpoints', () => {
+  const base = {
+    id: 'ollama-lan', name: 'Ollama', providerId: 'ollama',
+    protocol: 'openai_compatible', model: 'local-model', enabled: true,
+    timeoutMs: 30_000, allowFallback: false,
+  };
+  for (const baseUrl of ['http://localhost:11434/v1', 'http://ollama:11434/v1', 'http://10.0.0.8:11434/v1']) {
+    assert.equal(validateLLMProfile({ ...base, baseUrl }).baseUrl, baseUrl);
+  }
+  assert.throws(
+    () => validateLLMProfile({ ...base, baseUrl: 'http://models.example.com/v1' }),
+    /private Ollama endpoint/,
+  );
 });
 
 test('an update preserves an existing key when the key field is omitted', () => {

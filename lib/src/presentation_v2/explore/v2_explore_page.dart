@@ -22,7 +22,6 @@ import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
-import 'package:luma_nest/src/presentation_v2/ai/v2_ask_luma_nest.dart';
 import 'package:x_amap_base/x_amap_base.dart';
 
 class V2ExplorePage extends ConsumerWidget {
@@ -439,13 +438,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 expanded: panelExpanded,
                 bottomContentInset: navigationClearance,
                 regionLabel: _regionLabel(snapshot),
-                onAsk: () => showAskLumaNestSheet(
-                  context,
-                  snapshot: snapshot,
-                  surface: 'explore',
-                  places: places.asData?.value ?? const [],
-                  judgement: intent.creativeIntent?.label ?? '附近发现',
-                ),
                 onDragStart: () => setState(() {
                   _panelDragging = true;
                   _panelFraction = effectivePanelFraction;
@@ -1148,7 +1140,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
     required this.expanded,
     required this.bottomContentInset,
     required this.regionLabel,
-    required this.onAsk,
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
@@ -1171,7 +1162,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
   final bool expanded;
   final double bottomContentInset;
   final String regionLabel;
-  final VoidCallback onAsk;
   final VoidCallback onDragStart;
   final ValueChanged<double> onDragUpdate;
   final ValueChanged<DragEndDetails> onDragEnd;
@@ -1415,7 +1405,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
             regionLabel: regionLabel,
             onSearchArea: onSearchMapArea,
             onChooseTheme: onChooseTheme,
-            onAsk: onAsk,
           );
         }
         return Column(
@@ -1425,7 +1414,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
               child: _ExploreDiscoveryLead(
                 regionLabel: regionLabel,
                 category: category,
-                onAsk: onAsk,
               ),
             ),
             if (candidateMode)
@@ -1541,14 +1529,12 @@ class _V2NoNearbyResults extends StatelessWidget {
     required this.regionLabel,
     required this.onSearchArea,
     required this.onChooseTheme,
-    required this.onAsk,
   });
 
   final NearbyPlaceCategory category;
   final String regionLabel;
   final VoidCallback onSearchArea;
   final VoidCallback onChooseTheme;
-  final VoidCallback onAsk;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
@@ -1654,26 +1640,6 @@ class _V2NoNearbyResults extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: V2Pressable(
-                onTap: onAsk,
-                compact: true,
-                color: V2Palette.paper,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 11),
-                  child: Center(
-                    child: Text(
-                      '问问栖光',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ],
@@ -1685,12 +1651,10 @@ class _ExploreDiscoveryLead extends StatelessWidget {
   const _ExploreDiscoveryLead({
     required this.regionLabel,
     required this.category,
-    required this.onAsk,
   });
 
   final String regionLabel;
   final NearbyPlaceCategory category;
-  final VoidCallback onAsk;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1729,31 +1693,6 @@ class _ExploreDiscoveryLead extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        V2Pressable(
-          onTap: onAsk,
-          compact: true,
-          color: V2Palette.night,
-          semanticLabel: '问附近地点为什么值得看',
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(CupertinoIcons.sparkles, color: Colors.white, size: 14),
-                SizedBox(width: 5),
-                Text(
-                  '问附近',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ],

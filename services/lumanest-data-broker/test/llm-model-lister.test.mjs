@@ -29,8 +29,9 @@ test('lists bounded deduplicated models from an OpenAI-compatible endpoint', asy
 test('uses the native Gemini model catalog and normalizes names', async () => {
   const result = await listModels({
     profile: { ...profile, providerId: 'gemini', protocol: 'google_generate_content', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-pro' },
-    fetcher: async (url) => {
-      assert.equal(url.toString(), 'https://generativelanguage.googleapis.com/v1beta/models?key=model-secret');
+    fetcher: async (url, options) => {
+      assert.equal(url.toString(), 'https://generativelanguage.googleapis.com/v1beta/models');
+      assert.equal(options.headers['x-goog-api-key'], 'model-secret');
       return new Response(JSON.stringify({ models: [{ name: 'models/gemini-2.5-pro' }] }), { status: 200 });
     },
   });

@@ -38,6 +38,11 @@ void main() {
     await tester.pump();
     expect(find.byType(AmbientCanvas), findsNothing);
 
+    // Inspiration hides the dock; leave through its own close action.
+    await tester.tap(find.bySemanticsLabel('关闭'));
+    await tester.pump();
+    await tester.pump();
+
     await tester.tap(find.bySemanticsLabel('路线'));
     await tester.pump();
     await tester.pump();

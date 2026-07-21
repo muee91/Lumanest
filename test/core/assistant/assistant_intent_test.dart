@@ -22,6 +22,17 @@ void main() {
     expect(nearby.allowsRemoteRewrite, isFalse);
   });
 
+  test(
+    'routes sunrise and Milky Way planning to deterministic plan intent',
+    () {
+      final intent = AssistantIntentParser.parse('最近适合拍日出和银河的地方在哪，什么时间去？');
+
+      expect(intent, isNotNull);
+      expect(intent!.type, AssistantQuestionType.shootingPlan);
+      expect(intent.allowsRemoteRewrite, isFalse);
+    },
+  );
+
   test('extracts equipment focus and concise preference', () {
     final intent = AssistantIntentParser.parse('简单说，需要带长焦吗？');
 

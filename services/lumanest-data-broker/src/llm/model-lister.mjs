@@ -20,8 +20,7 @@ function requestFor(profile) {
   }
   if (profile.protocol === 'google_generate_content') {
     const url = new URL('models', baseUrl);
-    url.searchParams.set('key', profile.apiKey);
-    return { url, options: { headers: {} } };
+    return { url, options: { headers: { 'x-goog-api-key': profile.apiKey } } };
   }
   return null;
 }

@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, prefer_final_fields
+
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
@@ -11,7 +13,6 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/narrative/manifest_narrative_providers.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
-import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -33,15 +34,19 @@ class V2InspirationPage extends ConsumerWidget {
     return ColoredBox(
       color: V2Palette.night,
       child: snapshot.when(
-        loading: () => const V2LoadingObject(label: '正在收拢此刻灵感'),
-        error: (_, _) => SafeArea(
-          child: V2EmptyObject(
-            icon: CupertinoIcons.sparkles,
-            title: '灵感暂时没有接住环境',
-            detail: '更新当前环境后再试。',
-            action: '重新获取',
-            onAction: () =>
-                ref.read(environmentSnapshotProvider.notifier).refresh(),
+        loading: () => const _InspirationFallbackFrame(
+          child: V2LoadingObject(label: '正在收拢此刻灵感'),
+        ),
+        error: (_, _) => _InspirationFallbackFrame(
+          child: SafeArea(
+            child: V2EmptyObject(
+              icon: CupertinoIcons.sparkles,
+              title: '灵感暂时没有接住环境',
+              detail: '更新当前环境后再试。',
+              action: '重新获取',
+              onAction: () =>
+                  ref.read(environmentSnapshotProvider.notifier).refresh(),
+            ),
           ),
         ),
         data: (value) => _InspirationWorkspace(
@@ -51,6 +56,49 @@ class V2InspirationPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The immersive inspiration surface hides the navigation dock, so every
+/// state — including loading and error fallbacks — must keep its own exit.
+class _InspirationFallbackFrame extends StatelessWidget {
+  const _InspirationFallbackFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      child,
+      SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 20, top: 9),
+          child: Semantics(
+            button: true,
+            label: '关闭',
+            child: InkWell(
+              onTap: () => context.go('/today'),
+              borderRadius: BorderRadius.circular(28),
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: V2Palette.paper.withValues(alpha: .3),
+                  ),
+                ),
+                child: const Icon(
+                  CupertinoIcons.xmark,
+                  color: V2Palette.paper,
+                  size: 23,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _InspirationWorkspace extends ConsumerStatefulWidget {
@@ -65,7 +113,7 @@ class _InspirationWorkspace extends ConsumerStatefulWidget {
 }
 
 class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
-  int _selectedIndex = 0;
+  final _inputController = TextEditingController();
 
   @override
   void initState() {
@@ -79,6 +127,12 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
             visiblePage: 'inspiration',
           ),
     );
+  }
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
   }
 
   @override
@@ -129,76 +183,352 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
       localNotes.where((note) => !remoteByNote.containsKey(note.id)),
     );
 
-    final requested = widget.initialNoteId == null
-        ? -1
-        : notes.indexWhere((note) => note.id == widget.initialNoteId);
-    final index = notes.isEmpty
-        ? 0
-        : (requested >= 0 ? requested : _selectedIndex).clamp(
-            0,
-            notes.length - 1,
-          );
-    final selected = notes.isEmpty ? null : notes[index];
-    final library = ref.watch(userLibraryProvider).asData?.value;
-    final nearbyPlaces =
-        ref.watch(nearbyPlacesProvider).asData?.value ?? const <NearbyPlace>[];
-
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          12,
-          20,
-          MediaQuery.paddingOf(context).bottom + 96,
-        ),
+    return Material(
+      color: V2Palette.paper,
+      child: SafeArea(
+        bottom: false,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _inspirationTopBar(context),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(28, 12, 28, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _inspirationWall(notes),
+                    const SizedBox(height: 24),
+                    const Text(
+                      '想去哪里？',
+                      style: TextStyle(
+                        color: V2Palette.ink,
+                        fontSize: 30,
+                        height: 1.1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    const Text(
+                      '我可以帮你发现附近灵感、活动、路线',
+                      style: TextStyle(
+                        color: V2Palette.mutedInk,
+                        fontSize: 22,
+                        height: 1.35,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 26),
+                    _recommendation('日出和银河去哪？'),
+                    const SizedBox(height: 11),
+                    _recommendation('附近适合拍什么？'),
+                    if (notes.isEmpty) ...[
+                      const SizedBox(height: 18),
+                      TextButton.icon(
+                        onPressed: () => context.go('/explore'),
+                        icon: const Icon(CupertinoIcons.compass),
+                        label: const Text('去探索收集灵感'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            _composer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _inspirationTopBar(BuildContext context) => SizedBox(
+    height: 70,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        const Text(
+          '灵感',
+          style: TextStyle(
+            color: V2Palette.ink,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: _circleAction(
+              CupertinoIcons.xmark,
+              '关闭',
+              () => context.go('/today'),
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: _circleAction(
+              CupertinoIcons.line_horizontal_3,
+              '更多推荐',
+              _showInspirationMenu,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _circleAction(IconData icon, String label, VoidCallback onTap) =>
+      Semantics(
+        button: true,
+        label: label,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: V2Palette.line.withValues(alpha: .6)),
+            ),
+            child: Icon(icon, color: V2Palette.ink, size: 23),
+          ),
+        ),
+      );
+
+  Widget _inspirationWall(List<InspirationNote> notes) {
+    const defaults = <String>[
+      '晨光落在水面',
+      '沿着风去看海',
+      '把街巷拍成电影',
+      '今晚看星星',
+      '找一处安静的山',
+      '给旅程留一张纸条',
+    ];
+    final source = notes
+        .map((note) => note.displayLabel)
+        .toList(growable: false);
+    // 纸条墙固定 3 行 × 每行 2 张：优先真实灵感、去重，不足用默认补齐。
+    // 每张只出现一次，整墙不横向滚动，因此不会被边缘截断。
+    final wallNotes = <String>{...source, ...defaults}
+        .take(6)
+        .toList(growable: false);
+    final colors = <Color>[
+      const Color(0xFFFFF4D9),
+      const Color(0xFFEAF4E6),
+      const Color(0xFFEAF1FA),
+      const Color(0xFFFFE8E3),
+      const Color(0xFFF1EAF8),
+    ];
+    return Column(
+      children: List.generate(3, (row) {
+        final rowNotes = wallNotes
+            .skip(row * 2)
+            .take(2)
+            .toList(growable: false);
+        return Padding(
+          padding: EdgeInsets.only(
+            left: row.isOdd ? 38 : 0,
+            bottom: row < 2 ? 8 : 0,
+          ),
+          child: Row(
+            children: [
+              for (int item = 0; item < rowNotes.length; item++) ...[
+                if (item > 0) const SizedBox(width: 10),
+                Expanded(
+                  child: _noteTile(
+                    rowNotes[item],
+                    color: colors[(item + row * 2) % colors.length],
+                    tilt: ((item + row) % 3 - 1) * .018,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _noteTile(
+    String label, {
+    required Color color,
+    required double tilt,
+  }) => Transform.rotate(
+    angle: tilt,
+    child: InkWell(
+      onTap: () => _openTopic(label),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.black.withValues(alpha: .05)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .08),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: V2Palette.ink,
+            fontSize: 14,
+            height: 1.3,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _recommendation(String label) => InkWell(
+    onTap: () => _openTopic(label),
+    borderRadius: BorderRadius.circular(40),
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: V2Palette.canvas,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .05),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.sparkles, color: V2Palette.moss, size: 18),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: V2Palette.ink,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const Icon(CupertinoIcons.arrow_up_right, color: V2Palette.mutedInk),
+        ],
+      ),
+    ),
+  );
+
+  Widget _composer() => Padding(
+    padding: EdgeInsets.fromLTRB(
+      22,
+      10,
+      22,
+      14 +
+          MediaQuery.viewInsetsOf(context).bottom +
+          MediaQuery.paddingOf(context).bottom,
+    ),
+    child: Container(
+      constraints: const BoxConstraints(minHeight: 68),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: V2Palette.paper,
+        borderRadius: BorderRadius.circular(38),
+        border: Border.all(color: V2Palette.line.withValues(alpha: .6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .06),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.plus, size: 28, color: V2Palette.ink),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _inputController,
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) => _submitComposer(),
+              decoration: const InputDecoration(
+                hintText: '发消息或按住说话',
+                hintStyle: TextStyle(
+                  color: Color(0xFFBFC2BE),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '语音输入',
+            onPressed: () => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('语音输入即将支持，先用文字告诉我吧。'))),
+            icon: const Icon(CupertinoIcons.mic_fill, size: 25),
+            color: V2Palette.ink,
+          ),
+        ],
+      ),
+    ),
+  );
+
+  void _submitComposer() {
+    final question = _inputController.text.trim();
+    if (question.isEmpty) return;
+    _inputController.clear();
+    _openTopic(question);
+  }
+
+  void _openTopic(String topic) => showAskLumaNestSheet(
+    context,
+    snapshot: widget.snapshot,
+    surface: 'inspiration',
+    judgement: topic,
+    eventIds: widget.snapshot.shootingSessions.map((session) => session.id),
+    initialQuestion: topic,
+  );
+
+  void _showInspirationMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: V2Palette.paper,
+      builder: (_) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
           children: [
             const Text(
-              '灵感',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 29,
-                height: 1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1,
+              '推荐话题',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            for (final topic in const ['帮我创建出行计划', '帮我解析行程/地点', '需要带什么器材？'])
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(topic),
+                trailing: const Icon(CupertinoIcons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openTopic(topic);
+                },
               ),
-            ),
-            const SizedBox(height: 7),
-            const Text(
-              '此刻能做什么',
-              style: TextStyle(color: Colors.white60, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              flex: 11,
-              child: selected == null
-                  ? _QuietInspiration(onExplore: () => context.go('/explore'))
-                  : _InspirationArea(
-                      notes: notes,
-                      selectedIndex: index,
-                      saved: _isSaved(library, selected),
-                      onSelect: (next) => setState(() => _selectedIndex = next),
-                      onShuffle: () => setState(() {
-                        if (notes.length > 1) {
-                          _selectedIndex = (index + 1) % notes.length;
-                        }
-                      }),
-                      onSave: () => _save(selected, remoteByNote),
-                      onAction: () => _act(selected, remoteByNote),
-                    ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              flex: 9,
-              child: _InspirationAiArea(
-                snapshot: widget.snapshot,
-                notes: notes,
-                selected: selected,
-                places: nearbyPlaces,
-              ),
-            ),
           ],
         ),
       ),
@@ -480,6 +810,7 @@ class _InspirationAiArea extends StatelessWidget {
                       ...snapshot.events.map((event) => event.id),
                     ].take(3),
                     places: places,
+                    inspirationNotes: notes,
                     initialQuestion: prompts[index],
                   ),
                   compact: true,

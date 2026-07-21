@@ -17,5 +17,10 @@ humanity-focused exploration.
 ```bash
 flutter analyze
 flutter test
-flutter build apk --debug
+./tool/flutter_with_environment.sh test
+./tool/flutter_with_environment.sh build apk --debug
 ```
+
+`test` 始终使用无真实 Broker 配置的隔离环境。只有需要验证真实服务的集成测试才使用
+`./tool/flutter_with_environment.sh test-configured <测试路径>`；真机运行继续使用
+`./tool/flutter_with_environment.sh run`。

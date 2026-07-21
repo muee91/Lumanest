@@ -44,7 +44,9 @@ abstract final class EntryActionDispatcher {
         await handleManifestAction(
           context,
           _legacyItem(entry, ManifestAction.openSafetyDetail),
-          detailOverride: entry.presentation.detail,
+          detailOverride: entry.presentation.detail == '查看依据与行动建议'
+              ? null
+              : entry.presentation.detail,
         );
       case EntryActionType.openCreativeDetail:
         await handleManifestAction(

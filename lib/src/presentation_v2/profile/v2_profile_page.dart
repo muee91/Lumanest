@@ -643,6 +643,14 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
+          const _V2SectionObject(
+            title: '问栖光与模型服务',
+            child: Text(
+              '允许模型改写的问题只会发送问题正文、最多 8 轮对话和确定性模板答案给已配置的模型供应商。精确坐标、位置衍生地点、天气事实和野生动物资料不会进入普通模型提示。天气安全、风险和附近推荐保持本地或服务端确定性回答。助手联网搜索默认关闭；管理员开启后，搜索词会发送给已配置的审核来源搜索服务。',
+              style: TextStyle(color: V2Palette.mutedInk, height: 1.5),
+            ),
+          ),
+          const SizedBox(height: 18),
           _V2SectionObject(
             title: '清理本地拍摄活动',
             child: Column(

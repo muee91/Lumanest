@@ -3,6 +3,19 @@ set -euo pipefail
 
 workspace_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_file="$workspace_root/.secrets/environment.debug.json"
+command_name="${1:-}"
+
+cd "$workspace_root"
+case "$command_name" in
+  build|run|drive|test-configured)
+    ;;
+  *)
+    # Unit/widget tests and commands such as analyze stay independent of the
+    # machine's real service configuration.
+    flutter "$@"
+    exit
+    ;;
+esac
 
 if [[ ! -f "$source_file" ]]; then
   echo "Missing $source_file" >&2
@@ -21,13 +34,12 @@ jq '{
   SENTRY_DSN
 }' "$source_file" > "$safe_file"
 
-cd "$workspace_root"
-command_name="${1:-}"
 case "$command_name" in
-  build|run|test|drive)
+  build|run|drive)
     flutter "$@" --dart-define-from-file="$safe_file"
     ;;
-  *)
-    flutter "$@"
+  test-configured)
+    shift
+    flutter test "$@" --dart-define-from-file="$safe_file"
     ;;
 esac

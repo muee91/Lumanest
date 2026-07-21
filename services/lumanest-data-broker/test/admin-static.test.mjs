@@ -135,7 +135,7 @@ test('settings pages use grouped compact controls without changing form contract
   assert.match(html, /class="password-fields"/);
   for (const name of [
     'keyId', 'projectId', 'qweatherPrivateKeyPem', 'amapWebKey', 'serviceToken',
-    'aiEnabled', 'aiTimeoutMs', 'sunsetbotProviderEnabled', 'debugLogging',
+    'aiEnabled', 'assistantWebSearchEnabled', 'aiTimeoutMs', 'sunsetbotProviderEnabled', 'debugLogging',
     'currentPassword', 'newPassword', 'confirmPassword',
   ]) {
     assert.equal((html.match(new RegExp(`name="${name}"`, 'g')) ?? []).length, 1, name);

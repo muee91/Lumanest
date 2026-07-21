@@ -145,7 +145,7 @@ class ScenarioOrchestrator {
     final primary = qualified
         .where((entry) => entry.kind != EntryKind.safety)
         .firstOrNull;
-    final quiet = primary == null && blockingSafety == null;
+    final quiet = primary == null;
     final selectedPrimary =
         primary ??
         ContextEntryAdapter.quiet(
@@ -161,7 +161,6 @@ class ScenarioOrchestrator {
       CompositionSlot.primary: selectedPrimary,
     };
     final judgement = _judgement(
-      blockingSafety: blockingSafety,
       primary: selectedPrimary,
       narrative: context.narrative?.summary,
     );
@@ -174,7 +173,7 @@ class ScenarioOrchestrator {
       judgement: judgement,
       narrativeFacts: {
         if (quiet) 'quiet',
-        if (blockingSafety != null) 'safety_override',
+        if (blockingSafety != null) 'safety_available',
         selectedPrimary.sourceId,
       },
     );
@@ -238,10 +237,7 @@ class ScenarioOrchestrator {
   }
 
   /// Produces a deterministic qualified list in display order.
-  static List<ContextEntry> _qualify(
-    List<ContextEntry> entries,
-    DateTime now,
-  ) {
+  static List<ContextEntry> _qualify(List<ContextEntry> entries, DateTime now) {
     final deduped = _dedupe(entries, now);
     final selected = <ContextEntry>[];
     final activeSuppressionKeys = <String>{};
@@ -298,11 +294,9 @@ class ScenarioOrchestrator {
   };
 
   static String _judgement({
-    required ContextEntry? blockingSafety,
     required ContextEntry primary,
     required String? narrative,
   }) {
-    if (blockingSafety != null) return '先把风险放在所有创作之前。';
     final text = narrative?.trim() ?? '';
     if (text.isNotEmpty &&
         primary.presentation.variant ==

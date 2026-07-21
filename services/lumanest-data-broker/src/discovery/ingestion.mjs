@@ -108,7 +108,7 @@ export function sanitizeTavilyResults(payload, sourcePolicies) {
   return results;
 }
 
-export async function searchTavily({ request, profile, fetcher = fetch }) {
+export async function searchTavily({ request, profile, fetcher = fetch, signal }) {
   if (!profile?.enabled || !profile.apiKey || !profile.sourcePolicies?.some((policy) => policy.enabled)) {
     return { ok: false, error: 'search_unconfigured' };
   }
@@ -116,7 +116,9 @@ export async function searchTavily({ request, profile, fetcher = fetch }) {
     const response = await fetcher(new URL('/search', profile.baseUrl), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(profile.timeoutMs),
+      signal: signal == null
+        ? AbortSignal.timeout(profile.timeoutMs)
+        : AbortSignal.any([signal, AbortSignal.timeout(profile.timeoutMs)]),
       body: JSON.stringify({
         api_key: profile.apiKey,
         query: request.query,
@@ -238,12 +240,16 @@ export function parseDiscoveryCandidates(value, evidence) {
   }
 }
 
-export async function extractDiscoveryCandidates({ body, profiles, routing, fetcher = fetch }) {
+export async function extractDiscoveryCandidates({
+  body, profiles, routing, fetcher = fetch, signal, callBudget,
+}) {
   const routed = await routeNarrative({
     profiles,
     routing,
     prompt: discoveryExtractionPrompt(body),
     fetcher,
+    signal,
+    callBudget,
   });
   if (!routed.ok) return { ok: false, error: routed.error === 'ai_unconfigured' ? 'ai_unconfigured' : 'upstream_unavailable' };
   const result = parseDiscoveryCandidates(routed.text, body.evidence);

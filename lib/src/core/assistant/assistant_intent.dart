@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 enum AssistantQuestionType {
+  shootingPlan,
   why,
   prepare,
   wording,
@@ -22,6 +23,19 @@ enum AssistantEquipmentFocus {
   filter,
   weatherProtection,
   headlamp,
+}
+
+@immutable
+class AssistantWebSource {
+  const AssistantWebSource({
+    required this.title,
+    required this.publisher,
+    required this.url,
+  });
+
+  final String title;
+  final String publisher;
+  final Uri url;
 }
 
 @immutable
@@ -47,6 +61,7 @@ class AssistantIntent {
   /// user's available time, transport mode or requested equipment, so sending
   /// those turns to the model would silently discard the constraint.
   bool get allowsRemoteRewrite =>
+      type != AssistantQuestionType.shootingPlan &&
       type != AssistantQuestionType.safety &&
       type != AssistantQuestionType.nearby &&
       availableMinutes == null &&
@@ -77,12 +92,18 @@ abstract final class AssistantIntentParser {
       availableMinutes: _availableMinutes(text),
       transportMode: _transportMode(text),
       equipmentFocus: _equipmentFocus(text),
-      prefersConcise: RegExp(r'简洁|简短|短一点|一句话|直接说|总结').hasMatch(text),
+      prefersConcise: RegExp(r'简洁|简单|简短|短一点|一句话|直接说|总结').hasMatch(text),
     );
   }
 
   static AssistantQuestionType? _questionType(String text) {
-    if (RegExp(r'安全|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|禁入|能不能去|适合出门|能出门|可以去吗').hasMatch(text)) {
+    if (RegExp(r'日出|银河|星空|夜空').hasMatch(text) &&
+        RegExp(r'最近|附近|哪里|地点|去哪|什么时间|什么时候|几点|出发|去').hasMatch(text)) {
+      return AssistantQuestionType.shootingPlan;
+    }
+    if (RegExp(
+      r'安全|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|禁入|能不能去|适合出门|能出门|可以去吗',
+    ).hasMatch(text)) {
       return AssistantQuestionType.safety;
     }
     if (RegExp(r'附近|哪里|地点|活动|机位|值得去|推荐|去哪|什么地方|周边|湖|山|街巷|公园').hasMatch(text)) {
@@ -125,13 +146,21 @@ abstract final class AssistantIntentParser {
 
   static AssistantEquipmentFocus _equipmentFocus(String text) {
     if (text.contains('三脚架')) return AssistantEquipmentFocus.tripod;
-    if (RegExp(r'广角|超广').hasMatch(text)) return AssistantEquipmentFocus.wideAngle;
-    if (RegExp(r'长焦|远摄').hasMatch(text)) return AssistantEquipmentFocus.telephoto;
-    if (RegExp(r'滤镜|ND|CPL').hasMatch(text)) return AssistantEquipmentFocus.filter;
+    if (RegExp(r'广角|超广').hasMatch(text)) {
+      return AssistantEquipmentFocus.wideAngle;
+    }
+    if (RegExp(r'长焦|远摄').hasMatch(text)) {
+      return AssistantEquipmentFocus.telephoto;
+    }
+    if (RegExp(r'滤镜|ND|CPL').hasMatch(text)) {
+      return AssistantEquipmentFocus.filter;
+    }
     if (RegExp(r'防雨|雨衣|防水').hasMatch(text)) {
       return AssistantEquipmentFocus.weatherProtection;
     }
-    if (RegExp(r'头灯|手电').hasMatch(text)) return AssistantEquipmentFocus.headlamp;
+    if (RegExp(r'头灯|手电').hasMatch(text)) {
+      return AssistantEquipmentFocus.headlamp;
+    }
     return AssistantEquipmentFocus.none;
   }
 }
@@ -144,6 +173,8 @@ class AssistantConversationTurn {
     required this.answer,
     required this.source,
     required this.createdAt,
+    this.degradedReason,
+    this.webSources = const [],
   });
 
   final String id;
@@ -151,14 +182,16 @@ class AssistantConversationTurn {
   final String answer;
   final String source;
   final DateTime createdAt;
+
+  /// Why the broker fell back to the template answer after attempting the
+  /// model. Null when the model answered or was never attempted.
+  final String? degradedReason;
+  final List<AssistantWebSource> webSources;
 }
 
 @immutable
 class AssistantConversationState {
-  const AssistantConversationState({
-    required this.id,
-    this.turns = const [],
-  });
+  const AssistantConversationState({required this.id, this.turns = const []});
 
   final String id;
   final List<AssistantConversationTurn> turns;
@@ -166,9 +199,7 @@ class AssistantConversationState {
   AssistantConversationTurn? get latest => turns.lastOrNull;
 
   AssistantConversationState append(AssistantConversationTurn turn) {
-    final retained = turns.length < 7
-        ? turns
-        : turns.skip(turns.length - 7);
+    final retained = turns.length < 7 ? turns : turns.skip(turns.length - 7);
     return AssistantConversationState(
       id: id,
       turns: List.unmodifiable([...retained, turn]),

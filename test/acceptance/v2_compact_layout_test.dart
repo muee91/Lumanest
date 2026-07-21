@@ -14,7 +14,7 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
 
-    for (final label in ['探索', '路线', '灵感', '我的']) {
+    for (final label in ['探索', '路线', '灵感']) {
       await tester.tap(find.bySemanticsLabel(label));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
@@ -24,6 +24,16 @@ void main() {
         reason: '$label must not overflow',
       );
     }
+
+    // Inspiration hides the dock; leave through its own close action before
+    // reaching the last destination.
+    await tester.tap(find.bySemanticsLabel('关闭'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.tap(find.bySemanticsLabel('我的'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(tester.takeException(), isNull, reason: '我的 must not overflow');
   });
 
   testWidgets('V2 Today and Opportunity tolerate enlarged text', (

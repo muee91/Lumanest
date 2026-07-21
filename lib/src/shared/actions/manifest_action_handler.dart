@@ -42,7 +42,8 @@ Future<void> handleManifestAction(
   }
   await showModalBottomSheet<void>(
     context: context,
-    showDragHandle: true,
+    showDragHandle: false,
+    enableDrag: false,
     isScrollControlled: true,
     useSafeArea: true,
     builder: (context) {
@@ -67,10 +68,7 @@ Future<void> handleManifestAction(
               Text(detailOverride ?? _detailFor(item.id, panel)),
               if (guidance.isNotEmpty) ...[
                 const SizedBox(height: 18),
-                Text(
-                  '现在做什么',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                Text('现在做什么', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
                 for (final guidanceItem in guidance)
                   Padding(

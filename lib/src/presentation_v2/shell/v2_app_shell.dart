@@ -28,13 +28,15 @@ class V2AppShell extends ConsumerWidget {
         // the lower map instead of resizing the whole page and camera surface.
         resizeToAvoidBottomInset: navigationShell.currentIndex != 1,
         body: navigationShell,
-        bottomNavigationBar: V2ObjectNavigationDock(
-          currentIndex: navigationShell.currentIndex,
-          reduceMotion:
-              preferences.reduceMotion ||
-              MediaQuery.disableAnimationsOf(context),
-          onSelected: (index) => _select(index, navigationShell),
-        ),
+        bottomNavigationBar: navigationShell.currentIndex == 3
+            ? null
+            : V2ObjectNavigationDock(
+                currentIndex: navigationShell.currentIndex,
+                reduceMotion:
+                    preferences.reduceMotion ||
+                    MediaQuery.disableAnimationsOf(context),
+                onSelected: (index) => _select(index, navigationShell),
+              ),
       ),
     );
   }
