@@ -60,7 +60,9 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     ref.onDispose(() => _retryTimer?.cancel());
     ref.watch(environmentSnapshotProvider);
     ref.watch(explorationSceneProfileProvider);
-    unawaited(load());
+    // Notifier state is not readable until build returns. Defer the automatic
+    // load so its stale-while-refresh transition starts after initialization.
+    Future.microtask(load);
     return const RegionBriefState.idle();
   }
 
