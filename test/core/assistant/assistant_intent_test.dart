@@ -50,6 +50,10 @@ void main() {
     expect(greeting?.allowsRemoteRewrite, isTrue);
     expect(editing?.type, AssistantQuestionType.general);
     expect(editing?.allowsRemoteRewrite, isTrue);
+    expect(
+      AssistantIntentParser.parse('安全快门是什么？')?.type,
+      AssistantQuestionType.general,
+    );
     final oversized = '为什么${List.filled(250, '很').join()}';
     expect(AssistantIntentParser.parse(oversized), isNull);
   });

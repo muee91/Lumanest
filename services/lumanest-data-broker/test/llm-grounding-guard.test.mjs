@@ -42,6 +42,11 @@ test('general assistant answers photography questions without a template', () =>
     }),
   });
   assert.equal(accepted.ok, true);
+  const safeShutter = guardGroundedOutput({
+    prompt: generalPrompt('安全快门是什么？'),
+    text: JSON.stringify({ answer: '安全快门是手持拍摄时，较不容易因手抖产生模糊的快门速度参考。' }),
+  });
+  assert.equal(safeShutter.ok, true);
   const inventedLiveFact = guardGroundedOutput({
     prompt: generalPrompt('现在拍什么？'),
     text: JSON.stringify({ answer: '现在云层很薄，今晚日落值得去拍。' }),

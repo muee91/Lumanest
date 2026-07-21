@@ -102,7 +102,7 @@ abstract final class AssistantIntentParser {
       return AssistantQuestionType.shootingPlan;
     }
     if (RegExp(
-      r'安全|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|禁入|能不能去|适合出门|能出门|可以去吗',
+      r'安全(?!快门)|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|禁入|能不能去|适合出门|能出门|可以去吗',
     ).hasMatch(text)) {
       return AssistantQuestionType.safety;
     }

@@ -363,7 +363,7 @@ const narrativeRequestKeys = new Set([
 const narrativeTones = new Set(['concise', 'balanced', 'detailed']);
 const assistantQuestionTypes = new Set(['general', 'why', 'prepare', 'wording', 'nearby', 'timing', 'creative', 'safety']);
 const assistantSurfaces = new Set(['today', 'explore', 'inspiration', 'shootingWindow']);
-const assistantSafetyQuestionPattern = /安全|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|封闭|禁入|能不能去|适合出门|能出门|可以去吗/;
+const assistantSafetyQuestionPattern = /安全(?!快门)|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|封闭|禁入|能不能去|适合出门|能出门|可以去吗/;
 const assistantSensitiveQuestionPattern = /银行卡|密码|验证码|密钥|私钥|助记词|身份证号|api\s*key|access\s*token|secret/i;
 const narrativeCreativeIds = new Set([
   ...opportunityCatalog

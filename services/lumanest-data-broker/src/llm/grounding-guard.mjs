@@ -317,7 +317,9 @@ function guardGeneralAssistant(user, candidate) {
   if (hasSensitiveCredentialContent(answer)) {
     return { ok: false, reason: 'sensitive_credential' };
   }
-  if (hasDangerousSafetyReversal(answer) || safetyTerms.some((term) => answer.includes(term))) {
+  const safetyCheckedAnswer = answer.replaceAll('安全快门', '');
+  if (hasDangerousSafetyReversal(safetyCheckedAnswer) ||
+      safetyTerms.some((term) => safetyCheckedAnswer.includes(term))) {
     return { ok: false, reason: 'unsupported_safety_claim' };
   }
   const liveClaim = /(?:当前|现在|今晚|明天|此刻).{0,16}(?:天气|气温|风|云|日出|日落|开放|封闭|适合去|可以去|值得去)/u;
