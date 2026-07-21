@@ -66,6 +66,8 @@ class BrokerClient:
     async def search(self, job: RefreshJob) -> list[BrokerSearchResult]:
         results: list[BrokerSearchResult] = []
         seen: set[str] = set()
+        successful_queries = 0
+        last_failure: BrokerFailure | None = None
         for query in self._queries(job):
             payload = {
                 "query": query,
@@ -73,7 +75,12 @@ class BrokerClient:
                 "freshnessDays": self._freshness_days(job.region.mission_type),
                 "domains": [],
             }
-            raw = await self._post("/internal/v1/discovery/search", payload)
+            try:
+                raw = await self._post("/internal/v1/discovery/search", payload)
+                successful_queries += 1
+            except BrokerFailure as error:
+                last_failure = error
+                continue
             try:
                 response = BrokerSearchResponse.model_validate(raw)
             except Exception as error:
@@ -85,6 +92,8 @@ class BrokerClient:
                     results.append(item)
                 if len(results) == 24:
                     return results
+        if successful_queries == 0 and last_failure is not None:
+            raise last_failure
         return results
 
     async def extract(
@@ -185,7 +194,7 @@ class BrokerClient:
                     headers={"X-Discovery-Worker-Token": self.token},
                 )
                 if response.status_code != 200:
-                    raise BrokerFailure("broker_unavailable")
+                    raise BrokerFailure(f"broker_http_{response.status_code}")
                 return response.json()
         except (httpx.HTTPError, ValueError) as error:
             raise BrokerFailure("broker_unavailable") from error
@@ -547,7 +556,8 @@ async def process_job(
         print(
             "discovery job failed "
             f"region={job.region.region_id} mission={job.region.mission_type} "
-            f"attempt={job.attempt} reason={type(error).__name__}",
+            f"attempt={job.attempt} reason={type(error).__name__} "
+            f"code={str(error)[:80]}",
             flush=True,
         )
         await retry_or_fail(redis, store, job)

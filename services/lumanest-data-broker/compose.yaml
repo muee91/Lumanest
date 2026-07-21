@@ -163,6 +163,8 @@ services:
       - default
       - mihomo
     depends_on:
+      qweather-token-broker:
+        condition: service_healthy
       discovery-api:
         condition: service_healthy
       redis:

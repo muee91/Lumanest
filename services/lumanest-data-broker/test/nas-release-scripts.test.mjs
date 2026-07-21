@@ -43,6 +43,10 @@ test('cached NAS builds reuse application images without reinstalling dependenci
     compose.match(/DISCOVERY_BASE_IMAGE: \$\{DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest\}/g)?.length,
     2,
   );
+  assert.match(
+    compose,
+    /discovery-worker:[\s\S]*?depends_on:\n\s+qweather-token-broker:\n\s+condition: service_healthy/,
+  );
 });
 
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {

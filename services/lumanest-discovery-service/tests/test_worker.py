@@ -8,6 +8,7 @@ from app.models import BrokerSearchResult, ExtractedCandidate
 from app.store import RefreshJob, RegionReference
 from app.worker import (
     BrokerClient,
+    BrokerFailure,
     CRAWL_CACHE_SECONDS,
     MAX_RETRIES,
     enrich_evidence_with_crawl,
@@ -89,6 +90,24 @@ def amap_source(source_id: str) -> BrokerSearchResult:
         "url": "https://ditu.amap.com/",
         "publishedAt": "2026-07-20T00:00:00Z",
     })
+
+
+@pytest.mark.asyncio
+async def test_search_keeps_successful_queries_when_one_provider_call_fails(monkeypatch):
+    calls = 0
+
+    async def post(_self, _path, _payload):
+        nonlocal calls
+        calls += 1
+        if calls != 2:
+            raise BrokerFailure("broker_http_502")
+        return {"results": [source().model_dump(by_alias=True, mode="json")]}
+
+    monkeypatch.setattr(BrokerClient, "_post", post)
+    results = await BrokerClient("https://broker.test", "token").search(job())
+
+    assert results == [source()]
+    assert calls == 3
 
 
 def test_job_contains_only_expiring_grid_center_not_the_request_coordinate():
