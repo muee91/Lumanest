@@ -234,6 +234,9 @@ async def test_broker_failure_has_a_bounded_retry_state_and_persists_no_item():
     assert exhausted_store.persisted == []
     assert exhausted_redis.added == []
     assert exhausted_redis.sets[0][0][1] == "failed"
+    assert exhausted_redis.sets[1][0][0].startswith("discovery:cooldown:")
+    assert exhausted_redis.sets[1][0][1] == "failed"
+    assert exhausted_redis.sets[1][1]["ex"] == 300
 
 
 @pytest.mark.asyncio

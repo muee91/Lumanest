@@ -38,6 +38,7 @@ from .store import (
 
 HEARTBEAT_KEY = "discovery:worker:heartbeat"
 MAX_RETRIES = 2
+FAILED_COOLDOWN_SECONDS = 5 * 60
 CRAWL_CACHE_SECONDS = 6 * 60 * 60
 CRAWL_FAILURE_CACHE_SECONDS = 15 * 60
 CRAWL_MIN_SNIPPET_CHARS = 260
@@ -381,6 +382,11 @@ async def retry_or_fail(redis: Redis, store: DiscoveryStore, job: RefreshJob) ->
     key = f"discovery:refresh:{job.dedupe_key}"
     if next_attempt > MAX_RETRIES:
         await redis.set(key, "failed", ex=PENDING_SECONDS)
+        await redis.set(
+            f"discovery:cooldown:{job.dedupe_key}",
+            "failed",
+            ex=FAILED_COOLDOWN_SECONDS,
+        )
         await store.record_refresh(job, "failed")
         return
     retry = RefreshJob(
@@ -487,6 +493,7 @@ async def process_job(
             evidence = await broker.search(job)
             if not evidence:
                 await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
+                await store.record_refresh(job, "completed")
                 return
             selected = select_evidence(
                 evidence,
@@ -497,6 +504,7 @@ async def process_job(
             )
             if not selected:
                 await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
+                await store.record_refresh(job, "completed")
                 return
             selected = await enrich_evidence_with_crawl(redis, selected, crawler)
             if isinstance(broker, BrokerClient):
@@ -534,7 +542,14 @@ async def process_job(
                 )
         await store.persist_candidates(job, admitted)
         await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
-    except (BrokerFailure, RuntimeError):
+        await store.record_refresh(job, "completed")
+    except (BrokerFailure, RuntimeError) as error:
+        print(
+            "discovery job failed "
+            f"region={job.region.region_id} mission={job.region.mission_type} "
+            f"attempt={job.attempt} reason={type(error).__name__}",
+            flush=True,
+        )
         await retry_or_fail(redis, store, job)
 
 
