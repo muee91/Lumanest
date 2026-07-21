@@ -1,5 +1,5 @@
 const fields = new Set(['baseUrl', 'apiKey', 'enabled', 'timeoutMs', 'sourcePolicies']);
-const sourcePolicyFields = new Set(['id', 'domain', 'attribution', 'license', 'version', 'enabled']);
+const sourcePolicyFields = new Set(['id', 'domain', 'attribution', 'license', 'version', 'qualityTier', 'enabled']);
 
 function boundedString(value, name, { minimum = 1, maximum }) {
   if (typeof value !== 'string') throw new TypeError(`${name} must be a string`);
@@ -36,10 +36,17 @@ function validatedSourcePolicies(value) {
     const attribution = boundedString(policy.attribution, 'source policy attribution', { maximum: 80 });
     const license = boundedString(policy.license, 'source policy license', { maximum: 120 });
     const version = boundedString(policy.version, 'source policy version', { maximum: 80 });
+    // Existing reviewed policies predate explicit tiers. Treating them as B is
+    // conservative: they can enrich a brief but cannot alone trigger a strong
+    // action until an administrator classifies them as A or S.
+    const qualityTier = policy.qualityTier ?? 'B';
+    if (!['S', 'A', 'B', 'C'].includes(qualityTier)) {
+      throw new TypeError('source policy qualityTier must be S, A, B or C');
+    }
     if (typeof policy.enabled !== 'boolean') throw new TypeError('source policy enabled must be a boolean');
     ids.add(id);
     domains.add(domain);
-    return Object.freeze({ id, domain, attribution, license, version, enabled: policy.enabled });
+    return Object.freeze({ id, domain, attribution, license, version, qualityTier, enabled: policy.enabled });
   }));
 }
 

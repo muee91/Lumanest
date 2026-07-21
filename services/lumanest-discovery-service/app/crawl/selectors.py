@@ -13,6 +13,8 @@ MISSION_TERMS: dict[str, tuple[str, ...]] = {
     "humanityEvents": ("活动", "市集", "节庆", "展览", "演出"),
     "localStories": ("历史", "文化", "故事", "传统", "老街"),
     "seasonalSignals": ("季节", "花期", "候鸟", "云海", "秋色"),
+    "localFoodAndSpecialties": ("小吃", "特产", "市场", "传统", "食物"),
+    "culturalEtiquette": ("礼仪", "习俗", "参观", "拍摄", "文化"),
 }
 
 

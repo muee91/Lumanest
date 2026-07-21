@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
@@ -13,9 +14,13 @@ import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
+import 'package:luma_nest/src/features/explore/application/explore_composition_engine.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
+import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/domain/explore_composition.dart';
+import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
 import 'package:luma_nest/src/features/explore/presentation/amap_marker_icon_factory.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -47,6 +52,56 @@ class V2ExplorePage extends ConsumerWidget {
         ),
       );
     }
+    final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
+    final briefState = ref.watch(regionBriefControllerProvider);
+    final composition = const ExploreCompositionEngine().compose(
+      snapshot: snapshot,
+      brief: briefState.brief,
+      now: DateTime.now().toUtc(),
+    );
+    final blockingSafety = snapshot?.events
+        .where(
+          (event) =>
+              (event.channel == ContextEventChannel.safety ||
+                  event.channel == ContextEventChannel.wildlifeSafety) &&
+              !event.isExpiredAt(DateTime.now().toUtc()),
+        )
+        .firstOrNull;
+    if (composition.layoutMode == ExploreLayoutMode.safetyFirst) {
+      return V2PageStage(
+        child: V2EmptyObject(
+          icon: CupertinoIcons.exclamationmark_triangle,
+          title: blockingSafety?.title ?? '请先确认当前安全提醒',
+          detail: '当前存在需要先确认的安全信息，探索内容已暂时后置。',
+          action: '回到今日查看详情',
+          onAction: () => context.go('/today'),
+        ),
+      );
+    }
+    if (composition.showsBriefFirst && briefState.brief != null) {
+      return _V2ExploreBrief(
+        brief: briefState.brief!,
+        refreshing: briefState.status == RegionBriefLoadStatus.refreshing,
+        onRefresh: () =>
+            ref.read(regionBriefControllerProvider.notifier).load(manual: true),
+        onOpenMap: () {
+          switch (ref.read(mapConsentControllerProvider)) {
+            case MapConsentReady():
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _V2ExploreMap(focus: focus, placeId: placeId),
+                ),
+              );
+            case MapConsentAwaiting():
+              ref.read(mapConsentControllerProvider.notifier).grantConsent();
+            case MapConsentConfigurationMissing():
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('地图尚未配置，区域简报仍可使用。')));
+          }
+        },
+      );
+    }
     return switch (ref.watch(mapConsentControllerProvider)) {
       MapConsentConfigurationMissing() => V2PageStage(
         child: V2EmptyObject(
@@ -70,6 +125,214 @@ class V2ExplorePage extends ConsumerWidget {
       MapConsentReady() => _V2ExploreMap(focus: focus, placeId: placeId),
     };
   }
+}
+
+class _V2ExploreBrief extends StatelessWidget {
+  const _V2ExploreBrief({
+    required this.brief,
+    required this.refreshing,
+    required this.onRefresh,
+    required this.onOpenMap,
+  });
+
+  final RegionBrief brief;
+  final bool refreshing;
+  final VoidCallback onRefresh;
+  final VoidCallback onOpenMap;
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = brief.insights
+        .where(
+          (item) =>
+              item.type != RegionInsightType.areaIdentity &&
+              item.type != RegionInsightType.orientation,
+        )
+        .toList(growable: false);
+    return Scaffold(
+      backgroundColor: V2Palette.canvas,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: () async => onRefresh(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      brief.regionName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: V2Palette.ink,
+                        fontSize: 27,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '打开地图',
+                    onPressed: onOpenMap,
+                    icon: const Icon(CupertinoIcons.map),
+                  ),
+                ],
+              ),
+              if (refreshing) ...[
+                const SizedBox(height: 4),
+                const Text(
+                  '正在更新区域资料',
+                  style: TextStyle(color: V2Palette.mutedInk, fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 18),
+              _V2BriefCard(
+                eyebrow: '这里是什么',
+                title: brief.identity!.summary,
+                detail: brief.orientation!.summary,
+              ),
+              if (brief.photoThemes.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _V2BriefCard(
+                  eyebrow: '区域题材',
+                  title: brief.photoThemes
+                      .map((item) => item.label)
+                      .join(' · '),
+                  detail: '题材来自场景和已验证区域资料，不替代具体机位。',
+                ),
+              ],
+              if (sections.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                const Text(
+                  '值得了解',
+                  style: TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...sections.map((item) => _V2BriefInsightCard(insight: item)),
+              ],
+              const SizedBox(height: 18),
+              V2Pressable(
+                onTap: onOpenMap,
+                color: V2Palette.night,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Icon(CupertinoIcons.map, color: Colors.white, size: 18),
+                      SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          '打开地图与附近地点',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        CupertinoIcons.chevron_right,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _V2BriefCard extends StatelessWidget {
+  const _V2BriefCard({
+    required this.eyebrow,
+    required this.title,
+    required this.detail,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: V2Palette.paper,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: V2Palette.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          style: const TextStyle(
+            color: V2Palette.moss,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          title,
+          style: const TextStyle(
+            color: V2Palette.ink,
+            fontSize: 17,
+            height: 1.35,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (detail.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            detail,
+            style: const TextStyle(
+              color: V2Palette.mutedInk,
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+class _V2BriefInsightCard extends StatelessWidget {
+  const _V2BriefInsightCard({required this.insight});
+
+  final RegionInsight insight;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 9),
+    child: _V2BriefCard(
+      eyebrow: _label(insight.type),
+      title: insight.title,
+      detail: insight.summary,
+    ),
+  );
+
+  static String _label(RegionInsightType type) => switch (type) {
+    RegionInsightType.event ||
+    RegionInsightType.performance ||
+    RegionInsightType.market => '正在发生',
+    RegionInsightType.localFood || RegionInsightType.specialty => '地方味道',
+    RegionInsightType.etiquette || RegionInsightType.culturalPractice => '人文礼仪',
+    RegionInsightType.openingStatus ||
+    RegionInsightType.regulation ||
+    RegionInsightType.supply => '实用信息',
+    _ => '区域线索',
+  };
 }
 
 class _V2ExploreMap extends ConsumerStatefulWidget {

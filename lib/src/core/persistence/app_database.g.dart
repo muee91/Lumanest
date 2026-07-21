@@ -6506,6 +6506,1302 @@ class OfflinePhotographyPacksCompanion
   }
 }
 
+class $RegionBriefCachesTable extends RegionBriefCaches
+    with TableInfo<$RegionBriefCachesTable, RegionBriefCache> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RegionBriefCachesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _regionKeyMeta = const VerificationMeta(
+    'regionKey',
+  );
+  @override
+  late final GeneratedColumn<String> regionKey = GeneratedColumn<String>(
+    'region_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _localeMeta = const VerificationMeta('locale');
+  @override
+  late final GeneratedColumn<String> locale = GeneratedColumn<String>(
+    'locale',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _profileVersionMeta = const VerificationMeta(
+    'profileVersion',
+  );
+  @override
+  late final GeneratedColumn<String> profileVersion = GeneratedColumn<String>(
+    'profile_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generatedAtMeta = const VerificationMeta(
+    'generatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> generatedAt = GeneratedColumn<DateTime>(
+    'generated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stableExpiresAtMeta = const VerificationMeta(
+    'stableExpiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> stableExpiresAt =
+      GeneratedColumn<DateTime>(
+        'stable_expires_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _completenessMeta = const VerificationMeta(
+    'completeness',
+  );
+  @override
+  late final GeneratedColumn<String> completeness = GeneratedColumn<String>(
+    'completeness',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastAccessedAtMeta = const VerificationMeta(
+    'lastAccessedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAccessedAt =
+      GeneratedColumn<DateTime>(
+        'last_accessed_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    regionKey,
+    locale,
+    profileVersion,
+    payloadJson,
+    generatedAt,
+    expiresAt,
+    stableExpiresAt,
+    completeness,
+    lastAccessedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'region_brief_caches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RegionBriefCache> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('region_key')) {
+      context.handle(
+        _regionKeyMeta,
+        regionKey.isAcceptableOrUnknown(data['region_key']!, _regionKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_regionKeyMeta);
+    }
+    if (data.containsKey('locale')) {
+      context.handle(
+        _localeMeta,
+        locale.isAcceptableOrUnknown(data['locale']!, _localeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localeMeta);
+    }
+    if (data.containsKey('profile_version')) {
+      context.handle(
+        _profileVersionMeta,
+        profileVersion.isAcceptableOrUnknown(
+          data['profile_version']!,
+          _profileVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_profileVersionMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('generated_at')) {
+      context.handle(
+        _generatedAtMeta,
+        generatedAt.isAcceptableOrUnknown(
+          data['generated_at']!,
+          _generatedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_generatedAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_expiresAtMeta);
+    }
+    if (data.containsKey('stable_expires_at')) {
+      context.handle(
+        _stableExpiresAtMeta,
+        stableExpiresAt.isAcceptableOrUnknown(
+          data['stable_expires_at']!,
+          _stableExpiresAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_stableExpiresAtMeta);
+    }
+    if (data.containsKey('completeness')) {
+      context.handle(
+        _completenessMeta,
+        completeness.isAcceptableOrUnknown(
+          data['completeness']!,
+          _completenessMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_completenessMeta);
+    }
+    if (data.containsKey('last_accessed_at')) {
+      context.handle(
+        _lastAccessedAtMeta,
+        lastAccessedAt.isAcceptableOrUnknown(
+          data['last_accessed_at']!,
+          _lastAccessedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastAccessedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {regionKey, locale, profileVersion};
+  @override
+  RegionBriefCache map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RegionBriefCache(
+      regionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}region_key'],
+      )!,
+      locale: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}locale'],
+      )!,
+      profileVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_version'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      generatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}generated_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      )!,
+      stableExpiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}stable_expires_at'],
+      )!,
+      completeness: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}completeness'],
+      )!,
+      lastAccessedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_accessed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RegionBriefCachesTable createAlias(String alias) {
+    return $RegionBriefCachesTable(attachedDatabase, alias);
+  }
+}
+
+class RegionBriefCache extends DataClass
+    implements Insertable<RegionBriefCache> {
+  final String regionKey;
+  final String locale;
+  final String profileVersion;
+  final String payloadJson;
+  final DateTime generatedAt;
+  final DateTime expiresAt;
+  final DateTime stableExpiresAt;
+  final String completeness;
+  final DateTime lastAccessedAt;
+  const RegionBriefCache({
+    required this.regionKey,
+    required this.locale,
+    required this.profileVersion,
+    required this.payloadJson,
+    required this.generatedAt,
+    required this.expiresAt,
+    required this.stableExpiresAt,
+    required this.completeness,
+    required this.lastAccessedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['region_key'] = Variable<String>(regionKey);
+    map['locale'] = Variable<String>(locale);
+    map['profile_version'] = Variable<String>(profileVersion);
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['generated_at'] = Variable<DateTime>(generatedAt);
+    map['expires_at'] = Variable<DateTime>(expiresAt);
+    map['stable_expires_at'] = Variable<DateTime>(stableExpiresAt);
+    map['completeness'] = Variable<String>(completeness);
+    map['last_accessed_at'] = Variable<DateTime>(lastAccessedAt);
+    return map;
+  }
+
+  RegionBriefCachesCompanion toCompanion(bool nullToAbsent) {
+    return RegionBriefCachesCompanion(
+      regionKey: Value(regionKey),
+      locale: Value(locale),
+      profileVersion: Value(profileVersion),
+      payloadJson: Value(payloadJson),
+      generatedAt: Value(generatedAt),
+      expiresAt: Value(expiresAt),
+      stableExpiresAt: Value(stableExpiresAt),
+      completeness: Value(completeness),
+      lastAccessedAt: Value(lastAccessedAt),
+    );
+  }
+
+  factory RegionBriefCache.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RegionBriefCache(
+      regionKey: serializer.fromJson<String>(json['regionKey']),
+      locale: serializer.fromJson<String>(json['locale']),
+      profileVersion: serializer.fromJson<String>(json['profileVersion']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      generatedAt: serializer.fromJson<DateTime>(json['generatedAt']),
+      expiresAt: serializer.fromJson<DateTime>(json['expiresAt']),
+      stableExpiresAt: serializer.fromJson<DateTime>(json['stableExpiresAt']),
+      completeness: serializer.fromJson<String>(json['completeness']),
+      lastAccessedAt: serializer.fromJson<DateTime>(json['lastAccessedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'regionKey': serializer.toJson<String>(regionKey),
+      'locale': serializer.toJson<String>(locale),
+      'profileVersion': serializer.toJson<String>(profileVersion),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'generatedAt': serializer.toJson<DateTime>(generatedAt),
+      'expiresAt': serializer.toJson<DateTime>(expiresAt),
+      'stableExpiresAt': serializer.toJson<DateTime>(stableExpiresAt),
+      'completeness': serializer.toJson<String>(completeness),
+      'lastAccessedAt': serializer.toJson<DateTime>(lastAccessedAt),
+    };
+  }
+
+  RegionBriefCache copyWith({
+    String? regionKey,
+    String? locale,
+    String? profileVersion,
+    String? payloadJson,
+    DateTime? generatedAt,
+    DateTime? expiresAt,
+    DateTime? stableExpiresAt,
+    String? completeness,
+    DateTime? lastAccessedAt,
+  }) => RegionBriefCache(
+    regionKey: regionKey ?? this.regionKey,
+    locale: locale ?? this.locale,
+    profileVersion: profileVersion ?? this.profileVersion,
+    payloadJson: payloadJson ?? this.payloadJson,
+    generatedAt: generatedAt ?? this.generatedAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+    stableExpiresAt: stableExpiresAt ?? this.stableExpiresAt,
+    completeness: completeness ?? this.completeness,
+    lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+  );
+  RegionBriefCache copyWithCompanion(RegionBriefCachesCompanion data) {
+    return RegionBriefCache(
+      regionKey: data.regionKey.present ? data.regionKey.value : this.regionKey,
+      locale: data.locale.present ? data.locale.value : this.locale,
+      profileVersion: data.profileVersion.present
+          ? data.profileVersion.value
+          : this.profileVersion,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      generatedAt: data.generatedAt.present
+          ? data.generatedAt.value
+          : this.generatedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      stableExpiresAt: data.stableExpiresAt.present
+          ? data.stableExpiresAt.value
+          : this.stableExpiresAt,
+      completeness: data.completeness.present
+          ? data.completeness.value
+          : this.completeness,
+      lastAccessedAt: data.lastAccessedAt.present
+          ? data.lastAccessedAt.value
+          : this.lastAccessedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionBriefCache(')
+          ..write('regionKey: $regionKey, ')
+          ..write('locale: $locale, ')
+          ..write('profileVersion: $profileVersion, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('stableExpiresAt: $stableExpiresAt, ')
+          ..write('completeness: $completeness, ')
+          ..write('lastAccessedAt: $lastAccessedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    regionKey,
+    locale,
+    profileVersion,
+    payloadJson,
+    generatedAt,
+    expiresAt,
+    stableExpiresAt,
+    completeness,
+    lastAccessedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RegionBriefCache &&
+          other.regionKey == this.regionKey &&
+          other.locale == this.locale &&
+          other.profileVersion == this.profileVersion &&
+          other.payloadJson == this.payloadJson &&
+          other.generatedAt == this.generatedAt &&
+          other.expiresAt == this.expiresAt &&
+          other.stableExpiresAt == this.stableExpiresAt &&
+          other.completeness == this.completeness &&
+          other.lastAccessedAt == this.lastAccessedAt);
+}
+
+class RegionBriefCachesCompanion extends UpdateCompanion<RegionBriefCache> {
+  final Value<String> regionKey;
+  final Value<String> locale;
+  final Value<String> profileVersion;
+  final Value<String> payloadJson;
+  final Value<DateTime> generatedAt;
+  final Value<DateTime> expiresAt;
+  final Value<DateTime> stableExpiresAt;
+  final Value<String> completeness;
+  final Value<DateTime> lastAccessedAt;
+  final Value<int> rowid;
+  const RegionBriefCachesCompanion({
+    this.regionKey = const Value.absent(),
+    this.locale = const Value.absent(),
+    this.profileVersion = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.generatedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.stableExpiresAt = const Value.absent(),
+    this.completeness = const Value.absent(),
+    this.lastAccessedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RegionBriefCachesCompanion.insert({
+    required String regionKey,
+    required String locale,
+    required String profileVersion,
+    required String payloadJson,
+    required DateTime generatedAt,
+    required DateTime expiresAt,
+    required DateTime stableExpiresAt,
+    required String completeness,
+    required DateTime lastAccessedAt,
+    this.rowid = const Value.absent(),
+  }) : regionKey = Value(regionKey),
+       locale = Value(locale),
+       profileVersion = Value(profileVersion),
+       payloadJson = Value(payloadJson),
+       generatedAt = Value(generatedAt),
+       expiresAt = Value(expiresAt),
+       stableExpiresAt = Value(stableExpiresAt),
+       completeness = Value(completeness),
+       lastAccessedAt = Value(lastAccessedAt);
+  static Insertable<RegionBriefCache> custom({
+    Expression<String>? regionKey,
+    Expression<String>? locale,
+    Expression<String>? profileVersion,
+    Expression<String>? payloadJson,
+    Expression<DateTime>? generatedAt,
+    Expression<DateTime>? expiresAt,
+    Expression<DateTime>? stableExpiresAt,
+    Expression<String>? completeness,
+    Expression<DateTime>? lastAccessedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (regionKey != null) 'region_key': regionKey,
+      if (locale != null) 'locale': locale,
+      if (profileVersion != null) 'profile_version': profileVersion,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (generatedAt != null) 'generated_at': generatedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (stableExpiresAt != null) 'stable_expires_at': stableExpiresAt,
+      if (completeness != null) 'completeness': completeness,
+      if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RegionBriefCachesCompanion copyWith({
+    Value<String>? regionKey,
+    Value<String>? locale,
+    Value<String>? profileVersion,
+    Value<String>? payloadJson,
+    Value<DateTime>? generatedAt,
+    Value<DateTime>? expiresAt,
+    Value<DateTime>? stableExpiresAt,
+    Value<String>? completeness,
+    Value<DateTime>? lastAccessedAt,
+    Value<int>? rowid,
+  }) {
+    return RegionBriefCachesCompanion(
+      regionKey: regionKey ?? this.regionKey,
+      locale: locale ?? this.locale,
+      profileVersion: profileVersion ?? this.profileVersion,
+      payloadJson: payloadJson ?? this.payloadJson,
+      generatedAt: generatedAt ?? this.generatedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      stableExpiresAt: stableExpiresAt ?? this.stableExpiresAt,
+      completeness: completeness ?? this.completeness,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (regionKey.present) {
+      map['region_key'] = Variable<String>(regionKey.value);
+    }
+    if (locale.present) {
+      map['locale'] = Variable<String>(locale.value);
+    }
+    if (profileVersion.present) {
+      map['profile_version'] = Variable<String>(profileVersion.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (generatedAt.present) {
+      map['generated_at'] = Variable<DateTime>(generatedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (stableExpiresAt.present) {
+      map['stable_expires_at'] = Variable<DateTime>(stableExpiresAt.value);
+    }
+    if (completeness.present) {
+      map['completeness'] = Variable<String>(completeness.value);
+    }
+    if (lastAccessedAt.present) {
+      map['last_accessed_at'] = Variable<DateTime>(lastAccessedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionBriefCachesCompanion(')
+          ..write('regionKey: $regionKey, ')
+          ..write('locale: $locale, ')
+          ..write('profileVersion: $profileVersion, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('stableExpiresAt: $stableExpiresAt, ')
+          ..write('completeness: $completeness, ')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RegionFamiliaritiesTable extends RegionFamiliarities
+    with TableInfo<$RegionFamiliaritiesTable, RegionFamiliarity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RegionFamiliaritiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _regionKeyMeta = const VerificationMeta(
+    'regionKey',
+  );
+  @override
+  late final GeneratedColumn<String> regionKey = GeneratedColumn<String>(
+    'region_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
+  @override
+  late final GeneratedColumn<String> level = GeneratedColumn<String>(
+    'level',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _briefedAtMeta = const VerificationMeta(
+    'briefedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> briefedAt = GeneratedColumn<DateTime>(
+    'briefed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _visitCountMeta = const VerificationMeta(
+    'visitCount',
+  );
+  @override
+  late final GeneratedColumn<int> visitCount = GeneratedColumn<int>(
+    'visit_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastVisitedAtMeta = const VerificationMeta(
+    'lastVisitedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastVisitedAt =
+      GeneratedColumn<DateTime>(
+        'last_visited_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    regionKey,
+    level,
+    briefedAt,
+    visitCount,
+    lastVisitedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'region_familiarities';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RegionFamiliarity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('region_key')) {
+      context.handle(
+        _regionKeyMeta,
+        regionKey.isAcceptableOrUnknown(data['region_key']!, _regionKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_regionKeyMeta);
+    }
+    if (data.containsKey('level')) {
+      context.handle(
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_levelMeta);
+    }
+    if (data.containsKey('briefed_at')) {
+      context.handle(
+        _briefedAtMeta,
+        briefedAt.isAcceptableOrUnknown(data['briefed_at']!, _briefedAtMeta),
+      );
+    }
+    if (data.containsKey('visit_count')) {
+      context.handle(
+        _visitCountMeta,
+        visitCount.isAcceptableOrUnknown(data['visit_count']!, _visitCountMeta),
+      );
+    }
+    if (data.containsKey('last_visited_at')) {
+      context.handle(
+        _lastVisitedAtMeta,
+        lastVisitedAt.isAcceptableOrUnknown(
+          data['last_visited_at']!,
+          _lastVisitedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {regionKey};
+  @override
+  RegionFamiliarity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RegionFamiliarity(
+      regionKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}region_key'],
+      )!,
+      level: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}level'],
+      )!,
+      briefedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}briefed_at'],
+      ),
+      visitCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}visit_count'],
+      )!,
+      lastVisitedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_visited_at'],
+      ),
+    );
+  }
+
+  @override
+  $RegionFamiliaritiesTable createAlias(String alias) {
+    return $RegionFamiliaritiesTable(attachedDatabase, alias);
+  }
+}
+
+class RegionFamiliarity extends DataClass
+    implements Insertable<RegionFamiliarity> {
+  final String regionKey;
+  final String level;
+  final DateTime? briefedAt;
+  final int visitCount;
+  final DateTime? lastVisitedAt;
+  const RegionFamiliarity({
+    required this.regionKey,
+    required this.level,
+    this.briefedAt,
+    required this.visitCount,
+    this.lastVisitedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['region_key'] = Variable<String>(regionKey);
+    map['level'] = Variable<String>(level);
+    if (!nullToAbsent || briefedAt != null) {
+      map['briefed_at'] = Variable<DateTime>(briefedAt);
+    }
+    map['visit_count'] = Variable<int>(visitCount);
+    if (!nullToAbsent || lastVisitedAt != null) {
+      map['last_visited_at'] = Variable<DateTime>(lastVisitedAt);
+    }
+    return map;
+  }
+
+  RegionFamiliaritiesCompanion toCompanion(bool nullToAbsent) {
+    return RegionFamiliaritiesCompanion(
+      regionKey: Value(regionKey),
+      level: Value(level),
+      briefedAt: briefedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(briefedAt),
+      visitCount: Value(visitCount),
+      lastVisitedAt: lastVisitedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastVisitedAt),
+    );
+  }
+
+  factory RegionFamiliarity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RegionFamiliarity(
+      regionKey: serializer.fromJson<String>(json['regionKey']),
+      level: serializer.fromJson<String>(json['level']),
+      briefedAt: serializer.fromJson<DateTime?>(json['briefedAt']),
+      visitCount: serializer.fromJson<int>(json['visitCount']),
+      lastVisitedAt: serializer.fromJson<DateTime?>(json['lastVisitedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'regionKey': serializer.toJson<String>(regionKey),
+      'level': serializer.toJson<String>(level),
+      'briefedAt': serializer.toJson<DateTime?>(briefedAt),
+      'visitCount': serializer.toJson<int>(visitCount),
+      'lastVisitedAt': serializer.toJson<DateTime?>(lastVisitedAt),
+    };
+  }
+
+  RegionFamiliarity copyWith({
+    String? regionKey,
+    String? level,
+    Value<DateTime?> briefedAt = const Value.absent(),
+    int? visitCount,
+    Value<DateTime?> lastVisitedAt = const Value.absent(),
+  }) => RegionFamiliarity(
+    regionKey: regionKey ?? this.regionKey,
+    level: level ?? this.level,
+    briefedAt: briefedAt.present ? briefedAt.value : this.briefedAt,
+    visitCount: visitCount ?? this.visitCount,
+    lastVisitedAt: lastVisitedAt.present
+        ? lastVisitedAt.value
+        : this.lastVisitedAt,
+  );
+  RegionFamiliarity copyWithCompanion(RegionFamiliaritiesCompanion data) {
+    return RegionFamiliarity(
+      regionKey: data.regionKey.present ? data.regionKey.value : this.regionKey,
+      level: data.level.present ? data.level.value : this.level,
+      briefedAt: data.briefedAt.present ? data.briefedAt.value : this.briefedAt,
+      visitCount: data.visitCount.present
+          ? data.visitCount.value
+          : this.visitCount,
+      lastVisitedAt: data.lastVisitedAt.present
+          ? data.lastVisitedAt.value
+          : this.lastVisitedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionFamiliarity(')
+          ..write('regionKey: $regionKey, ')
+          ..write('level: $level, ')
+          ..write('briefedAt: $briefedAt, ')
+          ..write('visitCount: $visitCount, ')
+          ..write('lastVisitedAt: $lastVisitedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(regionKey, level, briefedAt, visitCount, lastVisitedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RegionFamiliarity &&
+          other.regionKey == this.regionKey &&
+          other.level == this.level &&
+          other.briefedAt == this.briefedAt &&
+          other.visitCount == this.visitCount &&
+          other.lastVisitedAt == this.lastVisitedAt);
+}
+
+class RegionFamiliaritiesCompanion extends UpdateCompanion<RegionFamiliarity> {
+  final Value<String> regionKey;
+  final Value<String> level;
+  final Value<DateTime?> briefedAt;
+  final Value<int> visitCount;
+  final Value<DateTime?> lastVisitedAt;
+  final Value<int> rowid;
+  const RegionFamiliaritiesCompanion({
+    this.regionKey = const Value.absent(),
+    this.level = const Value.absent(),
+    this.briefedAt = const Value.absent(),
+    this.visitCount = const Value.absent(),
+    this.lastVisitedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RegionFamiliaritiesCompanion.insert({
+    required String regionKey,
+    required String level,
+    this.briefedAt = const Value.absent(),
+    this.visitCount = const Value.absent(),
+    this.lastVisitedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : regionKey = Value(regionKey),
+       level = Value(level);
+  static Insertable<RegionFamiliarity> custom({
+    Expression<String>? regionKey,
+    Expression<String>? level,
+    Expression<DateTime>? briefedAt,
+    Expression<int>? visitCount,
+    Expression<DateTime>? lastVisitedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (regionKey != null) 'region_key': regionKey,
+      if (level != null) 'level': level,
+      if (briefedAt != null) 'briefed_at': briefedAt,
+      if (visitCount != null) 'visit_count': visitCount,
+      if (lastVisitedAt != null) 'last_visited_at': lastVisitedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RegionFamiliaritiesCompanion copyWith({
+    Value<String>? regionKey,
+    Value<String>? level,
+    Value<DateTime?>? briefedAt,
+    Value<int>? visitCount,
+    Value<DateTime?>? lastVisitedAt,
+    Value<int>? rowid,
+  }) {
+    return RegionFamiliaritiesCompanion(
+      regionKey: regionKey ?? this.regionKey,
+      level: level ?? this.level,
+      briefedAt: briefedAt ?? this.briefedAt,
+      visitCount: visitCount ?? this.visitCount,
+      lastVisitedAt: lastVisitedAt ?? this.lastVisitedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (regionKey.present) {
+      map['region_key'] = Variable<String>(regionKey.value);
+    }
+    if (level.present) {
+      map['level'] = Variable<String>(level.value);
+    }
+    if (briefedAt.present) {
+      map['briefed_at'] = Variable<DateTime>(briefedAt.value);
+    }
+    if (visitCount.present) {
+      map['visit_count'] = Variable<int>(visitCount.value);
+    }
+    if (lastVisitedAt.present) {
+      map['last_visited_at'] = Variable<DateTime>(lastVisitedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionFamiliaritiesCompanion(')
+          ..write('regionKey: $regionKey, ')
+          ..write('level: $level, ')
+          ..write('briefedAt: $briefedAt, ')
+          ..write('visitCount: $visitCount, ')
+          ..write('lastVisitedAt: $lastVisitedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RegionInsightImpressionsTable extends RegionInsightImpressions
+    with TableInfo<$RegionInsightImpressionsTable, RegionInsightImpression> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RegionInsightImpressionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _insightIdMeta = const VerificationMeta(
+    'insightId',
+  );
+  @override
+  late final GeneratedColumn<String> insightId = GeneratedColumn<String>(
+    'insight_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _shownAtMeta = const VerificationMeta(
+    'shownAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> shownAt = GeneratedColumn<DateTime>(
+    'shown_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _actionTakenMeta = const VerificationMeta(
+    'actionTaken',
+  );
+  @override
+  late final GeneratedColumn<String> actionTaken = GeneratedColumn<String>(
+    'action_taken',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, insightId, shownAt, actionTaken];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'region_insight_impressions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RegionInsightImpression> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('insight_id')) {
+      context.handle(
+        _insightIdMeta,
+        insightId.isAcceptableOrUnknown(data['insight_id']!, _insightIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_insightIdMeta);
+    }
+    if (data.containsKey('shown_at')) {
+      context.handle(
+        _shownAtMeta,
+        shownAt.isAcceptableOrUnknown(data['shown_at']!, _shownAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_shownAtMeta);
+    }
+    if (data.containsKey('action_taken')) {
+      context.handle(
+        _actionTakenMeta,
+        actionTaken.isAcceptableOrUnknown(
+          data['action_taken']!,
+          _actionTakenMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RegionInsightImpression map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RegionInsightImpression(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      insightId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}insight_id'],
+      )!,
+      shownAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}shown_at'],
+      )!,
+      actionTaken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}action_taken'],
+      ),
+    );
+  }
+
+  @override
+  $RegionInsightImpressionsTable createAlias(String alias) {
+    return $RegionInsightImpressionsTable(attachedDatabase, alias);
+  }
+}
+
+class RegionInsightImpression extends DataClass
+    implements Insertable<RegionInsightImpression> {
+  final String id;
+  final String insightId;
+  final DateTime shownAt;
+  final String? actionTaken;
+  const RegionInsightImpression({
+    required this.id,
+    required this.insightId,
+    required this.shownAt,
+    this.actionTaken,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['insight_id'] = Variable<String>(insightId);
+    map['shown_at'] = Variable<DateTime>(shownAt);
+    if (!nullToAbsent || actionTaken != null) {
+      map['action_taken'] = Variable<String>(actionTaken);
+    }
+    return map;
+  }
+
+  RegionInsightImpressionsCompanion toCompanion(bool nullToAbsent) {
+    return RegionInsightImpressionsCompanion(
+      id: Value(id),
+      insightId: Value(insightId),
+      shownAt: Value(shownAt),
+      actionTaken: actionTaken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(actionTaken),
+    );
+  }
+
+  factory RegionInsightImpression.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RegionInsightImpression(
+      id: serializer.fromJson<String>(json['id']),
+      insightId: serializer.fromJson<String>(json['insightId']),
+      shownAt: serializer.fromJson<DateTime>(json['shownAt']),
+      actionTaken: serializer.fromJson<String?>(json['actionTaken']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'insightId': serializer.toJson<String>(insightId),
+      'shownAt': serializer.toJson<DateTime>(shownAt),
+      'actionTaken': serializer.toJson<String?>(actionTaken),
+    };
+  }
+
+  RegionInsightImpression copyWith({
+    String? id,
+    String? insightId,
+    DateTime? shownAt,
+    Value<String?> actionTaken = const Value.absent(),
+  }) => RegionInsightImpression(
+    id: id ?? this.id,
+    insightId: insightId ?? this.insightId,
+    shownAt: shownAt ?? this.shownAt,
+    actionTaken: actionTaken.present ? actionTaken.value : this.actionTaken,
+  );
+  RegionInsightImpression copyWithCompanion(
+    RegionInsightImpressionsCompanion data,
+  ) {
+    return RegionInsightImpression(
+      id: data.id.present ? data.id.value : this.id,
+      insightId: data.insightId.present ? data.insightId.value : this.insightId,
+      shownAt: data.shownAt.present ? data.shownAt.value : this.shownAt,
+      actionTaken: data.actionTaken.present
+          ? data.actionTaken.value
+          : this.actionTaken,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionInsightImpression(')
+          ..write('id: $id, ')
+          ..write('insightId: $insightId, ')
+          ..write('shownAt: $shownAt, ')
+          ..write('actionTaken: $actionTaken')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, insightId, shownAt, actionTaken);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RegionInsightImpression &&
+          other.id == this.id &&
+          other.insightId == this.insightId &&
+          other.shownAt == this.shownAt &&
+          other.actionTaken == this.actionTaken);
+}
+
+class RegionInsightImpressionsCompanion
+    extends UpdateCompanion<RegionInsightImpression> {
+  final Value<String> id;
+  final Value<String> insightId;
+  final Value<DateTime> shownAt;
+  final Value<String?> actionTaken;
+  final Value<int> rowid;
+  const RegionInsightImpressionsCompanion({
+    this.id = const Value.absent(),
+    this.insightId = const Value.absent(),
+    this.shownAt = const Value.absent(),
+    this.actionTaken = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RegionInsightImpressionsCompanion.insert({
+    required String id,
+    required String insightId,
+    required DateTime shownAt,
+    this.actionTaken = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       insightId = Value(insightId),
+       shownAt = Value(shownAt);
+  static Insertable<RegionInsightImpression> custom({
+    Expression<String>? id,
+    Expression<String>? insightId,
+    Expression<DateTime>? shownAt,
+    Expression<String>? actionTaken,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (insightId != null) 'insight_id': insightId,
+      if (shownAt != null) 'shown_at': shownAt,
+      if (actionTaken != null) 'action_taken': actionTaken,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RegionInsightImpressionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? insightId,
+    Value<DateTime>? shownAt,
+    Value<String?>? actionTaken,
+    Value<int>? rowid,
+  }) {
+    return RegionInsightImpressionsCompanion(
+      id: id ?? this.id,
+      insightId: insightId ?? this.insightId,
+      shownAt: shownAt ?? this.shownAt,
+      actionTaken: actionTaken ?? this.actionTaken,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (insightId.present) {
+      map['insight_id'] = Variable<String>(insightId.value);
+    }
+    if (shownAt.present) {
+      map['shown_at'] = Variable<DateTime>(shownAt.value);
+    }
+    if (actionTaken.present) {
+      map['action_taken'] = Variable<String>(actionTaken.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RegionInsightImpressionsCompanion(')
+          ..write('id: $id, ')
+          ..write('insightId: $insightId, ')
+          ..write('shownAt: $shownAt, ')
+          ..write('actionTaken: $actionTaken, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $EntryCacheRecordsTable extends EntryCacheRecords
     with TableInfo<$EntryCacheRecordsTable, EntryCacheRecord> {
   @override
@@ -7273,6 +8569,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ShootingSessionResultsTable(this);
   late final $OfflinePhotographyPacksTable offlinePhotographyPacks =
       $OfflinePhotographyPacksTable(this);
+  late final $RegionBriefCachesTable regionBriefCaches =
+      $RegionBriefCachesTable(this);
+  late final $RegionFamiliaritiesTable regionFamiliarities =
+      $RegionFamiliaritiesTable(this);
+  late final $RegionInsightImpressionsTable regionInsightImpressions =
+      $RegionInsightImpressionsTable(this);
   late final $EntryCacheRecordsTable entryCacheRecords =
       $EntryCacheRecordsTable(this);
   late final $CompositionCacheRecordsTable compositionCacheRecords =
@@ -7295,6 +8597,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     watchedShootingSessions,
     shootingSessionResults,
     offlinePhotographyPacks,
+    regionBriefCaches,
+    regionFamiliarities,
+    regionInsightImpressions,
     entryCacheRecords,
     compositionCacheRecords,
   ];
@@ -10722,6 +12027,729 @@ typedef $$OfflinePhotographyPacksTableProcessedTableManager =
       OfflinePhotographyPackRow,
       PrefetchHooks Function()
     >;
+typedef $$RegionBriefCachesTableCreateCompanionBuilder =
+    RegionBriefCachesCompanion Function({
+      required String regionKey,
+      required String locale,
+      required String profileVersion,
+      required String payloadJson,
+      required DateTime generatedAt,
+      required DateTime expiresAt,
+      required DateTime stableExpiresAt,
+      required String completeness,
+      required DateTime lastAccessedAt,
+      Value<int> rowid,
+    });
+typedef $$RegionBriefCachesTableUpdateCompanionBuilder =
+    RegionBriefCachesCompanion Function({
+      Value<String> regionKey,
+      Value<String> locale,
+      Value<String> profileVersion,
+      Value<String> payloadJson,
+      Value<DateTime> generatedAt,
+      Value<DateTime> expiresAt,
+      Value<DateTime> stableExpiresAt,
+      Value<String> completeness,
+      Value<DateTime> lastAccessedAt,
+      Value<int> rowid,
+    });
+
+class $$RegionBriefCachesTableFilterComposer
+    extends Composer<_$AppDatabase, $RegionBriefCachesTable> {
+  $$RegionBriefCachesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get regionKey => $composableBuilder(
+    column: $table.regionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get locale => $composableBuilder(
+    column: $table.locale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get profileVersion => $composableBuilder(
+    column: $table.profileVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get stableExpiresAt => $composableBuilder(
+    column: $table.stableExpiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get completeness => $composableBuilder(
+    column: $table.completeness,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RegionBriefCachesTableOrderingComposer
+    extends Composer<_$AppDatabase, $RegionBriefCachesTable> {
+  $$RegionBriefCachesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get regionKey => $composableBuilder(
+    column: $table.regionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get locale => $composableBuilder(
+    column: $table.locale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get profileVersion => $composableBuilder(
+    column: $table.profileVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get stableExpiresAt => $composableBuilder(
+    column: $table.stableExpiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get completeness => $composableBuilder(
+    column: $table.completeness,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RegionBriefCachesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RegionBriefCachesTable> {
+  $$RegionBriefCachesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get regionKey =>
+      $composableBuilder(column: $table.regionKey, builder: (column) => column);
+
+  GeneratedColumn<String> get locale =>
+      $composableBuilder(column: $table.locale, builder: (column) => column);
+
+  GeneratedColumn<String> get profileVersion => $composableBuilder(
+    column: $table.profileVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get stableExpiresAt => $composableBuilder(
+    column: $table.stableExpiresAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get completeness => $composableBuilder(
+    column: $table.completeness,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$RegionBriefCachesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RegionBriefCachesTable,
+          RegionBriefCache,
+          $$RegionBriefCachesTableFilterComposer,
+          $$RegionBriefCachesTableOrderingComposer,
+          $$RegionBriefCachesTableAnnotationComposer,
+          $$RegionBriefCachesTableCreateCompanionBuilder,
+          $$RegionBriefCachesTableUpdateCompanionBuilder,
+          (
+            RegionBriefCache,
+            BaseReferences<
+              _$AppDatabase,
+              $RegionBriefCachesTable,
+              RegionBriefCache
+            >,
+          ),
+          RegionBriefCache,
+          PrefetchHooks Function()
+        > {
+  $$RegionBriefCachesTableTableManager(
+    _$AppDatabase db,
+    $RegionBriefCachesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RegionBriefCachesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RegionBriefCachesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RegionBriefCachesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> regionKey = const Value.absent(),
+                Value<String> locale = const Value.absent(),
+                Value<String> profileVersion = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<DateTime> generatedAt = const Value.absent(),
+                Value<DateTime> expiresAt = const Value.absent(),
+                Value<DateTime> stableExpiresAt = const Value.absent(),
+                Value<String> completeness = const Value.absent(),
+                Value<DateTime> lastAccessedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RegionBriefCachesCompanion(
+                regionKey: regionKey,
+                locale: locale,
+                profileVersion: profileVersion,
+                payloadJson: payloadJson,
+                generatedAt: generatedAt,
+                expiresAt: expiresAt,
+                stableExpiresAt: stableExpiresAt,
+                completeness: completeness,
+                lastAccessedAt: lastAccessedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String regionKey,
+                required String locale,
+                required String profileVersion,
+                required String payloadJson,
+                required DateTime generatedAt,
+                required DateTime expiresAt,
+                required DateTime stableExpiresAt,
+                required String completeness,
+                required DateTime lastAccessedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => RegionBriefCachesCompanion.insert(
+                regionKey: regionKey,
+                locale: locale,
+                profileVersion: profileVersion,
+                payloadJson: payloadJson,
+                generatedAt: generatedAt,
+                expiresAt: expiresAt,
+                stableExpiresAt: stableExpiresAt,
+                completeness: completeness,
+                lastAccessedAt: lastAccessedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RegionBriefCachesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RegionBriefCachesTable,
+      RegionBriefCache,
+      $$RegionBriefCachesTableFilterComposer,
+      $$RegionBriefCachesTableOrderingComposer,
+      $$RegionBriefCachesTableAnnotationComposer,
+      $$RegionBriefCachesTableCreateCompanionBuilder,
+      $$RegionBriefCachesTableUpdateCompanionBuilder,
+      (
+        RegionBriefCache,
+        BaseReferences<
+          _$AppDatabase,
+          $RegionBriefCachesTable,
+          RegionBriefCache
+        >,
+      ),
+      RegionBriefCache,
+      PrefetchHooks Function()
+    >;
+typedef $$RegionFamiliaritiesTableCreateCompanionBuilder =
+    RegionFamiliaritiesCompanion Function({
+      required String regionKey,
+      required String level,
+      Value<DateTime?> briefedAt,
+      Value<int> visitCount,
+      Value<DateTime?> lastVisitedAt,
+      Value<int> rowid,
+    });
+typedef $$RegionFamiliaritiesTableUpdateCompanionBuilder =
+    RegionFamiliaritiesCompanion Function({
+      Value<String> regionKey,
+      Value<String> level,
+      Value<DateTime?> briefedAt,
+      Value<int> visitCount,
+      Value<DateTime?> lastVisitedAt,
+      Value<int> rowid,
+    });
+
+class $$RegionFamiliaritiesTableFilterComposer
+    extends Composer<_$AppDatabase, $RegionFamiliaritiesTable> {
+  $$RegionFamiliaritiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get regionKey => $composableBuilder(
+    column: $table.regionKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get briefedAt => $composableBuilder(
+    column: $table.briefedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get visitCount => $composableBuilder(
+    column: $table.visitCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastVisitedAt => $composableBuilder(
+    column: $table.lastVisitedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RegionFamiliaritiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $RegionFamiliaritiesTable> {
+  $$RegionFamiliaritiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get regionKey => $composableBuilder(
+    column: $table.regionKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get briefedAt => $composableBuilder(
+    column: $table.briefedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get visitCount => $composableBuilder(
+    column: $table.visitCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastVisitedAt => $composableBuilder(
+    column: $table.lastVisitedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RegionFamiliaritiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RegionFamiliaritiesTable> {
+  $$RegionFamiliaritiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get regionKey =>
+      $composableBuilder(column: $table.regionKey, builder: (column) => column);
+
+  GeneratedColumn<String> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get briefedAt =>
+      $composableBuilder(column: $table.briefedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get visitCount => $composableBuilder(
+    column: $table.visitCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastVisitedAt => $composableBuilder(
+    column: $table.lastVisitedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$RegionFamiliaritiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RegionFamiliaritiesTable,
+          RegionFamiliarity,
+          $$RegionFamiliaritiesTableFilterComposer,
+          $$RegionFamiliaritiesTableOrderingComposer,
+          $$RegionFamiliaritiesTableAnnotationComposer,
+          $$RegionFamiliaritiesTableCreateCompanionBuilder,
+          $$RegionFamiliaritiesTableUpdateCompanionBuilder,
+          (
+            RegionFamiliarity,
+            BaseReferences<
+              _$AppDatabase,
+              $RegionFamiliaritiesTable,
+              RegionFamiliarity
+            >,
+          ),
+          RegionFamiliarity,
+          PrefetchHooks Function()
+        > {
+  $$RegionFamiliaritiesTableTableManager(
+    _$AppDatabase db,
+    $RegionFamiliaritiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RegionFamiliaritiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RegionFamiliaritiesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$RegionFamiliaritiesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> regionKey = const Value.absent(),
+                Value<String> level = const Value.absent(),
+                Value<DateTime?> briefedAt = const Value.absent(),
+                Value<int> visitCount = const Value.absent(),
+                Value<DateTime?> lastVisitedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RegionFamiliaritiesCompanion(
+                regionKey: regionKey,
+                level: level,
+                briefedAt: briefedAt,
+                visitCount: visitCount,
+                lastVisitedAt: lastVisitedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String regionKey,
+                required String level,
+                Value<DateTime?> briefedAt = const Value.absent(),
+                Value<int> visitCount = const Value.absent(),
+                Value<DateTime?> lastVisitedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RegionFamiliaritiesCompanion.insert(
+                regionKey: regionKey,
+                level: level,
+                briefedAt: briefedAt,
+                visitCount: visitCount,
+                lastVisitedAt: lastVisitedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RegionFamiliaritiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RegionFamiliaritiesTable,
+      RegionFamiliarity,
+      $$RegionFamiliaritiesTableFilterComposer,
+      $$RegionFamiliaritiesTableOrderingComposer,
+      $$RegionFamiliaritiesTableAnnotationComposer,
+      $$RegionFamiliaritiesTableCreateCompanionBuilder,
+      $$RegionFamiliaritiesTableUpdateCompanionBuilder,
+      (
+        RegionFamiliarity,
+        BaseReferences<
+          _$AppDatabase,
+          $RegionFamiliaritiesTable,
+          RegionFamiliarity
+        >,
+      ),
+      RegionFamiliarity,
+      PrefetchHooks Function()
+    >;
+typedef $$RegionInsightImpressionsTableCreateCompanionBuilder =
+    RegionInsightImpressionsCompanion Function({
+      required String id,
+      required String insightId,
+      required DateTime shownAt,
+      Value<String?> actionTaken,
+      Value<int> rowid,
+    });
+typedef $$RegionInsightImpressionsTableUpdateCompanionBuilder =
+    RegionInsightImpressionsCompanion Function({
+      Value<String> id,
+      Value<String> insightId,
+      Value<DateTime> shownAt,
+      Value<String?> actionTaken,
+      Value<int> rowid,
+    });
+
+class $$RegionInsightImpressionsTableFilterComposer
+    extends Composer<_$AppDatabase, $RegionInsightImpressionsTable> {
+  $$RegionInsightImpressionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get insightId => $composableBuilder(
+    column: $table.insightId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get shownAt => $composableBuilder(
+    column: $table.shownAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actionTaken => $composableBuilder(
+    column: $table.actionTaken,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RegionInsightImpressionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RegionInsightImpressionsTable> {
+  $$RegionInsightImpressionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get insightId => $composableBuilder(
+    column: $table.insightId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get shownAt => $composableBuilder(
+    column: $table.shownAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actionTaken => $composableBuilder(
+    column: $table.actionTaken,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RegionInsightImpressionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RegionInsightImpressionsTable> {
+  $$RegionInsightImpressionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get insightId =>
+      $composableBuilder(column: $table.insightId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get shownAt =>
+      $composableBuilder(column: $table.shownAt, builder: (column) => column);
+
+  GeneratedColumn<String> get actionTaken => $composableBuilder(
+    column: $table.actionTaken,
+    builder: (column) => column,
+  );
+}
+
+class $$RegionInsightImpressionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RegionInsightImpressionsTable,
+          RegionInsightImpression,
+          $$RegionInsightImpressionsTableFilterComposer,
+          $$RegionInsightImpressionsTableOrderingComposer,
+          $$RegionInsightImpressionsTableAnnotationComposer,
+          $$RegionInsightImpressionsTableCreateCompanionBuilder,
+          $$RegionInsightImpressionsTableUpdateCompanionBuilder,
+          (
+            RegionInsightImpression,
+            BaseReferences<
+              _$AppDatabase,
+              $RegionInsightImpressionsTable,
+              RegionInsightImpression
+            >,
+          ),
+          RegionInsightImpression,
+          PrefetchHooks Function()
+        > {
+  $$RegionInsightImpressionsTableTableManager(
+    _$AppDatabase db,
+    $RegionInsightImpressionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RegionInsightImpressionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$RegionInsightImpressionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$RegionInsightImpressionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> insightId = const Value.absent(),
+                Value<DateTime> shownAt = const Value.absent(),
+                Value<String?> actionTaken = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RegionInsightImpressionsCompanion(
+                id: id,
+                insightId: insightId,
+                shownAt: shownAt,
+                actionTaken: actionTaken,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String insightId,
+                required DateTime shownAt,
+                Value<String?> actionTaken = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RegionInsightImpressionsCompanion.insert(
+                id: id,
+                insightId: insightId,
+                shownAt: shownAt,
+                actionTaken: actionTaken,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RegionInsightImpressionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RegionInsightImpressionsTable,
+      RegionInsightImpression,
+      $$RegionInsightImpressionsTableFilterComposer,
+      $$RegionInsightImpressionsTableOrderingComposer,
+      $$RegionInsightImpressionsTableAnnotationComposer,
+      $$RegionInsightImpressionsTableCreateCompanionBuilder,
+      $$RegionInsightImpressionsTableUpdateCompanionBuilder,
+      (
+        RegionInsightImpression,
+        BaseReferences<
+          _$AppDatabase,
+          $RegionInsightImpressionsTable,
+          RegionInsightImpression
+        >,
+      ),
+      RegionInsightImpression,
+      PrefetchHooks Function()
+    >;
 typedef $$EntryCacheRecordsTableCreateCompanionBuilder =
     EntryCacheRecordsCompanion Function({
       required String id,
@@ -11205,6 +13233,15 @@ class $AppDatabaseManager {
       $$OfflinePhotographyPacksTableTableManager(
         _db,
         _db.offlinePhotographyPacks,
+      );
+  $$RegionBriefCachesTableTableManager get regionBriefCaches =>
+      $$RegionBriefCachesTableTableManager(_db, _db.regionBriefCaches);
+  $$RegionFamiliaritiesTableTableManager get regionFamiliarities =>
+      $$RegionFamiliaritiesTableTableManager(_db, _db.regionFamiliarities);
+  $$RegionInsightImpressionsTableTableManager get regionInsightImpressions =>
+      $$RegionInsightImpressionsTableTableManager(
+        _db,
+        _db.regionInsightImpressions,
       );
   $$EntryCacheRecordsTableTableManager get entryCacheRecords =>
       $$EntryCacheRecordsTableTableManager(_db, _db.entryCacheRecords);

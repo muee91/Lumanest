@@ -1,6 +1,7 @@
 const missionTypes = new Set([
   'popularPlaces', 'hiddenPlaces', 'humanityEvents', 'localStories',
   'routeConditions', 'openingAndClosure', 'seasonalSignals',
+  'localFoodAndSpecialties', 'culturalEtiquette',
 ]);
 const publicRequestKeys = new Set([
   'activationType', 'missionType', 'focus', 'locale', 'region', 'timeRange', 'routeCorridor', 'interests',

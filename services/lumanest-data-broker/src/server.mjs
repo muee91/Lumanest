@@ -32,6 +32,8 @@ import {
   validTargetSessionRequest,
 } from './context/proxy.mjs';
 import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
+import { forwardRegionBrief } from './discovery/region-brief-proxy.mjs';
+import { regionBriefGrid, validRegionBriefRequest } from './discovery/region-brief-contract.mjs';
 import { prewarmNearbyDiscovery } from './discovery/prewarm.mjs';
 import {
   extractDiscoveryCandidates,
@@ -385,6 +387,7 @@ const ratePolicies = [
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
   { path: '/v1/weather/7timer', limit: 20, windowMs: 60 * 1_000, key: 'seven-timer' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
+  { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
   { path: '/v1/explore/place-media', limit: 12, windowMs: 60 * 1_000, key: 'place-media-search' },
   { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },
   { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },
@@ -1308,7 +1311,7 @@ export function createTokenBrokerServer({
         writeJson(response, result.error === 'ai_unconfigured' ? 503 : 502, { error: result.error });
         return;
       }
-      writeJson(response, 200, { candidates: result.candidates });
+      writeJson(response, 200, { candidates: result.candidates, insights: result.insights });
       return;
     }
 
@@ -1999,7 +2002,13 @@ export function createTokenBrokerServer({
           result.body.expiresAt,
         );
       }
-      companion.rememberSnapshot(result.body);
+      companion.rememberSnapshot({
+        ...result.body,
+        // Retain only a coarse cell in the process-local snapshot binding.
+        // Region Brief uses it to reject arbitrary coordinates submitted with
+        // a valid snapshot ID; raw GPS never enters CompanionStore.
+        regionBriefGrid: regionBriefGrid(body.coordinate),
+      });
       writeJson(response, 200, result.body);
       // The client must receive the refreshed environment immediately. Nearby
       // discovery is cache-first background work and is deliberately detached
@@ -2105,6 +2114,37 @@ export function createTokenBrokerServer({
         return;
       }
       writeJson(response, 200, result.body);
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/explore/brief') {
+      const body = await readJsonBody(request, 8 * 1024);
+      if (body == null || !validRegionBriefRequest(body)) {
+        writeJson(response, 400, { error: 'invalid_region_brief_request' });
+        return;
+      }
+      const snapshot = companion.snapshot(body.snapshotId);
+      const requestGrid = regionBriefGrid(body.region);
+      if (snapshot == null || snapshot.regionBriefGrid == null || snapshot.regionBriefGrid !== requestGrid ||
+          !Number.isFinite(Date.parse(snapshot.expiresAt)) || Date.parse(snapshot.expiresAt) <= now().getTime()) {
+        writeJson(response, 409, { error: 'invalid_or_expired_snapshot' });
+        return;
+      }
+      const result = await forwardRegionBrief({
+        body,
+        serviceUrl: configuration.discoveryServiceUrl,
+        internalToken: configuration.discoveryInternalToken,
+        sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      });
+      if (!result.ok) {
+        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
+          error: result.error === 'not_configured' ? 'discovery_unconfigured' : 'upstream_unavailable',
+        });
+        return;
+      }
+      writeJson(response, result.status, result.body);
       return;
     }
 

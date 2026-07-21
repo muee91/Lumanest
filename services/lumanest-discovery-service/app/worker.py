@@ -19,6 +19,7 @@ from .models import (
     BrokerSearchResult,
     ExtractionCoordinate,
     ExtractedCandidate,
+    ExtractedRegionInsight,
     PlaceResolutionRequest,
     PlaceResolutionResponse,
 )
@@ -85,7 +86,19 @@ class BrokerClient:
                     return results
         return results
 
-    async def extract(self, job: RefreshJob, evidence: list[BrokerSearchResult]) -> list[ExtractedCandidate]:
+    async def extract(
+        self,
+        job: RefreshJob,
+        evidence: list[BrokerSearchResult],
+    ) -> list[ExtractedCandidate]:
+        candidates, _ = await self.extract_with_insights(job, evidence)
+        return candidates
+
+    async def extract_with_insights(
+        self,
+        job: RefreshJob,
+        evidence: list[BrokerSearchResult],
+    ) -> tuple[list[ExtractedCandidate], list[ExtractedRegionInsight]]:
         payload = {
             "missionType": job.region.mission_type,
             "focus": job.region.focus,
@@ -100,11 +113,13 @@ class BrokerClient:
                 "publisher": item.publisher,
                 "license": item.license,
                 "version": item.source_version,
+                "qualityTier": item.quality_tier,
             } for item in evidence],
         }
         raw = await self._post("/internal/v1/discovery/extract", payload)
         try:
-            return BrokerExtractionResponse.model_validate(raw).candidates
+            response = BrokerExtractionResponse.model_validate(raw)
+            return response.candidates, response.insights
         except Exception as error:
             raise BrokerFailure("invalid_extraction_response") from error
 
@@ -192,6 +207,8 @@ class BrokerClient:
             "routeConditions": ("当前路况", "临时封闭", "施工 管制"),
             "openingAndClosure": ("今日开放", "临时关闭", "营业时间"),
             "seasonalSignals": ("本月 花期", "候鸟", "季节景观"),
+            "localFoodAndSpecialties": ("本地特色 食物", "传统小吃", "地方特产"),
+            "culturalEtiquette": ("参观礼仪", "当地习俗", "拍摄礼仪"),
         }[job.region.mission_type]
         return tuple(f"{area} {suffix}" for suffix in templates)
 
@@ -205,6 +222,8 @@ class BrokerClient:
             "hiddenPlaces": 3,
             "seasonalSignals": 1,
             "localStories": 30,
+            "localFoodAndSpecialties": 14,
+            "culturalEtiquette": 30,
         }[mission_type]
 
 
@@ -230,6 +249,7 @@ def parse_job(values: dict[str, str]) -> RefreshJob | None:
         or not -180 <= longitude <= 180 or mission_type not in {
             "popularPlaces", "hiddenPlaces", "humanityEvents", "localStories",
             "routeConditions", "openingAndClosure", "seasonalSignals",
+            "localFoodAndSpecialties", "culturalEtiquette",
         } or not 100 <= radius_meters <= 50_000
         or not 0 <= attempt <= MAX_RETRIES or expires_at <= int(time.time())
         or activation_type not in {"user_manual", "foreground_opportunistic", "ai_verification", "admin_backfill"}
@@ -479,7 +499,17 @@ async def process_job(
                 await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
                 return
             selected = await enrich_evidence_with_crawl(redis, selected, crawler)
-            extracted = await broker.extract(job, selected)
+            if isinstance(broker, BrokerClient):
+                extracted, extracted_insights = await broker.extract_with_insights(
+                    job,
+                    selected,
+                )
+            else:
+                # Existing worker fakes and alternate implementations expose
+                # the original candidate-only method. They remain valid and
+                # simply have no regional facts to persist.
+                extracted = await broker.extract(job, selected)
+                extracted_insights = []
             evidence_pool = list(selected)
             resolved_candidates: list[ExtractedCandidate] = []
             for candidate in extracted:
@@ -496,6 +526,12 @@ async def process_job(
                 evidence_pool.append(coordinate_evidence)
                 resolved_candidates.append(resolved_candidate)
             admitted = [(candidate, linked) for candidate in resolved_candidates if (linked := is_admissible(candidate, evidence_pool, job))]
+            if extracted_insights:
+                await store.persist_region_insights(
+                    job,
+                    extracted_insights,
+                    evidence_pool,
+                )
         await store.persist_candidates(job, admitted)
         await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
     except (BrokerFailure, RuntimeError):

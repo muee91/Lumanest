@@ -356,6 +356,70 @@ class OfflinePhotographyPacks extends Table {
   ];
 }
 
+/// Cached Region Brief payloads are local-only and keyed by a coarse region
+/// identity supplied by Broker. No raw current-location coordinate is stored
+/// in this table.
+class RegionBriefCaches extends Table {
+  TextColumn get regionKey => text()();
+  TextColumn get locale => text()();
+  TextColumn get profileVersion => text()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get generatedAt => dateTime()();
+  DateTimeColumn get expiresAt => dateTime()();
+  DateTimeColumn get stableExpiresAt => dateTime()();
+  TextColumn get completeness => text()();
+  DateTimeColumn get lastAccessedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {regionKey, locale, profileVersion};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(region_key) BETWEEN 1 AND 160)',
+    'CHECK (length(locale) BETWEEN 2 AND 16)',
+    'CHECK (length(profile_version) BETWEEN 1 AND 32)',
+    'CHECK (length(payload_json) BETWEEN 2 AND 524288)',
+    'CHECK (expires_at >= generated_at)',
+    'CHECK (stable_expires_at >= expires_at)',
+  ];
+}
+
+/// Familiarity stays on device and can be cleared with derived caches.
+class RegionFamiliarities extends Table {
+  TextColumn get regionKey => text()();
+  TextColumn get level => text()();
+  DateTimeColumn get briefedAt => dateTime().nullable()();
+  IntColumn get visitCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get lastVisitedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {regionKey};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(region_key) BETWEEN 1 AND 160)',
+    "CHECK (level IN ('unknown', 'briefed', 'exploring', 'familiar'))",
+    'CHECK (visit_count >= 0)',
+  ];
+}
+
+class RegionInsightImpressions extends Table {
+  TextColumn get id => text()();
+  TextColumn get insightId => text()();
+  DateTimeColumn get shownAt => dateTime()();
+  TextColumn get actionTaken => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+    'CHECK (length(id) = 64)',
+    'CHECK (length(insight_id) BETWEEN 1 AND 160)',
+    'CHECK (action_taken IS NULL OR length(action_taken) BETWEEN 1 AND 40)',
+  ];
+}
+
 @DriftDatabase(
   tables: [
     SavedPlaces,
@@ -371,6 +435,9 @@ class OfflinePhotographyPacks extends Table {
     WatchedShootingSessions,
     ShootingSessionResults,
     OfflinePhotographyPacks,
+    RegionBriefCaches,
+    RegionFamiliarities,
+    RegionInsightImpressions,
     EntryCacheRecords,
     CompositionCacheRecords,
   ],
@@ -382,7 +449,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -402,6 +469,9 @@ class AppDatabase extends _$AppDatabase {
     await batch((batch) {
       batch.deleteAll(entryCacheRecords);
       batch.deleteAll(compositionCacheRecords);
+      batch.deleteAll(regionBriefCaches);
+      batch.deleteAll(regionFamiliarities);
+      batch.deleteAll(regionInsightImpressions);
     });
   }
 }

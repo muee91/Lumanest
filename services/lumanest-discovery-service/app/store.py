@@ -19,6 +19,9 @@ from .models import (
     DiscoveryRequest,
     DiscoveryResponse,
     ExtractedCandidate,
+    ExtractedRegionInsight,
+    RegionBriefRequest,
+    RegionBriefResponse,
 )
 
 
@@ -40,6 +43,8 @@ FRESHNESS_POLICY: dict[str, FreshnessRule] = {
     "hiddenPlaces": FreshnessRule(3 * 24 * 60 * 60, 3 * 24 * 60 * 60),
     "seasonalSignals": FreshnessRule(24 * 60 * 60, 24 * 60 * 60),
     "localStories": FreshnessRule(30 * 24 * 60 * 60, 30 * 24 * 60 * 60),
+    "localFoodAndSpecialties": FreshnessRule(14 * 24 * 60 * 60, 7 * 24 * 60 * 60),
+    "culturalEtiquette": FreshnessRule(30 * 24 * 60 * 60, 30 * 24 * 60 * 60),
 }
 
 
@@ -152,6 +157,212 @@ class DiscoveryStore:
             focus=request.focus,
             radius_meters=request.region.radius_meters,
         )
+
+    @staticmethod
+    def brief_region_reference(request: RegionBriefRequest) -> tuple[str, float, float]:
+        """Use the same coarse cell as discovery jobs without inventing a name."""
+        latitude_cell = math.floor(request.region.latitude / REGION_GRID_DEGREES)
+        longitude_cell = math.floor(request.region.longitude / REGION_GRID_DEGREES)
+        return (
+            f"g{latitude_cell}:{longitude_cell}",
+            round((latitude_cell + 0.5) * REGION_GRID_DEGREES, 3),
+            round((longitude_cell + 0.5) * REGION_GRID_DEGREES, 3),
+        )
+
+    async def region_brief_for(self, request: RegionBriefRequest) -> tuple[RegionBriefResponse, int]:
+        """Aggregate already-admitted regional facts and schedule missing work.
+
+        The method never waits for crawl or LLM work. A fact-complete cached
+        brief is returned immediately; otherwise callers receive a true pending
+        state rather than a local prose fallback.
+        """
+        now = datetime.now(timezone.utc)
+        region_id, _, _ = self.brief_region_reference(request)
+        scheduled = await self._schedule_brief_missions(request, now)
+        if self.engine is None:
+            return self._pending_brief(request, region_id, now, scheduled), 202
+        active_sources = {(policy.id, policy.version) for policy in request.source_policies}
+        if not active_sources:
+            return self._pending_brief(request, region_id, now, scheduled), 202
+        query = text("""
+            SELECT region.name AS region_name,
+                   insight.id AS insight_id, insight.kind, insight.title, insight.summary,
+                   insight.verification, insight.actionability, insight.time_sensitive,
+                   insight.scene_tags, insight.photo_theme_tags, insight.starts_at, insight.ends_at,
+                   insight.observed_at, insight.expires_at,
+                   fact.id AS fact_id,
+                   source_document.id AS source_id, source_document.source_id AS source_policy_id,
+                   source_document.source_version, source_document.publisher,
+                   source_document.title AS source_title, source_document.source_url,
+                   source_document.retrieved_at, source_document.published_at,
+                   insight_evidence.quality_tier, insight_evidence.license
+            FROM discovery.region_entities AS region
+            JOIN discovery.region_insights AS insight ON insight.region_id = region.id
+            JOIN discovery.region_insight_facts AS fact ON fact.insight_id = insight.id
+            JOIN discovery.region_insight_evidence AS insight_evidence ON insight_evidence.insight_id = insight.id
+            JOIN discovery.source_documents AS source_document ON source_document.id = insight_evidence.source_document_id
+            WHERE region.id = :region_id
+              AND insight.expires_at > NOW()
+            ORDER BY insight.updated_at DESC, fact.id, source_document.id
+            LIMIT 320
+        """)
+        try:
+            async with self.engine.connect() as connection:
+                rows = (await connection.execute(query, {"region_id": region_id})).mappings().all()
+        except SQLAlchemyError as error:
+            raise RuntimeError("storage_unavailable") from error
+
+        grouped: dict[str, dict] = {}
+        sources: dict[str, dict] = {}
+        for row in rows:
+            if (row["source_policy_id"], row["source_version"]) not in active_sources:
+                continue
+            source_id = str(row["source_id"])
+            sources[source_id] = {
+                "id": source_id,
+                "sourcePolicyId": row["source_policy_id"],
+                "publisher": row["publisher"],
+                "title": row["source_title"],
+                "url": row["source_url"],
+                "observedAt": row["retrieved_at"],
+                "qualityTier": row["quality_tier"],
+                "license": row["license"],
+                "version": row["source_version"],
+                "publishedAt": row["published_at"],
+            }
+            record = grouped.setdefault(str(row["insight_id"]), {
+                "id": row["insight_id"],
+                "regionId": region_id,
+                "type": row["kind"],
+                "title": row["title"],
+                "summary": row["summary"],
+                "verification": row["verification"],
+                "factIds": [],
+                "evidenceIds": [],
+                "observedAt": row["observed_at"],
+                "expiresAt": row["expires_at"],
+                "placeId": None,
+                "coordinate": None,
+                "startsAt": row["starts_at"],
+                "endsAt": row["ends_at"],
+                "timeSensitive": row["time_sensitive"],
+                "actionability": row["actionability"],
+                "sceneTags": row["scene_tags"] or [],
+                "photoThemeTags": row["photo_theme_tags"] or [],
+            })
+            if row["fact_id"] not in record["factIds"]:
+                record["factIds"].append(row["fact_id"])
+            if source_id not in record["evidenceIds"]:
+                record["evidenceIds"].append(source_id)
+
+        insights = list(grouped.values())
+        identity = next((item for item in insights if item["type"] == "areaIdentity"), None)
+        orientation = next((item for item in insights if item["type"] == "orientation"), None)
+        if identity is None or orientation is None:
+            return self._pending_brief(request, region_id, now, scheduled), 202
+        themes: list[dict[str, str]] = []
+        seen_themes: set[str] = set()
+        for insight in insights:
+            for label in insight["photoThemeTags"]:
+                if label in seen_themes:
+                    continue
+                seen_themes.add(label)
+                themes.append({"id": self._hash(f"theme|{label}")[:32], "label": label})
+                if len(themes) == 5:
+                    break
+            if len(themes) == 5:
+                break
+        available = [item for item in insights if item["type"] not in {"areaIdentity", "orientation"}]
+        completeness = "identityOnly" if not available else "partial"
+        if any(item["actionability"] in {"detail", "remind"} and item["verification"] != "candidate" for item in available):
+            completeness = "actionable"
+        expiry = min(item["expiresAt"] for item in insights)
+        response = RegionBriefResponse.model_validate({
+            "contractVersion": 2,
+            "briefId": self._hash(f"brief|{region_id}|{expiry.isoformat()}")[:64],
+            "regionId": region_id,
+            # A display name must come from a sourced areaIdentity, not a raw
+            # coordinate or inferred administrative label.
+            "regionName": identity["title"],
+            "profile": request.scene_profile.model_dump(by_alias=True),
+            "generatedAt": now,
+            "expiresAt": expiry,
+            "status": "refreshing" if scheduled else "ready",
+            "completeness": completeness,
+            "identity": {"summary": identity["summary"], "factIds": identity["factIds"][:8]},
+            "orientation": {"summary": orientation["summary"], "factIds": orientation["factIds"][:8]},
+            "photoThemes": themes,
+            "insights": insights[:40],
+            "sources": list(sources.values())[:40],
+            "refresh": {"refreshingMissions": scheduled, "retryAfterSeconds": 30 if scheduled else None},
+        })
+        return response, 200
+
+    def _pending_brief(
+        self,
+        request: RegionBriefRequest,
+        region_id: str,
+        now: datetime,
+        scheduled: list[str],
+    ) -> RegionBriefResponse:
+        return RegionBriefResponse.model_validate({
+            "contractVersion": 2,
+            "briefId": self._hash(f"pending|{region_id}|{int(now.timestamp() // 30)}")[:64],
+            "regionId": region_id,
+            "regionName": "当前区域",
+            "profile": request.scene_profile.model_dump(by_alias=True),
+            "generatedAt": now,
+            "expiresAt": now + timedelta(seconds=30),
+            "status": "pending",
+            "completeness": "partial",
+            "identity": None,
+            "orientation": None,
+            "photoThemes": [],
+            "insights": [],
+            "sources": [],
+            "refresh": {"refreshingMissions": scheduled, "retryAfterSeconds": 30},
+        })
+
+    async def _schedule_brief_missions(self, request: RegionBriefRequest, now: datetime) -> list[str]:
+        missions = self._brief_missions(request)
+        scheduled: list[str] = []
+        for mission in missions:
+            discovery_request = DiscoveryRequest.model_validate({
+                "activationType": request.activation_type,
+                "missionType": mission,
+                "focus": "区域探索资料",
+                "locale": request.locale,
+                "region": request.region.model_dump(by_alias=True),
+                "timeRange": {
+                    "startsAt": now,
+                    "endsAt": now + timedelta(days=7),
+                },
+                "routeCorridor": None,
+                "interests": ["photography"],
+                "sourcePolicies": [policy.model_dump(by_alias=True) for policy in request.source_policies],
+            })
+            if await self.schedule_refresh(discovery_request):
+                scheduled.append(mission)
+        return scheduled
+
+    @staticmethod
+    def _brief_missions(request: RegionBriefRequest) -> list[str]:
+        section_missions = {
+            "identity": ["localStories"],
+            "orientation": ["localStories"],
+            "photoThemes": ["seasonalSignals"],
+            "happeningNow": ["humanityEvents"],
+            "places": ["popularPlaces", "hiddenPlaces"],
+            "localTaste": ["localFoodAndSpecialties"],
+            "etiquette": ["culturalEtiquette"],
+            "practical": ["openingAndClosure"],
+        }
+        result: list[str] = []
+        for section in request.requested_sections:
+            for mission in section_missions[section]:
+                if mission not in result:
+                    result.append(mission)
+        return result
 
     @classmethod
     def fingerprint(cls, request: DiscoveryRequest) -> str:
@@ -280,6 +491,8 @@ class DiscoveryStore:
             "routeConditions": ("candidate_viewpoint",),
             "openingAndClosure": ("attraction",),
             "seasonalSignals": ("attraction", "event"),
+            "localFoodAndSpecialties": ("attraction",),
+            "culturalEtiquette": ("attraction",),
         }[request.mission_type]
         query = text("""
             SELECT places.id, places.kind, LEFT(places.name, 120) AS name,
@@ -529,6 +742,152 @@ class DiscoveryStore:
         except SQLAlchemyError as error:
             raise RuntimeError("storage_unavailable") from error
         return len(admitted)
+
+    async def persist_region_insights(
+        self,
+        job: RefreshJob,
+        insights: Iterable[ExtractedRegionInsight],
+        evidence: list[BrokerSearchResult],
+    ) -> int:
+        """Persist non-spatial facts in their own evidence-linked model.
+
+        A regional story or etiquette note must never be discarded merely
+        because it has no coordinate, nor forced into the spatial places table.
+        This method also refuses to turn an extracted fact into navigation.
+        """
+        if self.engine is None:
+            raise RuntimeError("storage_not_configured")
+        accepted: list[tuple[ExtractedRegionInsight, list[BrokerSearchResult]]] = []
+        for insight in insights:
+            if any(index < 0 or index >= len(evidence) for index in insight.source_indexes):
+                continue
+            linked = [evidence[index] for index in dict.fromkeys(insight.source_indexes)]
+            if not linked or any(item.url.scheme != "https" for item in linked):
+                continue
+            if insight.ends_at is not None and insight.starts_at is not None and insight.ends_at < insight.starts_at:
+                continue
+            accepted.append((insight, linked))
+        if not accepted:
+            return 0
+
+        source_sql = text("""
+            INSERT INTO discovery.source_documents
+                (id, source_id, source_version, source_url, title, snippet, publisher, published_at, retrieved_at)
+            VALUES
+                (:id, :source_id, :source_version, :url, :title, :snippet, :publisher, :published_at, NOW())
+            ON CONFLICT (source_url) DO UPDATE SET
+                source_id = EXCLUDED.source_id, source_version = EXCLUDED.source_version,
+                title = EXCLUDED.title, snippet = EXCLUDED.snippet,
+                publisher = EXCLUDED.publisher, published_at = EXCLUDED.published_at,
+                retrieved_at = NOW()
+        """)
+        region_sql = text("""
+            INSERT INTO discovery.region_entities
+                (id, canonical_key, name, locale, center_latitude, center_longitude, updated_at)
+            VALUES
+                (:id, :canonical_key, :name, :locale, :latitude, :longitude, NOW())
+            ON CONFLICT (canonical_key) DO UPDATE SET
+                locale = EXCLUDED.locale, center_latitude = EXCLUDED.center_latitude,
+                center_longitude = EXCLUDED.center_longitude, updated_at = NOW()
+        """)
+        insight_sql = text("""
+            INSERT INTO discovery.region_insights
+                (id, region_id, kind, title, summary, verification, actionability, time_sensitive,
+                 scene_tags, photo_theme_tags, starts_at, ends_at, observed_at, expires_at, updated_at)
+            VALUES
+                (:id, :region_id, :kind, :title, :summary, :verification, :actionability, :time_sensitive,
+                 CAST(:scene_tags AS jsonb), CAST(:photo_theme_tags AS jsonb), :starts_at, :ends_at,
+                 NOW(), :expires_at, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                title = EXCLUDED.title, summary = EXCLUDED.summary, verification = EXCLUDED.verification,
+                actionability = EXCLUDED.actionability, time_sensitive = EXCLUDED.time_sensitive,
+                scene_tags = EXCLUDED.scene_tags, photo_theme_tags = EXCLUDED.photo_theme_tags,
+                starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at,
+                observed_at = NOW(), expires_at = EXCLUDED.expires_at, updated_at = NOW()
+        """)
+        delete_facts_sql = text("DELETE FROM discovery.region_insight_facts WHERE insight_id = :insight_id")
+        fact_sql = text("""
+            INSERT INTO discovery.region_insight_facts
+                (id, insight_id, claim_fingerprint, claim_text, created_at)
+            VALUES (:id, :insight_id, :claim_fingerprint, :claim_text, NOW())
+        """)
+        delete_evidence_sql = text("DELETE FROM discovery.region_insight_evidence WHERE insight_id = :insight_id")
+        evidence_sql = text("""
+            INSERT INTO discovery.region_insight_evidence
+                (insight_id, source_document_id, quality_tier, license)
+            VALUES (:insight_id, :source_document_id, :quality_tier, :license)
+        """)
+        try:
+            async with self.engine.begin() as connection:
+                await connection.execute(region_sql, {
+                    "id": job.region.region_id,
+                    "canonical_key": job.region.region_id,
+                    "name": job.region.region_id,
+                    "locale": job.region.locale,
+                    "latitude": job.region.latitude,
+                    "longitude": job.region.longitude,
+                })
+                for insight, linked in accepted:
+                    insight_id = self._hash("|".join((
+                        job.region.region_id,
+                        insight.type,
+                        insight.title.strip().lower(),
+                    )))
+                    tiers = {source.quality_tier for source in linked}
+                    verification = (
+                        "authoritative" if "S" in tiers else
+                        "corroborated" if len({source.source_id for source in linked}) >= 2 else
+                        "singleSource" if tiers.intersection({"A", "B"}) else
+                        "candidate"
+                    )
+                    actionability = insight.actionability
+                    if actionability == "navigate" or verification in {"candidate", "conflicting"}:
+                        actionability = "detail" if verification != "candidate" else "informational"
+                    await connection.execute(insight_sql, {
+                        "id": insight_id,
+                        "region_id": job.region.region_id,
+                        "kind": insight.type,
+                        "title": insight.title,
+                        "summary": insight.summary,
+                        "verification": verification,
+                        "actionability": actionability,
+                        "time_sensitive": insight.time_sensitive or insight.ends_at is not None,
+                        "scene_tags": json.dumps(insight.scene_tags, ensure_ascii=False),
+                        "photo_theme_tags": json.dumps(insight.photo_theme_tags, ensure_ascii=False),
+                        "starts_at": insight.starts_at,
+                        "ends_at": insight.ends_at,
+                        "expires_at": freshness_until(job.region.mission_type, insight.ends_at),
+                    })
+                    await connection.execute(delete_facts_sql, {"insight_id": insight_id})
+                    fingerprint = self._hash(insight.fact_text.strip())
+                    await connection.execute(fact_sql, {
+                        "id": self._hash(f"{insight_id}|{fingerprint}"),
+                        "insight_id": insight_id,
+                        "claim_fingerprint": fingerprint,
+                        "claim_text": insight.fact_text,
+                    })
+                    await connection.execute(delete_evidence_sql, {"insight_id": insight_id})
+                    for source in linked:
+                        source_document_id = self._hash(str(source.url))
+                        await connection.execute(source_sql, {
+                            "id": source_document_id,
+                            "source_id": source.source_id,
+                            "source_version": source.source_version,
+                            "url": str(source.url),
+                            "title": source.title,
+                            "snippet": source.snippet,
+                            "publisher": source.publisher,
+                            "published_at": source.published_at,
+                        })
+                        await connection.execute(evidence_sql, {
+                            "insight_id": insight_id,
+                            "source_document_id": source_document_id,
+                            "quality_tier": source.quality_tier,
+                            "license": source.license,
+                        })
+        except SQLAlchemyError as error:
+            raise RuntimeError("storage_unavailable") from error
+        return len(accepted)
 
     @staticmethod
     def _hash(value: str) -> str:

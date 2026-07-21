@@ -25,7 +25,7 @@ test('reviewed Tavily profile requires an enabled attributable source and keeps 
     timeoutMs: 8_000, sourcePolicies: [policy],
   });
   assert.equal(profile.baseUrl, 'https://api.tavily.com');
-  assert.deepEqual(profile.sourcePolicies, [policy]);
+  assert.deepEqual(profile.sourcePolicies, [{ ...policy, qualityTier: 'B' }]);
   assert.throws(() => validateDiscoverySearchProfile({ ...profile, sourcePolicies: [{ ...policy, extra: true }] }), /Unknown/);
   assert.throws(() => validateDiscoverySearchProfile({
     ...profile,
@@ -83,7 +83,7 @@ test('extract contract requires attributable evidence and rejects safety or wild
     title: '盐官摄影展', kind: 'event', summary: '本周末举办，详情见发布机构公告。', sourceIndexes: [0],
   }] }), body.evidence), { candidates: [{
     title: '盐官摄影展', kind: 'event', summary: '本周末举办，详情见发布机构公告。', sourceIndexes: [0],
-  }] });
+  }], insights: [] });
   assert.equal(parseDiscoveryCandidates(JSON.stringify({ candidates: [{
     title: '危险区域', kind: 'event', summary: '风险提示', sourceIndexes: [0],
   }] }), body.evidence), null);
@@ -101,4 +101,28 @@ test('model coordinates require an exact coordinate string in their linked evide
   assert.deepEqual(parseDiscoveryCandidates(valid, evidence)?.candidates[0]?.coordinateEvidence, '30.280,120.130');
   const invented = valid.replace('30.280,120.130', '30.281,120.131');
   assert.equal(parseDiscoveryCandidates(invented, evidence), null);
+});
+
+test('regional insights retain an exact source fact and cannot request navigation', () => {
+  const evidence = [{
+    title: '古镇简介', snippet: '古镇因水运商贸兴起，沿河仍保留传统街巷。',
+    url: 'https://culture.example.gov.cn/town', sourceId: 'haining-culture',
+    publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
+  }];
+  const parsed = parseDiscoveryCandidates(JSON.stringify({
+    candidates: [],
+    insights: [{
+      type: 'areaIdentity', title: '沿河古镇', summary: '古镇因水运商贸兴起，',
+      factText: '古镇因水运商贸兴起，沿河仍保留传统街巷。', sourceIndexes: [0],
+      timeSensitive: false, actionability: 'detail', sceneTags: ['oldTown'], photoThemeTags: ['传统建筑'],
+    }],
+  }), evidence);
+  assert.equal(parsed?.insights.length, 1);
+  assert.equal(parseDiscoveryCandidates(JSON.stringify({
+    candidates: [], insights: [{
+      type: 'areaIdentity', title: '沿河古镇', summary: '古镇因水运商贸兴起，',
+      factText: '古镇因水运商贸兴起，沿河仍保留传统街巷。', sourceIndexes: [0],
+      timeSensitive: false, actionability: 'navigate', sceneTags: [], photoThemeTags: [],
+    }],
+  }), evidence), null);
 });

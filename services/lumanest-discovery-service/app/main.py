@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 
-from .models import DiscoveryRequest, DiscoveryResponse
+from .models import DiscoveryRequest, DiscoveryResponse, RegionBriefRequest, RegionBriefResponse
 from .store import DiscoveryStore
 
 
@@ -48,6 +48,25 @@ async def readyz(request: Request) -> dict[str, object]:
 async def discover(body: DiscoveryRequest, request: Request, response: Response) -> DiscoveryResponse:
     try:
         result, status_code = await request.app.state.store.response_for(body)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail="storage_unavailable") from error
+    response.status_code = status_code
+    return result
+
+
+@app.post(
+    "/internal/v1/explore/brief",
+    response_model=RegionBriefResponse,
+    response_model_by_alias=True,
+    dependencies=[Depends(require_internal_token)],
+)
+async def region_brief(
+    body: RegionBriefRequest,
+    request: Request,
+    response: Response,
+) -> RegionBriefResponse:
+    try:
+        result, status_code = await request.app.state.store.region_brief_for(body)
     except RuntimeError as error:
         raise HTTPException(status_code=503, detail="storage_unavailable") from error
     response.status_code = status_code
