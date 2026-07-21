@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
-import 'package:luma_nest/src/presentation_v2/shared/v2_opportunity_object.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
@@ -89,7 +89,8 @@ class _V2OpportunityStage extends ConsumerStatefulWidget {
 }
 
 class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
-  bool _evidenceOpen = true;
+  bool _evidenceOpen = false;
+  int _selectedPhaseIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -101,12 +102,19 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
       target: target,
     );
     final library = ref.watch(userLibraryProvider).asData?.value;
-    final watched =
-        library?.watchedSessions.any((item) => item.sessionId == session.id) ==
-        true;
+    final watchedEntry = library?.watchedSessions
+        .where((item) => item.sessionId == session.id)
+        .firstOrNull;
+    final watched = watchedEntry != null;
     final hasResult =
         library?.sessionResults.any((item) => item.sessionId == session.id) ==
         true;
+    final selectedPhase = session.phases.isEmpty
+        ? null
+        : session.phases[_selectedPhaseIndex.clamp(
+            0,
+            session.phases.length - 1,
+          )];
 
     return SafeArea(
       child: Column(
@@ -135,21 +143,39 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  V2OpportunityObject(
+                  _V2SessionSummary(
                     stableId: session.id,
                     eyebrow: _eyebrow(session.kind),
                     title: session.title,
                     detail: decision.reason,
                     timeLabel:
                         '${_time(session.startsAt)}—${_time(session.endsAt)}',
-                    actionLabel: decision.label,
                     accent: _accent(session.conditionBand),
-                    expanded: true,
-                    onTap: () => setState(() => _evidenceOpen = !_evidenceOpen),
                   ),
-                  const SizedBox(height: 25),
-                  _V2Timeline(phases: session.phases),
+                  const SizedBox(height: 20),
+                  if (selectedPhase != null) ...[
+                    _V2Timeline(
+                      phases: session.phases,
+                      selectedIndex: _selectedPhaseIndex,
+                      onSelected: (index) =>
+                          setState(() => _selectedPhaseIndex = index),
+                    ),
+                    const SizedBox(height: 18),
+                    _V2ShootingAdvice(
+                      phase: selectedPhase,
+                      capabilities: session.recommendedCapabilities,
+                      target: target,
+                    ),
+                  ],
                   const SizedBox(height: 24),
+                  if (decision.state != ShootingExecutionState.observe) ...[
+                    _V2EvidenceToggle(
+                      open: _evidenceOpen,
+                      onTap: () =>
+                          setState(() => _evidenceOpen = !_evidenceOpen),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
                   AnimatedSize(
                     duration: const Duration(milliseconds: 360),
                     curve: Curves.easeOutCubic,
@@ -158,7 +184,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                '为什么这样判断',
+                                '判断依据',
                                 style: TextStyle(
                                   color: V2Palette.ink,
                                   fontSize: 19,
@@ -174,8 +200,10 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                                     _V2FactorObject(factor: factor),
                                 ],
                               ),
-                              const SizedBox(height: 24),
-                              _V2TargetObject(target: target),
+                              if (target != null) ...[
+                                const SizedBox(height: 18),
+                                _V2TargetObject(target: target),
+                              ],
                             ],
                           )
                         : const SizedBox.shrink(),
@@ -188,11 +216,39 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
             child: Row(
               children: [
-                if (session.canStartWatchingAt(DateTime.now()) && !watched) ...[
-                  V2RoundAction(
-                    icon: CupertinoIcons.bell,
-                    label: '开始守候',
-                    onTap: _watch,
+                if (watched || session.canStartWatchingAt(DateTime.now())) ...[
+                  V2Pressable(
+                    key: const Key('v2-watch-session-action'),
+                    onTap: () => _toggleWatch(watchedEntry?.id),
+                    compact: true,
+                    color: watched ? V2Palette.mossSoft : V2Palette.paper,
+                    semanticLabel: watched ? '取消守候提醒' : '开启守候提醒',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 13,
+                        vertical: 15,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            watched
+                                ? CupertinoIcons.bell_fill
+                                : CupertinoIcons.bell,
+                            color: watched ? V2Palette.moss : V2Palette.ink,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            watched ? '已守候' : '守候提醒',
+                            style: const TextStyle(
+                              color: V2Palette.ink,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                 ],
@@ -202,6 +258,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                         hasResult ||
                             decision.state == ShootingExecutionState.ended
                         ? _recordResult
+                        : decision.state == ShootingExecutionState.observe
+                        ? () => setState(() => _evidenceOpen = !_evidenceOpen)
                         : () => _primaryAction(decision, target),
                     color: V2Palette.moss,
                     child: Padding(
@@ -211,6 +269,10 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                             ? '再次记录结果'
                             : decision.state == ShootingExecutionState.ended
                             ? '记录结果'
+                            : decision.state == ShootingExecutionState.observe
+                            ? _evidenceOpen
+                                  ? '收起依据'
+                                  : '查看依据'
                             : decision.label,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -229,13 +291,23 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     );
   }
 
-  Future<void> _watch() => ref
-      .read(userLibraryProvider.notifier)
-      .watchSession(
-        session: widget.session,
-        snapshotId: widget.snapshot.id,
-        targetId: widget.session.targetCandidates.firstOrNull?.id,
-      );
+  Future<void> _toggleWatch(String? watchedId) async {
+    if (watchedId == null) {
+      await ref
+          .read(userLibraryProvider.notifier)
+          .watchSession(
+            session: widget.session,
+            snapshotId: widget.snapshot.id,
+            targetId: widget.session.targetCandidates.firstOrNull?.id,
+          );
+    } else {
+      await ref.read(userLibraryProvider.notifier).unwatchSession(watchedId);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(watchedId == null ? '已开启守候提醒' : '已取消守候提醒')),
+    );
+  }
 
   void _primaryAction(
     ShootingExecutionDecision decision,
@@ -346,16 +418,128 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
       '${value.toLocal().minute.toString().padLeft(2, '0')}';
 }
 
+class _V2SessionSummary extends StatelessWidget {
+  const _V2SessionSummary({
+    required this.stableId,
+    required this.eyebrow,
+    required this.title,
+    required this.detail,
+    required this.timeLabel,
+    required this.accent,
+  });
+
+  final String stableId;
+  final String eyebrow;
+  final String title;
+  final String detail;
+  final String timeLabel;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) => Hero(
+    tag: 'v2-opportunity:$stableId',
+    transitionOnUserGestures: true,
+    child: Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+        decoration: BoxDecoration(
+          color: V2Palette.paper,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: V2Palette.line.withValues(alpha: .72)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x10000000),
+              blurRadius: 22,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  eyebrow,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: V2Palette.ink,
+                fontSize: 30,
+                height: 1.08,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1,
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              detail,
+              style: const TextStyle(
+                color: V2Palette.mutedInk,
+                fontSize: 14,
+                height: 1.4,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(CupertinoIcons.clock, color: accent, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  timeLabel,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _V2Timeline extends StatelessWidget {
-  const _V2Timeline({required this.phases});
+  const _V2Timeline({
+    required this.phases,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
   final List<ShootingSessionPhase> phases;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const Text(
-        '时间在对象内部展开',
+        '拍摄时间轴',
         style: TextStyle(
           color: V2Palette.ink,
           fontSize: 19,
@@ -364,21 +548,46 @@ class _V2Timeline extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       SizedBox(
-        height: 94,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var index = 0; index < phases.length; index++) ...[
-              Expanded(child: _V2PhaseNode(phase: phases[index])),
-              if (index < phases.length - 1)
-                Container(
-                  width: 14,
-                  height: 2,
-                  margin: const EdgeInsets.only(top: 9),
-                  color: V2Palette.line,
+        height: 98,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final minimumWidth = phases.length * 88.0;
+            final contentWidth = minimumWidth > constraints.maxWidth
+                ? minimumWidth
+                : constraints.maxWidth;
+            final lineInset = contentWidth / phases.length / 2;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: contentWidth,
+                height: 98,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: lineInset,
+                      right: lineInset,
+                      top: 11,
+                      child: Container(height: 2, color: V2Palette.line),
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var index = 0; index < phases.length; index++)
+                          Expanded(
+                            child: _V2PhaseNode(
+                              key: Key('v2-phase-node-$index'),
+                              phase: phases[index],
+                              selected: index == selectedIndex,
+                              onTap: () => onSelected(index),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
-            ],
-          ],
+              ),
+            );
+          },
         ),
       ),
     ],
@@ -386,40 +595,66 @@ class _V2Timeline extends StatelessWidget {
 }
 
 class _V2PhaseNode extends StatelessWidget {
-  const _V2PhaseNode({required this.phase});
+  const _V2PhaseNode({
+    super.key,
+    required this.phase,
+    required this.selected,
+    required this.onTap,
+  });
   final ShootingSessionPhase phase;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        width: 20,
-        height: 20,
-        decoration: BoxDecoration(
-          color: _color(phase.conditionBand),
-          shape: BoxShape.circle,
-        ),
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: '${label(phase.kind)}，${_time(phase.startsAt)}',
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: selected ? 24 : 20,
+            height: selected ? 24 : 20,
+            decoration: BoxDecoration(
+              color: _color(phase.conditionBand),
+              shape: BoxShape.circle,
+              border: Border.all(color: V2Palette.canvas, width: 3),
+              boxShadow: selected
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x24000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label(phase.kind),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: V2Palette.ink,
+              fontSize: 11,
+              height: 1.2,
+              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _time(phase.startsAt),
+            style: const TextStyle(color: V2Palette.mutedInk, fontSize: 10),
+          ),
+        ],
       ),
-      const SizedBox(height: 9),
-      Text(
-        _label(phase.kind),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: V2Palette.ink,
-          fontSize: 11,
-          height: 1.2,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        '${phase.startsAt.toLocal().hour.toString().padLeft(2, '0')}:'
-        '${phase.startsAt.toLocal().minute.toString().padLeft(2, '0')}',
-        style: const TextStyle(color: V2Palette.mutedInk, fontSize: 10),
-      ),
-    ],
+    ),
   );
 
   static Color _color(ShootingConditionBand value) => switch (value) {
@@ -428,7 +663,11 @@ class _V2PhaseNode extends StatelessWidget {
     ShootingConditionBand.limited => V2Palette.line,
   };
 
-  static String _label(ShootingPhaseKind value) => switch (value) {
+  static String _time(DateTime value) =>
+      '${value.toLocal().hour.toString().padLeft(2, '0')}:'
+      '${value.toLocal().minute.toString().padLeft(2, '0')}';
+
+  static String label(ShootingPhaseKind value) => switch (value) {
     ShootingPhaseKind.morningBlueHour => '晨间蓝调',
     ShootingPhaseKind.sunrise => '日出',
     ShootingPhaseKind.morningMist => '晨雾',
@@ -448,6 +687,160 @@ class _V2PhaseNode extends StatelessWidget {
     ShootingPhaseKind.returnWindow => '返程窗口',
     ShootingPhaseKind.sessionEnd => '结束',
   };
+}
+
+class _V2ShootingAdvice extends StatelessWidget {
+  const _V2ShootingAdvice({
+    required this.phase,
+    required this.capabilities,
+    required this.target,
+  });
+
+  final ShootingSessionPhase phase;
+  final Set<EquipmentCapability> capabilities;
+  final ShootingTarget? target;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        '拍摄建议',
+        style: TextStyle(
+          color: V2Palette.ink,
+          fontSize: 19,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: V2Palette.paper,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: V2Palette.line),
+        ),
+        child: Column(
+          children: [
+            _V2AdviceRow(
+              label: '重点阶段',
+              value:
+                  '${_V2PhaseNode.label(phase.kind)} · ${_time(phase.startsAt)}—${_time(phase.endsAt)}',
+            ),
+            const SizedBox(height: 12),
+            _V2AdviceRow(
+              label: '观察方向',
+              value: '${phase.directionDegrees.round()}°',
+            ),
+            if (target != null) ...[
+              const SizedBox(height: 12),
+              _V2AdviceRow(label: '审核机位', value: target!.name),
+            ],
+            if (capabilities.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _V2AdviceRow(
+                label: '可用器材',
+                value: capabilities.map(_capabilityLabel).join('、'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ],
+  );
+
+  static String _time(DateTime value) =>
+      '${value.toLocal().hour.toString().padLeft(2, '0')}:'
+      '${value.toLocal().minute.toString().padLeft(2, '0')}';
+
+  static String _capabilityLabel(EquipmentCapability value) => switch (value) {
+    EquipmentCapability.camera => '相机',
+    EquipmentCapability.phoneCamera => '手机',
+    EquipmentCapability.tripod => '三脚架',
+    EquipmentCapability.wideAngle => '广角',
+    EquipmentCapability.telephoto => '长焦',
+    EquipmentCapability.fastLens => '大光圈',
+    EquipmentCapability.filter => '滤镜',
+    EquipmentCapability.drone => '无人机',
+    EquipmentCapability.weatherProtection => '防雨',
+    EquipmentCapability.headlamp => '照明',
+  };
+}
+
+class _V2AdviceRow extends StatelessWidget {
+  const _V2AdviceRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: 72,
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: V2Palette.mutedInk,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text(
+          value,
+          textAlign: TextAlign.right,
+          style: const TextStyle(
+            color: V2Palette.ink,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _V2EvidenceToggle extends StatelessWidget {
+  const _V2EvidenceToggle({required this.open, required this.onTap});
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => V2Pressable(
+    key: const Key('v2-evidence-toggle'),
+    onTap: onTap,
+    compact: true,
+    color: V2Palette.paper,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          const Icon(
+            CupertinoIcons.checkmark_shield,
+            color: V2Palette.moss,
+            size: 18,
+          ),
+          const SizedBox(width: 9),
+          Text(
+            open ? '收起判断依据' : '查看判断依据',
+            style: const TextStyle(
+              color: V2Palette.ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Spacer(),
+          Icon(
+            open ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
+            color: V2Palette.mutedInk,
+            size: 16,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _V2FactorObject extends StatelessWidget {

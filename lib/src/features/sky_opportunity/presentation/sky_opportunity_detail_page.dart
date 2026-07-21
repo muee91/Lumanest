@@ -102,13 +102,13 @@ class _Detail extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                forecast.label,
+                '$datePrefix$eventName拍摄建议',
                 style: const TextStyle(
                   color: V2Palette.ink,
-                  fontSize: 38,
-                  height: 1,
+                  fontSize: 32,
+                  height: 1.08,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: -1.4,
+                  letterSpacing: -1.1,
                 ),
               ),
               const SizedBox(height: 20),
@@ -117,13 +117,17 @@ class _Detail extends StatelessWidget {
                   children: [
                     _IndexObject(forecast: forecast),
                     const SizedBox(height: 14),
-                    _FactRow(
-                      icon: CupertinoIcons.clock,
-                      label: '事件时间',
-                      value: forecast.eventTime == null
-                          ? '暂无可信时间'
-                          : '${_time(forecast.eventTime!)} 前后',
+                    _ShootingAdviceObject(forecast: forecast),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '判断依据',
+                      style: TextStyle(
+                        color: V2Palette.ink,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
+                    const SizedBox(height: 6),
                     _FactRow(
                       icon: CupertinoIcons.sparkles,
                       label: '大气通透度',
@@ -162,6 +166,97 @@ class _Detail extends StatelessWidget {
   static String _time(DateTime value) =>
       '${value.toUtc().add(const Duration(hours: 8)).hour.toString().padLeft(2, '0')}:'
       '${value.toUtc().add(const Duration(hours: 8)).minute.toString().padLeft(2, '0')}';
+}
+
+class _ShootingAdviceObject extends StatelessWidget {
+  const _ShootingAdviceObject({required this.forecast});
+  final SkyOpportunityForecast forecast;
+
+  @override
+  Widget build(BuildContext context) {
+    final direction = forecast.eventType == SkyOpportunityEventType.sunset
+        ? '西侧开阔天空'
+        : '东侧开阔天空';
+    final timing = forecast.eventTime == null
+        ? null
+        : '${_Detail._time(forecast.eventTime!)} 前后';
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: V2Palette.mossSoft,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: V2Palette.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '怎么观察',
+            style: TextStyle(
+              color: V2Palette.ink,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (timing != null)
+            _AdviceLine(icon: CupertinoIcons.clock, label: '时间', value: timing),
+          if (timing != null) const SizedBox(height: 10),
+          _AdviceLine(
+            icon: CupertinoIcons.compass,
+            label: '方向',
+            value: direction,
+          ),
+          const SizedBox(height: 10),
+          const _AdviceLine(
+            icon: CupertinoIcons.eye,
+            label: '观察',
+            value: '留意云层颜色与通透度变化',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdviceLine extends StatelessWidget {
+  const _AdviceLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, color: V2Palette.moss, size: 18),
+      const SizedBox(width: 9),
+      Text(
+        label,
+        style: const TextStyle(
+          color: V2Palette.mutedInk,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Text(
+          value,
+          textAlign: TextAlign.right,
+          style: const TextStyle(
+            color: V2Palette.ink,
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _IndexObject extends StatelessWidget {

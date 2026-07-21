@@ -454,7 +454,7 @@ class AppDatabase extends _$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
-      // Development baseline: schema 16 is the only supported local shape.
+      // Development baseline: schema 17 is the only supported local shape.
       // Formal data-preserving migrations start when the first RC freezes this
       // schema. Until then, rebuilding avoids carrying ambiguous pre-release
       // models into the runtime or pretending to support partial old schemas.

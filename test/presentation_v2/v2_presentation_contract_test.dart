@@ -26,12 +26,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
 
     expect(find.byType(V2OpportunityPage), findsOneWidget);
-    expect(find.text('时间在对象内部展开'), findsOneWidget);
+    expect(find.text('拍摄时间轴'), findsOneWidget);
+    expect(find.text('拍摄建议'), findsOneWidget);
+    expect(find.text('查看依据'), findsOneWidget);
+    expect(find.text('判断依据'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(
       tester.widget<Hero>(find.byType(Hero)).tag,
       'v2-opportunity:${session.id}',
     );
+
+    await tester.tap(find.text('查看依据'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('查看依据'), findsNothing);
+    expect(find.text('收起依据'), findsOneWidget);
+    expect(find.text('判断依据'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('v2-phase-node-1')));
+    await tester.pump();
+    expect(find.textContaining('倒影 ·'), findsOneWidget);
   });
 
   testWidgets('V2 shell exposes five semantic destinations', (tester) async {

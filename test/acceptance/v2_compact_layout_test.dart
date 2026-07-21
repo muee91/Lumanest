@@ -55,6 +55,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 700));
     expect(tester.takeException(), isNull);
-    expect(find.text('时间在对象内部展开'), findsOneWidget);
+    expect(find.text('拍摄时间轴'), findsOneWidget);
+    expect(find.text('拍摄建议'), findsOneWidget);
+    expect(find.text('查看依据'), findsOneWidget);
   });
 }

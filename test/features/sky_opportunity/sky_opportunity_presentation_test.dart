@@ -167,12 +167,15 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('GFS 与 EC'), findsOneWidget);
-      expect(find.text('条件较好'), findsNWidgets(2));
+      expect(find.text('今日晚霞拍摄建议'), findsOneWidget);
+      expect(find.text('怎么观察'), findsOneWidget);
+      expect(find.text('西侧开阔天空'), findsOneWidget);
+      expect(find.text('条件较好'), findsOneWidget);
       expect(find.text('0.288'), findsNothing);
       expect(find.text('0.700'), findsNothing);
-      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await tester.drag(find.byType(ListView), const Offset(0, -900));
       await tester.pump();
+      expect(find.text('GFS 与 EC'), findsOneWidget);
       expect(find.textContaining('晚霞预测数据来源：SunsetBot'), findsOneWidget);
       expect(find.textContaining('结果仅用于摄影创作参考'), findsOneWidget);
       expect(find.textContaining('数据更新稍有延迟'), findsOneWidget);
