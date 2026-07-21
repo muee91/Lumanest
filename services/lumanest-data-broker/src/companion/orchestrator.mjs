@@ -7,7 +7,7 @@ import {
 
 const refreshReasons = new Set([
   'region_changed', 'route_created', 'route_started', 'time_phase_changed',
-  'dwell_reached', 'manual_refresh', 'opportunity_changed',
+  'dwell_reached', 'manual_refresh', 'opportunity_changed', 'page_enter',
 ]);
 const visiblePages = new Set(['today', 'explore', 'route', 'inspiration', 'profile', 'shootingWindow']);
 const feedbackActions = new Set([

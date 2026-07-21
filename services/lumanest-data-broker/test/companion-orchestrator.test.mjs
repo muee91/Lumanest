@@ -18,6 +18,7 @@ const request = {
 
 test('validates bounded refresh, feedback and idempotency contracts', () => {
   assert.equal(validCompanionRefreshRequest(request), true);
+  assert.equal(validCompanionRefreshRequest({ ...request, reason: 'page_enter' }), true);
   assert.equal(validCompanionRefreshRequest({ ...request, reason: 'loop_forever' }), false);
   assert.equal(validInsightFeedbackRequest({ action: 'saved' }), true);
   assert.equal(validInsightFeedbackRequest({ action: 'unsafe' }), false);
