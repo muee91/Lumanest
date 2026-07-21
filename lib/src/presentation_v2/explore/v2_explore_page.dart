@@ -6,7 +6,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
@@ -19,7 +18,6 @@ import 'package:luma_nest/src/features/explore/application/map_consent_controlle
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
 import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
-import 'package:luma_nest/src/features/explore/domain/explore_composition.dart';
 import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
 import 'package:luma_nest/src/features/explore/presentation/amap_marker_icon_factory.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -57,27 +55,7 @@ class V2ExplorePage extends ConsumerWidget {
     final composition = const ExploreCompositionEngine().compose(
       snapshot: snapshot,
       brief: briefState.brief,
-      now: DateTime.now().toUtc(),
     );
-    final blockingSafety = snapshot?.events
-        .where(
-          (event) =>
-              (event.channel == ContextEventChannel.safety ||
-                  event.channel == ContextEventChannel.wildlifeSafety) &&
-              !event.isExpiredAt(DateTime.now().toUtc()),
-        )
-        .firstOrNull;
-    if (composition.layoutMode == ExploreLayoutMode.safetyFirst) {
-      return V2PageStage(
-        child: V2EmptyObject(
-          icon: CupertinoIcons.exclamationmark_triangle,
-          title: blockingSafety?.title ?? '请先确认当前安全提醒',
-          detail: '当前存在需要先确认的安全信息，探索内容已暂时后置。',
-          action: '回到今日查看详情',
-          onAction: () => context.go('/today'),
-        ),
-      );
-    }
     if (composition.showsBriefFirst && briefState.brief != null) {
       return _V2ExploreBrief(
         brief: briefState.brief!,

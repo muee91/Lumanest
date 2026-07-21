@@ -8,7 +8,7 @@ void main() {
   const engine = ExploreCompositionEngine();
   final now = DateTime.utc(2026, 7, 21, 12);
 
-  test('safety always wins over a potentially available brief', () {
+  test('an active warning never blocks Explore', () {
     final snapshot = ContextSnapshot(
       id: 'ctx_test',
       observedAt: now,
@@ -29,14 +29,14 @@ void main() {
       ],
     );
     expect(
-      engine.compose(snapshot: snapshot, brief: null, now: now).layoutMode,
-      ExploreLayoutMode.safetyFirst,
+      engine.compose(snapshot: snapshot, brief: null).layoutMode,
+      ExploreLayoutMode.mapFirst,
     );
   });
 
   test('without facts Explore falls back to map rather than a placeholder', () {
     expect(
-      engine.compose(snapshot: null, brief: null, now: now).layoutMode,
+      engine.compose(snapshot: null, brief: null).layoutMode,
       ExploreLayoutMode.mapFirst,
     );
   });
