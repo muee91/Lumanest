@@ -51,6 +51,56 @@ void main() {
     expect(find.text('这个窗口值得你提前到场。'), findsOneWidget);
   });
 
+  testWidgets('reliable current conditions enrich the hero without shortcuts', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(ContextFixtures.lakeSunset(observedAt: now)));
+    await tester.pump();
+
+    expect(find.byKey(const Key('v2-current-conditions')), findsOneWidget);
+    expect(find.text('此刻条件'), findsOneWidget);
+    expect(find.text('多云'), findsOneWidget);
+    expect(find.text('2.1 m/s'), findsOneWidget);
+    expect(find.text('26 km'), findsOneWidget);
+    expect(find.text('0.0 mm'), findsOneWidget);
+    expect(find.text('换个方向看看'), findsNothing);
+    expect(find.text('抽一张灵感'), findsNothing);
+  });
+
+  testWidgets('current conditions reserve no space without reliable facts', (
+    tester,
+  ) async {
+    final snapshot = ContextSnapshot(
+      id: 'empty-conditions',
+      observedAt: now,
+      expiresAt: now.add(const Duration(minutes: 20)),
+      primaryScene: SceneType.unknown,
+      dayPhase: DayPhase.day,
+      weather: WeatherType.unknown,
+      activeRoute: false,
+    );
+
+    await tester.pumpWidget(_host(snapshot));
+    await tester.pump();
+
+    expect(find.byKey(const Key('v2-current-conditions')), findsNothing);
+    expect(find.text('此刻条件'), findsNothing);
+    expect(find.text('最近条件'), findsNothing);
+  });
+
+  testWidgets('stale facts are honestly labelled as recent conditions', (
+    tester,
+  ) async {
+    final base = ContextFixtures.lakeSunset(observedAt: now);
+
+    await tester.pumpWidget(_host(_withFreshness(base, stale: true)));
+    await tester.pump();
+
+    expect(find.byKey(const Key('v2-current-conditions')), findsOneWidget);
+    expect(find.text('最近条件'), findsOneWidget);
+    expect(find.text('此刻条件'), findsNothing);
+  });
+
   testWidgets('far-future sessions stay off Today instead of reserving rail', (
     tester,
   ) async {
@@ -158,6 +208,53 @@ ContextSnapshot _withSessions(
   entries: base.entries,
   canonicalEntriesPresent: base.canonicalEntriesPresent,
 );
+
+ContextSnapshot _withFreshness(ContextSnapshot base, {required bool stale}) =>
+    ContextSnapshot(
+      id: base.id,
+      observedAt: base.observedAt,
+      expiresAt: base.expiresAt,
+      primaryScene: base.primaryScene,
+      sceneContext: base.sceneContext,
+      dayPhase: base.dayPhase,
+      weather: base.weather,
+      activeRoute: base.activeRoute,
+      opportunityIds: base.opportunityIds,
+      safetyEventIds: base.safetyEventIds,
+      wildlifeEventIds: base.wildlifeEventIds,
+      events: base.events,
+      shootingSessions: base.shootingSessions,
+      wildlifeActivity: base.wildlifeActivity,
+      location: base.location,
+      temperatureCelsius: base.temperatureCelsius,
+      windSpeedMetersPerSecond: base.windSpeedMetersPerSecond,
+      windDirectionDegrees: base.windDirectionDegrees,
+      visibilityKilometers: base.visibilityKilometers,
+      precipitationMillimeters: base.precipitationMillimeters,
+      cloudCoverPercent: base.cloudCoverPercent,
+      airQualityIndex: base.airQualityIndex,
+      airQualityCategory: base.airQualityCategory,
+      primaryPollutant: base.primaryPollutant,
+      airQualityObservedAt: base.airQualityObservedAt,
+      airQualityStale: base.airQualityStale,
+      solarElevationDegrees: base.solarElevationDegrees,
+      solarAzimuthDegrees: base.solarAzimuthDegrees,
+      sunrise: base.sunrise,
+      sunset: base.sunset,
+      isStale: stale,
+      remoteGeneratedAt: base.remoteGeneratedAt,
+      dataFreshness: stale
+          ? ContextDataFreshness.stale
+          : ContextDataFreshness.fresh,
+      moonPhase: base.moonPhase,
+      moonIllumination: base.moonIllumination,
+      routeMode: base.routeMode,
+      routeStage: base.routeStage,
+      allowedActions: base.allowedActions,
+      serverManifest: base.serverManifest,
+      entries: base.entries,
+      canonicalEntriesPresent: base.canonicalEntriesPresent,
+    );
 
 ContextSnapshot _snapshotWithSafety(
   DateTime observedAt, {

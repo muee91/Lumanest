@@ -30,7 +30,7 @@ void main() {
     expect(find.textContaining('置信度'), findsNothing);
   });
 
-  testWidgets('quiet Today keeps one judgment line and distinct actions', (
+  testWidgets('quiet Today keeps one judgment line without shortcut cards', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -44,7 +44,8 @@ void main() {
     expect(judgement.maxLines, 1);
     expect(judgement.softWrap, isFalse);
     expect(find.text('探索附近'), findsOneWidget);
-    expect(find.text('选择参考地点'), findsOneWidget);
+    expect(find.text('选择参考地点'), findsNothing);
     expect(find.text('换个方向看看'), findsNothing);
+    expect(find.text('抽一张灵感'), findsNothing);
   });
 }

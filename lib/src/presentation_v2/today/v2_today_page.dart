@@ -127,8 +127,6 @@ class _V2TodayContentState extends State<_V2TodayContent> {
     final now = composition.generatedAt;
     final safety = composition[CompositionSlot.blockingSafety];
     final primary = composition[CompositionSlot.primary]!;
-    final quiet =
-        primary.presentation.variant == EntryPresentationVariant.quiet;
     final date = '${now.month}月${now.day}日 · ${_phaseLabel(snapshot.dayPhase)}';
     final sessionId = primary.payload is OpportunityEntryPayload
         ? (primary.payload as OpportunityEntryPayload).sessionId
@@ -201,6 +199,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                       CompositionSlot.primary,
                     ),
                   ),
+                  _V2CurrentConditions(snapshot: snapshot, now: now),
                   _V2OpportunityRail(
                     sessions: snapshot.shootingSessions,
                     primaryId: sessionId,
@@ -216,30 +215,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                       onTap: () => context.go('/explore'),
                     ),
                   ],
-                  SizedBox(height: compact ? 14 : 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _V2LightEntry(
-                          icon: quiet
-                              ? CupertinoIcons.location
-                              : CupertinoIcons.compass,
-                          label: quiet ? '选择参考地点' : '换个方向看看',
-                          onTap: quiet
-                              ? () => V2TodayPage._openManualLocation(context)
-                              : () => context.go('/explore'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _V2LightEntry(
-                          icon: CupertinoIcons.sparkles,
-                          label: '抽一张灵感',
-                          onTap: () => context.go('/inspiration'),
-                        ),
-                      ),
-                    ],
-                  ),
+                  SizedBox(height: compact ? 10 : 14),
                 ],
               ),
             ),
@@ -256,6 +232,251 @@ class _V2TodayContentState extends State<_V2TodayContent> {
     DayPhase.blueHour => '蓝调',
     DayPhase.night => '夜间',
   };
+}
+
+class _V2CurrentConditions extends StatelessWidget {
+  const _V2CurrentConditions({required this.snapshot, required this.now});
+
+  final ContextSnapshot snapshot;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final facts = _facts();
+    if (facts.isEmpty) return const SizedBox.shrink();
+    final current =
+        snapshot.dataFreshness == ContextDataFreshness.fresh &&
+        !snapshot.isStale;
+    return Padding(
+      key: const Key('v2-current-conditions'),
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                current ? '此刻条件' : '最近条件',
+                style: const TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .4,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${_time(snapshot.observedAt)} 更新',
+                style: const TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 520 ? 4 : 2;
+              const gap = 8.0;
+              final width =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final fact in facts.take(4))
+                    SizedBox(
+                      width: width,
+                      child: _V2ConditionFact(fact: fact),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_V2ConditionData> _facts() {
+    final facts = <_V2ConditionData>[];
+    final weather = _weatherLabel(snapshot.weather);
+    final temperature = snapshot.temperatureCelsius;
+    if (weather != null) {
+      facts.add(
+        _V2ConditionData(
+          icon: _weatherIcon(snapshot.weather),
+          label: '天气',
+          value: temperature == null
+              ? weather
+              : '$weather · ${temperature.round()}°',
+        ),
+      );
+    } else if (temperature != null) {
+      facts.add(
+        _V2ConditionData(
+          icon: CupertinoIcons.thermometer,
+          label: '温度',
+          value: '${temperature.round()}°',
+        ),
+      );
+    }
+    if (snapshot.windSpeedMetersPerSecond case final wind?) {
+      facts.add(
+        _V2ConditionData(
+          icon: CupertinoIcons.wind,
+          label: '风',
+          value: '${wind.toStringAsFixed(1)} m/s',
+        ),
+      );
+    }
+    if (snapshot.visibilityKilometers case final visibility?) {
+      facts.add(
+        _V2ConditionData(
+          icon: CupertinoIcons.eye,
+          label: '能见度',
+          value: _distance(visibility),
+        ),
+      );
+    }
+    final air = snapshot.airQualityCategory?.trim();
+    if (!snapshot.airQualityStale && air != null && air.isNotEmpty) {
+      facts.add(
+        _V2ConditionData(
+          icon: CupertinoIcons.leaf_arrow_circlepath,
+          label: '空气',
+          value: air,
+        ),
+      );
+    }
+    if (snapshot.precipitationMillimeters case final precipitation?) {
+      facts.add(
+        _V2ConditionData(
+          icon: CupertinoIcons.drop,
+          label: '降水',
+          value: '${precipitation.toStringAsFixed(1)} mm',
+        ),
+      );
+    }
+    final nextLight = _nextLightEvent();
+    if (nextLight != null) facts.add(nextLight);
+    return facts;
+  }
+
+  _V2ConditionData? _nextLightEvent() {
+    final sunset = snapshot.sunset;
+    if (sunset != null && sunset.isAfter(now)) {
+      return _V2ConditionData(
+        icon: CupertinoIcons.sunset,
+        label: '日落',
+        value: _time(sunset),
+      );
+    }
+    final sunrise = snapshot.sunrise;
+    if (sunrise != null && sunrise.isAfter(now)) {
+      return _V2ConditionData(
+        icon: CupertinoIcons.sunrise,
+        label: '日出',
+        value: _time(sunrise),
+      );
+    }
+    return null;
+  }
+
+  static String _distance(double value) {
+    final text = value == value.roundToDouble()
+        ? value.round().toString()
+        : value.toStringAsFixed(1);
+    return '$text km';
+  }
+
+  static String _time(DateTime value) =>
+      '${value.toLocal().hour.toString().padLeft(2, '0')}:'
+      '${value.toLocal().minute.toString().padLeft(2, '0')}';
+
+  static String? _weatherLabel(WeatherType value) => switch (value) {
+    WeatherType.clear => '晴',
+    WeatherType.cloudy => '多云',
+    WeatherType.rain => '雨',
+    WeatherType.snow => '雪',
+    WeatherType.dust => '扬尘',
+    WeatherType.unknown => null,
+  };
+
+  static IconData _weatherIcon(WeatherType value) => switch (value) {
+    WeatherType.clear => CupertinoIcons.sun_max,
+    WeatherType.cloudy => CupertinoIcons.cloud,
+    WeatherType.rain => CupertinoIcons.cloud_rain,
+    WeatherType.snow => CupertinoIcons.snow,
+    WeatherType.dust => CupertinoIcons.wind,
+    WeatherType.unknown => CupertinoIcons.question_circle,
+  };
+}
+
+class _V2ConditionData {
+  const _V2ConditionData({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+}
+
+class _V2ConditionFact extends StatelessWidget {
+  const _V2ConditionFact({required this.fact});
+  final _V2ConditionData fact;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: '${fact.label}：${fact.value}',
+    child: Container(
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: V2Palette.paper.withValues(alpha: .78),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: V2Palette.line.withValues(alpha: .72)),
+      ),
+      child: Row(
+        children: [
+          Icon(fact.icon, color: V2Palette.moss, size: 18),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fact.label,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  fact.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _V2RegionalDiscoveryCard extends StatelessWidget {
@@ -554,46 +775,6 @@ class _V2OpportunityRail extends StatelessWidget {
     ShootingPhaseKind.returnWindow => '返程光线',
     ShootingPhaseKind.sessionEnd => '窗口结束',
   };
-}
-
-class _V2LightEntry extends StatelessWidget {
-  const _V2LightEntry({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => V2Pressable(
-    onTap: onTap,
-    compact: true,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: V2Palette.ink, size: 18),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: V2Palette.ink,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _V2TodayError extends StatelessWidget {
