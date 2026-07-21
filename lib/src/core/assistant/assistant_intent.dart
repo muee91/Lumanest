@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 enum AssistantQuestionType {
+  general,
   shootingPlan,
   why,
   prepare,
@@ -84,8 +85,7 @@ abstract final class AssistantIntentParser {
     final text = value.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (text.isEmpty || text.length > 240) return null;
 
-    final type = _questionType(text);
-    if (type == null) return null;
+    final type = _questionType(text) ?? AssistantQuestionType.general;
     return AssistantIntent(
       type: type,
       normalizedQuestion: text,

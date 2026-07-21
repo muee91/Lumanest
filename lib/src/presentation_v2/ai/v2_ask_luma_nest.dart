@@ -413,12 +413,14 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   );
 
   void _selectTopic(String topic) {
+    final parsed = AssistantIntentParser.parse(topic);
     final intent =
-        AssistantIntentParser.parse(topic) ??
-        AssistantIntent(
-          type: AssistantQuestionType.creative,
-          normalizedQuestion: topic,
-        );
+        parsed != null && parsed.type != AssistantQuestionType.general
+        ? parsed
+        : AssistantIntent(
+            type: AssistantQuestionType.creative,
+            normalizedQuestion: topic,
+          );
     _inputController.clear();
     _selectIntent(intent);
   }
@@ -728,12 +730,7 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
       return;
     }
     final intent = AssistantIntentParser.parse(text);
-    if (intent == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('可以问拍摄窗口、时间、器材、构图、附近候选或安全提醒。')),
-      );
-      return;
-    }
+    if (intent == null) return;
     _inputController.clear();
     _selectIntent(intent, allowLocalFallback: false);
   }
@@ -1101,6 +1098,7 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   String _localAnswer(AssistantIntent intent) {
     final session = widget.session;
     return switch (intent.type) {
+      AssistantQuestionType.general => '这次没有生成回答，请稍后重试。',
       AssistantQuestionType.shootingPlan => '正在整理日出与夜空候选。',
       AssistantQuestionType.why =>
         session == null
@@ -1188,6 +1186,7 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   }
 
   String _questionLabel(AssistantQuestionType type) => switch (type) {
+    AssistantQuestionType.general => '自由提问',
     AssistantQuestionType.shootingPlan => '日出和银河去哪？',
     AssistantQuestionType.why => '为什么是这个窗口？',
     AssistantQuestionType.prepare => '需要带什么？',
@@ -1209,7 +1208,11 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
     if (type == AssistantQuestionType.safety) return '本地安全规则 · 未调用模型';
     if (type == AssistantQuestionType.nearby) return '本地附近候选 · 未调用模型';
     if (source == 'error') return '未生成回答 · 未使用本地文案替代';
-    if (source == 'model') return '模型改写 · 内容由AI生成，仅供参考';
+    if (source == 'model') {
+      return type == AssistantQuestionType.general
+          ? 'AI回答 · 通用摄影知识，不代表实时环境事实'
+          : '模型改写 · 内容由AI生成，仅供参考';
+    }
     if (degradedReason == 'rate_limited') {
       return '本地模板 · 模型请求较多，已使用本地答案';
     }
@@ -1218,12 +1221,13 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   }
 
   String _failureLabel(AssistantFailure failure) => switch (failure.kind) {
-    AssistantFailureKind.rateLimited => '模型请求较多，已使用本地答案。',
-    AssistantFailureKind.snapshotExpired => '当前情境已更新，已使用本地答案。',
+    AssistantFailureKind.rateLimited => '模型请求较多，请稍后重试。',
+    AssistantFailureKind.snapshotExpired => '当前情境已过期，刷新后再问。',
     AssistantFailureKind.timeout ||
-    AssistantFailureKind.network => '网络未完成模型改写，已使用本地答案。',
+    AssistantFailureKind.network => '网络未完成 AI 回答，请重试。',
     AssistantFailureKind.cancelled => '上一条请求已取消。',
-    _ => '模型未参与本次回答，已使用本地答案。',
+    AssistantFailureKind.unconfigured => 'AI 模型尚未配置。',
+    _ => '这次没有生成 AI 回答，请重试。',
   };
 
   String _logReason(AssistantFailureKind kind) => switch (kind) {

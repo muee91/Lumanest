@@ -46,6 +46,23 @@ void main() {
     );
   });
 
+  test('turns a broker SSE error into an explicit model failure', () async {
+    await expectLater(
+      model
+          .decodeEventStreamForTesting(
+            bytes('event: error\ndata: {"error":"ai_unconfigured"}\n\n'),
+          )
+          .toList(),
+      throwsA(
+        isA<AssistantFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          AssistantFailureKind.unconfigured,
+        ),
+      ),
+    );
+  });
+
   test(
     'rejects duplicate done events without yielding either terminal event',
     () async {

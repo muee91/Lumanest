@@ -46,7 +46,12 @@ export class LLMPromptBudget {
     } catch {
       return { allowed: true, reason: null };
     }
-    if (typeof user?.templateAnswer !== 'string') {
+    const budgetText = typeof user?.templateAnswer === 'string'
+      ? user.templateAnswer
+      : typeof user?.question === 'string'
+        ? user.question
+        : null;
+    if (budgetText == null) {
       return { allowed: true, reason: null };
     }
     if (user.questionType === 'safety' || user.questionType === 'nearby') {
@@ -54,7 +59,7 @@ export class LLMPromptBudget {
     }
 
     const key = createHash('sha256')
-      .update(`${user.questionType ?? 'unknown'}|${user.templateAnswer}`)
+      .update(`${user.questionType ?? user.responseMode ?? 'unknown'}|${budgetText}`)
       .digest('hex')
       .slice(0, 24);
     const timestamp = this.now().getTime();

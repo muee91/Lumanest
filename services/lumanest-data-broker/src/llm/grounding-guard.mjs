@@ -306,8 +306,46 @@ function guardNarrative(user, candidate) {
   return { ok: true };
 }
 
+function guardGeneralAssistant(user, candidate) {
+  const answer = compact(candidate.answer);
+  const searchResults = compact(
+    typeof user.searchResults === 'string' ? user.searchResults : '',
+  );
+  if (!answer || [...answer].length > 200 || /[\r\n]/.test(answer) || /https?:\/\//i.test(answer)) {
+    return { ok: false, reason: 'invalid_shape' };
+  }
+  if (hasSensitiveCredentialContent(answer)) {
+    return { ok: false, reason: 'sensitive_credential' };
+  }
+  if (hasDangerousSafetyReversal(answer) || safetyTerms.some((term) => answer.includes(term))) {
+    return { ok: false, reason: 'unsupported_safety_claim' };
+  }
+  const liveClaim = /(?:当前|现在|今晚|明天|此刻).{0,16}(?:天气|气温|风|云|日出|日落|开放|封闭|适合去|可以去|值得去)/u;
+  if (liveClaim.test(answer) && searchResults.length === 0) {
+    return { ok: false, reason: 'unsupported_live_claim' };
+  }
+  if (hasUnsupportedPlace(answer, searchResults)) {
+    return { ok: false, reason: 'unsupported_place' };
+  }
+  if (searchResults.length > 0 &&
+      !placeNumberBindingsGrounded(answer, searchResults)) {
+    return { ok: false, reason: 'unsupported_fact_binding' };
+  }
+  return { ok: true };
+}
+
 export function guardGroundedOutput({ prompt, text }) {
   const user = parsedJson(prompt?.user);
+  if (user?.responseMode === 'general') {
+    const candidate = parsedJson(text);
+    if (candidate == null) {
+      return { ok: false, error: 'invalid_response', reason: 'invalid_json' };
+    }
+    const guarded = guardGeneralAssistant(user, candidate);
+    return guarded.ok
+      ? { ok: true, text }
+      : { ok: false, error: 'invalid_response', reason: guarded.reason };
+  }
   if (user == null || (typeof user.templateAnswer !== 'string' && typeof user.templateSummary !== 'string')) {
     return { ok: true, text };
   }

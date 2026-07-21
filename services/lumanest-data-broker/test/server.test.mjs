@@ -286,6 +286,65 @@ test('inspiration assistant accepts the bounded creative question', async () => 
   }, { companionStore, now: () => now });
 });
 
+test('assistant sends a free-form photography question to the model without a template', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  companionStore.rememberSnapshot(snapshot);
+  let capturedSystem;
+  let capturedUser;
+  const modelAnswer = JSON.stringify({
+    answer: '曲线向上提亮、向下压暗；先用轻微 S 曲线建立对比，再根据画面微调。',
+  });
+  const sseBody = `data: ${JSON.stringify({ choices: [{ delta: { content: modelAnswer } }] })}\n\ndata: [DONE]\n\n`;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'general',
+        question: '曲线工具怎么控制画面对比度？',
+        eventIds: [],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const answer = events.filter((event) => event.event === 'delta')
+      .map((event) => event.data.text).join('');
+    assert.match(answer, /S 曲线/);
+    assert.equal(events.find((event) => event.event === 'done').data.source, 'model');
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async (_url, options) => {
+      const messages = JSON.parse(options.body).messages;
+      capturedSystem = messages[0].content;
+      capturedUser = JSON.parse(messages[messages.length - 1].content);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(sseBody));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      );
+    },
+  });
+
+  assert.equal(capturedUser.question, '曲线工具怎么控制画面对比度？');
+  assert.equal(capturedUser.responseMode, 'general');
+  assert.equal(Object.hasOwn(capturedUser, 'templateAnswer'), false);
+  assert.doesNotMatch(capturedSystem, /只能改写/);
+});
+
 test('assistant reclassifies safety and credential questions before model routing', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
   const companionStore = new CompanionStore({ now: () => now });

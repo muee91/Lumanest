@@ -27,6 +27,29 @@ function narrativePrompt(templateSummary = '云层正在打开，继续观察。
   };
 }
 
+function generalPrompt(question) {
+  return {
+    system: 'general photography assistant',
+    user: JSON.stringify({ responseMode: 'general', question, tone: 'balanced' }),
+  };
+}
+
+test('general assistant answers photography questions without a template', () => {
+  const accepted = guardGroundedOutput({
+    prompt: generalPrompt('直方图怎么用？'),
+    text: JSON.stringify({
+      answer: '直方图反映亮度分布：左侧是暗部，右侧是高光。拍摄时主要用它检查高光是否溢出。',
+    }),
+  });
+  assert.equal(accepted.ok, true);
+  const inventedLiveFact = guardGroundedOutput({
+    prompt: generalPrompt('现在拍什么？'),
+    text: JSON.stringify({ answer: '现在云层很薄，今晚日落值得去拍。' }),
+  });
+  assert.equal(inventedLiveFact.ok, false);
+  assert.equal(inventedLiveFact.reason, 'unsupported_live_claim');
+});
+
 test('accepts a natural rewrite that keeps the same facts', () => {
   const result = guardGroundedOutput({
     prompt: assistantPrompt('当前窗口是18:20—18:45，先看时间再决定是否出发。'),

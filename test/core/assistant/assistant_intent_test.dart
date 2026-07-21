@@ -42,9 +42,14 @@ void main() {
     expect(intent.allowsRemoteRewrite, isFalse);
   });
 
-  test('rejects empty, oversized and unrelated input', () {
+  test('routes any bounded free-form input to the model', () {
     expect(AssistantIntentParser.parse(''), isNull);
-    expect(AssistantIntentParser.parse('你好'), isNull);
+    final greeting = AssistantIntentParser.parse('你好');
+    final editing = AssistantIntentParser.parse('曲线工具怎么控制画面对比度？');
+    expect(greeting?.type, AssistantQuestionType.general);
+    expect(greeting?.allowsRemoteRewrite, isTrue);
+    expect(editing?.type, AssistantQuestionType.general);
+    expect(editing?.allowsRemoteRewrite, isTrue);
     final oversized = '为什么${List.filled(250, '很').join()}';
     expect(AssistantIntentParser.parse(oversized), isNull);
   });

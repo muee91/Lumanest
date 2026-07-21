@@ -261,6 +261,8 @@ class DataBrokerAssistantModel implements AssistantModel {
               answerBuffer.write(text);
               yield AssistantStreamDelta(text);
             }
+          } else if (name == 'error') {
+            throw AssistantFailure(_streamFailureKind(data));
           } else if (name == 'done') {
             terminalEvent = _buildDone(
               data,
@@ -426,7 +428,7 @@ class DataBrokerAssistantModel implements AssistantModel {
       _ => throw const AssistantFailure(AssistantFailureKind.invalidResponse),
     };
     if (answer.isEmpty ||
-        answer.runes.length > 80 ||
+        answer.runes.length > 200 ||
         RegExp(r'https?://|[\r\n]').hasMatch(answer)) {
       throw const AssistantFailure(AssistantFailureKind.invalidResponse);
     }
@@ -460,6 +462,16 @@ class DataBrokerAssistantModel implements AssistantModel {
       );
     }
     return AssistantStreamDone(result);
+  }
+
+  AssistantFailureKind _streamFailureKind(String data) {
+    final error = _decodeJson(data)?['error'];
+    return switch (error) {
+      'rate_limited' => AssistantFailureKind.rateLimited,
+      'timeout' => AssistantFailureKind.timeout,
+      'ai_unconfigured' => AssistantFailureKind.unconfigured,
+      _ => AssistantFailureKind.unavailable,
+    };
   }
 
   List<AssistantWebSource> _webSources(Object? raw) {
