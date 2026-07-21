@@ -204,43 +204,35 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
 
   Widget _topBar() => SizedBox(
     height: 64,
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        const Text(
-          '问 Luma',
-          style: TextStyle(
-            color: V2Palette.ink,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-          ),
-        ),
-        Positioned(
-          left: 20,
-          child: _roundIcon(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          _roundIcon(
             icon: CupertinoIcons.xmark,
             label: '关闭',
             onTap: () => Navigator.of(context).pop(),
           ),
-        ),
-        Positioned(
-          right: 84,
-          child: _roundIcon(
-            icon: CupertinoIcons.square_pencil,
-            label: '新建对话',
-            onTap: _startNewConversation,
+          const Expanded(
+            child: Center(
+              child: Text(
+                '问栖光',
+                style: TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
           ),
-        ),
-        Positioned(
-          right: 20,
-          child: _roundIcon(
+          _roundIcon(
             icon: CupertinoIcons.line_horizontal_3,
             label: '更多问题',
             onTap: _showQuestionMenu,
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 
@@ -266,55 +258,64 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
     ),
   );
 
-  Widget _welcome() => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(30, 22, 30, 20),
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 500),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          _inspirationWall(),
-          const SizedBox(height: 24),
-          Text(
-            '—▪—',
-            style: TextStyle(
-              color: V2Palette.sky,
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
+  Widget _welcome() => LayoutBuilder(
+    builder: (context, viewport) {
+      const verticalPadding = 42.0;
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(30, 22, 30, 20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (viewport.maxHeight - verticalPadding).clamp(
+              0.0,
+              double.infinity,
             ),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            '想去哪里？',
-            style: TextStyle(
-              color: V2Palette.ink,
-              fontSize: 31,
-              height: 1.1,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -.8,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _inspirationWall(),
+              const SizedBox(height: 24),
+              Text(
+                '—▪—',
+                style: TextStyle(
+                  color: V2Palette.sky,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                '想去哪里？',
+                style: TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 31,
+                  height: 1.1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '我可以帮你发现附近灵感、活动、路线',
+                style: TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 24,
+                  height: 1.35,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.8,
+                ),
+              ),
+              const SizedBox(height: 28),
+              _recommendedPrompt('日出和银河去哪？'),
+              const SizedBox(height: 12),
+              _recommendedPrompt('附近适合拍什么？'),
+            ],
           ),
-          const SizedBox(height: 8),
-          const Text(
-            '我可以帮你发现附近灵感、活动、路线',
-            style: TextStyle(
-              color: V2Palette.mutedInk,
-              fontSize: 24,
-              height: 1.35,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -.8,
-            ),
-          ),
-          const SizedBox(height: 28),
-          _recommendedPrompt('日出和银河去哪？'),
-          const SizedBox(height: 12),
-          _recommendedPrompt('附近适合拍什么？'),
-          const Spacer(),
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 
   Widget _inspirationWall() {
@@ -534,6 +535,17 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
           shrinkWrap: true,
           padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
           children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(CupertinoIcons.square_pencil),
+              title: const Text('新建对话'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _startNewConversation();
+              },
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
             const Text(
               '选择一个方向',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
