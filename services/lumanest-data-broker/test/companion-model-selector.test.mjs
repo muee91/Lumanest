@@ -76,8 +76,13 @@ test('model selector returns the strict model-ranked ids', async () => {
     snapshot,
     candidates,
     maximum: 4,
-    profiles: [{ id: 'primary' }],
-    routing: { primaryProfileId: 'primary' },
+    profiles: [{ id: 'primary', enabled: true, model: 'model-a' }],
+    routing: {
+      primaryProfileId: 'primary',
+      fallbackEnabled: false,
+      fallbackProfileIds: [],
+      maximumAttempts: 1,
+    },
     aiEnabled: true,
     router: async () => ({
       ok: true,
@@ -86,4 +91,38 @@ test('model selector returns the strict model-ranked ids', async () => {
   });
 
   assert.deepEqual(result, ['creative.b', 'creative.d', 'creative.a']);
+});
+
+test('model selector tries an allowed fallback after an invalid primary response', async () => {
+  const calls = [];
+  const result = await selectCreativeWithModel({
+    snapshot,
+    candidates,
+    maximum: 4,
+    profiles: [
+      { id: 'primary', enabled: true, model: 'model-a', allowFallback: false },
+      { id: 'fallback', enabled: true, model: 'model-b', allowFallback: true },
+    ],
+    routing: {
+      primaryProfileId: 'primary',
+      fallbackEnabled: true,
+      fallbackProfileIds: ['fallback'],
+      maximumAttempts: 2,
+    },
+    aiEnabled: true,
+    router: async ({ routing }) => {
+      calls.push(routing.primaryProfileId);
+      return routing.primaryProfileId === 'primary'
+        ? { ok: false, error: 'invalid_response' }
+        : {
+            ok: true,
+            text: JSON.stringify({
+              selectedIds: ['creative.d', 'creative.c', 'creative.a'],
+            }),
+          };
+    },
+  });
+
+  assert.deepEqual(calls, ['primary', 'fallback']);
+  assert.deepEqual(result, ['creative.d', 'creative.c', 'creative.a']);
 });

@@ -54,13 +54,35 @@ export async function selectCreativeWithModel({
   router = routeNarrative,
 }) {
   if (!aiEnabled || routing.primaryProfileId == null || candidates.length < 3) return [];
-  const result = await router({
-    profiles,
-    routing,
-    prompt: creativeSelectionPrompt({ snapshot, candidates, maximum }),
-    fetcher,
-    callBudget: new LLMCallBudget({ limit: 1 }),
-  });
-  if (!result.ok) return [];
-  return parseCreativeSelection(result.text, candidates, maximum);
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const primary = profilesById.get(routing.primaryProfileId);
+  if (primary == null || !primary.enabled || primary.model.length === 0) return [];
+  const profileIds = [primary.id];
+  if (routing.fallbackEnabled) {
+    profileIds.push(...routing.fallbackProfileIds.filter((id) => {
+      const profile = profilesById.get(id);
+      return profile?.enabled === true && profile.model.length > 0 && profile.allowFallback === true;
+    }));
+  }
+  const maximumAttempts = Math.min(3, Math.max(1, routing.maximumAttempts));
+  const callBudget = new LLMCallBudget({ limit: maximumAttempts });
+  const prompt = creativeSelectionPrompt({ snapshot, candidates, maximum });
+  for (const profileId of profileIds.slice(0, maximumAttempts)) {
+    const result = await router({
+      profiles,
+      routing: {
+        primaryProfileId: profileId,
+        fallbackEnabled: false,
+        fallbackProfileIds: [],
+        maximumAttempts: 1,
+      },
+      prompt,
+      fetcher,
+      callBudget,
+    });
+    if (!result.ok) continue;
+    const selection = parseCreativeSelection(result.text, candidates, maximum);
+    if (selection.length > 0) return selection;
+  }
+  return [];
 }
