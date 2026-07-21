@@ -1,0 +1,98 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/core/config/environment_config.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
+import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
+import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
+import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
+
+import '../../features/explore/map_consent_test_harness.dart';
+
+void main() {
+  testWidgets(
+    'explore themes form one horizontal strip below search controls',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          environmentConfigProvider.overrideWithValue(
+            EnvironmentConfig(amapAndroidKey: 'test-key'),
+          ),
+          environmentConsentStoreProvider.overrideWithValue(
+            _GrantedEnvironmentConsentStore(),
+          ),
+          mapConsentStoreProvider.overrideWithValue(
+            FakeMapConsentStore(granted: true),
+          ),
+          amapInitializerGatewayProvider.overrideWithValue(
+            FakeAmapInitializerGateway(),
+          ),
+          environmentSnapshotProvider.overrideWith(
+            _FixedEnvironmentController.new,
+          ),
+          nearbyPlacesProvider.overrideWith((_) async => const <NearbyPlace>[]),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(environmentConsentProvider.notifier).grant();
+      await container
+          .read(mapConsentControllerProvider.notifier)
+          .grantConsent();
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: V2ExplorePage()),
+        ),
+      );
+      await tester.pump();
+
+      final strip = find.byKey(const Key('v2-explore-theme-strip'));
+      final searchButton = find.byKey(const Key('v2-explore-search-button'));
+      expect(strip, findsOneWidget);
+      expect(searchButton, findsOneWidget);
+      expect(
+        tester.getTopLeft(strip).dy,
+        greaterThan(tester.getBottomLeft(searchButton).dy),
+      );
+      expect(
+        find.descendant(of: strip, matching: find.byType(Scrollable)),
+        findsOneWidget,
+      );
+      final list = tester.widget<ListView>(
+        find.descendant(of: strip, matching: find.byType(ListView)),
+      );
+      expect(list.scrollDirection, Axis.horizontal);
+      expect(find.byKey(const Key('v2-explore-theme-water')), findsOneWidget);
+      expect(find.text('选择探索主题'), findsNothing);
+      expect(find.text('换一个探索主题'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('v2-explore-theme-viewpoint')));
+      await tester.pump();
+
+      expect(
+        container.read(exploreIntentProvider).category,
+        NearbyPlaceCategory.viewpoint,
+      );
+    },
+  );
+}
+
+class _FixedEnvironmentController extends LiveEnvironmentController {
+  @override
+  Future<ContextSnapshot> build() async => ContextFixtures.lakeSunset();
+}
+
+class _GrantedEnvironmentConsentStore implements EnvironmentConsentStore {
+  @override
+  Future<bool?> readGranted() async => true;
+
+  @override
+  Future<void> writeGranted(bool granted) async {}
+}

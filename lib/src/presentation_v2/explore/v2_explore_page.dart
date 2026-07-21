@@ -336,7 +336,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   double _panelFraction = 0;
   bool _panelDragging = false;
   bool _initialized = false;
-  bool _intentPickerOpen = false;
   bool _searchOpen = false;
   bool _ignoreNextCameraMoveEnd = false;
   Timer? _ignoreCameraResetTimer;
@@ -439,7 +438,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   void _openSearch() {
     setState(() {
       _searchOpen = true;
-      _intentPickerOpen = false;
       _panelFraction = 0;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -568,11 +566,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
               compassEnabled: false,
               scaleEnabled: false,
               markers: markers,
-              onTap: (_) {
-                if (_intentPickerOpen) {
-                  setState(() => _intentPickerOpen = false);
-                }
-              },
               onCameraMoveEnd: (position) {
                 if (_ignoreNextCameraMoveEnd) {
                   _ignoreNextCameraMoveEnd = false;
@@ -605,9 +598,20 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 right: 18,
                 top: MediaQuery.paddingOf(context).top + 12,
                 child: _V2MapControlButton(
+                  key: const Key('v2-explore-search-button'),
                   icon: CupertinoIcons.search,
                   label: '选择地点或搜索',
                   onTap: _openSearch,
+                ),
+              ),
+            if (!_searchOpen)
+              Positioned(
+                left: 18,
+                top: MediaQuery.paddingOf(context).top + 12,
+                child: _V2MapControlButton(
+                  icon: CupertinoIcons.location_fill,
+                  label: '回到当前位置',
+                  onTap: () => _returnToCurrentLocation(origin),
                 ),
               ),
             if (_searchOpen && _searchController.text.trim().isEmpty)
@@ -620,44 +624,20 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
             if (!_searchOpen)
               Positioned(
                 left: 18,
-                top: MediaQuery.paddingOf(context).top + 12,
-                child: _V2IntentObject(
-                  intent: intent.creativeIntent,
-                  category: intent.category,
-                  expanded: _intentPickerOpen,
-                  onOpen: () =>
-                      setState(() => _intentPickerOpen = !_intentPickerOpen),
-                ),
-              ),
-            if (!_searchOpen)
-              Positioned(
                 right: 18,
-                top: MediaQuery.paddingOf(context).top + 72,
-                child: _V2MapControlButton(
-                  icon: CupertinoIcons.location_fill,
-                  label: '回到当前位置',
-                  onTap: () => _returnToCurrentLocation(origin),
+                top: MediaQuery.paddingOf(context).top + 70,
+                child: _V2IntentStrip(
+                  category: intent.category,
+                  onSelect: _selectExploreIntent,
                 ),
               ),
-            if (searchArea.hasPendingMapArea &&
-                !_intentPickerOpen &&
-                !_searchOpen)
+            if (searchArea.hasPendingMapArea && !_searchOpen)
               Positioned(
                 left: 0,
                 right: 0,
                 top: MediaQuery.paddingOf(context).top + 128,
                 child: Center(
                   child: _V2SearchMapAreaObject(onTap: _searchCurrentMapArea),
-                ),
-              ),
-            if (_intentPickerOpen && !_searchOpen)
-              Positioned(
-                left: 18,
-                right: 18,
-                top: MediaQuery.paddingOf(context).top + 72,
-                child: _V2IntentPickerObject(
-                  selectedCategory: intent.category,
-                  onSelect: _selectExploreIntent,
                 ),
               ),
             AnimatedPositioned(
@@ -728,7 +708,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 onRoute: _openRoute,
                 onSave: _toggleSave,
                 onSearchMapArea: _searchCurrentMapArea,
-                onChooseTheme: () => setState(() => _intentPickerOpen = true),
                 onMediaResolved: _resolveSelectedMediaLayout,
               ),
             ),
@@ -775,7 +754,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
     ref.read(exploreIntentProvider.notifier).chooseCreativeIntent(intent);
     ref.read(nearbySearchAreaProvider.notifier).resetRadius();
     setState(() {
-      _intentPickerOpen = false;
       _searchResults = null;
       _selectedPlace = null;
       _selectedSearchResult = null;
@@ -824,7 +802,6 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
       );
     }
     setState(() {
-      _intentPickerOpen = false;
       _searchResults = null;
       _selectedPlace = null;
       _selectedSearchResult = null;
@@ -1107,171 +1084,99 @@ class _V2SearchShortcutObject extends StatelessWidget {
   );
 }
 
-class _V2IntentObject extends StatelessWidget {
-  const _V2IntentObject({
-    required this.intent,
-    required this.category,
-    required this.expanded,
-    required this.onOpen,
-  });
-  final ExploreCreativeIntent? intent;
+class _V2IntentStrip extends StatelessWidget {
+  const _V2IntentStrip({required this.category, required this.onSelect});
+
   final NearbyPlaceCategory category;
-  final bool expanded;
-  final VoidCallback onOpen;
+  final ValueChanged<ExploreCreativeIntent> onSelect;
 
   @override
-  Widget build(BuildContext context) => V2Pressable(
-    onTap: onOpen,
-    compact: true,
-    color: V2Palette.night,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(_intentIcon(category), color: Colors.white, size: 18),
-          const SizedBox(width: 9),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    final hasListedSelection = ExploreCreativeIntent.values.any(
+      (intent) => intent.category == category,
+    );
+    return SizedBox(
+      key: const Key('v2-explore-theme-strip'),
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount:
+            ExploreCreativeIntent.values.length + (hasListedSelection ? 0 : 1),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (!hasListedSelection && index == 0) {
+            return _V2ThemeChip(
+              label: _categoryTitle(category),
+              category: category,
+              selected: true,
+            );
+          }
+          final intent = ExploreCreativeIntent
+              .values[index - (hasListedSelection ? 0 : 1)];
+          return _V2ThemeChip(
+            key: Key('v2-explore-theme-${intent.name}'),
+            label: intent.label,
+            category: intent.category,
+            selected: category == intent.category,
+            onTap: () => onSelect(intent),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _V2ThemeChip extends StatelessWidget {
+  const _V2ThemeChip({
+    super.key,
+    required this.label,
+    required this.category,
+    required this.selected,
+    this.onTap,
+  });
+
+  final String label;
+  final NearbyPlaceCategory category;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: onTap != null,
+    selected: selected,
+    label: '探索主题：$label',
+    child: Material(
+      color: selected ? V2Palette.night : V2Palette.paper,
+      elevation: selected ? 10 : 6,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(21),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                intent?.label ?? _categoryTitle(category),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
+              Icon(
+                _intentIcon(category),
+                color: selected ? Colors.white : V2Palette.ink,
+                size: 16,
               ),
+              const SizedBox(width: 7),
               Text(
-                category == NearbyPlaceCategory.waterfront
-                    ? '地点筛选 · 未判断倒影'
-                    : '选择探索主题',
+                label,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: .68),
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : V2Palette.ink,
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 9),
-          Icon(
-            expanded ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
-            color: Colors.white70,
-            size: 13,
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _V2IntentPickerObject extends StatelessWidget {
-  const _V2IntentPickerObject({
-    required this.selectedCategory,
-    required this.onSelect,
-  });
-
-  final NearbyPlaceCategory selectedCategory;
-  final ValueChanged<ExploreCreativeIntent> onSelect;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: V2Palette.paper,
-    elevation: 20,
-    shadowColor: Colors.black38,
-    borderRadius: BorderRadius.circular(28),
-    clipBehavior: Clip.antiAlias,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '选择探索主题',
-            style: TextStyle(
-              color: V2Palette.ink,
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 3),
-          const Text(
-            '这是地点筛选，不代表拍摄条件已经成立。',
-            style: TextStyle(
-              color: V2Palette.mutedInk,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 13),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width = (constraints.maxWidth - 8) / 2;
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final item in ExploreCreativeIntent.values)
-                    SizedBox(
-                      width: width,
-                      child: _V2IntentChoice(
-                        intent: item,
-                        selected: selectedCategory == item.category,
-                        onTap: () => onSelect(item),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _V2IntentChoice extends StatelessWidget {
-  const _V2IntentChoice({
-    required this.intent,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ExploreCreativeIntent intent;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => V2Pressable(
-    onTap: onTap,
-    compact: true,
-    color: selected ? V2Palette.mossSoft : V2Palette.canvas,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-      child: Row(
-        children: [
-          Icon(
-            _intentIcon(intent.category),
-            color: selected ? V2Palette.moss : V2Palette.ink,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              intent.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: V2Palette.ink,
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     ),
   );
@@ -1279,6 +1184,7 @@ class _V2IntentChoice extends StatelessWidget {
 
 class _V2MapControlButton extends StatelessWidget {
   const _V2MapControlButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
@@ -1391,7 +1297,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
     required this.onRoute,
     required this.onSave,
     required this.onSearchMapArea,
-    required this.onChooseTheme,
     required this.onMediaResolved,
   });
   final ExploreFocus? focus;
@@ -1413,7 +1318,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
   final void Function(String, GeoPoint) onRoute;
   final ValueChanged<NearbyPlace> onSave;
   final VoidCallback onSearchMapArea;
-  final VoidCallback onChooseTheme;
   final ValueChanged<bool> onMediaResolved;
 
   @override
@@ -1645,7 +1549,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
             category: category,
             regionLabel: regionLabel,
             onSearchArea: onSearchMapArea,
-            onChooseTheme: onChooseTheme,
           );
         }
         return Column(
@@ -1769,13 +1672,11 @@ class _V2NoNearbyResults extends StatelessWidget {
     required this.category,
     required this.regionLabel,
     required this.onSearchArea,
-    required this.onChooseTheme,
   });
 
   final NearbyPlaceCategory category;
   final String regionLabel;
   final VoidCallback onSearchArea;
-  final VoidCallback onChooseTheme;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
@@ -1832,34 +1733,6 @@ class _V2NoNearbyResults extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        V2Pressable(
-          onTap: onChooseTheme,
-          color: V2Palette.night,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-            child: Row(
-              children: [
-                Icon(CupertinoIcons.compass, color: Colors.white, size: 18),
-                SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    '换一个探索主题',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  color: Colors.white70,
-                  size: 15,
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
