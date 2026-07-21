@@ -196,25 +196,25 @@ class _V2ExploreBrief extends StatelessWidget {
               const SizedBox(height: 18),
               V2Pressable(
                 onTap: onOpenMap,
-                color: V2Palette.night,
+                color: V2Palette.mossSoft,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(
                     children: [
-                      Icon(CupertinoIcons.map, color: Colors.white, size: 18),
+                      Icon(CupertinoIcons.map, color: V2Palette.moss, size: 18),
                       SizedBox(width: 9),
                       Expanded(
                         child: Text(
                           '打开地图与附近地点',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: V2Palette.ink,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
                       Icon(
                         CupertinoIcons.chevron_right,
-                        color: Colors.white70,
+                        color: V2Palette.moss,
                         size: 16,
                       ),
                     ],
@@ -537,7 +537,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
         // remains visible above the dock.
         final navigationClearance = 64 + 12 + bottomSafeArea;
         final availablePanelHeight = constraints.maxHeight - bottomInset;
-        final collapsedPanelHeight = navigationClearance + 40;
+        final collapsedPanelHeight = navigationClearance + 72;
         final collapsedPanelFraction =
             collapsedPanelHeight / availablePanelHeight;
         final effectivePanelFraction = _panelFraction.clamp(
@@ -625,7 +625,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
               Positioned(
                 left: 18,
                 right: 18,
-                top: MediaQuery.paddingOf(context).top + 70,
+                top: MediaQuery.paddingOf(context).top + 68,
                 child: _V2IntentStrip(
                   category: intent.category,
                   onSelect: _selectExploreIntent,
@@ -635,7 +635,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
               Positioned(
                 left: 0,
                 right: 0,
-                top: MediaQuery.paddingOf(context).top + 128,
+                top: MediaQuery.paddingOf(context).top + 116,
                 child: Center(
                   child: _V2SearchMapAreaObject(onTap: _searchCurrentMapArea),
                 ),
@@ -1097,7 +1097,7 @@ class _V2IntentStrip extends StatelessWidget {
     );
     return SizedBox(
       key: const Key('v2-explore-theme-strip'),
-      height: 42,
+      height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -1148,29 +1148,32 @@ class _V2ThemeChip extends StatelessWidget {
     selected: selected,
     label: '探索主题：$label',
     child: Material(
-      color: selected ? V2Palette.night : V2Palette.paper,
-      elevation: selected ? 10 : 6,
+      color: selected ? V2Palette.mossSoft : V2Palette.paper,
+      elevation: selected ? 7 : 4,
       shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(21),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: selected ? V2Palette.moss : V2Palette.line),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 _intentIcon(category),
-                color: selected ? Colors.white : V2Palette.ink,
-                size: 16,
+                color: selected ? V2Palette.moss : V2Palette.mutedInk,
+                size: 14,
               ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 5),
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? Colors.white : V2Palette.ink,
-                  fontSize: 12,
+                  color: selected ? V2Palette.moss : V2Palette.ink,
+                  fontSize: 11,
                   fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                 ),
               ),
@@ -1374,7 +1377,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
             child: Align(
               alignment: Alignment.topCenter,
               child: SizedBox(
-                height: 40,
+                height: 72,
                 width: double.infinity,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
@@ -1383,7 +1386,50 @@ class _V2ExploreResultObject extends ConsumerWidget {
                   onVerticalDragUpdate: (details) =>
                       onDragUpdate(details.delta.dy),
                   onVerticalDragEnd: onDragEnd,
-                  child: const Center(child: V2GrabHandle()),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 9, 20, 9),
+                    child: Column(
+                      children: [
+                        const V2GrabHandle(),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                headerTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: V2Palette.ink,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            if (candidateCount != null) ...[
+                              Text(
+                                '$candidateCount 处',
+                                style: const TextStyle(
+                                  color: V2Palette.moss,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            const Text(
+                              '上拉查看',
+                              style: TextStyle(
+                                color: V2Palette.mutedInk,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

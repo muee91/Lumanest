@@ -19,7 +19,6 @@ import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Progress phase of a streaming assistant answer shown on the pending card.
@@ -116,6 +115,7 @@ class _AskLumaNestSheet extends ConsumerStatefulWidget {
 
 class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   final _inputController = TextEditingController();
+  final _scrollController = ScrollController();
   late AssistantConversationState _conversation;
   AssistantIntent? _pendingIntent;
   String? _pendingAnswer;
@@ -125,8 +125,6 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   AssistantFailure? _lastFailure;
   CancelToken? _cancelToken;
   int _generation = 0;
-  SpeechToText? _speech;
-  bool _listening = false;
 
   @override
   void initState() {
@@ -146,8 +144,8 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   void dispose() {
     _generation += 1;
     _cancelToken?.cancel('sheet_disposed');
-    _speech?.stop();
     _inputController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -163,7 +161,8 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
               child: _conversation.turns.isEmpty && _pendingIntent == null
                   ? _welcome()
                   : ListView(
-                      padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
                       children: [
                         for (final turn in _conversation.turns)
                           _turnCard(
@@ -202,10 +201,13 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
     );
   }
 
-  Widget _topBar() => SizedBox(
-    height: 64,
+  Widget _topBar() => Container(
+    height: 58,
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: V2Palette.line)),
+    ),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
           _roundIcon(
@@ -214,16 +216,28 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
             onTap: () => Navigator.of(context).pop(),
           ),
           const Expanded(
-            child: Center(
-              child: Text(
-                '问栖光',
-                style: TextStyle(
-                  color: V2Palette.ink,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '问栖光',
+                  style: TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .3,
+                  ),
                 ),
-              ),
+                SizedBox(height: 1),
+                Text(
+                  '摄影对话',
+                  style: TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
           _roundIcon(
@@ -247,171 +261,85 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(32),
       child: Container(
-        width: 52,
-        height: 52,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: V2Palette.line.withValues(alpha: .55)),
         ),
-        child: Icon(icon, color: V2Palette.ink, size: 24),
+        child: Icon(icon, color: V2Palette.ink, size: 20),
       ),
     ),
   );
 
-  Widget _welcome() => LayoutBuilder(
-    builder: (context, viewport) {
-      const verticalPadding = 42.0;
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(30, 22, 30, 20),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: (viewport.maxHeight - verticalPadding).clamp(
-              0.0,
-              double.infinity,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _inspirationWall(),
-              const SizedBox(height: 24),
-              Text(
-                '—▪—',
-                style: TextStyle(
-                  color: V2Palette.sky,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2,
+  Widget _welcome() {
+    final suggestions = <String>{
+      '附近适合拍什么？',
+      '什么时候出发？',
+      '需要带什么器材？',
+      '日出和银河去哪？',
+      ...widget.inspirationNotes.map((note) => note.label),
+    }.take(4).toList(growable: false);
+    return ListView(
+      key: const Key('v2-ai-empty-conversation'),
+      padding: const EdgeInsets.fromLTRB(16, 22, 16, 18),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _assistantAvatar(),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+                decoration: BoxDecoration(
+                  color: V2Palette.canvas,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(5),
+                    topRight: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
+                  border: Border.all(color: V2Palette.line),
                 ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                '想去哪里？',
-                style: TextStyle(
-                  color: V2Palette.ink,
-                  fontSize: 31,
-                  height: 1.1,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '我可以帮你发现附近灵感、活动、路线',
-                style: TextStyle(
-                  color: V2Palette.mutedInk,
-                  fontSize: 24,
-                  height: 1.35,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -.8,
-                ),
-              ),
-              const SizedBox(height: 28),
-              _recommendedPrompt('日出和银河去哪？'),
-              const SizedBox(height: 12),
-              _recommendedPrompt('附近适合拍什么？'),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-
-  Widget _inspirationWall() {
-    const defaults = <String>[
-      '晨光落在水面',
-      '沿着风去看海',
-      '把街巷拍成电影',
-      '找一处安静的山',
-      '今晚看星星',
-      '给旅程留一张纸条',
-    ];
-    final source = widget.inspirationNotes
-        .map((note) => note.displayLabel)
-        .toList();
-    // 纸条墙固定 3 行 × 每行 2 张：优先真实灵感、去重，不足用默认补齐。
-    // 每张只出现一次，整墙不横向滚动，因此不会被边缘截断。
-    final wallNotes = <String>{
-      ...source,
-      ...defaults,
-    }.take(6).toList(growable: false);
-    final colors = <Color>[
-      const Color(0xFFFFF4D9),
-      const Color(0xFFEAF4E6),
-      const Color(0xFFEAF1FA),
-      const Color(0xFFFFE8E3),
-      const Color(0xFFF1EAF8),
-    ];
-    return Column(
-      children: List.generate(3, (row) {
-        final rowTopics = wallNotes
-            .skip(row * 2)
-            .take(2)
-            .toList(growable: false);
-        return Padding(
-          padding: EdgeInsets.only(
-            left: row.isOdd ? 42 : 0,
-            bottom: row < 2 ? 8 : 0,
-          ),
-          child: Row(
-            children: [
-              for (int index = 0; index < rowTopics.length; index++) ...[
-                if (index > 0) const SizedBox(width: 10),
-                Expanded(
-                  child: _inspirationTile(
-                    rowTopics[index],
-                    color: colors[(index + row * 2) % colors.length],
-                    tilt: ((index + row) % 3 - 1) * .018,
+                child: const Text(
+                  '你好，我是栖光。直接告诉我你想拍什么、准备去哪里，或者把眼前的问题发给我。',
+                  style: TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 15,
+                    height: 1.5,
                   ),
                 ),
-              ],
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _inspirationTile(
-    String topic, {
-    required Color color,
-    required double tilt,
-  }) => Transform.rotate(
-    angle: tilt,
-    child: InkWell(
-      onTap: () => _selectTopic(topic),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black.withValues(alpha: .05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .08),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+              ),
             ),
           ],
         ),
-        alignment: Alignment.center,
-        child: Text(
-          topic,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: V2Palette.ink,
-            fontSize: 14,
-            height: 1.3,
-            fontWeight: FontWeight.w800,
+        const SizedBox(height: 24),
+        const Padding(
+          padding: EdgeInsets.only(left: 39),
+          child: Text(
+            '可以这样问',
+            style: TextStyle(
+              color: V2Palette.mutedInk,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
-      ),
-    ),
-  );
+        const SizedBox(height: 9),
+        Padding(
+          padding: const EdgeInsets.only(left: 39),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final label in suggestions) _recommendedPrompt(label),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   void _selectTopic(String topic) {
     final parsed = AssistantIntentParser.parse(topic);
@@ -428,40 +356,27 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
 
   Widget _recommendedPrompt(String label) => InkWell(
     onTap: () => _selectTopic(label),
-    borderRadius: BorderRadius.circular(40),
+    borderRadius: BorderRadius.circular(18),
     child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: V2Palette.canvas.withValues(alpha: .58),
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .04),
-            blurRadius: 16,
-            offset: const Offset(0, 7),
-          ),
-        ],
+        color: V2Palette.paper,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: V2Palette.line),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(CupertinoIcons.sparkles, size: 18, color: V2Palette.moss),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: V2Palette.ink,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: V2Palette.ink,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const Icon(
-            CupertinoIcons.arrow_up_right,
-            color: V2Palette.mutedInk,
-            size: 18,
-          ),
+          const SizedBox(width: 6),
+          const Icon(CupertinoIcons.arrow_up, color: V2Palette.moss, size: 13),
         ],
       ),
     ),
@@ -469,56 +384,59 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
 
   Widget _inputRow() => Padding(
     padding: EdgeInsets.fromLTRB(
-      22,
-      10,
-      22,
-      14 + MediaQuery.viewInsetsOf(context).bottom,
+      14,
+      8,
+      14,
+      10 + MediaQuery.viewInsetsOf(context).bottom,
     ),
     child: Container(
-      constraints: const BoxConstraints(minHeight: 68),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      constraints: const BoxConstraints(minHeight: 54),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
       decoration: BoxDecoration(
         color: V2Palette.paper,
-        borderRadius: BorderRadius.circular(38),
-        border: Border.all(color: V2Palette.line.withValues(alpha: .56)),
+        borderRadius: BorderRadius.circular(27),
+        border: Border.all(color: V2Palette.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .06),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+            color: V2Palette.moss.withValues(alpha: .10),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Row(
         children: [
-          IconButton(
-            tooltip: '添加',
-            onPressed: () => _showQuestionMenu(),
-            icon: const Icon(CupertinoIcons.plus, size: 28),
-            color: V2Palette.ink,
-          ),
           Expanded(
             child: TextField(
               controller: _inputController,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _submitText(),
+              onChanged: (_) => setState(() {}),
+              minLines: 1,
+              maxLines: 4,
               decoration: const InputDecoration(
-                hintText: '输入你想问的',
+                hintText: '发消息给栖光',
                 hintStyle: TextStyle(
-                  color: Color(0xFFBFC2BE),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  color: V2Palette.mutedInk,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
                 border: InputBorder.none,
+                filled: false,
                 isDense: true,
+                contentPadding: EdgeInsets.only(left: 10),
               ),
             ),
           ),
           IconButton(
-            tooltip: _listening ? '停止语音输入' : '语音输入',
-            onPressed: _toggleVoiceInput,
-            icon: const Icon(CupertinoIcons.mic_fill, size: 25),
-            color: _listening ? V2Palette.moss : V2Palette.ink,
+            key: const Key('v2-ai-send'),
+            tooltip: '发送',
+            onPressed: _inputController.text.trim().isEmpty
+                ? null
+                : _submitText,
+            icon: const Icon(CupertinoIcons.arrow_up_circle_fill, size: 30),
+            color: V2Palette.moss,
+            disabledColor: V2Palette.line,
           ),
         ],
       ),
@@ -582,155 +500,156 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
     List<AssistantWebSource> webSources = const [],
     _PendingPhase? pendingPhase,
   }) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: V2Palette.night,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            intent.normalizedQuestion,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: .68),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            answer,
-            style: const TextStyle(
-              color: Colors.white,
-              height: 1.45,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              if (loading) ...[
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: Colors.white70,
-                  ),
-                ),
-                const SizedBox(width: 7),
-              ],
-              Expanded(
-                child: Text(
-                  loading
-                      ? _pendingLabel(pendingPhase)
-                      : _sourceLabel(source, intent.type, degradedReason),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: .64),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: FractionallySizedBox(
+            widthFactor: .82,
+            child: Container(
+              key: const Key('v2-ai-user-message'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: V2Palette.skySoft,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(18),
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(5),
                 ),
               ),
-            ],
+              child: Text(
+                intent.normalizedQuestion,
+                style: const TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 14,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
-          if (webSources.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final webSource in webSources)
-                  InkWell(
-                    onTap: () => launchUrl(
-                      webSource.url,
-                      mode: LaunchMode.externalApplication,
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .08),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '来源 · ${webSource.publisher}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _assistantAvatar(),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Container(
+                key: const Key('v2-ai-assistant-message'),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 11),
+                decoration: BoxDecoration(
+                  color: V2Palette.canvas,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(5),
+                    topRight: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
                   ),
-              ],
+                  border: Border.all(color: V2Palette.line),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      answer,
+                      style: const TextStyle(
+                        color: V2Palette.ink,
+                        height: 1.5,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (loading) ...[
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: V2Palette.moss,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                        ],
+                        Expanded(
+                          child: Text(
+                            loading
+                                ? _pendingLabel(pendingPhase)
+                                : _sourceLabel(
+                                    source,
+                                    intent.type,
+                                    degradedReason,
+                                  ),
+                            style: const TextStyle(
+                              color: V2Palette.mutedInk,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (webSources.isNotEmpty) ...[
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 7,
+                        runSpacing: 7,
+                        children: [
+                          for (final webSource in webSources)
+                            InkWell(
+                              onTap: () => launchUrl(
+                                webSource.url,
+                                mode: LaunchMode.externalApplication,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: V2Palette.paper,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: V2Palette.line),
+                                ),
+                                child: Text(
+                                  '来源 · ${webSource.publisher}',
+                                  style: const TextStyle(
+                                    color: V2Palette.moss,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ],
-        ],
-      ),
+        ),
+      ],
     ),
   );
 
-  Future<void> _toggleVoiceInput() async {
-    if (_listening) {
-      await _speech?.stop();
-      if (mounted) setState(() => _listening = false);
-      return;
-    }
-    final speech = _speech ??= SpeechToText();
-    final available = await speech.initialize(
-      onError: (error) {
-        if (!mounted) return;
-        setState(() => _listening = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('语音识别暂时不可用，先用文字告诉我吧。')));
-      },
-      onStatus: (status) {
-        if (!mounted) return;
-        if (status == 'done' || status == 'notListening') {
-          setState(() => _listening = false);
-        }
-      },
-    );
-    if (!available) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('这台设备暂不支持语音识别，先用文字告诉我吧。')));
-      }
-      return;
-    }
-    if (!mounted) return;
-    setState(() => _listening = true);
-    await speech.listen(
-      listenOptions: SpeechListenOptions(
-        localeId: 'zh_CN',
-        listenMode: ListenMode.dictation,
-        partialResults: true,
-      ),
-      onResult: (result) {
-        if (!mounted) return;
-        final words = result.recognizedWords;
-        setState(() {
-          _inputController.text = words;
-          _inputController.selection = TextSelection.fromPosition(
-            TextPosition(offset: words.length),
-          );
-          if (result.finalResult) _listening = false;
-        });
-        if (result.finalResult && words.trim().isNotEmpty) {
-          _submitText();
-        }
-      },
-    );
-  }
+  Widget _assistantAvatar() => Container(
+    width: 30,
+    height: 30,
+    decoration: const BoxDecoration(
+      color: V2Palette.mossSoft,
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(CupertinoIcons.sparkles, color: V2Palette.moss, size: 15),
+  );
 
   void _submitText() {
     final text = _inputController.text.trim();
@@ -1105,6 +1024,14 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
         createdAt: DateTime.now().toUtc(),
       ),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   String _localAnswer(AssistantIntent intent) {

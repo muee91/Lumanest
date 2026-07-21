@@ -12,6 +12,7 @@ import 'package:luma_nest/src/features/explore/application/nearby_place_provider
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_initializer.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
+import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 
 import '../../features/explore/map_consent_test_harness.dart';
 
@@ -72,6 +73,16 @@ void main() {
       expect(find.byKey(const Key('v2-explore-theme-water')), findsOneWidget);
       expect(find.text('选择探索主题'), findsNothing);
       expect(find.text('换一个探索主题'), findsNothing);
+      expect(find.text('上拉查看'), findsOneWidget);
+
+      final selectedMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('v2-explore-theme-viewpoint')),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(selectedMaterial.color, V2Palette.mossSoft);
+      expect(selectedMaterial.color, isNot(V2Palette.night));
 
       await tester.tap(find.byKey(const Key('v2-explore-theme-viewpoint')));
       await tester.pump();

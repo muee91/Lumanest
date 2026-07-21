@@ -32,7 +32,7 @@ class V2InspirationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshot = ref.watch(environmentSnapshotProvider);
     return ColoredBox(
-      color: V2Palette.night,
+      color: V2Palette.canvas,
       child: snapshot.when(
         loading: () => const _InspirationFallbackFrame(
           child: V2LoadingObject(label: '正在收拢此刻灵感'),
@@ -83,13 +83,11 @@ class _InspirationFallbackFrame extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: V2Palette.paper.withValues(alpha: .3),
-                  ),
+                  border: Border.all(color: V2Palette.line),
                 ),
                 child: const Icon(
                   CupertinoIcons.xmark,
-                  color: V2Palette.paper,
+                  color: V2Palette.ink,
                   size: 23,
                 ),
               ),
@@ -192,37 +190,13 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
             _inspirationTopBar(context),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 12, 28, 18),
+                padding: const EdgeInsets.fromLTRB(16, 22, 16, 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _inspirationWall(notes),
-                    const SizedBox(height: 24),
-                    const Text(
-                      '想去哪里？',
-                      style: TextStyle(
-                        color: V2Palette.ink,
-                        fontSize: 30,
-                        height: 1.1,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    const Text(
-                      '我可以帮你发现附近灵感、活动、路线',
-                      style: TextStyle(
-                        color: V2Palette.mutedInk,
-                        fontSize: 22,
-                        height: 1.35,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 26),
-                    _recommendation('日出和银河去哪？'),
-                    const SizedBox(height: 11),
-                    _recommendation('附近适合拍什么？'),
+                    _conversationStart(notes),
                     if (notes.isEmpty) ...[
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 14),
                       TextButton.icon(
                         onPressed: () => context.go('/explore'),
                         icon: const Icon(CupertinoIcons.compass),
@@ -240,24 +214,41 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
     );
   }
 
-  Widget _inspirationTopBar(BuildContext context) => SizedBox(
-    height: 70,
+  Widget _inspirationTopBar(BuildContext context) => Container(
+    height: 58,
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: V2Palette.line)),
+    ),
     child: Stack(
       alignment: Alignment.center,
       children: [
-        const Text(
-          '灵感',
-          style: TextStyle(
-            color: V2Palette.ink,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.4,
-          ),
+        const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '问栖光',
+              style: TextStyle(
+                color: V2Palette.ink,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .3,
+              ),
+            ),
+            SizedBox(height: 1),
+            Text(
+              '摄影对话',
+              style: TextStyle(
+                color: V2Palette.mutedInk,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
         Align(
           alignment: Alignment.centerLeft,
           child: Padding(
-            padding: const EdgeInsets.only(left: 20),
+            padding: const EdgeInsets.only(left: 14),
             child: _circleAction(
               CupertinoIcons.xmark,
               '关闭',
@@ -268,7 +259,7 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
         Align(
           alignment: Alignment.centerRight,
           child: Padding(
-            padding: const EdgeInsets.only(right: 20),
+            padding: const EdgeInsets.only(right: 14),
             child: _circleAction(
               CupertinoIcons.line_horizontal_3,
               '更多推荐',
@@ -288,143 +279,118 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
           onTap: onTap,
           borderRadius: BorderRadius.circular(28),
           child: Container(
-            width: 52,
-            height: 52,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: V2Palette.line.withValues(alpha: .6)),
             ),
-            child: Icon(icon, color: V2Palette.ink, size: 23),
+            child: Icon(icon, color: V2Palette.ink, size: 20),
           ),
         ),
       );
 
-  Widget _inspirationWall(List<InspirationNote> notes) {
-    const defaults = <String>[
-      '晨光落在水面',
-      '沿着风去看海',
-      '把街巷拍成电影',
-      '今晚看星星',
-      '找一处安静的山',
-      '给旅程留一张纸条',
-    ];
-    final source = notes
-        .map((note) => note.displayLabel)
-        .toList(growable: false);
-    // 纸条墙固定 3 行 × 每行 2 张：优先真实灵感、去重，不足用默认补齐。
-    // 每张只出现一次，整墙不横向滚动，因此不会被边缘截断。
-    final wallNotes = <String>{...source, ...defaults}
-        .take(6)
-        .toList(growable: false);
-    final colors = <Color>[
-      const Color(0xFFFFF4D9),
-      const Color(0xFFEAF4E6),
-      const Color(0xFFEAF1FA),
-      const Color(0xFFFFE8E3),
-      const Color(0xFFF1EAF8),
-    ];
+  Widget _conversationStart(List<InspirationNote> notes) {
+    final suggestions = <String>{
+      '附近适合拍什么？',
+      '什么时候出发？',
+      '需要带什么器材？',
+      '日出和银河去哪？',
+      ...notes.map((note) => note.label),
+    }.take(5).toList(growable: false);
     return Column(
-      children: List.generate(3, (row) {
-        final rowNotes = wallNotes
-            .skip(row * 2)
-            .take(2)
-            .toList(growable: false);
-        return Padding(
-          padding: EdgeInsets.only(
-            left: row.isOdd ? 38 : 0,
-            bottom: row < 2 ? 8 : 0,
-          ),
-          child: Row(
-            children: [
-              for (int item = 0; item < rowNotes.length; item++) ...[
-                if (item > 0) const SizedBox(width: 10),
-                Expanded(
-                  child: _noteTile(
-                    rowNotes[item],
-                    color: colors[(item + row * 2) % colors.length],
-                    tilt: ((item + row) % 3 - 1) * .018,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: const BoxDecoration(
+                color: V2Palette.mossSoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                CupertinoIcons.sparkles,
+                color: V2Palette.moss,
+                size: 15,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+                decoration: BoxDecoration(
+                  color: V2Palette.canvas,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(5),
+                    topRight: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
+                  border: Border.all(color: V2Palette.line),
+                ),
+                child: const Text(
+                  '你好，我是栖光。告诉我你正在哪里、想拍什么，我们一起把问题理清。',
+                  style: TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 15,
+                    height: 1.5,
                   ),
                 ),
-              ],
-            ],
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _noteTile(
-    String label, {
-    required Color color,
-    required double tilt,
-  }) => Transform.rotate(
-    angle: tilt,
-    child: InkWell(
-      onTap: () => _openTopic(label),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black.withValues(alpha: .05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .08),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+              ),
             ),
           ],
         ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: V2Palette.ink,
-            fontSize: 14,
-            height: 1.3,
-            fontWeight: FontWeight.w800,
+        const SizedBox(height: 24),
+        const Padding(
+          padding: EdgeInsets.only(left: 39),
+          child: Text(
+            '可以这样问',
+            style: TextStyle(
+              color: V2Palette.mutedInk,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
-      ),
-    ),
-  );
+        const SizedBox(height: 9),
+        Padding(
+          padding: const EdgeInsets.only(left: 39),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [for (final label in suggestions) _recommendation(label)],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _recommendation(String label) => InkWell(
     onTap: () => _openTopic(label),
-    borderRadius: BorderRadius.circular(40),
+    borderRadius: BorderRadius.circular(18),
     child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: V2Palette.canvas,
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .05),
-            blurRadius: 16,
-            offset: const Offset(0, 7),
-          ),
-        ],
+        color: V2Palette.paper,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: V2Palette.line),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(CupertinoIcons.sparkles, color: V2Palette.moss, size: 18),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: V2Palette.ink,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
+          Text(
+            label,
+            style: const TextStyle(
+              color: V2Palette.ink,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const Icon(CupertinoIcons.arrow_up_right, color: V2Palette.mutedInk),
+          const SizedBox(width: 6),
+          const Icon(CupertinoIcons.arrow_up, color: V2Palette.moss, size: 13),
         ],
       ),
     ),
@@ -432,56 +398,61 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
 
   Widget _composer() => Padding(
     padding: EdgeInsets.fromLTRB(
-      22,
-      10,
-      22,
-      14 +
+      14,
+      8,
+      14,
+      10 +
           MediaQuery.viewInsetsOf(context).bottom +
           MediaQuery.paddingOf(context).bottom,
     ),
     child: Container(
-      constraints: const BoxConstraints(minHeight: 68),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      constraints: const BoxConstraints(minHeight: 54),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
       decoration: BoxDecoration(
         color: V2Palette.paper,
-        borderRadius: BorderRadius.circular(38),
-        border: Border.all(color: V2Palette.line.withValues(alpha: .6)),
+        borderRadius: BorderRadius.circular(27),
+        border: Border.all(color: V2Palette.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .06),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+            color: V2Palette.moss.withValues(alpha: .10),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Row(
         children: [
-          const Icon(CupertinoIcons.plus, size: 28, color: V2Palette.ink),
-          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _inputController,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _submitComposer(),
+              onChanged: (_) => setState(() {}),
+              minLines: 1,
+              maxLines: 4,
               decoration: const InputDecoration(
-                hintText: '发消息或按住说话',
+                hintText: '发消息给栖光',
                 hintStyle: TextStyle(
-                  color: Color(0xFFBFC2BE),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  color: V2Palette.mutedInk,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
                 border: InputBorder.none,
+                filled: false,
                 isDense: true,
+                contentPadding: EdgeInsets.only(left: 10),
               ),
             ),
           ),
           IconButton(
-            tooltip: '语音输入',
-            onPressed: () => ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('语音输入即将支持，先用文字告诉我吧。'))),
-            icon: const Icon(CupertinoIcons.mic_fill, size: 25),
-            color: V2Palette.ink,
+            key: const Key('v2-inspiration-send'),
+            tooltip: '发送',
+            onPressed: _inputController.text.trim().isEmpty
+                ? null
+                : _submitComposer,
+            icon: const Icon(CupertinoIcons.arrow_up_circle_fill, size: 30),
+            color: V2Palette.moss,
+            disabledColor: V2Palette.line,
           ),
         ],
       ),
