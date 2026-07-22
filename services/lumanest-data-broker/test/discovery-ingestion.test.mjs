@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { validateDiscoverySearchProfile } from '../src/discovery/search-profile.mjs';
 import {
+  discoveryExtractionPrompt,
   parseDiscoveryCandidates,
   searchTavily,
   sanitizeTavilyResults,
@@ -100,6 +101,40 @@ test('extract contract requires attributable evidence and rejects safety or wild
   assert.equal(parseDiscoveryCandidates(JSON.stringify({ candidates: [{
     title: '危险区域', kind: 'event', summary: '风险提示', sourceIndexes: [0],
   }] }), body.evidence), null);
+});
+
+test('local story extraction can produce the identity and orientation required by Region Brief', () => {
+  const evidence = [{
+    title: '盐官古城介绍',
+    snippet: '盐官古城是以观潮文化和传统街巷为主要特征的历史街区。核心街区位于宣德门以北，主要入口在南侧。',
+    url: 'https://culture.example.gov.cn/yanguan', sourceId: 'haining-culture',
+    publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
+  }];
+  const body = {
+    missionType: 'localStories', focus: '盐官古城区域资料', locale: 'zh-CN',
+    region: { latitude: 30.45, longitude: 120.67 }, evidence,
+  };
+  const prompt = discoveryExtractionPrompt(body);
+  assert.match(prompt.system, /areaIdentity\|orientation/);
+  assert.match(prompt.system, /不得依据坐标自行计算或推断/);
+
+  const parsed = parseDiscoveryCandidates(JSON.stringify({
+    candidates: [],
+    insights: [{
+      type: 'areaIdentity', title: '盐官古城',
+      summary: '盐官古城是以观潮文化和传统街巷为主要特征的历史街区。',
+      factText: '盐官古城是以观潮文化和传统街巷为主要特征的历史街区。',
+      sourceIndexes: [0], timeSensitive: false, actionability: 'detail',
+      sceneTags: ['oldTown', 'architecture'], photoThemeTags: ['传统街巷'],
+    }, {
+      type: 'orientation', title: '核心街区方向',
+      summary: '核心街区位于宣德门以北，主要入口在南侧。',
+      factText: '核心街区位于宣德门以北，主要入口在南侧。',
+      sourceIndexes: [0], timeSensitive: false, actionability: 'detail',
+      sceneTags: ['oldTown'], photoThemeTags: [],
+    }],
+  }), evidence);
+  assert.deepEqual(parsed?.insights.map((item) => item.type), ['areaIdentity', 'orientation']);
 });
 
 test('model coordinates require an exact coordinate string in their linked evidence', () => {
