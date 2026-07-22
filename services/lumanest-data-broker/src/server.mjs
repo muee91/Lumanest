@@ -83,6 +83,10 @@ import {
   validSevenTimerRequest,
 } from './providers/seven_timer/seven_timer_provider.mjs';
 import {
+  SiteEnvironmentService,
+  validSiteEnvironmentQuery,
+} from './environment/site-environment-service.mjs';
+import {
   FallbackRequestRateLimiter,
   MemoryRequestRateLimiter,
   RedisRequestRateLimiter,
@@ -379,6 +383,7 @@ const ratePolicies = [
   { path: '/v1/wildlife/nearby', limit: 12, windowMs: 60 * 1_000, key: 'wildlife' },
   { path: '/v1/wildlife/layers', limit: 12, windowMs: 60 * 1_000, key: 'wildlife-layer' },
   { path: '/v1/elevation/profile', limit: 20, windowMs: 60 * 1_000, key: 'elevation' },
+  { path: '/v1/environment/site-facts', limit: 20, windowMs: 60 * 1_000, key: 'site-environment' },
   { path: '/v1/route/weather', limit: 12, windowMs: 60 * 1_000, key: 'route-weather' },
   { path: '/v1/context/snapshot', limit: 30, windowMs: 60 * 1_000, key: 'context' },
   { path: '/v1/context/target-session', limit: 20, windowMs: 60 * 1_000, key: 'target-session' },
@@ -1170,6 +1175,8 @@ export function createTokenBrokerServer({
   sevenTimerCache = new MemorySevenTimerCache(),
   sevenTimerMetrics = new SevenTimerMetrics(),
   sevenTimerService = null,
+  rasterServiceUrl = '',
+  siteEnvironmentService = null,
   requestRateLimiter = new MemoryRequestRateLimiter(),
   simulationRegistry = null,
   companionStore = null,
@@ -1193,6 +1200,7 @@ export function createTokenBrokerServer({
     qweatherApiHost,
     sunsetBotBaseUrl,
     sevenTimerBaseUrl,
+    rasterServiceUrl,
     settings: validateRuntimeSettings(settings ?? {}),
   });
   const configurationSource = runtimeConfig ?? { snapshot: () => fixedSnapshot };
@@ -1215,6 +1223,12 @@ export function createTokenBrokerServer({
     now,
   });
   const activeSevenTimerMetrics = activeSevenTimerService.metrics ?? sevenTimerMetrics;
+  const activeSiteEnvironmentService = siteEnvironmentService ?? new SiteEnvironmentService({
+    rasterServiceUrl,
+    fetcher,
+    now,
+    timeoutMs: Math.min(configurationSource.snapshot().settings.upstreamTimeoutMs, 8_000),
+  });
   const wildlifeCache = new Map();
   const gbifMetadataCache = new Map();
   const elevationCache = new Map();
@@ -1421,6 +1435,16 @@ export function createTokenBrokerServer({
         return;
       }
       writeJson(response, 200, result.body);
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/environment/site-facts') {
+      const query = validSiteEnvironmentQuery(requestUrl.searchParams);
+      if (query == null) {
+        writeJson(response, 400, { error: 'invalid_site_environment_query' });
+        return;
+      }
+      writeJson(response, 200, await activeSiteEnvironmentService.facts(query));
       return;
     }
 
@@ -2242,6 +2266,7 @@ export function configurationFromEnvironment(environment = process.env) {
     qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
     sunsetBotBaseUrl: environment.SUNSETBOT_BASE_URL?.trim() || 'https://sunsetbot.top',
     sevenTimerBaseUrl: environment.SEVEN_TIMER_BASE_URL?.trim() || 'https://www.7timer.info',
+    rasterServiceUrl: environment.LUMANEST_RASTER_SERVICE_URL?.trim() ?? '',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
@@ -2309,6 +2334,7 @@ export async function createBrokerServices(environment = process.env, {
     weatherCache,
     sunsetBotBaseUrl: defaults.sunsetBotBaseUrl,
     sevenTimerBaseUrl: defaults.sevenTimerBaseUrl,
+    rasterServiceUrl: defaults.rasterServiceUrl,
     skyOpportunityCache,
     skyOpportunityMetrics,
     sevenTimerCache,
