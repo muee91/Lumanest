@@ -6,6 +6,10 @@ const regionKeys = new Set(['latitude', 'longitude', 'radiusMeters']);
 export const regionIdentityQuery = '__region_identity__';
 const relevantRegionType = /风景名胜|旅游景点|公园广场|自然地物|地名地址|行政区划|村庄|文化场馆|古镇|古村|景区/;
 const genericRegionName = /^(?:中国|中华人民共和国|当前区域|附近|未知|无名)$/;
+const regionIdentityCacheTtlMilliseconds = 24 * 60 * 60 * 1_000;
+const regionIdentityNegativeCacheTtlMilliseconds = 15 * 60 * 1_000;
+const maximumRegionIdentityCacheEntries = 512;
+const defaultRegionIdentityCache = new Map();
 
 function object(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -41,6 +45,36 @@ function addRegionName(target, seen, value) {
   if (name == null || genericRegionName.test(name) || seen.has(name)) return;
   seen.add(name);
   target.push(name);
+}
+
+function regionIdentityCacheKey(body) {
+  return `${body.region.latitude.toFixed(2)}:${body.region.longitude.toFixed(2)}:${body.locale.toLowerCase()}`;
+}
+
+function cachedRegionIdentity(cache, key, instant) {
+  const entry = cache.get(key);
+  if (entry == null) return null;
+  if (entry.expiresAt <= instant.getTime()) {
+    cache.delete(key);
+    return null;
+  }
+  // Refresh insertion order so bounded eviction approximates an LRU policy.
+  cache.delete(key);
+  cache.set(key, entry);
+  return structuredClone(entry.value);
+}
+
+function cacheRegionIdentity(cache, key, value, instant) {
+  cache.delete(key);
+  cache.set(key, {
+    value: structuredClone(value),
+    expiresAt: instant.getTime() + (value.status === 'resolved'
+      ? regionIdentityCacheTtlMilliseconds
+      : regionIdentityNegativeCacheTtlMilliseconds),
+  });
+  while (cache.size > maximumRegionIdentityCacheEntries) {
+    cache.delete(cache.keys().next().value);
+  }
 }
 
 export function validResolvePlaceRequest(body) {
@@ -130,7 +164,19 @@ export function parseAmapRegionIdentity(payload) {
   };
 }
 
-async function resolveRegionIdentity({ body, amapWebKey, fetcher, timeoutMs }) {
+async function resolveRegionIdentity({
+  body,
+  amapWebKey,
+  fetcher,
+  timeoutMs,
+  now,
+  cache,
+}) {
+  const instant = now();
+  const key = regionIdentityCacheKey(body);
+  const cached = cachedRegionIdentity(cache, key, instant);
+  if (cached != null) return cached;
+
   const center = wgs84ToGcj02(body.region.latitude, body.region.longitude);
   const url = new URL('/v3/geocode/regeo', amapBaseUrl);
   url.searchParams.set('location', `${center.longitude.toFixed(6)},${center.latitude.toFixed(6)}`);
@@ -141,14 +187,30 @@ async function resolveRegionIdentity({ body, amapWebKey, fetcher, timeoutMs }) {
   const upstream = await fetcher(url, { signal: AbortSignal.timeout(timeoutMs) });
   const payload = await upstream.json();
   const region = upstream.ok ? parseAmapRegionIdentity(payload) : null;
-  return region == null ? { status: 'not_found' } : { status: 'resolved', region };
+  const result = region == null ? { status: 'not_found' } : { status: 'resolved', region };
+  cacheRegionIdentity(cache, key, result, instant);
+  return result;
 }
 
-export async function resolvePlace({ body, amapWebKey, fetcher = fetch, timeoutMs = 8_000, now = () => new Date() }) {
+export async function resolvePlace({
+  body,
+  amapWebKey,
+  fetcher = fetch,
+  timeoutMs = 8_000,
+  now = () => new Date(),
+  regionIdentityCache = defaultRegionIdentityCache,
+}) {
   if (!amapWebKey) return { status: 'failed' };
   try {
     if (body.query === regionIdentityQuery) {
-      return await resolveRegionIdentity({ body, amapWebKey, fetcher, timeoutMs });
+      return await resolveRegionIdentity({
+        body,
+        amapWebKey,
+        fetcher,
+        timeoutMs,
+        now,
+        cache: regionIdentityCache,
+      });
     }
     const center = wgs84ToGcj02(body.region.latitude, body.region.longitude);
     const url = new URL('/v3/place/text', amapBaseUrl);
