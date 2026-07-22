@@ -25,69 +25,133 @@ test('relative radiance bands remain explicitly non-Bortle', () => {
   assert.equal(relativeRadianceBand(-1), null);
 });
 
-test('service combines Copernicus elevation and a reviewed VIIRS raster sample', async () => {
+test('service combines independently versioned terrain and VIIRS facts', async () => {
   const calls = [];
   const service = new SiteEnvironmentService({
     rasterServiceUrl: 'http://raster.internal:8792',
+    rasterServiceToken: 'internal-secret',
+    rasterDatasetRevision: 'eog-v2.2-2024-median-masked-r1',
     now: () => new Date('2026-07-22T12:00:00Z'),
-    fetcher: async (url) => {
-      calls.push(url.toString());
+    fetcher: async (url, options = {}) => {
+      calls.push({ url: url.toString(), options });
       if (url.hostname === 'api.open-meteo.com') {
+        assert.equal(url.searchParams.get('latitude'), '28.45');
+        assert.equal(url.searchParams.get('longitude'), '98.88');
         return new Response(JSON.stringify({ elevation: [3260] }));
       }
       assert.equal(url.pathname, '/v1/viirs/sample');
+      assert.equal(options.headers.Authorization, 'Bearer internal-secret');
       return new Response(JSON.stringify({
         status: 'ready',
         radiance: 0.42,
         datasetYear: 2024,
+        datasetRevision: 'eog-v2.2-2024-median-masked-r1',
         resolutionMeters: 500,
+        sampledLatitude: 28.451,
+        sampledLongitude: 98.879,
         sourceId: 'eog-viirs-annual-v2.2',
         attribution: 'Earth Observation Group VIIRS annual nighttime lights',
       }));
     },
   });
 
-  const body = await service.facts({ latitude: 28.45, longitude: 98.88 });
+  const body = await service.facts({ latitude: 28.4502, longitude: 98.8802 });
+  assert.equal(body.contractVersion, 2);
+  assert.deepEqual(body.requestedCoordinate, {
+    latitude: 28.4502,
+    longitude: 98.8802,
+    system: 'wgs84',
+  });
   assert.equal(body.terrain.status, 'ready');
   assert.equal(body.terrain.elevationMeters, 3260);
+  assert.equal(body.terrain.cacheStatus, 'miss');
+  assert.equal(body.terrain.source.revision, 'copernicus-dem-glo90-2021');
   assert.equal(body.nightSkyBackground.status, 'ready');
   assert.equal(body.nightSkyBackground.radiance, 0.42);
   assert.equal(body.nightSkyBackground.relativeRadianceBand, 'dark');
-  assert.equal(body.nightSkyBackground.classificationVersion, 'viirs-relative-radiance.1');
-  assert.equal(body.cacheStatus, 'miss');
+  assert.equal(body.nightSkyBackground.datasetRevision, 'eog-v2.2-2024-median-masked-r1');
+  assert.deepEqual(body.nightSkyBackground.sampledCoordinate, {
+    latitude: 28.451,
+    longitude: 98.879,
+    system: 'wgs84',
+  });
   assert.equal(calls.length, 2);
 });
 
-test('service degrades light pollution independently when raster data is unconfigured', async () => {
+test('service requires an internal token before calling the raster service', async () => {
+  const calls = [];
   const service = new SiteEnvironmentService({
+    rasterServiceUrl: 'http://raster.internal:8792',
     now: () => new Date('2026-07-22T12:00:00Z'),
-    fetcher: async () => new Response(JSON.stringify({ elevation: [56] })),
+    fetcher: async (url) => {
+      calls.push(url.toString());
+      return new Response(JSON.stringify({ elevation: [56] }));
+    },
   });
 
   const body = await service.facts({ latitude: 30.25, longitude: 120.15 });
   assert.equal(body.terrain.status, 'ready');
   assert.equal(body.nightSkyBackground.status, 'unconfigured');
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /api\.open-meteo\.com/);
 });
 
-test('service coalesces and caches equal coarse-cell requests', async () => {
+test('coarse-cell cache keeps requested and sampled coordinates distinct', async () => {
   let calls = 0;
   const service = new SiteEnvironmentService({
     rasterServiceUrl: 'http://raster.internal:8792',
+    rasterServiceToken: 'internal-secret',
+    rasterDatasetRevision: 'revision-1',
     now: () => new Date('2026-07-22T12:00:00Z'),
     fetcher: async (url) => {
       calls += 1;
       return url.hostname === 'api.open-meteo.com'
         ? new Response(JSON.stringify({ elevation: [88] }))
         : new Response(JSON.stringify({
-          status: 'ready', radiance: 1.1, datasetYear: 2024,
-          resolutionMeters: 500, sourceId: 'eog-viirs-annual-v2.2',
-        }));
+            status: 'ready',
+            radiance: 1.1,
+            datasetYear: 2024,
+            datasetRevision: 'revision-1',
+            resolutionMeters: 500,
+            sampledLatitude: 30.2505,
+            sampledLongitude: 120.1505,
+            sourceId: 'eog-viirs-annual-v2.2',
+          }));
     },
   });
 
   const first = await service.facts({ latitude: 30.2501, longitude: 120.1501 });
   const second = await service.facts({ latitude: 30.2502, longitude: 120.1502 });
-  assert.equal(first.cacheStatus, 'miss');
-  assert.equal(second.cacheStatus, 'hit');
+  assert.equal(first.terrain.cacheStatus, 'miss');
+  assert.equal(second.terrain.cacheStatus, 'hit');
+  assert.equal(second.nightSkyBackground.cacheStatus, 'hit');
+  assert.notDeepEqual(first.requestedCoordinate, second.requestedCoordinate);
+  assert.deepEqual(first.terrain.sampledCoordinate, second.terrain.sampledCoordinate);
+  assert.deepEqual(
+    first.nightSkyBackground.sampledCoordinate,
+    second.nightSkyBackground.sampledCoordinate,
+  );
   assert.equal(calls, 2);
+});
+
+test('terrain remains cached when the independently degraded night-sky fact expires', async () => {
+  let instant = new Date('2026-07-22T12:00:00Z');
+  let elevationCalls = 0;
+  const service = new SiteEnvironmentService({
+    rasterServiceUrl: 'http://raster.internal:8792',
+    now: () => instant,
+    fetcher: async () => {
+      elevationCalls += 1;
+      return new Response(JSON.stringify({ elevation: [126] }));
+    },
+  });
+
+  const first = await service.facts({ latitude: 30.25, longitude: 120.15 });
+  instant = new Date('2026-07-22T12:10:00Z');
+  const second = await service.facts({ latitude: 30.25, longitude: 120.15 });
+  assert.equal(first.terrain.cacheStatus, 'miss');
+  assert.equal(first.nightSkyBackground.cacheStatus, 'miss');
+  assert.equal(second.terrain.cacheStatus, 'hit');
+  assert.equal(second.nightSkyBackground.cacheStatus, 'miss');
+  assert.equal(elevationCalls, 1);
 });
