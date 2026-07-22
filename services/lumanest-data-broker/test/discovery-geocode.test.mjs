@@ -62,6 +62,7 @@ test('region identity prefers a containing AOI and retains administrative search
 test('the internal region identity mode uses reverse geocoding at the coarse worker point', async () => {
   const result = await resolvePlace({
     body: { ...request, query: regionIdentityQuery, addressHint: null }, amapWebKey: 'amap-secret',
+    regionIdentityCache: new Map(),
     fetcher: async (url) => {
       assert.equal(url.pathname, '/v3/geocode/regeo');
       assert.equal(url.searchParams.get('radius'), '3000');
@@ -72,4 +73,33 @@ test('the internal region identity mode uses reverse geocoding at the coarse wor
   });
   assert.equal(result.status, 'resolved');
   assert.deepEqual(result.region.searchNames, ['西湖区', '杭州市', '浙江省']);
+});
+
+test('region identity cache prevents repeated reverse-geocoding for the same coarse cell', async () => {
+  const cache = new Map();
+  let calls = 0;
+  const body = {
+    ...request,
+    query: regionIdentityQuery,
+    addressHint: null,
+    region: { latitude: 30.275, longitude: 120.125, radiusMeters: 5_000 },
+  };
+  const fetcher = async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ status: '1', regeocode: {
+      addressComponent: { district: '西湖区', city: '杭州市', province: '浙江省' }, aois: [], pois: [],
+    } }));
+  };
+
+  const first = await resolvePlace({
+    body, amapWebKey: 'amap-secret', fetcher, regionIdentityCache: cache,
+    now: () => new Date('2026-07-22T00:00:00Z'),
+  });
+  const second = await resolvePlace({
+    body, amapWebKey: 'amap-secret', fetcher, regionIdentityCache: cache,
+    now: () => new Date('2026-07-22T01:00:00Z'),
+  });
+
+  assert.equal(calls, 1);
+  assert.deepEqual(second, first);
 });
