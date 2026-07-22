@@ -101,6 +101,43 @@ function safeDiscoverySearchProfile(profile) {
   };
 }
 
+const auditHealthErrorCodes = new Set([
+  'EACCES', 'ENOENT', 'EISDIR', 'ENOSPC', 'EROFS',
+  'write_failed', 'read_failed', 'corrupt_file',
+]);
+
+function safeAuditLogHealth(raw) {
+  const source = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+
+  // entries: finite non-negative integer, bounded to a sane maximum.
+  let entries = 0;
+  if (typeof source.entries === 'number' && Number.isFinite(source.entries) && source.entries >= 0) {
+    entries = Math.min(Math.trunc(source.entries), Number.MAX_SAFE_INTEGER);
+  }
+
+  // lastWriteAt: only a valid ISO 8601 string or null.
+  let lastWriteAt = null;
+  if (typeof source.lastWriteAt === 'string') {
+    const parsed = new Date(source.lastWriteAt);
+    if (Number.isFinite(parsed.getTime()) && source.lastWriteAt.trim().length > 0) {
+      lastWriteAt = source.lastWriteAt;
+    }
+  }
+
+  // lastWriteOk: strictly true/false/null.
+  let lastWriteOk = null;
+  if (source.lastWriteOk === true) lastWriteOk = true;
+  else if (source.lastWriteOk === false) lastWriteOk = false;
+
+  // lastWriteError: only a finite stable error code or null.
+  let lastWriteError = null;
+  if (typeof source.lastWriteError === 'string' && auditHealthErrorCodes.has(source.lastWriteError)) {
+    lastWriteError = source.lastWriteError;
+  }
+
+  return { entries, lastWriteAt, lastWriteOk, lastWriteError };
+}
+
 function safeConfiguration(snapshot, outboundNetwork) {
   return {
     revision: snapshot.revision,
@@ -132,6 +169,7 @@ export function createAdminServer({
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
   getSevenTimerHealth = async () => ({ provider: '7timer', enabled: false, status: 'unknown', products: [] }),
   getBrokerHealth = async () => ({ status: 'unknown' }),
+  getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
   testSevenTimer = async () => ({ ok: false, error: 'not_configured' }),
   getShootingCalibration = async () => ({ ok: false, error: 'not_configured' }),
   importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
@@ -155,7 +193,7 @@ export function createAdminServer({
       if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
       if (typeof parsed.value?.password !== 'string') return json(response, 400, { error: 'invalid_request' });
       const result = await authService.login({ password: parsed.value.password, ipAddress: remoteAddress });
-      auditLog.record({ remoteAddress, operation: 'login', result: result.ok ? 'ok' : result.reason });
+      auditLog.record({ operation: 'login', result: result.ok ? 'ok' : result.reason });
       if (!result.ok) return json(response, result.reason === 'rate_limited' ? 429 : 401, { error: result.reason });
       return json(response, 200, { authenticated: true, csrfToken: result.csrfToken }, { 'Set-Cookie': result.cookie });
     }
@@ -198,9 +236,19 @@ export function createAdminServer({
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/health') {
       const [runtime, sevenTimer] = await Promise.all([getBrokerHealth(), getSevenTimerHealth()]);
-      const status = runtime.status === 'healthy' && ['healthy', 'unknown', 'disabled'].includes(sevenTimer.status)
+      const audit = safeAuditLogHealth(getAuditLogHealth());
+      const auditDegraded = audit.lastWriteOk === false;
+      const status = runtime.status === 'healthy'
+        && ['healthy', 'unknown', 'disabled'].includes(sevenTimer.status)
+        && !auditDegraded
         ? 'healthy' : 'degraded';
-      return json(response, 200, { status, checkedAt: new Date().toISOString(), runtime, services: { sevenTimer } });
+      return json(response, 200, {
+        status,
+        checkedAt: new Date().toISOString(),
+        runtime,
+        services: { sevenTimer },
+        audit,
+      });
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/services/7timer/test') {
       const parsed = await body(request);
@@ -213,7 +261,6 @@ export function createAdminServer({
       }
       const result = await testSevenTimer({ product, latitude, longitude });
       auditLog.record({
-        remoteAddress,
         operation: 'test_7timer',
         fields: ['product'],
         result: result.ok ? 'ok' : result.error,
@@ -242,21 +289,19 @@ export function createAdminServer({
         const profile = validateDiscoverySearchProfile(parsed.value, { existing: current });
         const snapshot = await runtimeConfig.replace({ discoverySearchProfile: profile });
         auditLog.record({
-          remoteAddress,
           operation: 'update_discovery_search_profile',
           fields: Object.keys(parsed.value).filter((field) => field !== 'apiKey'),
           result: 'ok',
         });
         return json(response, 200, { profile: safeDiscoverySearchProfile(snapshot.discoverySearchProfile) });
       } catch {
-        auditLog.record({ remoteAddress, operation: 'update_discovery_search_profile', result: 'rejected' });
+        auditLog.record({ operation: 'update_discovery_search_profile', result: 'rejected' });
         return json(response, 400, { error: 'invalid_search_profile' });
       }
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/context/sources') {
       const result = await listContextSources();
       auditLog.record({
-        remoteAddress,
         operation: 'list_context_sources',
         result: result.ok ? 'ok' : result.error,
       });
@@ -277,7 +322,6 @@ export function createAdminServer({
       }
       const result = await getShootingCalibration({ days, minimumSamples });
       auditLog.record({
-        remoteAddress,
         operation: 'read_shooting_calibration',
         fields: ['days', 'minimumSamples'],
         result: result.ok ? 'ok' : result.error,
@@ -299,7 +343,6 @@ export function createAdminServer({
     if (request.method === 'DELETE' && url.pathname === '/admin-api/simulation/sessions') {
       const result = simulationRegistry.clearAll();
       auditLog.record({
-        remoteAddress,
         operation: 'clear_all_simulations',
         result: 'ok',
       });
@@ -312,12 +355,12 @@ export function createAdminServer({
         return json(response, 400, { error: 'invalid_simulation_request' });
       }
       const result = simulationRegistry.activate(simulationMatch[1], parsed.value.preset);
-      auditLog.record({ remoteAddress, operation: 'activate_simulation', fields: ['preset'], result: result.ok ? 'ok' : result.error });
+      auditLog.record({ operation: 'activate_simulation', fields: ['preset'], result: result.ok ? 'ok' : result.error });
       return json(response, result.ok ? 200 : 404, result);
     }
     if (simulationMatch != null && request.method === 'DELETE') {
       const result = simulationRegistry.clear(simulationMatch[1]);
-      auditLog.record({ remoteAddress, operation: 'clear_simulation', result: result.ok ? 'ok' : result.error });
+      auditLog.record({ operation: 'clear_simulation', result: result.ok ? 'ok' : result.error });
       return json(response, result.ok ? 200 : 404, result);
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/context/imports') {
@@ -326,7 +369,6 @@ export function createAdminServer({
       if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
       const result = await importContextDataset(parsed.value);
       auditLog.record({
-        remoteAddress,
         operation: 'import_context_dataset',
         fields: ['sourceId', 'datasetType'],
         result: result.ok ? 'ok' : result.error,
@@ -353,7 +395,7 @@ export function createAdminServer({
         const profile = validateLLMProfile(parsed.value, { existing });
         const result = await listLLMModels(profile);
         auditLog.record({
-          remoteAddress, operation: 'list_llm_models', fields: ['providerId'],
+          operation: 'list_llm_models', fields: ['providerId'],
           result: result.ok ? 'ok' : result.error,
         });
         return json(response, 200, result.ok ? { models: result.models } : { models: [], error: result.error });
@@ -374,10 +416,10 @@ export function createAdminServer({
           llmProfiles: [...(current.llmProfiles ?? []), parsed.value],
         });
         const profile = snapshot.llmProfiles.find((candidate) => candidate.id === parsed.value.id);
-        auditLog.record({ remoteAddress, operation: 'create_llm_profile', fields: ['id', 'providerId'], result: 'ok' });
+        auditLog.record({ operation: 'create_llm_profile', fields: ['id', 'providerId'], result: 'ok' });
         return json(response, 201, { profile: safeLLMProfile(profile) });
       } catch {
-        auditLog.record({ remoteAddress, operation: 'create_llm_profile', result: 'rejected' });
+        auditLog.record({ operation: 'create_llm_profile', result: 'rejected' });
         return json(response, 400, { error: 'invalid_profile' });
       }
     }
@@ -386,7 +428,7 @@ export function createAdminServer({
     if (request.method === 'POST' && profileTestMatch != null) {
       const profileId = profileTestMatch[1];
       const result = await testLLMProfile(profileId);
-      auditLog.record({ remoteAddress, operation: 'test_llm_profile', fields: ['profileId'], result: result.status });
+      auditLog.record({ operation: 'test_llm_profile', fields: ['profileId'], result: result.status });
       return json(response, 200, result);
     }
     if (profileMatch != null && request.method === 'PUT') {
@@ -403,7 +445,7 @@ export function createAdminServer({
           llmProfiles: current.llmProfiles.map((profile) => profile.id === profileId ? next : profile),
         });
         const profile = snapshot.llmProfiles.find((candidate) => candidate.id === profileId);
-        auditLog.record({ remoteAddress, operation: 'update_llm_profile', fields: Object.keys(parsed.value), result: 'ok' });
+        auditLog.record({ operation: 'update_llm_profile', fields: Object.keys(parsed.value), result: 'ok' });
         return json(response, 200, { profile: safeLLMProfile(profile) });
       } catch {
         return json(response, 400, { error: 'invalid_profile' });
@@ -421,7 +463,7 @@ export function createAdminServer({
         await runtimeConfig.replace({
           llmProfiles: current.llmProfiles.filter((profile) => profile.id !== profileId),
         });
-        auditLog.record({ remoteAddress, operation: 'delete_llm_profile', fields: ['profileId'], result: 'ok' });
+        auditLog.record({ operation: 'delete_llm_profile', fields: ['profileId'], result: 'ok' });
         return json(response, 200, { ok: true });
       } catch {
         return json(response, 400, { error: 'profile_referenced' });
@@ -433,7 +475,7 @@ export function createAdminServer({
       if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
       try {
         const snapshot = await runtimeConfig.replace({ llmRouting: parsed.value });
-        auditLog.record({ remoteAddress, operation: 'update_llm_routing', fields: Object.keys(parsed.value), result: 'ok' });
+        auditLog.record({ operation: 'update_llm_routing', fields: Object.keys(parsed.value), result: 'ok' });
         return json(response, 200, { routing: snapshot.llmRouting });
       } catch {
         return json(response, 400, { error: 'invalid_routing' });
@@ -445,10 +487,10 @@ export function createAdminServer({
       if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
       try {
         const snapshot = await runtimeConfig.replace(parsed.value);
-        auditLog.record({ remoteAddress, operation: 'update_config', fields: Object.keys(parsed.value), result: 'ok' });
+        auditLog.record({ operation: 'update_config', fields: Object.keys(parsed.value), result: 'ok' });
         return json(response, 200, safeConfiguration(snapshot));
       } catch {
-        auditLog.record({ remoteAddress, operation: 'update_config', fields: Object.keys(parsed.value), result: 'rejected' });
+        auditLog.record({ operation: 'update_config', fields: Object.keys(parsed.value), result: 'rejected' });
         return json(response, 400, { error: 'invalid_configuration' });
       }
     }
@@ -466,7 +508,6 @@ export function createAdminServer({
       const result = await outboundNetworkController.apply(parsed.value);
       const accepted = result.accepted === true;
       auditLog.record({
-        remoteAddress,
         operation: 'update_outbound_network',
         fields: ['mode'],
         result: accepted ? 'accepted' : result.error ?? 'rejected',
@@ -487,35 +528,42 @@ export function createAdminServer({
       try {
         const result = await authService.changePassword(newPassword, { currentPassword });
         if (!result.ok) {
-          auditLog.record({ remoteAddress, operation: 'change_password', result: result.reason });
+          auditLog.record({ operation: 'change_password', result: result.reason });
           return json(response, 401, { error: result.reason });
         }
-        auditLog.record({ remoteAddress, operation: 'change_password', result: 'ok' });
+        auditLog.record({ operation: 'change_password', result: 'ok' });
         return json(response, 200, { ok: true }, {
           'Set-Cookie': 'lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
         });
       } catch {
-        auditLog.record({ remoteAddress, operation: 'change_password', result: 'invalid_password' });
+        auditLog.record({ operation: 'change_password', result: 'invalid_password' });
         return json(response, 400, { error: 'invalid_password' });
       }
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/audit') {
-      return json(response, 200, { entries: auditLog.list() });
+      return json(response, 200, { entries: await auditLog.list() });
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/clear-cache') {
       try {
         await clearCache();
-        auditLog.record({ remoteAddress, operation: 'clear_cache', result: 'ok' });
+        auditLog.record({ operation: 'clear_cache', result: 'ok' });
         return json(response, 200, { ok: true });
       } catch {
-        auditLog.record({ remoteAddress, operation: 'clear_cache', result: 'failed' });
+        auditLog.record({ operation: 'clear_cache', result: 'failed' });
         return json(response, 503, { error: 'cache_clear_failed' });
       }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/restart') {
-      auditLog.record({ remoteAddress, operation: 'restart', result: 'accepted' });
+      // The restart audit entry must reach disk before the process exits.
+      // record() returns a promise that resolves once the encrypted write
+      // completes; we await it here so the entry is not silently lost.
+      const writePromise = auditLog.record({ operation: 'restart', result: 'accepted' });
       json(response, 202, { ok: true });
-      setImmediate(() => restart());
+      setImmediate(async () => {
+        await writePromise;
+        await auditLog.flush();
+        restart();
+      });
       return;
     }
     json(response, 404, { error: 'not_found' });

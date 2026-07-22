@@ -11,7 +11,15 @@ import { AuditLog } from '../src/admin/audit-log.mjs';
 import { validateRuntimeSettings } from '../src/admin/runtime-settings.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
 
-async function withAdmin(run, { simulationEnabled = false, simulationRegistry = null, sevenTimer = null } = {}) {
+const testMasterKey = Buffer.alloc(32, 7).toString('base64');
+
+async function withAdmin(run, {
+  simulationEnabled = false,
+  simulationRegistry = null,
+  sevenTimer = null,
+  getBrokerHealth = async () => ({ status: 'unknown' }),
+  getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
+} = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
   const authService = new AdminAuthService({
     filePath: join(directory, 'auth.json'),
@@ -36,12 +44,17 @@ async function withAdmin(run, { simulationEnabled = false, simulationRegistry = 
       return snapshot;
     },
   };
-  const auditLog = new AuditLog();
+  const auditLog = await new AuditLog({
+    filePath: join(directory, 'audit-log.enc.json'),
+    masterKey: testMasterKey,
+  }).initialize();
   const server = createAdminServer({
     authService, runtimeConfig, auditLog,
     testConnection: async () => ({ status: 'ok' }),
     getSevenTimerHealth: async () => sevenTimer?.health ?? ({ provider: '7timer', enabled: true, status: 'unknown', products: [] }),
     testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
+    getBrokerHealth,
+    getAuditLogHealth,
     clearCache: async () => operations.push('clear'),
     restart: async () => operations.push('restart'),
     testLLMProfile: async (profileId) => ({ status: 'ok', profileId }),
@@ -80,6 +93,10 @@ async function withAdmin(run, { simulationEnabled = false, simulationRegistry = 
     await run({ baseUrl: `http://127.0.0.1:${server.address().port}`, operations, auditLog });
   } finally {
     await new Promise((resolve) => server.close(resolve));
+    // Flush any in-flight audit writes (e.g. from the last login) before
+    // removing the temp directory, otherwise rm can race with a background
+    // encrypted write and fail with ENOTEMPTY.
+    await auditLog.flush();
     await rm(directory, { recursive: true, force: true });
   }
 }
@@ -194,7 +211,7 @@ test('7Timer health is authenticated and manual tests return sanitized traceable
     assert.equal(value.traceId, 'trace-test');
     assert.equal('latitude' in value, false);
     assert.equal('longitude' in value, false);
-    const entry = auditLog.list().find((item) => item.operation === 'test_7timer');
+    const entry = (await auditLog.list()).find((item) => item.operation === 'test_7timer');
     assert.deepEqual(entry.details, { product: 'astro', traceId: 'trace-test' });
     assert.doesNotMatch(JSON.stringify(entry), /31\.23|121\.47/);
   }, { sevenTimer: { health: { provider: '7timer', enabled: true, status: 'unknown', products: [] }, test: () => ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }) } });
@@ -419,5 +436,128 @@ test('manages an encrypted reviewed-source search profile without exposing its k
       headers: { Cookie: credentials.cookie },
     });
     assert.equal((await read.text()).includes('tavily-secret-9876'), false);
+  });
+});
+
+test('health endpoint requires authentication and never leaks sensitive audit fields', async () => {
+  // Unauthenticated requests must not reach the health endpoint.
+  await withAdmin(async ({ baseUrl }) => {
+    const unauthenticated = await fetch(`${baseUrl}/admin-api/health`);
+    assert.equal(unauthenticated.status, 401);
+    assert.equal(unauthenticated.headers.get('cache-control'), 'no-store');
+  }, {
+    getBrokerHealth: async () => ({ status: 'healthy' }),
+    getAuditLogHealth: () => ({
+      entries: 7,
+      lastWriteAt: '2026-07-22T01:23:45.000Z',
+      lastWriteOk: true,
+      lastWriteError: null,
+      // Sensitive fields that must never appear in the response.
+      filePath: '/var/lib/lumanest/audit-log.enc.json',
+      rawError: `EACCES: permission denied, open '/var/lib/lumanest/audit-log.enc.json'`,
+      remoteAddress: '192.168.1.42',
+      coordinates: { latitude: 31.23, longitude: 121.47 },
+      token: 'service-secret-9012',
+    }),
+  });
+});
+
+test('authenticated health stays healthy when audit lastWriteOk is null and runtime/sevenTimer are healthy', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/health`, {
+      headers: { Cookie: credentials.cookie },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    // lastWriteOk:null (no write attempted yet) must not degrade health as
+    // long as runtime is healthy and sevenTimer is in an acceptable state.
+    assert.equal(body.status, 'healthy');
+    assert.equal(body.audit.lastWriteOk, null);
+    assert.equal(body.audit.entries, 0);
+    assert.equal(body.audit.lastWriteError, null);
+  }, {
+    getBrokerHealth: async () => ({ status: 'healthy' }),
+    // sevenTimer defaults to { status: 'unknown' } via withAdmin, which is
+    // an acceptable non-degraded state per the health composition rule.
+    getAuditLogHealth: () => ({
+      entries: 0,
+      lastWriteAt: null,
+      lastWriteOk: null,
+      lastWriteError: null,
+    }),
+  });
+});
+
+test('authenticated health is degraded when audit lastWriteOk is false', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/health`, {
+      headers: { Cookie: credentials.cookie },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    // A failed audit write (lastWriteOk:false) must degrade overall status
+    // even when runtime and sevenTimer are otherwise healthy.
+    assert.equal(body.status, 'degraded');
+    assert.equal(body.audit.lastWriteOk, false);
+    assert.equal(body.audit.lastWriteError, 'EACCES');
+    assert.equal(body.audit.entries, 42);
+    assert.equal(body.audit.lastWriteAt, '2026-07-22T02:00:00.000Z');
+  }, {
+    getBrokerHealth: async () => ({ status: 'healthy' }),
+    getAuditLogHealth: () => ({
+      entries: 42,
+      lastWriteAt: '2026-07-22T02:00:00.000Z',
+      lastWriteOk: false,
+      lastWriteError: 'EACCES',
+    }),
+  });
+});
+
+test('authenticated health audit payload only exposes safe fields and never leaks paths, errors, addresses, tokens, or coordinates', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/health`, {
+      headers: { Cookie: credentials.cookie },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    const text = JSON.stringify(body);
+
+    // The audit object must only contain the safe observability fields.
+    assert.deepEqual(Object.keys(body.audit).sort(), [
+      'entries',
+      'lastWriteAt',
+      'lastWriteError',
+      'lastWriteOk',
+    ].sort());
+
+    // Sensitive injected values must never appear anywhere in the response.
+    assert.equal(text.includes('/var/lib/lumanest/audit-log.enc.json'), false);
+    assert.equal(text.includes('permission denied'), false);
+    assert.equal(text.includes('192.168.1.42'), false);
+    assert.equal(text.includes('remoteAddress'), false);
+    assert.equal(text.includes('service-secret-9012'), false);
+    assert.equal(text.includes('31.23'), false);
+    assert.equal(text.includes('121.47'), false);
+    assert.equal(text.includes('coordinates'), false);
+    assert.equal(text.includes('token'), false);
+    assert.equal(text.includes('rawError'), false);
+    assert.equal(text.includes('filePath'), false);
+  }, {
+    getBrokerHealth: async () => ({ status: 'healthy' }),
+    getAuditLogHealth: () => ({
+      entries: 3,
+      lastWriteAt: '2026-07-22T03:00:00.000Z',
+      lastWriteOk: true,
+      lastWriteError: null,
+      // Sensitive extras that must be stripped/ignored by the safe field set.
+      filePath: '/var/lib/lumanest/audit-log.enc.json',
+      rawError: `EACCES: permission denied, open '/var/lib/lumanest/audit-log.enc.json'`,
+      remoteAddress: '192.168.1.42',
+      coordinates: { latitude: 31.23, longitude: 121.47 },
+      token: 'service-secret-9012',
+    }),
   });
 });

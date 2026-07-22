@@ -2267,7 +2267,10 @@ export async function createBrokerServices(environment = process.env, {
       environment.LUMANEST_ADMIN_PASSWORD?.trim() || '',
   });
   await authService.initialize();
-  const auditLog = new AuditLog();
+  const auditLog = await new AuditLog({
+    filePath: `${dataDirectory}/audit-log.enc.json`,
+    masterKey,
+  }).initialize();
   const weatherCache = await RedisWeatherCache.connect(environment.REDIS_URL?.trim() ?? '') ??
     new MemoryWeatherCache();
   const skyOpportunityCache = await RedisSkyOpportunityCache.connect(
@@ -2321,6 +2324,7 @@ export async function createBrokerServices(environment = process.env, {
     auditLog,
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),
     getBrokerHealth: () => brokerHealthMonitor.snapshot(),
+    getAuditLogHealth: () => auditLog.status(),
     testSevenTimer: (query) => sevenTimerService.testProduct(query),
     testConnection: createConnectionTester({ runtimeConfig }),
     testLLMProfile: createLLMProfileTester({ runtimeConfig }),
