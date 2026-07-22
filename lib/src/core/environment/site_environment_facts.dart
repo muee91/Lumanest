@@ -8,14 +8,24 @@ class TerrainFact {
   const TerrainFact({
     required this.status,
     required this.elevationMeters,
+    required this.sampledCoordinate,
+    required this.generatedAt,
+    required this.expiresAt,
+    required this.cacheStatus,
     required this.sourceId,
+    required this.sourceRevision,
     required this.resolutionMeters,
     required this.attribution,
   });
 
   final SiteFactStatus status;
   final double? elevationMeters;
+  final GeoPoint sampledCoordinate;
+  final DateTime generatedAt;
+  final DateTime expiresAt;
+  final String cacheStatus;
   final String? sourceId;
+  final String? sourceRevision;
   final double? resolutionMeters;
   final String? attribution;
 }
@@ -27,7 +37,12 @@ class NightSkyBackgroundFact {
     required this.relativeRadianceBand,
     required this.classificationVersion,
     required this.datasetYear,
+    required this.datasetRevision,
     required this.resolutionMeters,
+    required this.sampledCoordinate,
+    required this.generatedAt,
+    required this.expiresAt,
+    required this.cacheStatus,
     required this.sourceId,
     required this.attribution,
   });
@@ -37,7 +52,12 @@ class NightSkyBackgroundFact {
   final RelativeRadianceBand? relativeRadianceBand;
   final String classificationVersion;
   final int? datasetYear;
+  final String? datasetRevision;
   final double? resolutionMeters;
+  final GeoPoint sampledCoordinate;
+  final DateTime generatedAt;
+  final DateTime expiresAt;
+  final String cacheStatus;
   final String? sourceId;
   final String? attribution;
 
@@ -46,68 +66,68 @@ class NightSkyBackgroundFact {
 
 class SiteEnvironmentFacts {
   const SiteEnvironmentFacts({
-    required this.coordinate,
+    required this.requestedCoordinate,
     required this.terrain,
     required this.nightSkyBackground,
     required this.generatedAt,
-    required this.expiresAt,
-    required this.cacheStatus,
   });
 
-  final GeoPoint coordinate;
+  final GeoPoint requestedCoordinate;
   final TerrainFact terrain;
   final NightSkyBackgroundFact nightSkyBackground;
   final DateTime generatedAt;
-  final DateTime expiresAt;
-  final String cacheStatus;
+
+  GeoPoint get coordinate => requestedCoordinate;
+
+  DateTime get expiresAt => terrain.expiresAt.isBefore(nightSkyBackground.expiresAt)
+      ? terrain.expiresAt
+      : nightSkyBackground.expiresAt;
+
+  String get cacheStatus => terrain.cacheStatus == nightSkyBackground.cacheStatus
+      ? terrain.cacheStatus
+      : 'mixed';
 
   static SiteEnvironmentFacts fromJson(Map<String, Object?> body) {
     const rootKeys = {
       'contractVersion',
-      'coordinate',
+      'requestedCoordinate',
       'terrain',
       'nightSkyBackground',
       'generatedAt',
-      'expiresAt',
-      'cacheStatus',
     };
-    if (!_exactKeys(body, rootKeys) || body['contractVersion'] != 1) {
+    if (!_exactKeys(body, rootKeys) || body['contractVersion'] != 2) {
       throw const FormatException('Invalid site environment contract');
     }
-    final coordinate = _map(body['coordinate']);
-    final terrain = _map(body['terrain']);
-    final nightSky = _map(body['nightSkyBackground']);
-    final generatedAt = DateTime.tryParse('${body['generatedAt'] ?? ''}');
-    final expiresAt = DateTime.tryParse('${body['expiresAt'] ?? ''}');
-    if (!_exactKeys(coordinate, const {'latitude', 'longitude', 'system'}) ||
-        coordinate['system'] != 'wgs84' ||
-        !_finiteIn(coordinate['latitude'], -90, 90) ||
-        !_finiteIn(coordinate['longitude'], -180, 180) ||
-        generatedAt == null ||
-        expiresAt == null ||
-        !expiresAt.isAfter(generatedAt) ||
-        body['cacheStatus'] is! String) {
-      throw const FormatException('Invalid site environment metadata');
-    }
+    final generatedAt = _date(body['generatedAt']);
     return SiteEnvironmentFacts(
-      coordinate: GeoPoint(
-        latitude: (coordinate['latitude']! as num).toDouble(),
-        longitude: (coordinate['longitude']! as num).toDouble(),
-      ),
-      terrain: _terrain(terrain),
-      nightSkyBackground: _nightSky(nightSky),
-      generatedAt: generatedAt.toUtc(),
-      expiresAt: expiresAt.toUtc(),
-      cacheStatus: body['cacheStatus']! as String,
+      requestedCoordinate: _coordinate(body['requestedCoordinate']),
+      terrain: _terrain(_map(body['terrain'])),
+      nightSkyBackground: _nightSky(_map(body['nightSkyBackground'])),
+      generatedAt: generatedAt,
     );
   }
 
   static TerrainFact _terrain(Map<String, Object?> value) {
-    if (!_exactKeys(value, const {'status', 'elevationMeters', 'source'})) {
+    const keys = {
+      'status',
+      'elevationMeters',
+      'sampledCoordinate',
+      'generatedAt',
+      'expiresAt',
+      'cacheStatus',
+      'source',
+    };
+    if (!_exactKeys(value, keys)) {
       throw const FormatException('Invalid terrain fact');
     }
     final status = _status(value['status']);
     final elevation = value['elevationMeters'];
+    final generatedAt = _date(value['generatedAt']);
+    final expiresAt = _date(value['expiresAt']);
+    final cacheStatus = _cacheStatus(value['cacheStatus']);
+    if (!expiresAt.isAfter(generatedAt)) {
+      throw const FormatException('Invalid terrain freshness');
+    }
     if (status == SiteFactStatus.ready && !_finiteIn(elevation, -500, 9000)) {
       throw const FormatException('Invalid terrain elevation');
     }
@@ -116,9 +136,16 @@ class SiteEnvironmentFacts {
         (source == null ||
             !_exactKeys(
               source,
-              const {'id', 'dataset', 'resolutionMeters', 'attribution'},
+              const {
+                'id',
+                'dataset',
+                'revision',
+                'resolutionMeters',
+                'attribution',
+              },
             ) ||
             source['id'] is! String ||
+            source['revision'] is! String ||
             source['attribution'] is! String ||
             !_finiteIn(source['resolutionMeters'], 1, 10000))) {
       throw const FormatException('Invalid terrain source');
@@ -126,7 +153,12 @@ class SiteEnvironmentFacts {
     return TerrainFact(
       status: status,
       elevationMeters: elevation is num ? elevation.toDouble() : null,
+      sampledCoordinate: _coordinate(value['sampledCoordinate']),
+      generatedAt: generatedAt,
+      expiresAt: expiresAt,
+      cacheStatus: cacheStatus,
       sourceId: source?['id'] as String?,
+      sourceRevision: source?['revision'] as String?,
       resolutionMeters: (source?['resolutionMeters'] as num?)?.toDouble(),
       attribution: source?['attribution'] as String?,
     );
@@ -140,7 +172,12 @@ class SiteEnvironmentFacts {
       'relativeRadianceBand',
       'classificationVersion',
       'datasetYear',
+      'datasetRevision',
       'resolutionMeters',
+      'sampledCoordinate',
+      'generatedAt',
+      'expiresAt',
+      'cacheStatus',
       'source',
     };
     if (!_exactKeys(value, keys) ||
@@ -154,7 +191,14 @@ class SiteEnvironmentFacts {
         .where((item) => item.name == value['relativeRadianceBand'])
         .firstOrNull;
     final datasetYear = value['datasetYear'];
+    final datasetRevision = value['datasetRevision'];
     final resolution = value['resolutionMeters'];
+    final generatedAt = _date(value['generatedAt']);
+    final expiresAt = _date(value['expiresAt']);
+    final cacheStatus = _cacheStatus(value['cacheStatus']);
+    if (!expiresAt.isAfter(generatedAt)) {
+      throw const FormatException('Invalid night-sky freshness');
+    }
     final source = value['source'] == null ? null : _map(value['source']);
     if (status == SiteFactStatus.ready &&
         (!_finiteIn(radiance, 0, 1000000) ||
@@ -162,10 +206,13 @@ class SiteEnvironmentFacts {
             datasetYear is! int ||
             datasetYear < 2012 ||
             datasetYear > 2100 ||
+            datasetRevision is! String ||
+            datasetRevision.isEmpty ||
             !_finiteIn(resolution, 1, 10000) ||
             source == null ||
-            !_exactKeys(source, const {'id', 'attribution'}) ||
+            !_exactKeys(source, const {'id', 'revision', 'attribution'}) ||
             source['id'] is! String ||
+            source['revision'] != datasetRevision ||
             source['attribution'] is! String)) {
       throw const FormatException('Invalid ready night-sky fact');
     }
@@ -175,7 +222,12 @@ class SiteEnvironmentFacts {
       relativeRadianceBand: band,
       classificationVersion: value['classificationVersion']! as String,
       datasetYear: datasetYear as int?,
+      datasetRevision: datasetRevision as String?,
       resolutionMeters: (resolution as num?)?.toDouble(),
+      sampledCoordinate: _coordinate(value['sampledCoordinate']),
+      generatedAt: generatedAt,
+      expiresAt: expiresAt,
+      cacheStatus: cacheStatus,
       sourceId: source?['id'] as String?,
       attribution: source?['attribution'] as String?,
     );
@@ -185,6 +237,33 @@ class SiteEnvironmentFacts {
       .where((item) => item.name == value)
       .firstOrNull ??
       (throw const FormatException('Invalid site fact status'));
+
+  static String _cacheStatus(Object? value) {
+    if (value is String && const {'hit', 'miss', 'coalesced'}.contains(value)) {
+      return value;
+    }
+    throw const FormatException('Invalid site fact cache status');
+  }
+
+  static GeoPoint _coordinate(Object? value) {
+    final coordinate = _map(value);
+    if (!_exactKeys(coordinate, const {'latitude', 'longitude', 'system'}) ||
+        coordinate['system'] != 'wgs84' ||
+        !_finiteIn(coordinate['latitude'], -90, 90) ||
+        !_finiteIn(coordinate['longitude'], -180, 180)) {
+      throw const FormatException('Invalid site fact coordinate');
+    }
+    return GeoPoint(
+      latitude: (coordinate['latitude']! as num).toDouble(),
+      longitude: (coordinate['longitude']! as num).toDouble(),
+    );
+  }
+
+  static DateTime _date(Object? value) {
+    final parsed = DateTime.tryParse('${value ?? ''}');
+    if (parsed == null) throw const FormatException('Invalid site fact timestamp');
+    return parsed.toUtc();
+  }
 
   static Map<String, Object?> _map(Object? value) {
     if (value is! Map) throw const FormatException('Expected object');
