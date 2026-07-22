@@ -2,14 +2,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
+import 'package:luma_nest/src/core/environment/site_environment_facts.dart';
+import 'package:luma_nest/src/core/environment/site_environment_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/exploration_scene_profile.dart';
 
-/// Resolves only facts already present in ContextSnapshot. Values requiring
-/// elevation, protected-area or infrastructure evidence stay `unknown`; this
-/// provider must never infer safety-relevant facts from a place name.
+AltitudeBand altitudeBandForMeters(double? elevationMeters) {
+  if (elevationMeters == null || !elevationMeters.isFinite) {
+    return AltitudeBand.unknown;
+  }
+  if (elevationMeters < 1000) return AltitudeBand.low;
+  if (elevationMeters < 2500) return AltitudeBand.moderate;
+  if (elevationMeters < 3500) return AltitudeBand.high;
+  return AltitudeBand.veryHigh;
+}
+
+/// Resolves only evidence-backed facts. Protected-area, infrastructure and
+/// remoteness dimensions stay `unknown`; this provider must never infer them
+/// from a place name. Elevation comes from the supplementary Copernicus DEM
+/// fact and degrades independently when that source is unavailable.
 ExplorationSceneProfile resolveExplorationSceneProfile(
-  ContextSnapshot snapshot,
-) {
+  ContextSnapshot snapshot, {
+  SiteEnvironmentFacts? siteFacts,
+}) {
   final scene = snapshot.resolvedSceneContext;
   final settlement = switch (scene.primaryScene) {
     PrimaryScene.urban when scene.facets.contains(SceneFacet.oldTown) =>
@@ -20,12 +34,15 @@ ExplorationSceneProfile resolveExplorationSceneProfile(
     PrimaryScene.village => SettlementType.village,
     _ => SettlementType.unknown,
   };
+  final elevation = siteFacts?.terrain.status == SiteFactStatus.ready
+      ? siteFacts?.terrain.elevationMeters
+      : null;
   return ExplorationSceneProfile(
     physicalScene: scene.primaryScene,
     facets: scene.facets,
     settlement: settlement,
     remoteness: RemotenessLevel.unknown,
-    altitude: AltitudeBand.unknown,
+    altitude: altitudeBandForMeters(elevation),
     poiDensity: PoiDensityBand.unknown,
     mobility: scene.activity,
     routeStage: snapshot.routeStage,
@@ -35,6 +52,7 @@ ExplorationSceneProfile resolveExplorationSceneProfile(
 final explorationSceneProfileProvider = FutureProvider<ExplorationSceneProfile>(
   (ref) async {
     final snapshot = await ref.watch(environmentSnapshotProvider.future);
-    return resolveExplorationSceneProfile(snapshot);
+    final siteFacts = await ref.watch(siteEnvironmentFactsProvider.future);
+    return resolveExplorationSceneProfile(snapshot, siteFacts: siteFacts);
   },
 );
