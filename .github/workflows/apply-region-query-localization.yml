@@ -25,20 +25,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: str, old: str, new: str) -> None:
-              file = Path(path)
-              text = file.read_text()
-              if text.count(old) != 1:
-                  raise SystemExit(f"expected one match in {path}, found {text.count(old)}")
-              file.write_text(text.replace(old, new, 1))
-
-          region_identity = r'''import { wgs84ToGcj02 } from './deterministic.mjs';
+          geocode = r'''import { gcj02ToWgs84, wgs84ToGcj02 } from './deterministic.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
-const requestKeys = new Set(['region', 'locale']);
+const requestKeys = new Set(['query', 'addressHint', 'region', 'locale']);
 const regionKeys = new Set(['latitude', 'longitude', 'radiusMeters']);
-const relevantType = /风景名胜|旅游景点|公园广场|自然地物|地名地址|行政区划|村庄|文化场馆|古镇|古村|景区/;
-const genericName = /^(?:中国|中华人民共和国|当前区域|附近|未知|无名)$/;
+export const regionIdentityQuery = '__region_identity__';
+const relevantRegionType = /风景名胜|旅游景点|公园广场|自然地物|地名地址|行政区划|村庄|文化场馆|古镇|古村|景区/;
+const genericRegionName = /^(?:中国|中华人民共和国|当前区域|附近|未知|无名)$/;
 
 function object(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -49,19 +43,19 @@ function exactKeys(value, keys) {
     Object.keys(value).every((key) => keys.has(key));
 }
 
-function finite(value, minimum, maximum) {
-  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
-}
-
-function boundedText(value, maximum) {
+function text(value, maximum) {
   if (typeof value !== 'string') return null;
   const normalized = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
   return normalized.length > 0 && [...normalized].length <= maximum ? normalized : null;
 }
 
+function finite(value, minimum, maximum) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
 function scalarText(value, maximum = 80) {
-  if (Array.isArray(value)) return value.length === 1 ? boundedText(value[0], maximum) : null;
-  return boundedText(value, maximum);
+  if (Array.isArray(value)) return value.length === 1 ? text(value[0], maximum) : null;
+  return text(value, maximum);
 }
 
 function distanceMeters(value) {
@@ -69,19 +63,58 @@ function distanceMeters(value) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : Number.POSITIVE_INFINITY;
 }
 
-function addName(target, seen, value) {
+function addRegionName(target, seen, value) {
   const name = scalarText(value);
-  if (name == null || genericName.test(name) || seen.has(name)) return;
+  if (name == null || genericRegionName.test(name) || seen.has(name)) return;
   seen.add(name);
   target.push(name);
 }
 
-export function validResolveRegionRequest(body) {
-  return exactKeys(body, requestKeys) &&
-    typeof body.locale === 'string' && /^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/i.test(body.locale) &&
+export function validResolvePlaceRequest(body) {
+  return exactKeys(body, requestKeys) && text(body.query, 240) != null &&
+    (body.addressHint == null || text(body.addressHint, 300) != null) &&
+    typeof body.locale === 'string' && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/.test(body.locale) &&
     exactKeys(body.region, regionKeys) && finite(body.region.latitude, -90, 90) &&
     finite(body.region.longitude, -180, 180) && Number.isInteger(body.region.radiusMeters) &&
     finite(body.region.radiusMeters, 100, 50_000);
+}
+
+function distanceKm(first, second) {
+  const radians = Math.PI / 180;
+  const latitude = (second.latitude - first.latitude) * radians;
+  const longitude = (second.longitude - first.longitude) * radians;
+  const value = Math.sin(latitude / 2) ** 2 +
+    Math.cos(first.latitude * radians) * Math.cos(second.latitude * radians) * Math.sin(longitude / 2) ** 2;
+  return 6_371 * 2 * Math.asin(Math.sqrt(value));
+}
+
+function parsePoi(poi, center, radiusMeters, query, addressHint) {
+  if (!object(poi) || typeof poi.location !== 'string') return null;
+  const [longitude, latitude] = poi.location.split(',').map(Number);
+  if (!finite(longitude, -180, 180) || !finite(latitude, -90, 90)) return null;
+  const point = gcj02ToWgs84(latitude, longitude);
+  const coordinate = {
+    latitude: Number(point.latitude.toFixed(5)),
+    longitude: Number(point.longitude.toFixed(5)),
+  };
+  const distanceMetersValue = Math.round(distanceKm(center, coordinate) * 1_000);
+  if (distanceMetersValue > radiusMeters) return null;
+  const name = text(poi.name, 240);
+  if (name == null) return null;
+  const address = text(poi.address, 300);
+  const exactName = name === query ? 3 : (name.includes(query) || query.includes(name) ? 2 : 0);
+  const addressMatch = addressHint != null && address != null && address.includes(addressHint) ? 2 : 0;
+  return { name, address, coordinate, distanceMeters: distanceMetersValue, score: exactName + addressMatch };
+}
+
+function evidenceFor(place, observedAt) {
+  const coordinate = `${place.coordinate.latitude.toFixed(5)},${place.coordinate.longitude.toFixed(5)}`;
+  return {
+    sourceId: 'amap-poi', publisher: '高德地图', license: '高德开放平台服务',
+    version: 'amap-web-service-v1', title: `高德地点：${place.name}`,
+    snippet: `${place.address ?? place.name} 坐标：${coordinate}`,
+    url: 'https://ditu.amap.com/', publishedAt: observedAt,
+  };
 }
 
 export function parseAmapRegionIdentity(payload) {
@@ -94,7 +127,7 @@ export function parseAmapRegionIdentity(payload) {
     const name = scalarText(value.name);
     const type = scalarText(value.type, 160) ?? '';
     const distance = distanceMeters(value);
-    if (name != null && distance <= 500 && relevantType.test(`${name} ${type}`)) {
+    if (name != null && distance <= 500 && relevantRegionType.test(`${name} ${type}`)) {
       candidates.push({ name, distance, priority: distance <= 100 ? 0 : 1 });
     }
   }
@@ -103,35 +136,28 @@ export function parseAmapRegionIdentity(payload) {
     const name = scalarText(value.name);
     const type = scalarText(value.type, 160) ?? '';
     const distance = distanceMeters(value);
-    if (name != null && distance <= 300 && relevantType.test(`${name} ${type}`)) {
+    if (name != null && distance <= 300 && relevantRegionType.test(`${name} ${type}`)) {
       candidates.push({ name, distance, priority: 2 });
     }
   }
   candidates
     .sort((left, right) => left.priority - right.priority || left.distance - right.distance || left.name.localeCompare(right.name))
-    .forEach((item) => addName(names, seen, item.name));
-
+    .forEach((item) => addRegionName(names, seen, item.name));
   const address = object(payload.regeocode.addressComponent) ? payload.regeocode.addressComponent : {};
-  addName(names, seen, address.township);
-  addName(names, seen, address.district);
-  addName(names, seen, address.city);
-  addName(names, seen, address.province);
+  addRegionName(names, seen, address.township);
+  addRegionName(names, seen, address.district);
+  addRegionName(names, seen, address.city);
+  addRegionName(names, seen, address.province);
   const formatted = scalarText(payload.regeocode.formatted_address, 160);
-  if (names.length === 0 && formatted != null) addName(names, seen, formatted);
+  if (names.length === 0 && formatted != null) addRegionName(names, seen, formatted);
   if (names.length === 0) return null;
-  return Object.freeze({
-    displayName: names[0],
-    searchNames: Object.freeze(names.slice(0, 5)),
-    source: Object.freeze({
-      sourceId: 'amap-regeocode',
-      publisher: '高德地图',
-      version: 'amap-web-service-v1',
-    }),
-  });
+  return {
+    displayName: names[0], searchNames: names.slice(0, 5),
+    source: { sourceId: 'amap-regeocode', publisher: '高德地图', version: 'amap-web-service-v1' },
+  };
 }
 
-export async function resolveRegionIdentity({ body, amapWebKey, fetcher = fetch, timeoutMs = 8_000 }) {
-  if (!amapWebKey) return { status: 'failed' };
+async function resolveRegionIdentity({ body, amapWebKey, fetcher, timeoutMs }) {
   const center = wgs84ToGcj02(body.region.latitude, body.region.longitude);
   const url = new URL('/v3/geocode/regeo', amapBaseUrl);
   url.searchParams.set('location', `${center.longitude.toFixed(6)},${center.latitude.toFixed(6)}`);
@@ -139,137 +165,188 @@ export async function resolveRegionIdentity({ body, amapWebKey, fetcher = fetch,
   url.searchParams.set('extensions', 'all');
   url.searchParams.set('roadlevel', '1');
   url.searchParams.set('key', amapWebKey);
+  const upstream = await fetcher(url, { signal: AbortSignal.timeout(timeoutMs) });
+  const payload = await upstream.json();
+  const region = upstream.ok ? parseAmapRegionIdentity(payload) : null;
+  return region == null ? { status: 'not_found' } : { status: 'resolved', region };
+}
+
+export async function resolvePlace({ body, amapWebKey, fetcher = fetch, timeoutMs = 8_000, now = () => new Date() }) {
+  if (!amapWebKey) return { status: 'failed' };
   try {
+    if (body.query === regionIdentityQuery) {
+      return await resolveRegionIdentity({ body, amapWebKey, fetcher, timeoutMs });
+    }
+    const center = wgs84ToGcj02(body.region.latitude, body.region.longitude);
+    const url = new URL('/v3/place/text', amapBaseUrl);
+    url.searchParams.set('keywords', body.query);
+    url.searchParams.set('location', `${center.longitude.toFixed(6)},${center.latitude.toFixed(6)}`);
+    url.searchParams.set('radius', String(Math.min(body.region.radiusMeters, 50_000)));
+    url.searchParams.set('offset', '10');
+    url.searchParams.set('page', '1');
+    url.searchParams.set('extensions', 'all');
+    url.searchParams.set('key', amapWebKey);
     const upstream = await fetcher(url, { signal: AbortSignal.timeout(timeoutMs) });
     const payload = await upstream.json();
-    const identity = upstream.ok ? parseAmapRegionIdentity(payload) : null;
-    return identity == null ? { status: 'not_found' } : { status: 'resolved', ...identity };
+    if (!upstream.ok || payload?.status !== '1' || !Array.isArray(payload.pois)) return { status: 'failed' };
+    const centerWgs = { latitude: body.region.latitude, longitude: body.region.longitude };
+    const places = payload.pois
+      .map((poi) => parsePoi(poi, centerWgs, body.region.radiusMeters, body.query, body.addressHint))
+      .filter(Boolean)
+      .sort((first, second) => second.score - first.score || first.distanceMeters - second.distanceMeters || first.name.localeCompare(second.name));
+    if (places.length === 0) return { status: 'not_found' };
+    const [best, second] = places;
+    if (second != null && best.score === second.score) return { status: 'ambiguous' };
+    const observedAt = now().toISOString();
+    return { status: 'resolved', place: best, evidence: evidenceFor(best, observedAt) };
   } catch {
     return { status: 'failed' };
   }
 }
 '''
-          Path('services/lumanest-data-broker/src/discovery/region-identity.mjs').write_text(region_identity)
+          Path('services/lumanest-data-broker/src/discovery/geocode.mjs').write_text(geocode)
 
-          region_test = r'''import assert from 'node:assert/strict';
+          geocode_test = r'''import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
   parseAmapRegionIdentity,
-  resolveRegionIdentity,
-  validResolveRegionRequest,
-} from '../src/discovery/region-identity.mjs';
+  regionIdentityQuery,
+  resolvePlace,
+  validResolvePlaceRequest,
+} from '../src/discovery/geocode.mjs';
 
 const request = {
-  region: { latitude: 30.275, longitude: 120.125, radiusMeters: 5000 },
-  locale: 'zh-CN',
+  query: '飞来寺观景台', addressHint: '云南省迪庆州德钦县',
+  region: { latitude: 28.475, longitude: 98.875, radiusMeters: 50_000 }, locale: 'zh-CN',
 };
 
-test('region identity request accepts only a bounded coarse region', () => {
-  assert.equal(validResolveRegionRequest(request), true);
-  assert.equal(validResolveRegionRequest({ ...request, userId: 'forbidden' }), false);
-  assert.equal(validResolveRegionRequest({ ...request, region: { ...request.region, radiusMeters: 99 } }), false);
+test('resolve-place accepts only the bounded internal contract', () => {
+  assert.equal(validResolvePlaceRequest(request), true);
+  assert.equal(validResolvePlaceRequest({ ...request, url: 'https://internal.test' }), false);
+  assert.equal(validResolvePlaceRequest({ ...request, region: { ...request.region, radiusMeters: 60_000 } }), false);
 });
 
-test('AMap region identity prefers containing reviewed place hints and keeps administrative fallbacks', () => {
-  const parsed = parseAmapRegionIdentity({
-    status: '1',
-    regeocode: {
-      formatted_address: '浙江省杭州市西湖区北山街道',
-      addressComponent: {
-        township: '北山街道', district: '西湖区', city: '杭州市', province: '浙江省',
-      },
-      aois: [
-        { name: '远处商业中心', type: '商务住宅', distance: '2000' },
-        { name: '西湖风景名胜区', type: '风景名胜;风景名胜相关;旅游景点', distance: '20' },
-      ],
-      pois: [
-        { name: '北山街历史文化街区', type: '地名地址;普通地名;街道级地名', distance: '120' },
-      ],
-    },
-  });
-  assert.equal(parsed?.displayName, '西湖风景名胜区');
-  assert.deepEqual(parsed?.searchNames, [
-    '西湖风景名胜区', '北山街历史文化街区', '北山街道', '西湖区', '杭州市',
-  ]);
-});
-
-test('region resolver uses AMap reverse geocoding without exposing an app request coordinate', async () => {
-  let requested;
-  const result = await resolveRegionIdentity({
-    body: request,
-    amapWebKey: 'amap-key',
+test('resolve-place converts the unique nearby AMap POI to WGS84 and returns evidence', async () => {
+  const result = await resolvePlace({
+    body: request, amapWebKey: 'amap-secret', now: () => new Date('2026-07-19T08:00:00Z'),
     fetcher: async (url) => {
-      requested = url;
-      return new Response(JSON.stringify({
-        status: '1',
-        regeocode: {
-          addressComponent: { district: '西湖区', city: '杭州市', province: '浙江省' },
-          aois: [], pois: [],
-        },
-      }));
+      assert.equal(url.pathname, '/v3/place/text');
+      assert.equal(url.searchParams.get('keywords'), '飞来寺观景台');
+      return new Response(JSON.stringify({ status: '1', pois: [{
+        name: '飞来寺观景台', address: '云南省迪庆州德钦县', location: '98.87634,28.44512',
+      }] }), { status: 200 });
     },
   });
   assert.equal(result.status, 'resolved');
-  assert.equal(requested.pathname, '/v3/geocode/regeo');
-  assert.equal(requested.searchParams.get('extensions'), 'all');
-  assert.equal(requested.searchParams.get('radius'), '3000');
+  assert.equal(result.place.name, '飞来寺观景台');
+  assert.equal(result.evidence.sourceId, 'amap-poi');
+  assert.match(result.evidence.snippet, /坐标：/);
+});
+
+test('resolve-place rejects equally plausible results instead of choosing the first', async () => {
+  const result = await resolvePlace({
+    body: request, amapWebKey: 'amap-secret',
+    fetcher: async () => new Response(JSON.stringify({ status: '1', pois: [
+      { name: '飞来寺观景台', address: '德钦县', location: '98.87634,28.44512' },
+      { name: '飞来寺观景台', address: '德钦县', location: '98.87734,28.44612' },
+    ] }), { status: 200 }),
+  });
+  assert.deepEqual(result, { status: 'ambiguous' });
+});
+
+test('region identity prefers a containing AOI and retains administrative search names', () => {
+  const parsed = parseAmapRegionIdentity({
+    status: '1', regeocode: {
+      addressComponent: { township: '北山街道', district: '西湖区', city: '杭州市', province: '浙江省' },
+      aois: [{ name: '西湖风景名胜区', type: '风景名胜;旅游景点', distance: '20' }],
+      pois: [{ name: '北山街历史文化街区', type: '地名地址;街道级地名', distance: '120' }],
+    },
+  });
+  assert.equal(parsed?.displayName, '西湖风景名胜区');
+  assert.deepEqual(parsed?.searchNames, ['西湖风景名胜区', '北山街历史文化街区', '北山街道', '西湖区', '杭州市']);
+});
+
+test('the internal region identity mode uses reverse geocoding at the coarse worker point', async () => {
+  const result = await resolvePlace({
+    body: { ...request, query: regionIdentityQuery, addressHint: null }, amapWebKey: 'amap-secret',
+    fetcher: async (url) => {
+      assert.equal(url.pathname, '/v3/geocode/regeo');
+      assert.equal(url.searchParams.get('radius'), '3000');
+      return new Response(JSON.stringify({ status: '1', regeocode: {
+        addressComponent: { district: '西湖区', city: '杭州市', province: '浙江省' }, aois: [], pois: [],
+      } }));
+    },
+  });
+  assert.equal(result.status, 'resolved');
+  assert.deepEqual(result.region.searchNames, ['西湖区', '杭州市', '浙江省']);
 });
 '''
-          Path('services/lumanest-data-broker/test/discovery-region-identity.test.mjs').write_text(region_test)
-
-          replace_once(
-              'services/lumanest-data-broker/src/server.mjs',
-              "import { resolvePlace, validResolvePlaceRequest } from './discovery/geocode.mjs';",
-              "import { resolvePlace, validResolvePlaceRequest } from './discovery/geocode.mjs';\nimport { resolveRegionIdentity, validResolveRegionRequest } from './discovery/region-identity.mjs';",
-          )
-          replace_once(
-              'services/lumanest-data-broker/src/server.mjs',
-              "        requestUrl.pathname === '/internal/v1/discovery/deterministic' ||\n        requestUrl.pathname === '/internal/v1/discovery/resolve-place') {",
-              "        requestUrl.pathname === '/internal/v1/discovery/deterministic' ||\n        requestUrl.pathname === '/internal/v1/discovery/resolve-place' ||\n        requestUrl.pathname === '/internal/v1/discovery/resolve-region') {",
-          )
-          replace_once(
-              'services/lumanest-data-broker/src/server.mjs',
-              "      const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') || requestUrl.pathname.endsWith('/resolve-place') ? 4_096 : 16 * 1_024);",
-              "      const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') || requestUrl.pathname.endsWith('/resolve-place') || requestUrl.pathname.endsWith('/resolve-region') ? 4_096 : 16 * 1_024);",
-          )
-          marker = "      if (requestUrl.pathname.endsWith('/resolve-place')) {\n"
-          region_branch = """      if (requestUrl.pathname.endsWith('/resolve-region')) {
-        if (body == null || !validResolveRegionRequest(body)) {
-          writeJson(response, 400, { error: 'invalid_discovery_resolve_region_request' });
-          return;
-        }
-        const result = await resolveRegionIdentity({
-          body,
-          amapWebKey: configuration.amapWebKey,
-          fetcher,
-          timeoutMs: configuration.settings.upstreamTimeoutMs,
-        });
-        writeJson(response, result.status === 'failed' && !configuration.amapWebKey ? 503 : 200, result);
-        return;
-      }
-"""
-          replace_once('services/lumanest-data-broker/src/server.mjs', marker, region_branch + marker)
+          Path('services/lumanest-data-broker/test/discovery-geocode.test.mjs').write_text(geocode_test)
 
           worker = Path('services/lumanest-discovery-service/app/worker.py')
           text = worker.read_text()
-          text = text.replace(
-              "    async def search(self, job: RefreshJob) -> list[BrokerSearchResult]:\n",
-              "    async def resolve_region(self, job: RefreshJob) -> tuple[str, ...]:\n        payload = {\n            \"region\": {\n                \"latitude\": job.region.latitude,\n                \"longitude\": job.region.longitude,\n                \"radiusMeters\": job.region.radius_meters,\n            },\n            \"locale\": job.region.locale,\n        }\n        try:\n            raw = await self._post(\"/internal/v1/discovery/resolve-region\", payload)\n        except BrokerFailure:\n            return ()\n        if not isinstance(raw, dict) or raw.get(\"status\") != \"resolved\":\n            return ()\n        values = raw.get(\"searchNames\")\n        if not isinstance(values, list):\n            return ()\n        names: list[str] = []\n        for value in values:\n            if not isinstance(value, str):\n                continue\n            normalized = \" \".join(value.split()).strip()\n            if normalized and len(normalized) <= 80 and normalized not in names:\n                names.append(normalized)\n            if len(names) == 5:\n                break\n        return tuple(names)\n\n    async def search(\n        self,\n        job: RefreshJob,\n        region_names: tuple[str, ...] = (),\n    ) -> list[BrokerSearchResult]:\n",
-              1,
-          )
+          old = "    async def search(self, job: RefreshJob) -> list[BrokerSearchResult]:\n"
+          new = '''    async def resolve_region(self, job: RefreshJob) -> tuple[str, ...]:
+        payload = {
+            "query": "__region_identity__",
+            "addressHint": None,
+            "region": {
+                "latitude": job.region.latitude,
+                "longitude": job.region.longitude,
+                "radiusMeters": job.region.radius_meters,
+            },
+            "locale": job.region.locale,
+        }
+        try:
+            raw = await self._post("/internal/v1/discovery/resolve-place", payload)
+        except BrokerFailure:
+            return ()
+        region = raw.get("region") if isinstance(raw, dict) and raw.get("status") == "resolved" else None
+        values = region.get("searchNames") if isinstance(region, dict) else None
+        if not isinstance(values, list):
+            return ()
+        names: list[str] = []
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            normalized = " ".join(value.split()).strip()
+            if normalized and len(normalized) <= 80 and normalized not in names:
+                names.append(normalized)
+            if len(names) == 5:
+                break
+        return tuple(names)
+
+    async def search(
+        self,
+        job: RefreshJob,
+        region_names: tuple[str, ...] = (),
+    ) -> list[BrokerSearchResult]:
+'''
+          if text.count(old) != 1: raise SystemExit('search signature mismatch')
+          text = text.replace(old, new, 1)
           text = text.replace("        for query in self._queries(job):\n", "        for query in self._queries(job, region_names):\n", 1)
-          text = text.replace(
-              "        evidence: list[BrokerSearchResult],\n    ) -> tuple[list[ExtractedCandidate], list[ExtractedRegionInsight]]:\n        payload = {\n            \"missionType\": job.region.mission_type,\n            \"focus\": job.region.focus,\n",
-              "        evidence: list[BrokerSearchResult],\n        region_names: tuple[str, ...] = (),\n    ) -> tuple[list[ExtractedCandidate], list[ExtractedRegionInsight]]:\n        payload = {\n            \"missionType\": job.region.mission_type,\n            \"focus\": self._localized_focus(job, region_names),\n",
-              1,
-          )
-          old_queries = '''    @staticmethod
+          old = '''        evidence: list[BrokerSearchResult],
+    ) -> tuple[list[ExtractedCandidate], list[ExtractedRegionInsight]]:
+        payload = {
+            "missionType": job.region.mission_type,
+            "focus": job.region.focus,
+'''
+          new = '''        evidence: list[BrokerSearchResult],
+        region_names: tuple[str, ...] = (),
+    ) -> tuple[list[ExtractedCandidate], list[ExtractedRegionInsight]]:
+        payload = {
+            "missionType": job.region.mission_type,
+            "focus": self._localized_focus(job, region_names),
+'''
+          if text.count(old) != 1: raise SystemExit('extract signature mismatch')
+          text = text.replace(old, new, 1)
+          old = '''    @staticmethod
     def _queries(job: RefreshJob) -> tuple[str, str, str]:
         # Coordinates are the coarse grid centre, never the app's raw point.
         area = job.region.focus.strip() or f"{job.region.latitude:.3f},{job.region.longitude:.3f}"
 '''
-          new_queries = '''    @staticmethod
+          new = '''    @staticmethod
     def _localized_focus(job: RefreshJob, region_names: tuple[str, ...] = ()) -> str:
         focus = " ".join(job.region.focus.split()).strip()
         generic = focus in {"区域探索资料", "regional exploration material"}
@@ -281,23 +358,18 @@ test('region resolver uses AMap reverse geocoding without exposing an app reques
         return focus
 
     @staticmethod
-    def _queries(
-        job: RefreshJob,
-        region_names: tuple[str, ...] = (),
-    ) -> tuple[str, str, str]:
-        # The worker receives only a short-lived coarse grid centre. AMap names
-        # are search hints, not product facts; published identity still requires
-        # reviewed source evidence during extraction and admission.
+    def _queries(job: RefreshJob, region_names: tuple[str, ...] = ()) -> tuple[str, str, str]:
+        # Reverse-geocoded names are search hints only. Published regional facts
+        # still require reviewed source evidence during extraction and admission.
         area = BrokerClient._localized_focus(job, region_names)
 '''
-          if text.count(old_queries) != 1:
-              raise SystemExit('worker query block mismatch')
-          text = text.replace(old_queries, new_queries, 1)
-          old_process = '''        else:
+          if text.count(old) != 1: raise SystemExit('query block mismatch')
+          text = text.replace(old, new, 1)
+          old = '''        else:
             evidence = await broker.search(job)
             if not evidence:
 '''
-          new_process = '''        else:
+          new = '''        else:
             region_names: tuple[str, ...] = ()
             if isinstance(broker, BrokerClient):
                 region_names = await broker.resolve_region(job)
@@ -308,15 +380,13 @@ test('region resolver uses AMap reverse geocoding without exposing an app reques
                 localized_focus = job.region.focus
             if not evidence:
 '''
-          if text.count(old_process) != 1:
-              raise SystemExit('worker process search block mismatch')
-          text = text.replace(old_process, new_process, 1)
+          if text.count(old) != 1: raise SystemExit('process search block mismatch')
+          text = text.replace(old, new, 1)
           text = text.replace("                focus=job.region.focus,\n", "                focus=localized_focus,\n", 1)
-          text = text.replace(
-              "                    job,\n                    selected,\n                )\n",
-              "                    job,\n                    selected,\n                    region_names,\n                )\n",
-              1,
-          )
+          old = "                    job,\n                    selected,\n                )\n"
+          new = "                    job,\n                    selected,\n                    region_names,\n                )\n"
+          if text.count(old) < 1: raise SystemExit('extract call mismatch')
+          text = text.replace(old, new, 1)
           worker.write_text(text)
 
           test_worker = Path('services/lumanest-discovery-service/tests/test_worker.py')
@@ -337,28 +407,23 @@ async def test_region_identity_resolution_uses_only_the_coarse_job_reference(mon
     async def post(_self, path, payload):
         captured["path"] = path
         captured["payload"] = payload
-        return {
-            "status": "resolved",
+        return {"status": "resolved", "region": {
             "displayName": "西湖风景名胜区",
             "searchNames": ["西湖风景名胜区", "北山街道", "西湖区"],
-        }
+        }}
 
     monkeypatch.setattr(BrokerClient, "_post", post)
     names = await BrokerClient("https://broker.test", "token").resolve_region(job())
-
     assert names == ("西湖风景名胜区", "北山街道", "西湖区")
-    assert captured["path"] == "/internal/v1/discovery/resolve-region"
+    assert captured["path"] == "/internal/v1/discovery/resolve-place"
+    assert captured["payload"]["query"] == "__region_identity__"
     assert captured["payload"]["region"] == {
-        "latitude": 30.275,
-        "longitude": 120.125,
-        "radiusMeters": 5000,
+        "latitude": 30.275, "longitude": 120.125, "radiusMeters": 5000,
     }
 '''
           anchor = "\ndef test_job_contains_only_expiring_grid_center_not_the_request_coordinate():\n"
-          if tests.count(anchor) != 1:
-              raise SystemExit('worker test insertion anchor mismatch')
-          tests = tests.replace(anchor, insertion + anchor, 1)
-          test_worker.write_text(tests)
+          if tests.count(anchor) != 1: raise SystemExit('worker test anchor mismatch')
+          test_worker.write_text(tests.replace(anchor, insertion + anchor, 1))
           PY
 
       - name: Validate data broker
