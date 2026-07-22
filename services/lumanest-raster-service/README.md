@@ -1,8 +1,9 @@
 # LumaNest Raster Service
 
 This private service samples reviewed geospatial rasters for the Data Broker. It
-currently exposes annual VIIRS nighttime-light radiance. It does **not** convert
-satellite radiance into a Bortle class or an observing-success probability.
+currently exposes annual VIIRS nighttime-light radiance and bounded spatial
+radiance analysis. It does **not** convert satellite radiance into a Bortle class
+or an observing-success probability.
 
 ## Required data
 
@@ -69,10 +70,24 @@ Authorization: Bearer <RASTER_SERVICE_TOKEN>
 `/healthz` performs eager dataset validation and reports whether the file can be
 opened, has a CRS, contains a numeric band, has valid dimensions and bounds, and
 has internal authentication configured. It also reports the active dataset
-revision and structural metadata without exposing user coordinates.
+revision and spatial-analysis version without exposing user coordinates.
 
-A valid sample returns raw annual radiance, the sampled pixel-center coordinate,
-and source metadata. Missing files, invalid datasets, out-of-coverage
-coordinates, NoData pixels, invalid raster values, and authentication failures
-return bounded non-200 responses so the Broker can degrade light pollution
-independently from elevation and weather.
+A valid sample returns:
+
+- raw radiance at the sampled pixel center;
+- 1 km, 5 km, and 20 km circular-neighborhood median, P90, maximum, sample count,
+  and valid-data coverage ratio;
+- eight directional sectors over the 1–20 km ring;
+- the dominant light-dome direction, sector P90, maximum, coverage, and peak-light
+  distance;
+- source and dataset revision metadata.
+
+The directional result describes the distribution of satellite-observed upward
+radiance around a site. It is evidence for likely sky-glow direction, not a
+terrain-aware sky-brightness measurement. DEM horizon analysis must be applied
+separately before using it in a photography recommendation.
+
+Missing files, invalid datasets, out-of-coverage coordinates, NoData pixels,
+invalid raster values, and authentication failures return bounded non-200
+responses so the Broker can degrade light pollution independently from elevation
+and weather.
