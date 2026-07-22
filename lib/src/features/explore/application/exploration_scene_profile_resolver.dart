@@ -52,7 +52,10 @@ ExplorationSceneProfile resolveExplorationSceneProfile(
 final explorationSceneProfileProvider = FutureProvider<ExplorationSceneProfile>(
   (ref) async {
     final snapshot = await ref.watch(environmentSnapshotProvider.future);
-    final siteFacts = await ref.watch(siteEnvironmentFactsProvider.future);
+    // Starting this provider is intentional, but the current Region Brief load
+    // must not wait for a supplementary DEM/VIIRS network request. Riverpod
+    // rebuilds this profile automatically when the site facts arrive.
+    final siteFacts = ref.watch(siteEnvironmentFactsProvider).asData?.value;
     return resolveExplorationSceneProfile(snapshot, siteFacts: siteFacts);
   },
 );
