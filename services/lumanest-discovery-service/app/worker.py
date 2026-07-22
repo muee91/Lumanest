@@ -63,6 +63,36 @@ class BrokerClient:
     def configured(self) -> bool:
         return bool(self.base_url and self.token)
 
+    async def resolve_region(self, job: RefreshJob) -> tuple[str, ...]:
+        payload = {
+            "query": "__region_identity__",
+            "addressHint": None,
+            "region": {
+                "latitude": job.region.latitude,
+                "longitude": job.region.longitude,
+                "radiusMeters": job.region.radius_meters,
+            },
+            "locale": job.region.locale,
+        }
+        try:
+            raw = await self._post("/internal/v1/discovery/resolve-place", payload)
+        except BrokerFailure:
+            return ()
+        region = raw.get("region") if isinstance(raw, dict) and raw.get("status") == "resolved" else None
+        values = region.get("searchNames") if isinstance(region, dict) else None
+        if not isinstance(values, list):
+            return ()
+        names: list[str] = []
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            normalized = " ".join(value.split()).strip()
+            if normalized and len(normalized) <= 80 and normalized not in names:
+                names.append(normalized)
+            if len(names) == 5:
+                break
+        return tuple(names)
+
     async def search(self, job: RefreshJob) -> list[BrokerSearchResult]:
         results: list[BrokerSearchResult] = []
         seen: set[str] = set()
@@ -200,8 +230,44 @@ class BrokerClient:
             raise BrokerFailure("broker_unavailable") from error
 
     @staticmethod
+    def _localized_focus(job: RefreshJob, region_names: tuple[str, ...] = ()) -> str:
+        focus = " ".join(job.region.focus.split()).strip()
+        generic = focus in {"区域探索资料", "regional exploration material"}
+        if region_names:
+            prefix = " ".join(region_names[:3])
+            return prefix if generic or not focus else f"{prefix} {focus}"
+        if generic or not focus:
+            return f"{job.region.latitude:.3f},{job.region.longitude:.3f}附近"
+        return focus
+
+    @staticmethod
+    def _localized_job(job: RefreshJob, region_names: tuple[str, ...] = ()) -> RefreshJob:
+        focus = BrokerClient._localized_focus(job, region_names)
+        if focus == job.region.focus:
+            return job
+        region = RegionReference(
+            job.region.region_id,
+            job.region.latitude,
+            job.region.longitude,
+            job.region.locale,
+            job.region.mission_type,
+            focus,
+            job.region.radius_meters,
+        )
+        return RefreshJob(
+            job.fingerprint,
+            region,
+            job.expires_at,
+            job.attempt,
+            job.activation_type,
+            job.dedupe_key,
+        )
+
+    @staticmethod
     def _queries(job: RefreshJob) -> tuple[str, str, str]:
         # Coordinates are the coarse grid centre, never the app's raw point.
+        # Reverse-geocoded names are search hints only; product facts still
+        # require reviewed evidence during extraction and admission.
         area = job.region.focus.strip() or f"{job.region.latitude:.3f},{job.region.longitude:.3f}"
         if not job.region.locale.startswith("zh"):
             return (
@@ -508,7 +574,11 @@ async def process_job(
                 ))
             ]
         else:
-            evidence = await broker.search(job)
+            search_job = job
+            if isinstance(broker, BrokerClient):
+                region_names = await broker.resolve_region(job)
+                search_job = broker._localized_job(job, region_names)
+            evidence = await broker.search(search_job)
             if not evidence:
                 await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
                 await store.record_refresh(job, "completed")
@@ -516,7 +586,7 @@ async def process_job(
             selected = select_evidence(
                 evidence,
                 mission_type=job.region.mission_type,
-                focus=job.region.focus,
+                focus=search_job.region.focus,
                 maximum=8,
                 max_per_domain=2,
             )
@@ -527,7 +597,7 @@ async def process_job(
             selected = await enrich_evidence_with_crawl(redis, selected, crawler)
             if isinstance(broker, BrokerClient):
                 extracted, extracted_insights = await broker.extract_with_insights(
-                    job,
+                    search_job,
                     selected,
                 )
             else:
@@ -542,7 +612,7 @@ async def process_job(
                 if candidate.coordinate is not None:
                     resolved_candidates.append(candidate)
                     continue
-                resolved = await broker.resolve_place(job, candidate)
+                resolved = await broker.resolve_place(search_job, candidate)
                 if resolved is None:
                     continue
                 resolved_candidate, coordinate_evidence = resolved
@@ -551,7 +621,7 @@ async def process_job(
                 })
                 evidence_pool.append(coordinate_evidence)
                 resolved_candidates.append(resolved_candidate)
-            admitted = [(candidate, linked) for candidate in resolved_candidates if (linked := is_admissible(candidate, evidence_pool, job))]
+            admitted = [(candidate, linked) for candidate in resolved_candidates if (linked := is_admissible(candidate, evidence_pool, search_job))]
             if extracted_insights:
                 await store.persist_region_insights(
                     job,

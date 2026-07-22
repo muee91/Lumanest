@@ -110,6 +110,36 @@ async def test_search_keeps_successful_queries_when_one_provider_call_fails(monk
     assert calls == 3
 
 
+
+def test_region_identity_localizes_brief_search_and_extraction_focus():
+    localized = BrokerClient._localized_job(job(), ("西湖风景名胜区", "北山街道", "西湖区"))
+    queries = BrokerClient._queries(localized)
+    assert all("西湖风景名胜区" in query for query in queries)
+    assert all("区域探索资料" not in query for query in queries)
+    assert BrokerClient._localized_focus(job(), ()) == "30.275,120.125附近"
+
+
+@pytest.mark.asyncio
+async def test_region_identity_resolution_uses_only_the_coarse_job_reference(monkeypatch):
+    captured = {}
+
+    async def post(_self, path, payload):
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"status": "resolved", "region": {
+  "displayName": "西湖风景名胜区",
+  "searchNames": ["西湖风景名胜区", "北山街道", "西湖区"],
+        }}
+
+    monkeypatch.setattr(BrokerClient, "_post", post)
+    names = await BrokerClient("https://broker.test", "token").resolve_region(job())
+    assert names == ("西湖风景名胜区", "北山街道", "西湖区")
+    assert captured["path"] == "/internal/v1/discovery/resolve-place"
+    assert captured["payload"]["query"] == "__region_identity__"
+    assert captured["payload"]["region"] == {
+        "latitude": 30.275, "longitude": 120.125, "radiusMeters": 5000,
+    }
+
 def test_job_contains_only_expiring_grid_center_not_the_request_coordinate():
     values = job().stream_values()
     parsed = parse_job(values)
