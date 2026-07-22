@@ -25,7 +25,9 @@ class DioSiteEnvironmentTransport implements SiteEnvironmentTransport {
       options: Options(headers: headers),
     );
     final data = response.data;
-    if (data is! Map) throw const FormatException('Invalid site environment response');
+    if (data is! Map) {
+      throw const FormatException('Invalid site environment response');
+    }
     return Map<String, Object?>.from(data);
   }
 }
@@ -36,6 +38,8 @@ class DataBrokerSiteEnvironmentRepository implements SiteEnvironmentRepository {
     required this.serviceToken,
     required this.transport,
   });
+
+  static const _maximumCoordinateDifferenceDegrees = 0.00002;
 
   final String brokerBaseUrl;
   final String serviceToken;
@@ -49,16 +53,29 @@ class DataBrokerSiteEnvironmentRepository implements SiteEnvironmentRepository {
     if (point.coordinateSystem != CoordinateSystem.wgs84) {
       throw const FormatException('Site environment facts require WGS84');
     }
-    final uri = Uri.parse(brokerBaseUrl).resolve('/v1/environment/site-facts').replace(
-      queryParameters: {
-        'lat': point.latitude.toString(),
-        'lon': point.longitude.toString(),
-      },
-    );
+    final uri = Uri.parse(brokerBaseUrl)
+        .resolve('/v1/environment/site-facts')
+        .replace(
+          queryParameters: {
+            'lat': point.latitude.toString(),
+            'lon': point.longitude.toString(),
+          },
+        );
     final body = await transport.get(
       uri,
       headers: {'Authorization': 'Bearer $serviceToken'},
     );
-    return SiteEnvironmentFacts.fromJson(body);
+    final facts = SiteEnvironmentFacts.fromJson(body);
+    final latitudeDifference =
+        (facts.requestedCoordinate.latitude - point.latitude).abs();
+    final longitudeDifference =
+        (facts.requestedCoordinate.longitude - point.longitude).abs();
+    if (latitudeDifference > _maximumCoordinateDifferenceDegrees ||
+        longitudeDifference > _maximumCoordinateDifferenceDegrees) {
+      throw const FormatException(
+        'Site environment response coordinate mismatch',
+      );
+    }
+    return facts;
   }
 }
