@@ -7,6 +7,62 @@ import {
   validSiteEnvironmentQuery,
 } from '../src/environment/site-environment-service.mjs';
 
+const directions = [
+  ['north', 0],
+  ['northeast', 45],
+  ['east', 90],
+  ['southeast', 135],
+  ['south', 180],
+  ['southwest', 225],
+  ['west', 270],
+  ['northwest', 315],
+];
+
+function spatialAnalysis({ dominantDirection = 'southeast', dominantAzimuthDegrees = 135 } = {}) {
+  return {
+    analysisVersion: 'viirs-spatial-radiance.1',
+    maximumRadiusKm: 20,
+    neighborhoods: [
+      { radiusKm: 1, sampleCount: 12, coverageRatio: 1, median: 0.1, p90: 0.2, maximum: 0.3 },
+      { radiusKm: 5, sampleCount: 80, coverageRatio: 0.95, median: 0.2, p90: 0.4, maximum: 1.2 },
+      { radiusKm: 20, sampleCount: 1200, coverageRatio: 0.9, median: 0.3, p90: 1.5, maximum: 12 },
+    ],
+    lightDomes: {
+      innerRadiusKm: 1,
+      outerRadiusKm: 20,
+      sectorCount: 8,
+      dominantDirection,
+      dominantAzimuthDegrees,
+      sectors: directions.map(([direction, azimuthCenterDegrees]) => ({
+        direction,
+        azimuthCenterDegrees,
+        sampleCount: 100,
+        coverageRatio: 0.9,
+        median: direction === 'southeast' ? 1.2 : 0.2,
+        p90: direction === 'southeast' ? 8 : 0.4,
+        maximum: direction === 'southeast' ? 12 : 0.8,
+        peakDistanceKm: direction === 'southeast' ? 14 : 8,
+      })),
+    },
+  };
+}
+
+function rasterPayload(overrides = {}) {
+  return {
+    status: 'ready',
+    radiance: 0.42,
+    datasetYear: 2024,
+    datasetRevision: 'eog-v2.2-2024-median-masked-r1',
+    resolutionMeters: 500,
+    sampledLatitude: 28.451,
+    sampledLongitude: 98.879,
+    spatialAnalysis: spatialAnalysis(),
+    sourceId: 'eog-viirs-annual-v2.2',
+    attribution: 'Earth Observation Group VIIRS annual nighttime lights',
+    ...overrides,
+  };
+}
+
 test('site environment query accepts only finite WGS84 coordinates', () => {
   assert.deepEqual(
     validSiteEnvironmentQuery(new URLSearchParams('lat=30.25&lon=120.15')),
@@ -25,7 +81,7 @@ test('relative radiance bands remain explicitly non-Bortle', () => {
   assert.equal(relativeRadianceBand(-1), null);
 });
 
-test('service combines independently versioned terrain and VIIRS facts', async () => {
+test('service combines terrain with validated spatial VIIRS facts', async () => {
   const calls = [];
   const service = new SiteEnvironmentService({
     rasterServiceUrl: 'http://raster.internal:8792',
@@ -41,22 +97,12 @@ test('service combines independently versioned terrain and VIIRS facts', async (
       }
       assert.equal(url.pathname, '/v1/viirs/sample');
       assert.equal(options.headers.Authorization, 'Bearer internal-secret');
-      return new Response(JSON.stringify({
-        status: 'ready',
-        radiance: 0.42,
-        datasetYear: 2024,
-        datasetRevision: 'eog-v2.2-2024-median-masked-r1',
-        resolutionMeters: 500,
-        sampledLatitude: 28.451,
-        sampledLongitude: 98.879,
-        sourceId: 'eog-viirs-annual-v2.2',
-        attribution: 'Earth Observation Group VIIRS annual nighttime lights',
-      }));
+      return new Response(JSON.stringify(rasterPayload()));
     },
   });
 
   const body = await service.facts({ latitude: 28.4502, longitude: 98.8802 });
-  assert.equal(body.contractVersion, 2);
+  assert.equal(body.contractVersion, 3);
   assert.deepEqual(body.requestedCoordinate, {
     latitude: 28.4502,
     longitude: 98.8802,
@@ -70,12 +116,46 @@ test('service combines independently versioned terrain and VIIRS facts', async (
   assert.equal(body.nightSkyBackground.radiance, 0.42);
   assert.equal(body.nightSkyBackground.relativeRadianceBand, 'dark');
   assert.equal(body.nightSkyBackground.datasetRevision, 'eog-v2.2-2024-median-masked-r1');
+  assert.equal(
+    body.nightSkyBackground.spatialAnalysis.neighborhoods[2].relativeRadianceBand,
+    'moderate',
+  );
+  assert.equal(
+    body.nightSkyBackground.spatialAnalysis.lightDomes.dominantDirection,
+    'southeast',
+  );
+  assert.equal(
+    body.nightSkyBackground.spatialAnalysis.lightDomes.sectors[3].relativeRadianceBand,
+    'bright',
+  );
   assert.deepEqual(body.nightSkyBackground.sampledCoordinate, {
     latitude: 28.451,
     longitude: 98.879,
     system: 'wgs84',
   });
   assert.equal(calls.length, 2);
+});
+
+test('service rejects inconsistent spatial light-dome analysis', async () => {
+  const service = new SiteEnvironmentService({
+    rasterServiceUrl: 'http://raster.internal:8792',
+    rasterServiceToken: 'internal-secret',
+    rasterDatasetRevision: 'eog-v2.2-2024-median-masked-r1',
+    now: () => new Date('2026-07-22T12:00:00Z'),
+    fetcher: async (url) => url.hostname === 'api.open-meteo.com'
+      ? new Response(JSON.stringify({ elevation: [56] }))
+      : new Response(JSON.stringify(rasterPayload({
+          spatialAnalysis: spatialAnalysis({
+            dominantDirection: 'west',
+            dominantAzimuthDegrees: 270,
+          }),
+        }))),
+  });
+
+  const body = await service.facts({ latitude: 30.25, longitude: 120.15 });
+  assert.equal(body.terrain.status, 'ready');
+  assert.equal(body.nightSkyBackground.status, 'unavailable');
+  assert.equal(body.nightSkyBackground.spatialAnalysis, null);
 });
 
 test('service requires an internal token before calling the raster service', async () => {
@@ -101,22 +181,17 @@ test('coarse-cell cache keeps requested and sampled coordinates distinct', async
   const service = new SiteEnvironmentService({
     rasterServiceUrl: 'http://raster.internal:8792',
     rasterServiceToken: 'internal-secret',
-    rasterDatasetRevision: 'revision-1',
+    rasterDatasetRevision: 'eog-v2.2-2024-median-masked-r1',
     now: () => new Date('2026-07-22T12:00:00Z'),
     fetcher: async (url) => {
       calls += 1;
       return url.hostname === 'api.open-meteo.com'
         ? new Response(JSON.stringify({ elevation: [88] }))
-        : new Response(JSON.stringify({
-            status: 'ready',
+        : new Response(JSON.stringify(rasterPayload({
             radiance: 1.1,
-            datasetYear: 2024,
-            datasetRevision: 'revision-1',
-            resolutionMeters: 500,
             sampledLatitude: 30.2505,
             sampledLongitude: 120.1505,
-            sourceId: 'eog-viirs-annual-v2.2',
-          }));
+          })));
     },
   });
 
