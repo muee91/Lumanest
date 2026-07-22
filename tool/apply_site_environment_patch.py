@@ -121,3 +121,36 @@ replace_once(
     skyOpportunityCache,
 """,
 )
+
+ci_path = ".github/workflows/flutter-ci.yml"
+replace_once(
+    ci_path,
+    """  android-debug:
+""",
+    """  raster-service:
+    name: Test raster service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/lumanest-raster-service/pyproject.toml
+
+      - name: Install raster service dependencies
+        working-directory: services/lumanest-raster-service
+        run: pip install -e '.[test]'
+
+      - name: Run raster service tests
+        working-directory: services/lumanest-raster-service
+        run: pytest
+
+  android-debug:
+""",
+)
