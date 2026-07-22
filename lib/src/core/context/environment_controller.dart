@@ -41,6 +41,10 @@ class EnvironmentLoader {
     // GNSS and Android's balanced network provider. Keep this outer guard
     // above the whole recovery chain so every fallback remains available.
     this.locationTimeout = const Duration(seconds: 21),
+    // A cold start can overlap a short Broker/container handover. Retry only
+    // transient transport/upstream failures once; invalid contracts and
+    // configuration errors must still fail immediately.
+    this.remoteRetryDelay = const Duration(milliseconds: 250),
     this.logger,
     this.cacheWriteGuard,
     required this.now,
@@ -55,6 +59,7 @@ class EnvironmentLoader {
   final RouteContextState route;
   final RouteCorridorContext? corridor;
   final Duration locationTimeout;
+  final Duration remoteRetryDelay;
   final AppLogger? logger;
   final ContextCacheWriteGuard? cacheWriteGuard;
   final DateTime Function() now;
@@ -82,14 +87,11 @@ class EnvironmentLoader {
     final generatedAt = now().toUtc();
     final wildlifeFuture = _fetchWildlifeActivity(location.point);
     try {
-      var snapshot = await remoteRepository
-          .fetchSnapshot(
-            location: location,
-            observedAt: generatedAt,
-            route: route,
-            corridor: corridor,
-          )
-          .timeout(const Duration(seconds: 3));
+      var snapshot = await _fetchRemoteSnapshot(
+        remoteRepository,
+        location: location,
+        observedAt: generatedAt,
+      );
       final solar = solarService.calculate(
         point: location.point,
         moment: generatedAt,
@@ -124,6 +126,65 @@ class EnvironmentLoader {
       return _cachedOrThrow(EnvironmentFailureKind.weather, remoteFailure);
     }
   }
+
+  Future<ContextSnapshot> _fetchRemoteSnapshot(
+    RemoteContextRepository repository, {
+    required LocationReading location,
+    required DateTime observedAt,
+  }) async {
+    try {
+      return await _fetchRemoteAttempt(
+        repository,
+        location: location,
+        observedAt: observedAt,
+      );
+    } catch (error) {
+      final failure = _remoteFailure(error);
+      if (!_isRetryable(failure)) throw failure;
+      logger?.warning(
+        LogCategory.degradation,
+        'broker.snapshot_retry',
+        data: {LogDataKey.reason: failure.kind.name},
+      );
+      if (remoteRetryDelay > Duration.zero) {
+        await Future<void>.delayed(remoteRetryDelay);
+      }
+      try {
+        return await _fetchRemoteAttempt(
+          repository,
+          location: location,
+          observedAt: observedAt,
+        );
+      } catch (retryError) {
+        throw _remoteFailure(retryError);
+      }
+    }
+  }
+
+  Future<ContextSnapshot> _fetchRemoteAttempt(
+    RemoteContextRepository repository, {
+    required LocationReading location,
+    required DateTime observedAt,
+  }) => repository
+      .fetchSnapshot(
+        location: location,
+        observedAt: observedAt,
+        route: route,
+        corridor: corridor,
+      )
+      .timeout(const Duration(seconds: 3));
+
+  RemoteContextFailure _remoteFailure(Object error) => switch (error) {
+    RemoteContextFailure() => error,
+    TimeoutException() => const RemoteContextFailure(
+      RemoteContextFailureKind.network,
+    ),
+    _ => const RemoteContextFailure(RemoteContextFailureKind.response),
+  };
+
+  bool _isRetryable(RemoteContextFailure failure) =>
+      failure.kind == RemoteContextFailureKind.network ||
+      failure.kind == RemoteContextFailureKind.serviceUnavailable;
 
   Future<void> _writeCache(
     ContextSnapshot snapshot,

@@ -29,6 +29,7 @@ void main() {
     cache: cache ?? InMemoryContextCache(),
     remoteContextRepository: remote,
     route: route,
+    remoteRetryDelay: Duration.zero,
     now: () => now,
     utcOffset: () => const Duration(hours: 8),
   );
@@ -73,7 +74,9 @@ void main() {
   test('location failure restores only a stale current cache', () async {
     final cache = InMemoryContextCache();
     await cache.write(
-      ContextFixtures.quietCity(observedAt: now.subtract(const Duration(hours: 1))),
+      ContextFixtures.quietCity(
+        observedAt: now.subtract(const Duration(hours: 1)),
+      ),
     );
 
     final result = await loader(
@@ -90,7 +93,9 @@ void main() {
     () async {
       final cache = InMemoryContextCache();
       await cache.write(
-        ContextFixtures.quietCity(observedAt: now.subtract(const Duration(hours: 1))),
+        ContextFixtures.quietCity(
+          observedAt: now.subtract(const Duration(hours: 1)),
+        ),
       );
 
       final result = await loader(
@@ -104,8 +109,9 @@ void main() {
   );
 
   test('Broker failure without cache remains a weather failure', () async {
+    final remote = _Remote.failure();
     await expectLater(
-      loader(remote: _Remote.failure()).load(),
+      loader(remote: remote).load(),
       throwsA(
         isA<EnvironmentLoadFailure>().having(
           (error) => error.kind,
@@ -114,6 +120,34 @@ void main() {
         ),
       ),
     );
+    expect(remote.calls, 2);
+  });
+
+  test(
+    'transient Broker failure is retried once without reacquiring location',
+    () async {
+      final locations = _Location(location);
+      final remote = _Remote.transientThen(
+        ContextFixtures.lakeSunset(observedAt: now),
+      );
+
+      final result = await loader(locations: locations, remote: remote).load();
+
+      expect(result.primaryScene, SceneType.lake);
+      expect(remote.calls, 2);
+      expect(locations.calls, 1);
+    },
+  );
+
+  test('invalid Broker response is not retried', () async {
+    final remote = _Remote.failure(RemoteContextFailureKind.response);
+
+    await expectLater(
+      loader(remote: remote).load(),
+      throwsA(isA<EnvironmentLoadFailure>()),
+    );
+
+    expect(remote.calls, 1);
   });
 
   test('deduplicates simultaneous refresh requests', () async {
@@ -154,13 +188,19 @@ class _FailingLocation implements LocationRepository {
 }
 
 class _Remote implements RemoteContextRepository {
-  _Remote(this.value) : error = null;
-  _Remote.failure()
-    : value = null,
-      error = const RemoteContextFailure(RemoteContextFailureKind.network);
+  _Remote(this.value) : error = null, failFirst = false;
+  _Remote.failure([
+    RemoteContextFailureKind kind = RemoteContextFailureKind.network,
+  ]) : value = null,
+       error = RemoteContextFailure(kind),
+       failFirst = false;
+  _Remote.transientThen(this.value)
+    : error = const RemoteContextFailure(RemoteContextFailureKind.network),
+      failFirst = true;
 
   final ContextSnapshot? value;
   final Object? error;
+  final bool failFirst;
   int calls = 0;
   RouteContextState? route;
 
@@ -173,7 +213,7 @@ class _Remote implements RemoteContextRepository {
   }) async {
     calls += 1;
     this.route = route;
-    if (error != null) throw error!;
+    if (error != null && (!failFirst || calls == 1)) throw error!;
     return value!;
   }
 }

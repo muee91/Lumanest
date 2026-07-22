@@ -7,7 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_payload.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
@@ -49,6 +51,7 @@ class V2TodayPage extends ConsumerWidget {
       child: snapshot.when(
         loading: () => const V2LoadingObject(label: '正在理解此刻的光'),
         error: (error, _) => _V2TodayError(
+          error: error,
           onRetry: initialSnapshot == null
               ? () => ref.read(environmentSnapshotProvider.notifier).refresh()
               : null,
@@ -779,30 +782,68 @@ class _V2OpportunityRail extends StatelessWidget {
 
 class _V2TodayError extends StatelessWidget {
   const _V2TodayError({
+    required this.error,
     required this.onRetry,
     required this.onSettings,
     required this.onManualLocation,
   });
 
+  final Object error;
   final VoidCallback? onRetry;
   final VoidCallback onSettings;
   final VoidCallback onManualLocation;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        V2EmptyObject(
-          icon: CupertinoIcons.location_slash,
-          title: '暂时拿不到此刻位置',
-          detail: '可以重试，也可以选择一个地点作为非实时参考。',
-          action: onRetry == null ? '打开位置设置' : '重试',
-          onAction: onRetry ?? onSettings,
-        ),
-        const SizedBox(height: 14),
-        TextButton(onPressed: onManualLocation, child: const Text('手动选择地点')),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final failure = error is EnvironmentLoadFailure
+        ? error as EnvironmentLoadFailure
+        : null;
+    final isLocation = failure?.kind == EnvironmentFailureKind.location;
+    final locationCause = failure?.cause;
+    final needsLocationSettings =
+        isLocation &&
+        locationCause is LocationRepositoryFailure &&
+        (locationCause.kind == LocationFailureKind.permissionDeniedForever ||
+            locationCause.kind == LocationFailureKind.serviceDisabled);
+    final copy = switch (failure?.kind) {
+      EnvironmentFailureKind.configMissing => (
+        icon: CupertinoIcons.settings,
+        title: '实时服务暂未配置',
+        detail: '实时天气与拍摄窗口暂时不可用，其他页面仍可继续浏览。',
+      ),
+      EnvironmentFailureKind.weather => (
+        icon: CupertinoIcons.cloud,
+        title: '环境数据暂时没有更新',
+        detail: '位置已取得，天气与拍摄窗口暂时不可用。可以稍后重试，其他页面仍可继续使用。',
+      ),
+      _ => (
+        icon: CupertinoIcons.location_slash,
+        title: '暂时拿不到此刻位置',
+        detail: '可以重试，也可以选择一个地点作为非实时参考。',
+      ),
+    };
+    final action = needsLocationSettings ? onSettings : (onRetry ?? onSettings);
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          V2EmptyObject(
+            icon: copy.icon,
+            title: copy.title,
+            detail: copy.detail,
+            action: needsLocationSettings ? '打开位置设置' : '重试',
+            onAction: action,
+          ),
+          if (isLocation) ...[
+            const SizedBox(height: 14),
+            TextButton(
+              onPressed: onManualLocation,
+              child: const Text('手动选择地点'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
