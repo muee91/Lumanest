@@ -502,68 +502,85 @@ class _InspirationWorkspaceState extends ConsumerState<_InspirationWorkspace> {
     ),
   );
 
-  Widget _composer() => Padding(
-    padding: EdgeInsets.fromLTRB(
-      14,
-      8,
-      14,
-      10 +
-          MediaQuery.viewInsetsOf(context).bottom +
-          MediaQuery.paddingOf(context).bottom,
-    ),
-    child: Container(
-      constraints: const BoxConstraints(minHeight: 54),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-      decoration: BoxDecoration(
+  Widget _composer() {
+    final canSend = _inputController.text.trim().isNotEmpty;
+    return Container(
+      key: const Key('v2-inspiration-composer'),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        10,
+        16,
+        10 +
+            MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom,
+      ),
+      decoration: const BoxDecoration(
         color: V2Palette.paper,
-        borderRadius: BorderRadius.circular(27),
-        border: Border.all(color: V2Palette.line),
-        boxShadow: [
-          BoxShadow(
-            color: V2Palette.moss.withValues(alpha: .10),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        border: Border(top: BorderSide(color: V2Palette.line)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: TextField(
-              controller: _inputController,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _submitComposer(),
-              onChanged: (_) => setState(() {}),
-              minLines: 1,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: '发消息给栖光',
-                hintStyle: TextStyle(
-                  color: V2Palette.mutedInk,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 46),
+              decoration: BoxDecoration(
+                color: V2Palette.canvas,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: TextField(
+                controller: _inputController,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _submitComposer(),
+                onChanged: (_) => setState(() {}),
+                minLines: 1,
+                maxLines: 4,
+                style: const TextStyle(
+                  color: V2Palette.ink,
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
-                border: InputBorder.none,
-                filled: false,
-                isDense: true,
-                contentPadding: EdgeInsets.only(left: 10),
+                decoration: const InputDecoration(
+                  hintText: '发消息给栖光',
+                  hintStyle: TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
           IconButton(
             key: const Key('v2-inspiration-send'),
             tooltip: '发送',
-            onPressed: _inputController.text.trim().isEmpty
-                ? null
-                : _submitComposer,
-            icon: const Icon(CupertinoIcons.arrow_up_circle_fill, size: 30),
-            color: V2Palette.moss,
-            disabledColor: V2Palette.line,
+            onPressed: canSend ? _submitComposer : null,
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(46),
+              maximumSize: const Size.square(46),
+              padding: EdgeInsets.zero,
+              backgroundColor: V2Palette.moss,
+              foregroundColor: V2Palette.paper,
+              disabledBackgroundColor: V2Palette.canvas,
+              disabledForegroundColor: V2Palette.line,
+            ),
+            icon: const Icon(CupertinoIcons.arrow_up, size: 20),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 
   void _submitComposer() {
     final question = _inputController.text.trim();
