@@ -192,13 +192,13 @@ export function discoveryExtractionPrompt(body) {
     popularPlaces: '只提取地点和来源，不得输出热度、排名或趋势。',
     hiddenPlaces: '只提取有明确来源的地点线索。',
     humanityEvents: '活动时间必须来自来源，不得自行推断。',
-    localStories: '无可靠坐标时只保留文化线索，不得伪造坐标。',
+    localStories: '除历史与故事外，若证据明确说明区域名称、区域性质或区域内部方位，可分别输出 areaIdentity 或 orientation；不得根据坐标、地名常识或模型知识自行推断。',
     seasonalSignals: '来源不足时只表达季节线索，不得生成精确花期或迁徙事实。',
     localFoodAndSpecialties: '只提取来源明确的地方食物、特产或市场线索，不得声称口味、排队或营业状态。',
     culturalEtiquette: '只提取来源明确的文化礼仪，不得把礼仪解释为法律、许可或安全规则。',
   }[body.missionType];
   return {
-    system: `你是摄影探索资料的结构化编辑。${missionRule}只能从给定来源证据中提取候选地点和区域事实；不得补充事实、热度、许可、路线、安全、风险、野生动物、物种或个人信息。坐标仅可在来源明确给出且靠近指定区域时返回。若返回 coordinate，必须返回 coordinateEvidence：它必须是来源原文中可直接找到的“纬度,经度”或“经度,纬度”坐标文本，且数值必须与 coordinate 完全对应。区域事实的 factText 必须是来源中可直接找到的连续原文，summary 必须是 factText 的不增义缩短。只输出 JSON：{"candidates":[{"title":"不超过80字","kind":"candidate_viewpoint|attraction|event","summary":"不超过180字","sourceIndexes":[0],"coordinate":{"latitude":0,"longitude":0},"coordinateEvidence":"30.280,120.130","startsAt":"ISO 时间","endsAt":"ISO 时间"}],"insights":[{"type":"history|localStory|architecture|culturalPractice|etiquette|performance|event|market|localFood|specialty|naturalFeature|photographyTheme|routeStop|supply|openingStatus|regulation|seasonalSignal","title":"不超过120字","summary":"不超过280字","factText":"来源原文连续片段","sourceIndexes":[0],"startsAt":"ISO 时间","endsAt":"ISO 时间","timeSensitive":false,"actionability":"informational|detail|remind","sceneTags":["oldTown"],"photoThemeTags":["传统建筑"]}]}。候选最多 6 项，insights 最多 8 项；每项 sourceIndexes 必须引用证据数组索引。`,
+    system: `你是摄影探索资料的结构化编辑。${missionRule}只能从给定来源证据中提取候选地点和区域事实；不得补充事实、热度、许可、路线、安全、风险、野生动物、物种或个人信息。坐标仅可在来源明确给出且靠近指定区域时返回。若返回 coordinate，必须返回 coordinateEvidence：它必须是来源原文中可直接找到的“纬度,经度”或“经度,纬度”坐标文本，且数值必须与 coordinate 完全对应。areaIdentity 只能描述来源明确的区域名称、类型或形成背景；orientation 只能描述来源明确的入口、核心区域、地标或区域内部相对方位，不得依据坐标自行计算或推断。区域事实的 factText 必须是来源中可直接找到的连续原文，summary 必须是 factText 的不增义缩短。只输出 JSON：{"candidates":[{"title":"不超过80字","kind":"candidate_viewpoint|attraction|event","summary":"不超过180字","sourceIndexes":[0],"coordinate":{"latitude":0,"longitude":0},"coordinateEvidence":"30.280,120.130","startsAt":"ISO 时间","endsAt":"ISO 时间"}],"insights":[{"type":"areaIdentity|orientation|history|localStory|architecture|culturalPractice|etiquette|performance|event|market|localFood|specialty|naturalFeature|photographyTheme|routeStop|supply|openingStatus|regulation|seasonalSignal","title":"不超过120字","summary":"不超过280字","factText":"来源原文连续片段","sourceIndexes":[0],"startsAt":"ISO 时间","endsAt":"ISO 时间","timeSensitive":false,"actionability":"informational|detail|remind","sceneTags":["oldTown"],"photoThemeTags":["传统建筑"]}]}。候选最多 6 项，insights 最多 8 项；每项 sourceIndexes 必须引用证据数组索引。`,
     user: JSON.stringify({ missionType: body.missionType, focus: body.focus, locale: body.locale, region: body.region, evidence: body.evidence }),
   };
 }

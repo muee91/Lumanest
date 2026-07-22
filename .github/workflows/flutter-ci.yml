@@ -53,6 +53,30 @@ jobs:
       - name: Run tests
         run: flutter test --reporter expanded
 
+  data-broker:
+    name: Test data broker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+
+      - name: Install data broker dependencies
+        working-directory: services/lumanest-data-broker
+        run: npm ci
+
+      - name: Run data broker tests
+        working-directory: services/lumanest-data-broker
+        run: npm test
+
   android-debug:
     name: Build debug APK
     runs-on: ubuntu-latest
