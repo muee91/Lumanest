@@ -3,10 +3,19 @@
 FastAPI internal service for deterministic scene classification, context events,
 PostGIS spatial evidence, and Redis snapshot TTLs. It is not a public App API.
 The Node broker validates App authorization, replaces all client weather with
-server-fetched QWeather data, and forwards only the bounded v2 internal context
-contract over the private Compose network. The service computes sun position
-and moon phase deterministically; official weather warnings remain rule-owned
+server-fetched QWeather data, and forwards only the bounded V5 internal context
+contract over the private Compose network. The service uses Astronomy Engine
+to compute Moon position/rise/set and a bounded 72-hour Galactic-centre
+geometry window; official weather warnings remain rule-owned
 safety events and are never delegated to a model.
+
+The `environment.astronomy` object is geometry only. Its Galactic-centre
+window is the intersection of astronomical night (Sun at or below -18°) and a
+core altitude of at least 10°. It intentionally does not include light
+pollution, local terrain/horizon, access, weather suitability or a reviewed
+shooting place, so it must not be promoted to a Milky Way opportunity. A
+calculation failure returns `status: unavailable` and leaves the rest of the
+Context response usable.
 
 ## Reviewed dataset imports
 

@@ -123,6 +123,17 @@ function snapshotFixtureParts() {
       dayPhase: 'sunset', sunElevationDegrees: 4, sunAzimuthDegrees: 286,
       moonPhase: 'waxingCrescent', moonIllumination: .2,
     },
+    astronomy: {
+      status: 'geometryOnly', astronomicalNight: false,
+      moonAltitudeDegrees: 18, moonAzimuthDegrees: 110,
+      moonriseAt: '2026-07-14T10:30:00Z', moonsetAt: '2026-07-14T22:10:00Z',
+      moonPhase: 'waxingCrescent', moonIllumination: .2,
+      galacticCenterAltitudeDegrees: -20, galacticCenterAzimuthDegrees: 240,
+      galacticCenterWindow: {
+        startAt: '2026-07-14T15:00:00Z', peakAt: '2026-07-14T17:00:00Z',
+        endAt: '2026-07-14T19:00:00Z', peakAltitudeDegrees: 32,
+      },
+    },
     route: { mode: 'none', stage: 'none', active: false },
     events: [], allowedActions: [],
     shootingSessions: [{
@@ -151,15 +162,20 @@ function v5SnapshotBody() {
   return {
     contractVersion: 5, contextId: fixture.contextId, snapshotRevision: 1,
     generatedAt: fixture.generatedAt, expiresAt: fixture.expiresAt,
-    sourceRevisions: { weather: 1, solar: 1, scene: 1, route: 1 }, stale: fixture.stale,
+    sourceRevisions: { weather: 1, solar: 1, astronomy: 1, scene: 1, route: 1 },
+    stale: fixture.stale,
     environment: {
       scene: fixture.scene, dataFreshness: fixture.dataFreshness, weather: fixture.weather,
-      sunMoon: fixture.sunMoon, route: fixture.route, sceneContext: fixture.sceneContext,
+      sunMoon: fixture.sunMoon, astronomy: fixture.astronomy,
+      route: fixture.route, sceneContext: fixture.sceneContext,
       allowedActions: fixture.allowedActions,
     },
     facts: { events: fixture.events, shootingSessions: fixture.shootingSessions },
     entries: [],
-    refreshHints: { weather: 'ttl:600', solar: 'phase-boundary', opportunities: 'solar-or-weather-delta' },
+    refreshHints: {
+      weather: 'ttl:600', airQuality: 'ttl:2700', solar: 'phase-boundary',
+      astronomy: 'ttl:3600', opportunities: 'solar-or-weather-delta',
+    },
   };
 }
 
@@ -906,6 +922,8 @@ test('discovery worker endpoints require their own token, use reviewed sources a
     assert.deepEqual(await response.json(), { results: [{
       title: '摄影展公告', snippet: '本周在盐官举办。', url: 'https://culture.example.gov.cn/events?tracking=1',
       sourceId: 'culture', publisher: '文化发布', license: 'CC BY 4.0', version: '2026-07',
+      crawlEnabled: false, crawlMode: 'static',
+      allowedPathPrefixes: [], deniedPathPatterns: [],
     }] });
 
     const rejected = await fetch(`${baseUrl}/internal/v1/discovery/search`, {

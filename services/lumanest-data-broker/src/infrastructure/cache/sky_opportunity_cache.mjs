@@ -66,6 +66,11 @@ export class MemorySkyOpportunityCache {
       expiresAt: new Date(now.getTime() + ttlSeconds * 1_000).toISOString(),
     });
   }
+
+  async clear() {
+    this.entries.clear();
+    this.cityEntries.clear();
+  }
 }
 
 export class RedisSkyOpportunityCache {
@@ -130,5 +135,15 @@ export class RedisSkyOpportunityCache {
     } catch {
       // City resolution is creative context and safely falls back to AMap.
     }
+  }
+
+  async clear() {
+    const keys = [];
+    for (const pattern of [`${prefix}*`, `${cityPrefix}*`]) {
+      for await (const key of this.client.scanIterator({ MATCH: pattern, COUNT: 200 })) {
+        keys.push(key);
+      }
+    }
+    if (keys.length > 0) await this.client.del(keys);
   }
 }

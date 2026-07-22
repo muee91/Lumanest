@@ -311,10 +311,37 @@ class BrokerSearchResult(StrictModel):
     license: str = Field(min_length=1, max_length=160)
     source_version: str = Field(alias="version", min_length=1, max_length=80)
     quality_tier: Literal["S", "A", "B", "C"] = Field(default="B", alias="qualityTier")
+    crawl_enabled: bool = Field(default=False, alias="crawlEnabled")
+    crawl_mode: Literal["static"] = Field(default="static", alias="crawlMode")
+    allowed_path_prefixes: list[str] = Field(
+        default_factory=list, max_length=8, alias="allowedPathPrefixes"
+    )
+    denied_path_patterns: list[str] = Field(
+        default_factory=list, max_length=8, alias="deniedPathPatterns"
+    )
     title: str = Field(min_length=1, max_length=300)
     snippet: str = Field(default="", max_length=1200)
     url: HttpUrl
     published_at: datetime | None = Field(default=None, alias="publishedAt")
+
+    @field_validator("allowed_path_prefixes", "denied_path_patterns")
+    @classmethod
+    def validate_crawl_paths(cls, value: list[str]) -> list[str]:
+        if len(set(value)) != len(value) or any(
+            len(item) > 120
+            or not item.startswith("/")
+            or ".." in item
+            or any(character in item for character in ("?", "#", "\x00"))
+            for item in value
+        ):
+            raise ValueError("invalid crawl path policy")
+        return value
+
+    @model_validator(mode="after")
+    def require_bounded_crawl_opt_in(self) -> "BrokerSearchResult":
+        if self.crawl_enabled and not self.allowed_path_prefixes:
+            raise ValueError("crawl opt-in requires allowed path prefixes")
+        return self
 
 
 class BrokerSearchResponse(StrictModel):

@@ -2351,6 +2351,13 @@ export async function createBrokerServices(environment = process.env, {
     },
     simulationEnabled,
     simulationRegistry,
+    clearCache: async () => {
+      await Promise.all([
+        weatherCache.clear(),
+        skyOpportunityCache.clear(),
+        sevenTimerCache.clear(),
+      ]);
+    },
     outboundNetworkController: createOutboundNetworkControllerClient({
       baseUrl: environment.LUMANEST_OUTBOUND_NETWORK_CONTROLLER_URL ?? '',
       token: environment.LUMANEST_NETWORK_CONTROLLER_TOKEN ?? '',

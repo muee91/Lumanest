@@ -503,9 +503,14 @@ export function createAdminServer({
       return json(response, 200, { entries: auditLog.list() });
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/clear-cache') {
-      await clearCache();
-      auditLog.record({ remoteAddress, operation: 'clear_cache', result: 'ok' });
-      return json(response, 200, { ok: true });
+      try {
+        await clearCache();
+        auditLog.record({ remoteAddress, operation: 'clear_cache', result: 'ok' });
+        return json(response, 200, { ok: true });
+      } catch {
+        auditLog.record({ remoteAddress, operation: 'clear_cache', result: 'failed' });
+        return json(response, 503, { error: 'cache_clear_failed' });
+      }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/restart') {
       auditLog.record({ remoteAddress, operation: 'restart', result: 'accepted' });

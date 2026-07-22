@@ -21,9 +21,9 @@ class PersistentContextCache implements ContextCache {
     this.storageKey = 'environment_context_snapshot_v1',
   });
 
-  // Version 6 invalidates snapshots produced before nearby regional POIs were
-  // separated from the physical scene at the user's current position.
-  static const _version = 6;
+  // Version 7 adds server-derived moon and Galactic-centre geometry. Older
+  // cache values are discarded so missing evidence cannot look current.
+  static const _version = 7;
   final SharedPreferencesAsync _preferences;
   final String storageKey;
 
@@ -123,6 +123,9 @@ class PersistentContextCache implements ContextCache {
     'dataFreshness': value.dataFreshness.name,
     'moonPhase': value.moonPhase?.name,
     'moonIllumination': value.moonIllumination,
+    'astronomyGeometry': value.astronomyGeometry == null
+        ? null
+        : _encodeAstronomy(value.astronomyGeometry!),
     'routeMode': value.routeMode.name,
     'routeStage': value.routeStage.name,
     'allowedActions': value.allowedActions.map((value) => value.name).toList(),
@@ -208,6 +211,7 @@ class PersistentContextCache implements ContextCache {
       dataFreshness: dataFreshness,
       moonPhase: _enumByName(MoonPhase.values, raw['moonPhase']),
       moonIllumination: _double(raw['moonIllumination']),
+      astronomyGeometry: _decodeAstronomy(raw['astronomyGeometry']),
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: _enumList(ContextAction.values, raw['allowedActions']),
@@ -225,6 +229,147 @@ class PersistentContextCache implements ContextCache {
     },
     'reviewedOverride': value.reviewedOverride,
   };
+
+  Map<String, Object?> _encodeAstronomy(AstronomyGeometry value) => {
+    'status': value.status.name,
+    'astronomicalNight': value.astronomicalNight,
+    'moonAltitudeDegrees': value.moonAltitudeDegrees,
+    'moonAzimuthDegrees': value.moonAzimuthDegrees,
+    'moonriseAt': value.moonriseAt?.toUtc().toIso8601String(),
+    'moonsetAt': value.moonsetAt?.toUtc().toIso8601String(),
+    'moonPhase': value.moonPhase?.name,
+    'moonIllumination': value.moonIllumination,
+    'galacticCenterAltitudeDegrees': value.galacticCenterAltitudeDegrees,
+    'galacticCenterAzimuthDegrees': value.galacticCenterAzimuthDegrees,
+    'galacticCenterWindow': value.galacticCenterWindow == null
+        ? null
+        : {
+            'startAt': value.galacticCenterWindow!.startAt
+                .toUtc()
+                .toIso8601String(),
+            'peakAt': value.galacticCenterWindow!.peakAt
+                .toUtc()
+                .toIso8601String(),
+            'endAt': value.galacticCenterWindow!.endAt
+                .toUtc()
+                .toIso8601String(),
+            'peakAltitudeDegrees':
+                value.galacticCenterWindow!.peakAltitudeDegrees,
+          },
+  };
+
+  AstronomyGeometry? _decodeAstronomy(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map ||
+        !_hasExactKeys(raw, const {
+          'status',
+          'astronomicalNight',
+          'moonAltitudeDegrees',
+          'moonAzimuthDegrees',
+          'moonriseAt',
+          'moonsetAt',
+          'moonPhase',
+          'moonIllumination',
+          'galacticCenterAltitudeDegrees',
+          'galacticCenterAzimuthDegrees',
+          'galacticCenterWindow',
+        })) {
+      return null;
+    }
+    final status = _enumByName(AstronomyGeometryStatus.values, raw['status']);
+    if (status == null) return null;
+    final moonPhase = _enumByName(MoonPhase.values, raw['moonPhase']);
+    final astronomicalNight = raw['astronomicalNight'];
+    final moonAltitude = _double(raw['moonAltitudeDegrees']);
+    final moonAzimuth = _double(raw['moonAzimuthDegrees']);
+    final moonIllumination = _double(raw['moonIllumination']);
+    final galacticAltitude = _double(raw['galacticCenterAltitudeDegrees']);
+    final galacticAzimuth = _double(raw['galacticCenterAzimuthDegrees']);
+    final window = _decodeGalacticWindow(raw['galacticCenterWindow']);
+    final moonrise = _date(raw['moonriseAt']);
+    final moonset = _date(raw['moonsetAt']);
+    if (status == AstronomyGeometryStatus.geometryOnly &&
+        (astronomicalNight is! bool ||
+            moonPhase == null ||
+            !_inRange(moonAltitude, -90, 90) ||
+            !_inRange(moonAzimuth, 0, 360, upperExclusive: true) ||
+            !_inRange(moonIllumination, 0, 1) ||
+            !_inRange(galacticAltitude, -90, 90) ||
+            !_inRange(galacticAzimuth, 0, 360, upperExclusive: true) ||
+            (raw['moonriseAt'] != null && moonrise == null) ||
+            (raw['moonsetAt'] != null && moonset == null) ||
+            (raw['galacticCenterWindow'] != null && window == null))) {
+      return null;
+    }
+    if (status == AstronomyGeometryStatus.unavailable &&
+        (astronomicalNight != null ||
+            moonPhase != null ||
+            moonAltitude != null ||
+            moonAzimuth != null ||
+            moonIllumination != null ||
+            galacticAltitude != null ||
+            galacticAzimuth != null ||
+            raw['moonriseAt'] != null ||
+            raw['moonsetAt'] != null ||
+            raw['galacticCenterWindow'] != null)) {
+      return null;
+    }
+    return AstronomyGeometry(
+      status: status,
+      astronomicalNight: astronomicalNight as bool?,
+      moonAltitudeDegrees: moonAltitude,
+      moonAzimuthDegrees: moonAzimuth,
+      moonriseAt: moonrise,
+      moonsetAt: moonset,
+      moonPhase: moonPhase,
+      moonIllumination: moonIllumination,
+      galacticCenterAltitudeDegrees: galacticAltitude,
+      galacticCenterAzimuthDegrees: galacticAzimuth,
+      galacticCenterWindow: window,
+    );
+  }
+
+  GalacticCenterWindow? _decodeGalacticWindow(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map ||
+        !_hasExactKeys(raw, const {
+          'startAt',
+          'peakAt',
+          'endAt',
+          'peakAltitudeDegrees',
+        })) {
+      return null;
+    }
+    final start = _date(raw['startAt']);
+    final peak = _date(raw['peakAt']);
+    final end = _date(raw['endAt']);
+    final altitude = _double(raw['peakAltitudeDegrees']);
+    if (start == null ||
+        peak == null ||
+        end == null ||
+        peak.isBefore(start) ||
+        peak.isAfter(end) ||
+        !_inRange(altitude, 10, 90)) {
+      return null;
+    }
+    return GalacticCenterWindow(
+      startAt: start,
+      peakAt: peak,
+      endAt: end,
+      peakAltitudeDegrees: altitude!,
+    );
+  }
+
+  bool _inRange(
+    double? value,
+    double minimum,
+    double maximum, {
+    bool upperExclusive = false,
+  }) =>
+      value != null &&
+      value.isFinite &&
+      value >= minimum &&
+      (upperExclusive ? value < maximum : value <= maximum);
 
   SceneContext? _decodeSceneContext(Object? raw) {
     if (raw == null) return null;

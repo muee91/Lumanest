@@ -14,6 +14,7 @@ def project_snapshot_v5(snapshot: SnapshotResponse) -> V5SnapshotResponse:
     source_revisions = {
         "weather": _revision(snapshot.data_freshness.weather_observed_at),
         "solar": _revision(generated_at),
+        "astronomy": _revision(generated_at),
         "scene": _revision(generated_at),
         "route": _revision(generated_at),
     }
@@ -34,6 +35,7 @@ def project_snapshot_v5(snapshot: SnapshotResponse) -> V5SnapshotResponse:
         "dataFreshness": snapshot.data_freshness.model_dump(mode="json", by_alias=True),
         "weather": snapshot.weather.model_dump(mode="json", by_alias=True),
         "sunMoon": snapshot.sun_moon.model_dump(mode="json", by_alias=True),
+        "astronomy": snapshot.astronomy.model_dump(mode="json", by_alias=True),
         "route": snapshot.route.model_dump(mode="json", by_alias=True),
         "sceneContext": snapshot.scene_context.model_dump(mode="json", by_alias=True),
         "allowedActions": allowed_actions,
@@ -61,6 +63,7 @@ def project_snapshot_v5(snapshot: SnapshotResponse) -> V5SnapshotResponse:
                 "weather": "ttl:600",
                 "airQuality": "ttl:2700",
                 "solar": "phase-boundary",
+                "astronomy": "ttl:3600",
                 "opportunities": "solar-or-weather-delta",
             },
         }

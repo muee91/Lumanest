@@ -927,15 +927,30 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
       _candidateLines(results[0], sunrise: sunrise, now: now),
       '',
       '银河 / 夜空',
+      _galacticGeometryLine(snapshot),
       if (night?.kind == NextPhotographyWindowKind.nightSky)
-        '${night!.timeLabel}。${night.detail}'
+        '当前夜空气象：${night!.timeLabel}。${night.detail}'
       else
-        '当前没有银河高度、光害和地平线依据，不能给出“适合拍银河”的确切时段；以下仅是夜空拍摄候选。',
+        '当前夜空气象不足以形成即时夜空建议；以下仅是地点候选。',
       _candidateLines(results[1], sunrise: null, now: now),
       '',
       '地点均为附近候选，不等于已审核机位；出发前仍需确认目标地天气、开放与现场视野。',
     ];
     return lines.where((line) => line.isNotEmpty).join('\n');
+  }
+
+  String _galacticGeometryLine(ContextSnapshot snapshot) {
+    final geometry = snapshot.astronomyGeometry;
+    if (geometry == null || !geometry.hasGeometry) {
+      return '天文几何数据暂不可用，不能给出银河时段。';
+    }
+    final window = geometry.galacticCenterWindow;
+    if (window == null) {
+      return '未来72小时没有找到“天文黑夜且银河核心高度不低于10°”的几何交集。仍需另行核对光害、地平线和审核机位。';
+    }
+    return '银河核心几何参考 ${_time(window.startAt)}–${_time(window.endAt)}，'
+        '最高约${window.peakAltitudeDegrees.round()}°（${_time(window.peakAt)}）。'
+        '这不是适合拍银河的结论；仍缺光害、地平线、开放状态和审核机位依据。';
   }
 
   Future<List<NearbyPlace>> _nearbyPlanCandidates(

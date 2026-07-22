@@ -299,21 +299,45 @@ class DataBrokerContextRepository
         body['environment'] is! Map ||
         body['facts'] is! Map ||
         body['entries'] is! List ||
-        body['sourceRevisions'] is! Map) {
+        body['sourceRevisions'] is! Map ||
+        body['refreshHints'] is! Map) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
     final environment = Map<String, Object?>.from(body['environment']! as Map);
     final facts = Map<String, Object?>.from(body['facts']! as Map);
+    final sourceRevisions = Map<String, Object?>.from(
+      body['sourceRevisions']! as Map,
+    );
+    final refreshHints = Map<String, Object?>.from(
+      body['refreshHints']! as Map,
+    );
     if (!_hasExactKeys(environment, const {
           'scene',
           'dataFreshness',
           'weather',
           'sunMoon',
+          'astronomy',
           'route',
           'sceneContext',
           'allowedActions',
         }) ||
-        !_hasExactKeys(facts, const {'events', 'shootingSessions'})) {
+        !_hasExactKeys(facts, const {'events', 'shootingSessions'}) ||
+        !_hasExactKeys(sourceRevisions, const {
+          'weather',
+          'solar',
+          'astronomy',
+          'scene',
+          'route',
+        }) ||
+        sourceRevisions.values.any((value) => value is! int || value < 1) ||
+        !_hasExactKeys(refreshHints, const {
+          'weather',
+          'airQuality',
+          'solar',
+          'astronomy',
+          'opportunities',
+        }) ||
+        refreshHints.values.any((value) => value is! String)) {
       throw const RemoteContextFailure(RemoteContextFailureKind.response);
     }
     final scene = SceneType.values
@@ -326,6 +350,7 @@ class DataBrokerContextRepository
       environment['weather']! as Map,
     );
     final sunMoon = Map<String, Object?>.from(environment['sunMoon']! as Map);
+    final astronomy = _astronomyGeometry(environment['astronomy']);
     final route = Map<String, Object?>.from(environment['route']! as Map);
     final generatedAt = DateTime.tryParse('${body['generatedAt'] ?? ''}');
     final expiresAt = DateTime.tryParse('${body['expiresAt'] ?? ''}');
@@ -384,6 +409,7 @@ class DataBrokerContextRepository
         weatherType == null ||
         sunDayPhase == null ||
         moonPhase == null ||
+        astronomy == null ||
         routeMode == null ||
         routeStage == null ||
         !_hasExactKeys(route, const {'mode', 'stage', 'active'}) ||
@@ -468,6 +494,7 @@ class DataBrokerContextRepository
       dataFreshness: dataFreshness,
       moonPhase: moonPhase,
       moonIllumination: (sunMoon['moonIllumination'] as num).toDouble(),
+      astronomyGeometry: astronomy,
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: actions.cast<ContextAction>(),
@@ -475,6 +502,106 @@ class DataBrokerContextRepository
       canonicalEntriesPresent: true,
     );
   }
+
+  AstronomyGeometry? _astronomyGeometry(Object? raw) {
+    if (raw is! Map) return null;
+    final value = Map<String, Object?>.from(raw);
+    if (!_hasExactKeys(value, const {
+      'status',
+      'astronomicalNight',
+      'moonAltitudeDegrees',
+      'moonAzimuthDegrees',
+      'moonriseAt',
+      'moonsetAt',
+      'moonPhase',
+      'moonIllumination',
+      'galacticCenterAltitudeDegrees',
+      'galacticCenterAzimuthDegrees',
+      'galacticCenterWindow',
+    })) {
+      return null;
+    }
+    final status = AstronomyGeometryStatus.values
+        .where((item) => item.name == value['status'])
+        .firstOrNull;
+    if (status == null) return null;
+    if (status == AstronomyGeometryStatus.unavailable) {
+      if (value.entries.any(
+        (entry) => entry.key != 'status' && entry.value != null,
+      )) {
+        return null;
+      }
+      return const AstronomyGeometry(
+        status: AstronomyGeometryStatus.unavailable,
+      );
+    }
+    final moonPhase = MoonPhase.values
+        .where((item) => item.name == value['moonPhase'])
+        .firstOrNull;
+    final moonrise = _optionalDate(value['moonriseAt']);
+    final moonset = _optionalDate(value['moonsetAt']);
+    final window = _galacticCenterWindow(value['galacticCenterWindow']);
+    if (value['astronomicalNight'] is! bool ||
+        moonPhase == null ||
+        !_finiteIn(value['moonAltitudeDegrees'], -90, 90) ||
+        !_finiteIn(value['moonAzimuthDegrees'], 0, 359.999999) ||
+        !_finiteIn(value['moonIllumination'], 0, 1) ||
+        !_finiteIn(value['galacticCenterAltitudeDegrees'], -90, 90) ||
+        !_finiteIn(value['galacticCenterAzimuthDegrees'], 0, 359.999999) ||
+        (value['moonriseAt'] != null && moonrise == null) ||
+        (value['moonsetAt'] != null && moonset == null) ||
+        (value['galacticCenterWindow'] != null && window == null)) {
+      return null;
+    }
+    return AstronomyGeometry(
+      status: status,
+      astronomicalNight: value['astronomicalNight']! as bool,
+      moonAltitudeDegrees: (value['moonAltitudeDegrees']! as num).toDouble(),
+      moonAzimuthDegrees: (value['moonAzimuthDegrees']! as num).toDouble(),
+      moonriseAt: moonrise,
+      moonsetAt: moonset,
+      moonPhase: moonPhase,
+      moonIllumination: (value['moonIllumination']! as num).toDouble(),
+      galacticCenterAltitudeDegrees:
+          (value['galacticCenterAltitudeDegrees']! as num).toDouble(),
+      galacticCenterAzimuthDegrees:
+          (value['galacticCenterAzimuthDegrees']! as num).toDouble(),
+      galacticCenterWindow: window,
+    );
+  }
+
+  GalacticCenterWindow? _galacticCenterWindow(Object? raw) {
+    if (raw == null) return null;
+    if (raw is! Map ||
+        !_hasExactKeys(raw, const {
+          'startAt',
+          'peakAt',
+          'endAt',
+          'peakAltitudeDegrees',
+        })) {
+      return null;
+    }
+    final start = DateTime.tryParse('${raw['startAt'] ?? ''}')?.toUtc();
+    final peak = DateTime.tryParse('${raw['peakAt'] ?? ''}')?.toUtc();
+    final end = DateTime.tryParse('${raw['endAt'] ?? ''}')?.toUtc();
+    if (start == null ||
+        peak == null ||
+        end == null ||
+        peak.isBefore(start) ||
+        peak.isAfter(end) ||
+        !_finiteIn(raw['peakAltitudeDegrees'], 10, 90)) {
+      return null;
+    }
+    return GalacticCenterWindow(
+      startAt: start,
+      peakAt: peak,
+      endAt: end,
+      peakAltitudeDegrees: (raw['peakAltitudeDegrees']! as num).toDouble(),
+    );
+  }
+
+  DateTime? _optionalDate(Object? raw) =>
+      raw == null ? null : DateTime.tryParse('$raw')?.toUtc();
 
   ContextEntry? _entryV5(Object? raw) {
     if (raw is! Map) return null;

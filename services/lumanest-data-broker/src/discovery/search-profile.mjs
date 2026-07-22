@@ -1,5 +1,29 @@
 const fields = new Set(['baseUrl', 'apiKey', 'enabled', 'timeoutMs', 'sourcePolicies']);
-const sourcePolicyFields = new Set(['id', 'domain', 'attribution', 'license', 'version', 'qualityTier', 'enabled']);
+const sourcePolicyFields = new Set([
+  'id', 'domain', 'attribution', 'license', 'version', 'qualityTier', 'enabled',
+  'crawlEnabled', 'crawlMode', 'allowedPathPrefixes', 'deniedPathPatterns',
+]);
+
+function validatedPathRules(value, name, { pattern = false } = {}) {
+  if (value == null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > 8) {
+    throw new TypeError(`${name} must contain at most 8 paths`);
+  }
+  const normalized = value.map((item) => {
+    const path = boundedString(item, name, { maximum: 120 });
+    if (!path.startsWith('/') || /[?#\u0000-\u001f]/u.test(path) || path.includes('..')) {
+      throw new TypeError(`${name} must contain safe absolute paths`);
+    }
+    if (!pattern && /[*?[\]]/u.test(path)) {
+      throw new TypeError(`${name} prefixes cannot contain glob patterns`);
+    }
+    return path;
+  });
+  if (new Set(normalized).size !== normalized.length) {
+    throw new TypeError(`${name} must not contain duplicates`);
+  }
+  return Object.freeze(normalized);
+}
 
 function boundedString(value, name, { minimum = 1, maximum }) {
   if (typeof value !== 'string') throw new TypeError(`${name} must be a string`);
@@ -44,9 +68,30 @@ function validatedSourcePolicies(value) {
       throw new TypeError('source policy qualityTier must be S, A, B or C');
     }
     if (typeof policy.enabled !== 'boolean') throw new TypeError('source policy enabled must be a boolean');
+    const crawlEnabled = policy.crawlEnabled ?? false;
+    const crawlMode = policy.crawlMode ?? 'static';
+    if (typeof crawlEnabled !== 'boolean' || crawlMode !== 'static') {
+      throw new TypeError('crawl policy must explicitly use the supported static mode');
+    }
+    const allowedPathPrefixes = validatedPathRules(
+      policy.allowedPathPrefixes,
+      'allowedPathPrefixes',
+    );
+    const deniedPathPatterns = validatedPathRules(
+      policy.deniedPathPatterns,
+      'deniedPathPatterns',
+      { pattern: true },
+    );
+    if (crawlEnabled && allowedPathPrefixes.length === 0) {
+      throw new TypeError('crawlEnabled requires at least one allowedPathPrefix');
+    }
     ids.add(id);
     domains.add(domain);
-    return Object.freeze({ id, domain, attribution, license, version, qualityTier, enabled: policy.enabled });
+    return Object.freeze({
+      id, domain, attribution, license, version, qualityTier,
+      enabled: policy.enabled, crawlEnabled, crawlMode,
+      allowedPathPrefixes, deniedPathPatterns,
+    });
   }));
 }
 

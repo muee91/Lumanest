@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 from datetime import datetime, timezone
 
@@ -25,6 +26,19 @@ from .models import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
+def _log_degraded(operation: str, error: Exception) -> None:
+    # Never log query parameters: they may contain the user's current
+    # coordinate. Operation and exception class are sufficient for diagnosis.
+    logger.warning(
+        "context_store_degraded operation=%s error=%s",
+        operation,
+        type(error).__name__,
+    )
+
+
 class ContextStore:
     def __init__(self, database_url: str | None, redis_url: str | None) -> None:
         self.engine: AsyncEngine | None = create_async_engine(database_url) if database_url else None
@@ -43,12 +57,14 @@ class ContextStore:
             try:
                 async with self.engine.connect() as connection:
                     database = (await connection.execute(text("SELECT 1"))).scalar_one() == 1
-            except Exception:
+            except Exception as error:
+                _log_degraded("readiness_postgres", error)
                 database = False
         if self.redis is not None:
             try:
                 cache = bool(await self.redis.ping())
-            except Exception:
+            except Exception as error:
+                _log_degraded("readiness_redis", error)
                 cache = False
         return {"postgres": database, "redis": cache}
 
@@ -76,7 +92,8 @@ class ContextStore:
                 rows = (await connection.execute(
                     query, {"latitude": latitude, "longitude": longitude}
                 )).all()
-        except Exception:
+        except Exception as error:
+            _log_degraded("spatial_evidence", error)
             return SceneEvidence()
         kinds = {row[0] for row in rows}
         evidence = {(row[1], row[2]) for row in rows}
@@ -196,7 +213,8 @@ class ContextStore:
                 row = (await connection.execute(query, {
                     "latitude": latitude, "longitude": longitude,
                 })).mappings().first()
-        except SQLAlchemyError:
+        except SQLAlchemyError as error:
+            _log_degraded("photography_target", error)
             return None
         if row is None:
             return None
@@ -285,7 +303,8 @@ class ContextStore:
                     "direction": direction_degrees,
                     "supported_sessions": f'["{session_kind}"]',
                 })).mappings().all()
-        except SQLAlchemyError:
+        except SQLAlchemyError as error:
+            _log_degraded("shooting_targets", error)
             return []
         targets: list[ShootingTarget] = []
         for row in rows:
@@ -372,7 +391,8 @@ class ContextStore:
                     "latitude": latitude,
                     "longitude": longitude,
                 })).mappings().all()
-        except SQLAlchemyError:
+        except SQLAlchemyError as error:
+            _log_degraded("resolve_shooting_target", error)
             return None
         for row in rows:
             public_id = (
@@ -518,7 +538,8 @@ class ContextStore:
         try:
             raw = await self.redis.get(f"context:v5:{fingerprint}")
             return json.loads(raw) if raw else None
-        except Exception:
+        except Exception as error:
+            _log_degraded("cached_snapshot", error)
             return None
 
     async def active_astronomy_events(self, moment: datetime) -> list[dict]:
@@ -542,7 +563,8 @@ class ContextStore:
                     LIMIT 3
                 """), {"moment": moment})).mappings().all()
             return [dict(row) for row in rows]
-        except Exception:
+        except Exception as error:
+            _log_degraded("active_astronomy_events", error)
             return []
 
     async def cache_snapshot(self, fingerprint: str, body: dict) -> None:
@@ -550,7 +572,8 @@ class ContextStore:
             return
         try:
             await self.redis.setex(f"context:v5:{fingerprint}", 600, json.dumps(body, separators=(",", ":")))
-        except Exception:
+        except Exception as error:
+            _log_degraded("cache_snapshot", error)
             return
 
     async def import_dataset(self, body: ContextImportRequest) -> ContextImportResult:
@@ -715,7 +738,8 @@ class ContextStore:
             if keys:
                 await self.redis.delete(*keys)
             return True
-        except Exception:
+        except Exception as error:
+            _log_degraded("invalidate_snapshot_cache", error)
             return False
 
     async def source_statuses(self) -> list[SourceStatus]:
@@ -724,7 +748,8 @@ class ContextStore:
             try:
                 raw = await self.redis.get("source:qweather:last-updated")
                 updated_at = datetime.fromisoformat(raw.replace("Z", "+00:00")) if raw else None
-            except Exception:
+            except Exception as error:
+                _log_degraded("source_status_weather_revision", error)
                 updated_at = None
         builtins = [
             SourceStatus.model_validate({
@@ -754,5 +779,6 @@ class ContextStore:
                     FROM source_registry ORDER BY id
                 """))).mappings().all()
             return builtins + [SourceStatus.model_validate(dict(row)) for row in rows]
-        except Exception:
+        except Exception as error:
+            _log_degraded("source_status_registry", error)
             return builtins

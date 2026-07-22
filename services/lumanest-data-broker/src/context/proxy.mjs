@@ -6,7 +6,8 @@ function object(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 function exactKeys(value, keys) {
-  return object(value) && Object.keys(value).every((key) => keys.has(key));
+  return object(value) && Object.keys(value).length === keys.size &&
+    Object.keys(value).every((key) => keys.has(key));
 }
 
 function finiteIn(value, minimum, maximum) {
@@ -123,6 +124,44 @@ const moonPhases = new Set([
   'newMoon', 'waxingCrescent', 'firstQuarter', 'waxingGibbous',
   'fullMoon', 'waningGibbous', 'lastQuarter', 'waningCrescent',
 ]);
+
+function validGalacticCenterWindow(value) {
+  return exactKeys(value, new Set([
+    'startAt', 'peakAt', 'endAt', 'peakAltitudeDegrees',
+  ])) && [value.startAt, value.peakAt, value.endAt].every((item) =>
+    typeof item === 'string' && Number.isFinite(Date.parse(item))) &&
+    Date.parse(value.startAt) <= Date.parse(value.peakAt) &&
+    Date.parse(value.peakAt) <= Date.parse(value.endAt) &&
+    finiteIn(value.peakAltitudeDegrees, 10, 90);
+}
+
+function validAstronomy(value) {
+  const keys = new Set([
+    'status', 'astronomicalNight', 'moonAltitudeDegrees', 'moonAzimuthDegrees',
+    'moonriseAt', 'moonsetAt', 'moonPhase', 'moonIllumination',
+    'galacticCenterAltitudeDegrees', 'galacticCenterAzimuthDegrees',
+    'galacticCenterWindow',
+  ]);
+  if (!exactKeys(value, keys) || !['geometryOnly', 'unavailable'].includes(value.status)) {
+    return false;
+  }
+  if (value.status === 'unavailable') {
+    return Object.entries(value).every(([key, item]) => key === 'status' || item == null);
+  }
+  return typeof value.astronomicalNight === 'boolean' &&
+    finiteIn(value.moonAltitudeDegrees, -90, 90) &&
+    finiteIn(value.moonAzimuthDegrees, 0, 360) && value.moonAzimuthDegrees !== 360 &&
+    (value.moonriseAt == null ||
+      (typeof value.moonriseAt === 'string' && Number.isFinite(Date.parse(value.moonriseAt)))) &&
+    (value.moonsetAt == null ||
+      (typeof value.moonsetAt === 'string' && Number.isFinite(Date.parse(value.moonsetAt)))) &&
+    moonPhases.has(value.moonPhase) && finiteIn(value.moonIllumination, 0, 1) &&
+    finiteIn(value.galacticCenterAltitudeDegrees, -90, 90) &&
+    finiteIn(value.galacticCenterAzimuthDegrees, 0, 360) &&
+    value.galacticCenterAzimuthDegrees !== 360 &&
+    (value.galacticCenterWindow == null ||
+      validGalacticCenterWindow(value.galacticCenterWindow));
+}
 
 function validEvent(value) {
   if (!exactKeys(value, new Set([
@@ -338,12 +377,19 @@ function validContextResponse(body) {
       !Number.isInteger(body.snapshotRevision) || body.snapshotRevision < 1 ||
       !Number.isFinite(Date.parse(body.generatedAt)) || !Number.isFinite(Date.parse(body.expiresAt)) ||
       typeof body.stale !== 'boolean' || !object(body.sourceRevisions) ||
+      !exactKeys(body.sourceRevisions, new Set([
+        'weather', 'solar', 'astronomy', 'scene', 'route',
+      ])) ||
       Object.values(body.sourceRevisions).some((revision) => !Number.isInteger(revision) || revision < 1) ||
       !object(body.environment) || !object(body.facts) || !Array.isArray(body.entries) ||
-      body.entries.length > 64 || !body.entries.every(validV5Entry) || !object(body.refreshHints)) return false;
+      body.entries.length > 64 || !body.entries.every(validV5Entry) ||
+      !exactKeys(body.refreshHints, new Set([
+        'weather', 'airQuality', 'solar', 'astronomy', 'opportunities',
+      ])) || Object.values(body.refreshHints).some((hint) => typeof hint !== 'string')) return false;
   const environment = body.environment;
   if (!exactKeys(environment, new Set([
-    'scene', 'dataFreshness', 'weather', 'sunMoon', 'route', 'sceneContext', 'allowedActions',
+    'scene', 'dataFreshness', 'weather', 'sunMoon', 'astronomy', 'route',
+    'sceneContext', 'allowedActions',
   ])) || !['unknown', 'city', 'lake', 'mountain', 'desert', 'village'].includes(environment.scene) ||
       !validSceneContext(environment.sceneContext) || !Array.isArray(environment.allowedActions) ||
       environment.allowedActions.some((action) => !actions.has(action)) ||
@@ -388,6 +434,7 @@ function validContextResponse(body) {
       (sunMoon.sunAzimuthDegrees != null &&
         (!finiteIn(sunMoon.sunAzimuthDegrees, 0, 360) || sunMoon.sunAzimuthDegrees === 360)) ||
       !moonPhases.has(sunMoon.moonPhase) || !finiteIn(sunMoon.moonIllumination, 0, 1)) return false;
+  if (!validAstronomy(environment.astronomy)) return false;
   const route = environment.route;
   return exactKeys(route, new Set(['mode', 'stage', 'active'])) &&
     ['none', 'driving', 'hiking'].includes(route.mode) &&

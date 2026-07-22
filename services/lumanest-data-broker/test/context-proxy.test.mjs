@@ -125,7 +125,7 @@ test('current context response validates composite scene and route invariants', 
     contextId: 'ctx_1234567890abcdef12345678',
     generatedAt: '2026-07-14T02:00:00Z',
     expiresAt: '2026-07-14T02:10:00Z',
-    sourceRevisions: { weather: 1, solar: 1, scene: 1, route: 1 },
+    sourceRevisions: { weather: 1, solar: 1, astronomy: 1, scene: 1, route: 1 },
     scene: 'lake',
     sceneContext: {
       primaryScene: 'inlandWater', facets: ['lake', 'reflectiveSurface'],
@@ -144,6 +144,17 @@ test('current context response validates composite scene and route invariants', 
       dayPhase: 'day', sunElevationDegrees: 60, sunAzimuthDegrees: 180,
       moonPhase: 'fullMoon', moonIllumination: 0.5,
     },
+    astronomy: {
+      status: 'geometryOnly', astronomicalNight: false,
+      moonAltitudeDegrees: 18, moonAzimuthDegrees: 110,
+      moonriseAt: '2026-07-14T10:30:00Z', moonsetAt: '2026-07-14T22:10:00Z',
+      moonPhase: 'fullMoon', moonIllumination: .5,
+      galacticCenterAltitudeDegrees: -20, galacticCenterAzimuthDegrees: 240,
+      galacticCenterWindow: {
+        startAt: '2026-07-14T15:00:00Z', peakAt: '2026-07-14T17:00:00Z',
+        endAt: '2026-07-14T19:00:00Z', peakAltitudeDegrees: 32,
+      },
+    },
     route: { mode: 'driving', stage: 'planned', active: false },
     events: [], allowedActions: [],
     manifest: { layoutMode: 'quiet', primaryEventId: null, secondaryEventIds: [], safetyEventIds: [] },
@@ -151,15 +162,20 @@ test('current context response validates composite scene and route invariants', 
     environment: null,
     facts: null,
     entries: [],
-    refreshHints: { weather: 'ttl:600', solar: 'phase-boundary', opportunities: 'solar-or-weather-delta' },
+    refreshHints: {
+      weather: 'ttl:600', airQuality: 'ttl:2700', solar: 'phase-boundary',
+      astronomy: 'ttl:3600', opportunities: 'solar-or-weather-delta',
+    },
   };
   base.environment = {
     scene: base.scene, dataFreshness: base.dataFreshness, weather: base.weather,
-    sunMoon: base.sunMoon, route: base.route, sceneContext: base.sceneContext,
+    sunMoon: base.sunMoon, astronomy: base.astronomy,
+    route: base.route, sceneContext: base.sceneContext,
     allowedActions: base.allowedActions,
   };
   base.facts = { events: base.events, shootingSessions: base.shootingSessions };
   delete base.scene; delete base.dataFreshness; delete base.weather; delete base.sunMoon;
+  delete base.astronomy;
   delete base.route; delete base.sceneContext; delete base.allowedActions;
   delete base.events; delete base.manifest; delete base.shootingSessions; delete base.fingerprint;
   const accepted = await forwardContextSnapshot({
@@ -167,6 +183,26 @@ test('current context response validates composite scene and route invariants', 
     fetcher: async () => new Response(JSON.stringify(base), { status: 200 }),
   });
   assert.equal(accepted.ok, true);
+
+  for (const malformed of [
+    {
+      ...base,
+      environment: {
+        ...base.environment,
+        astronomy: { ...base.environment.astronomy, moonAltitudeDegrees: 120 },
+      },
+    },
+    {
+      ...base,
+      sourceRevisions: { weather: 1, solar: 1, scene: 1, route: 1 },
+    },
+  ]) {
+    const invalid = await forwardContextSnapshot({
+      body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',
+      fetcher: async () => new Response(JSON.stringify(malformed), { status: 200 }),
+    });
+    assert.equal(invalid.ok, false);
+  }
 
   const rejected = await forwardContextSnapshot({
     body: {}, serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret',

@@ -128,6 +128,24 @@ void main() {
         dataFreshness: ContextDataFreshness.fresh,
         moonPhase: MoonPhase.waxingCrescent,
         moonIllumination: .2,
+        astronomyGeometry: AstronomyGeometry(
+          status: AstronomyGeometryStatus.geometryOnly,
+          astronomicalNight: false,
+          moonAltitudeDegrees: 18,
+          moonAzimuthDegrees: 110,
+          moonriseAt: now.add(const Duration(minutes: 30)),
+          moonsetAt: now.add(const Duration(hours: 12)),
+          moonPhase: MoonPhase.waxingCrescent,
+          moonIllumination: .2,
+          galacticCenterAltitudeDegrees: -20,
+          galacticCenterAzimuthDegrees: 240,
+          galacticCenterWindow: GalacticCenterWindow(
+            startAt: now.add(const Duration(hours: 5)),
+            peakAt: now.add(const Duration(hours: 7)),
+            endAt: now.add(const Duration(hours: 9)),
+            peakAltitudeDegrees: 32,
+          ),
+        ),
         routeMode: ContextRouteMode.none,
         routeStage: ContextRouteStage.none,
         allowedActions: const [
@@ -160,6 +178,14 @@ void main() {
       expect(restored?.location?.coordinateSystem, CoordinateSystem.wgs84);
       expect(restored?.sunset, snapshot.sunset);
       expect(restored?.moonPhase, MoonPhase.waxingCrescent);
+      expect(
+        restored?.astronomyGeometry?.galacticCenterWindow?.peakAltitudeDegrees,
+        32,
+      );
+      expect(
+        restored?.astronomyGeometry?.moonriseAt,
+        now.add(const Duration(minutes: 30)),
+      );
       expect(restored?.airQualityIndex, 86);
       expect(restored?.airQualityCategory, '良');
       expect(restored?.primaryPollutant, 'PM2.5');

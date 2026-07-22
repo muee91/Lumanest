@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 
+from .astronomy import astronomy_state
 from .models import (
     ContextImportRequest,
     ContextImportResult,
@@ -114,14 +115,15 @@ async def evaluate_context(
             ):
                 targets_by_id[item.id] = item
     shooting_targets = list(targets_by_id.values())
+    astronomy = astronomy_state(body.coordinate, body.observed_at)
     fingerprint = context_fingerprint(
-        body, scene, evidence, astronomy_events, target, shooting_targets
+        body, scene, evidence, astronomy_events, target, shooting_targets, astronomy
     )
     cached = await request.app.state.store.cached_snapshot(fingerprint)
     if cached is not None and cached.get("contractVersion") == 5:
         return V5SnapshotResponse.model_validate(cached)
     snapshot = evaluate(
-        body, evidence, astronomy_events, target, shooting_targets
+        body, evidence, astronomy_events, target, shooting_targets, astronomy
     )
     projected = project_snapshot_v5(snapshot)
     await request.app.state.store.cache_snapshot(

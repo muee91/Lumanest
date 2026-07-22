@@ -29,6 +29,57 @@ enum ContextRouteMode { none, driving, hiking }
 
 enum ContextRouteStage { none, planned, active, paused }
 
+enum AstronomyGeometryStatus { geometryOnly, unavailable }
+
+class GalacticCenterWindow {
+  const GalacticCenterWindow({
+    required this.startAt,
+    required this.peakAt,
+    required this.endAt,
+    required this.peakAltitudeDegrees,
+  });
+
+  final DateTime startAt;
+  final DateTime peakAt;
+  final DateTime endAt;
+  final double peakAltitudeDegrees;
+}
+
+/// Deterministic celestial geometry from the Context service.
+///
+/// This deliberately excludes light pollution, local horizon, access and
+/// reviewed shooting-place evidence, so it cannot by itself represent a
+/// Milky Way opportunity.
+class AstronomyGeometry {
+  const AstronomyGeometry({
+    required this.status,
+    this.astronomicalNight,
+    this.moonAltitudeDegrees,
+    this.moonAzimuthDegrees,
+    this.moonriseAt,
+    this.moonsetAt,
+    this.moonPhase,
+    this.moonIllumination,
+    this.galacticCenterAltitudeDegrees,
+    this.galacticCenterAzimuthDegrees,
+    this.galacticCenterWindow,
+  });
+
+  final AstronomyGeometryStatus status;
+  final bool? astronomicalNight;
+  final double? moonAltitudeDegrees;
+  final double? moonAzimuthDegrees;
+  final DateTime? moonriseAt;
+  final DateTime? moonsetAt;
+  final MoonPhase? moonPhase;
+  final double? moonIllumination;
+  final double? galacticCenterAltitudeDegrees;
+  final double? galacticCenterAzimuthDegrees;
+  final GalacticCenterWindow? galacticCenterWindow;
+
+  bool get hasGeometry => status == AstronomyGeometryStatus.geometryOnly;
+}
+
 class ContextSnapshot {
   ContextSnapshot({
     required this.id,
@@ -66,6 +117,7 @@ class ContextSnapshot {
     this.dataFreshness = ContextDataFreshness.fresh,
     this.moonPhase,
     this.moonIllumination,
+    this.astronomyGeometry,
     this.routeMode = ContextRouteMode.none,
     this.routeStage = ContextRouteStage.none,
     List<ContextAction> allowedActions = const [],
@@ -117,6 +169,7 @@ class ContextSnapshot {
   final ContextDataFreshness dataFreshness;
   final MoonPhase? moonPhase;
   final double? moonIllumination;
+  final AstronomyGeometry? astronomyGeometry;
   final ContextRouteMode routeMode;
   final ContextRouteStage routeStage;
   final List<ContextAction> allowedActions;
@@ -169,6 +222,7 @@ class ContextSnapshot {
       dataFreshness: ContextDataFreshness.stale,
       moonPhase: moonPhase,
       moonIllumination: moonIllumination,
+      astronomyGeometry: astronomyGeometry,
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: retainedEvents
@@ -238,6 +292,7 @@ class ContextSnapshot {
       dataFreshness: dataFreshness,
       moonPhase: moonPhase,
       moonIllumination: moonIllumination,
+      astronomyGeometry: astronomyGeometry,
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
@@ -289,6 +344,7 @@ class ContextSnapshot {
       dataFreshness: dataFreshness,
       moonPhase: moonPhase,
       moonIllumination: moonIllumination,
+      astronomyGeometry: astronomyGeometry,
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
@@ -309,6 +365,7 @@ class ContextSnapshot {
     required ContextDataFreshness dataFreshness,
     required MoonPhase moonPhase,
     required double moonIllumination,
+    AstronomyGeometry? astronomyGeometry,
     required ContextRouteMode routeMode,
     required ContextRouteStage routeStage,
     required List<ContextAction> allowedActions,
@@ -354,6 +411,7 @@ class ContextSnapshot {
       dataFreshness: dataFreshness,
       moonPhase: moonPhase,
       moonIllumination: moonIllumination,
+      astronomyGeometry: astronomyGeometry ?? this.astronomyGeometry,
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,

@@ -333,9 +333,21 @@ async def test_crawler_is_a_bounded_cached_evidence_fallback_not_a_candidate_sou
 
     redis = Redis()
     crawler = Crawler()
-    enriched = await enrich_evidence_with_crawl(redis, [source()], crawler)
+    crawl_source = source().model_copy(update={
+        "crawl_enabled": True,
+        "allowed_path_prefixes": ["/viewpoint"],
+        "denied_path_patterns": ["/viewpoint/private*"],
+    })
+    enriched = await enrich_evidence_with_crawl(redis, [crawl_source], crawler)
 
     assert len(crawler.calls) == 1
     assert crawler.calls[0][1].domain == "example.test"
+    assert crawler.calls[0][1].allowed_path_prefixes == ("/viewpoint",)
+    assert crawler.calls[0][1].denied_path_patterns == ("/viewpoint/private*",)
     assert enriched[0].snippet.startswith("杭州西湖观景点")
     assert redis.setex_calls[0][1] == CRAWL_CACHE_SECONDS
+
+    crawler.calls.clear()
+    untouched = await enrich_evidence_with_crawl(redis, [source()], crawler)
+    assert crawler.calls == []
+    assert untouched == [source()]

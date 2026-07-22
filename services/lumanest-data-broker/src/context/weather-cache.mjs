@@ -27,6 +27,11 @@ export class MemoryWeatherCache {
     }
     return structuredClone(entry.details.find((detail) => detail.eventId === eventId) ?? null);
   }
+
+  async clear() {
+    this.#entries.clear();
+    this.#safetyDetails.clear();
+  }
 }
 
 export class RedisWeatherCache {
@@ -95,5 +100,16 @@ export class RedisWeatherCache {
     } catch {
       return null;
     }
+  }
+
+  async clear() {
+    const keys = [];
+    for (const pattern of [`${prefix}*`, `${safetyDetailPrefix}*`]) {
+      for await (const key of this.client.scanIterator({ MATCH: pattern, COUNT: 200 })) {
+        keys.push(key);
+      }
+    }
+    keys.push('source:qweather:last-updated');
+    if (keys.length > 0) await this.client.del(keys);
   }
 }

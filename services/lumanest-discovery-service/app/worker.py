@@ -412,7 +412,7 @@ async def retry_or_fail(redis: Redis, store: DiscoveryStore, job: RefreshJob) ->
 
 
 def _crawler_enabled() -> bool:
-    return os.getenv("DISCOVERY_CRAWLER_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
+    return os.getenv("DISCOVERY_CRAWLER_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _crawl_cache_key(item: BrokerSearchResult) -> str:
@@ -444,6 +444,8 @@ async def enrich_evidence_with_crawl(
         return evidence
     replacements: dict[str, BrokerSearchResult] = {}
     for item in evidence[:MAX_CRAWLS_PER_JOB]:
+        if not item.crawl_enabled or item.crawl_mode != "static":
+            continue
         key = _crawl_cache_key(item)
         cached = None
         try:
@@ -462,7 +464,14 @@ async def enrich_evidence_with_crawl(
             hostname = item.url.host
             if not hostname:
                 continue
-            result = await crawler.crawl(str(item.url), UrlPolicy(domain=hostname))
+            result = await crawler.crawl(
+                str(item.url),
+                UrlPolicy(
+                    domain=hostname,
+                    allowed_path_prefixes=tuple(item.allowed_path_prefixes),
+                    denied_path_patterns=tuple(item.denied_path_patterns),
+                ),
+            )
             window = _cleaned_window(result.get("cleanedMarkdown")) if result.get("status") == "success" else None
         except (UrlRejected, ValueError, OSError):
             window = None

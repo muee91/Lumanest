@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from .models import (
     ActivityState,
+    AstronomyState,
     CompositeSceneContext,
     ContextEvent,
     Manifest,
@@ -18,6 +19,7 @@ from .models import (
     SnapshotRequest,
     SnapshotResponse,
 )
+from .astronomy import astronomy_state
 from .shooting_sessions import (
     build_city_after_rain_session,
     build_general_evening_session,
@@ -173,9 +175,13 @@ def context_fingerprint(
     astronomy_events: list[dict] | None = None,
     target: PhotographyTarget | None = None,
     shooting_targets: list[ShootingTarget] | None = None,
+    astronomy: AstronomyState | None = None,
 ) -> str:
     facts = evidence or request.evidence
     solar = request.solar or solar_state(request.coordinate, request.observed_at)
+    astronomy_value = astronomy or astronomy_state(
+        request.coordinate, request.observed_at
+    )
     warning_state = ",".join(
         sorted(
             ":".join(
@@ -285,6 +291,7 @@ def context_fingerprint(
             grid,
             scene.value,
             solar_state_value,
+            astronomy_value.model_dump_json(by_alias=True),
             weather_state,
             forecast_state,
             hourly_state,
@@ -315,16 +322,28 @@ def evaluate(
     astronomy_events: list[dict] | None = None,
     target: PhotographyTarget | None = None,
     shooting_targets: list[ShootingTarget] | None = None,
+    astronomy: AstronomyState | None = None,
 ) -> SnapshotResponse:
     generated_at = request.observed_at.astimezone(timezone.utc)
     expires_at = generated_at + timedelta(minutes=10)
     scene = classify_scene(request, evidence)
     scene_context = classify_scene_context(request, evidence)
     facts = evidence or request.evidence
+    astronomy_value = astronomy or astronomy_state(request.coordinate, generated_at)
     fingerprint = context_fingerprint(
-        request, scene, facts, astronomy_events, target, shooting_targets
+        request,
+        scene,
+        facts,
+        astronomy_events,
+        target,
+        shooting_targets,
+        astronomy_value,
     )
-    moon_phase, moon_illumination = moon_state(generated_at)
+    if astronomy_value.status == "geometryOnly":
+        moon_phase = astronomy_value.moon_phase
+        moon_illumination = astronomy_value.moon_illumination
+    else:
+        moon_phase, moon_illumination = moon_state(generated_at)
     solar = request.solar or solar_state(request.coordinate, generated_at)
     events: list[ContextEvent] = []
 
@@ -642,6 +661,7 @@ def evaluate(
             "moonPhase": moon_phase,
             "moonIllumination": moon_illumination,
         },
+        "astronomy": astronomy_value,
         "route": {
             "mode": request.route.mode,
             "stage": request.route.stage,

@@ -168,6 +168,18 @@ void main() {
     expect(result.opportunityIds, ['session.water.evening']);
     expect(result.dataFreshness, ContextDataFreshness.fresh);
     expect(result.moonPhase, MoonPhase.waxingCrescent);
+    expect(
+      result.astronomyGeometry?.status,
+      AstronomyGeometryStatus.geometryOnly,
+    );
+    expect(
+      result.astronomyGeometry?.moonriseAt,
+      DateTime.utc(2026, 7, 14, 10, 30),
+    );
+    expect(
+      result.astronomyGeometry?.galacticCenterWindow?.peakAltitudeDegrees,
+      32,
+    );
     expect(result.allowedActions, [ContextAction.openExplore]);
     expect(result.temperatureCelsius, 26);
     expect(result.windSpeedMetersPerSecond, 2);
@@ -498,6 +510,32 @@ void main() {
     );
   });
 
+  test('rejects malformed astronomy geometry before it reaches UI state', () async {
+    final transport = _FakeTransport()
+      ..mutateResponse = (body) {
+        (_environment(body)['astronomy']! as Map)['moonAltitudeDegrees'] = 120;
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    await expectLater(
+      repository.fetchSnapshot(
+        location: _location(),
+        observedAt: DateTime.utc(2026, 7, 14, 2),
+      ),
+      throwsA(
+        isA<RemoteContextFailure>().having(
+          (failure) => failure.kind,
+          'kind',
+          RemoteContextFailureKind.response,
+        ),
+      ),
+    );
+  });
+
   test(
     'Broker returns structured official wildlifeSafety event: it enters both '
     'safetyEventIds and wildlifeEventIds, and allowedAction is retained',
@@ -702,7 +740,13 @@ class _FakeTransport implements ContextDataTransport {
       'snapshotRevision': 1,
       'generatedAt': '2026-07-14T02:00:00Z',
       'expiresAt': '2026-07-14T02:15:00Z',
-      'sourceRevisions': {'weather': 1, 'solar': 1, 'scene': 1, 'route': 1},
+      'sourceRevisions': {
+        'weather': 1,
+        'solar': 1,
+        'astronomy': 1,
+        'scene': 1,
+        'route': 1,
+      },
       'stale': false,
       'environment': {
         'scene': 'lake',
@@ -740,6 +784,24 @@ class _FakeTransport implements ContextDataTransport {
           'moonPhase': 'waxingCrescent',
           'moonIllumination': .2,
         },
+        'astronomy': {
+          'status': 'geometryOnly',
+          'astronomicalNight': false,
+          'moonAltitudeDegrees': 18,
+          'moonAzimuthDegrees': 110,
+          'moonriseAt': '2026-07-14T10:30:00Z',
+          'moonsetAt': '2026-07-14T22:10:00Z',
+          'moonPhase': 'waxingCrescent',
+          'moonIllumination': .2,
+          'galacticCenterAltitudeDegrees': -20,
+          'galacticCenterAzimuthDegrees': 240,
+          'galacticCenterWindow': {
+            'startAt': '2026-07-14T15:00:00Z',
+            'peakAt': '2026-07-14T17:00:00Z',
+            'endAt': '2026-07-14T19:00:00Z',
+            'peakAltitudeDegrees': 32,
+          },
+        },
         'route': {'mode': 'none', 'stage': 'none', 'active': false},
         'allowedActions': ['openExplore'],
       },
@@ -762,7 +824,9 @@ class _FakeTransport implements ContextDataTransport {
       'entries': <Object?>[],
       'refreshHints': {
         'weather': 'ttl:600',
+        'airQuality': 'ttl:2700',
         'solar': 'phase-boundary',
+        'astronomy': 'ttl:3600',
         'opportunities': 'solar-or-weather-delta',
       },
     };

@@ -335,6 +335,34 @@ async def test_cached_snapshot_reads_redis_value_after_astronomy_store_extension
 
 
 @pytest.mark.asyncio
+async def test_store_degradation_is_observable_without_logging_coordinates(caplog):
+    class Connection:
+        async def execute(self, *_args, **_kwargs):
+            raise RuntimeError("database unavailable")
+
+    class ConnectionContext:
+        async def __aenter__(self):
+            return Connection()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Engine:
+        def connect(self):
+            return ConnectionContext()
+
+    store = ContextStore(None, None)
+    store.engine = Engine()
+    with caplog.at_level("WARNING"):
+        result = await store.spatial_evidence(30.25, 120.15)
+
+    assert result == SceneEvidence()
+    assert "operation=spatial_evidence" in caplog.text
+    assert "30.25" not in caplog.text
+    assert "120.15" not in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_spatial_evidence_reads_all_query_columns_for_scene_and_wildlife():
     class Result:
         def all(self):
@@ -609,6 +637,12 @@ def test_server_computes_solar_and_keeps_official_warning_out_of_model_control(
     assert warning["title"] == "雷电红色预警"
     assert warning["allowedAction"] == "openSafetyDetail"
     assert body["environment"]["sunMoon"]["sunElevationDegrees"] is not None
+    astronomy = body["environment"]["astronomy"]
+    assert astronomy["status"] == "geometryOnly"
+    assert -90 <= astronomy["moonAltitudeDegrees"] <= 90
+    assert -90 <= astronomy["galacticCenterAltitudeDegrees"] <= 90
+    assert body["sourceRevisions"]["astronomy"] >= 1
+    assert body["refreshHints"]["astronomy"] == "ttl:3600"
 
 
 def spatial_import_payload():

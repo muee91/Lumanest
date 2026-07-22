@@ -399,6 +399,91 @@ class SunMoonState(ApiModel):
     moon_illumination: float = Field(ge=0, le=1, alias="moonIllumination")
 
 
+class GalacticCenterWindow(ApiModel):
+    start_at: datetime = Field(alias="startAt")
+    peak_at: datetime = Field(alias="peakAt")
+    end_at: datetime = Field(alias="endAt")
+    peak_altitude_degrees: float = Field(
+        ge=10, le=90, alias="peakAltitudeDegrees"
+    )
+
+    @model_validator(mode="after")
+    def require_ordered_window(self) -> "GalacticCenterWindow":
+        if any(
+            value.tzinfo is None
+            for value in (self.start_at, self.peak_at, self.end_at)
+        ):
+            raise ValueError("galactic center window times must include a timezone")
+        if not self.start_at <= self.peak_at <= self.end_at:
+            raise ValueError("galactic center window must be ordered")
+        return self
+
+
+class AstronomyState(ApiModel):
+    status: Literal["geometryOnly", "unavailable"]
+    astronomical_night: bool | None = Field(None, alias="astronomicalNight")
+    moon_altitude_degrees: float | None = Field(
+        None, ge=-90, le=90, alias="moonAltitudeDegrees"
+    )
+    moon_azimuth_degrees: float | None = Field(
+        None, ge=0, lt=360, alias="moonAzimuthDegrees"
+    )
+    moonrise_at: datetime | None = Field(None, alias="moonriseAt")
+    moonset_at: datetime | None = Field(None, alias="moonsetAt")
+    moon_phase: Literal[
+        "newMoon",
+        "waxingCrescent",
+        "firstQuarter",
+        "waxingGibbous",
+        "fullMoon",
+        "waningGibbous",
+        "lastQuarter",
+        "waningCrescent",
+    ] | None = Field(None, alias="moonPhase")
+    moon_illumination: float | None = Field(
+        None, ge=0, le=1, alias="moonIllumination"
+    )
+    galactic_center_altitude_degrees: float | None = Field(
+        None, ge=-90, le=90, alias="galacticCenterAltitudeDegrees"
+    )
+    galactic_center_azimuth_degrees: float | None = Field(
+        None, ge=0, lt=360, alias="galacticCenterAzimuthDegrees"
+    )
+    galactic_center_window: GalacticCenterWindow | None = Field(
+        None, alias="galacticCenterWindow"
+    )
+
+    @model_validator(mode="after")
+    def enforce_status_shape(self) -> "AstronomyState":
+        required = (
+            self.astronomical_night,
+            self.moon_altitude_degrees,
+            self.moon_azimuth_degrees,
+            self.moon_phase,
+            self.moon_illumination,
+            self.galactic_center_altitude_degrees,
+            self.galactic_center_azimuth_degrees,
+        )
+        if self.status == "geometryOnly" and any(
+            value is None for value in required
+        ):
+            raise ValueError("geometryOnly astronomy requires current geometry")
+        if self.status == "unavailable" and any(
+            value is not None
+            for value in (
+                *required,
+                self.moonrise_at,
+                self.moonset_at,
+                self.galactic_center_window,
+            )
+        ):
+            raise ValueError("unavailable astronomy cannot contain geometry")
+        for value in (self.moonrise_at, self.moonset_at):
+            if value is not None and value.tzinfo is None:
+                raise ValueError("moon rise/set times must include a timezone")
+        return self
+
+
 class RouteState(ApiModel):
     mode: Literal["none", "driving", "hiking"]
     stage: Literal["none", "planned", "active", "paused"]
@@ -426,6 +511,7 @@ class SnapshotResponse(ApiModel):
     data_freshness: DataFreshness = Field(alias="dataFreshness")
     weather: WeatherState
     sun_moon: SunMoonState = Field(alias="sunMoon")
+    astronomy: AstronomyState
     route: RouteState
     events: list[ContextEvent]
     allowed_actions: list[
@@ -546,6 +632,7 @@ class V5Environment(ApiModel):
     data_freshness: DataFreshness = Field(alias="dataFreshness")
     weather: WeatherState
     sun_moon: SunMoonState = Field(alias="sunMoon")
+    astronomy: AstronomyState
     route: RouteState
     scene_context: CompositeSceneContext = Field(alias="sceneContext")
     allowed_actions: list[

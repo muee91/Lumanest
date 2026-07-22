@@ -114,6 +114,10 @@ export function sanitizeTavilyResults(payload, sourcePolicies) {
       publisher: source.attribution,
       license: source.license,
       version: source.version,
+      crawlEnabled: source.crawlEnabled === true,
+      crawlMode: source.crawlMode ?? 'static',
+      allowedPathPrefixes: [...(source.allowedPathPrefixes ?? [])],
+      deniedPathPatterns: [...(source.deniedPathPatterns ?? [])],
       ...(source.qualityTier == null ? {} : { qualityTier: source.qualityTier }),
       ...(publishedAt == null ? {} : { publishedAt }),
     }));

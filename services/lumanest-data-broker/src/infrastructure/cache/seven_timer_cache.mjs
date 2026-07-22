@@ -38,6 +38,8 @@ export class MemorySevenTimerCache {
     this.entries.set(key, entry(value, options));
   }
 
+  async clear() { this.entries.clear(); }
+
   status() { return { mode: 'memory', available: true, durable: false }; }
 }
 
@@ -78,6 +80,14 @@ export class RedisSevenTimerCache {
     } catch {
       // 7Timer is optional. Redis loss must not fail the provider request.
     }
+  }
+
+  async clear() {
+    const keys = [];
+    for await (const key of this.client.scanIterator({ MATCH: `${prefix}*`, COUNT: 200 })) {
+      keys.push(key);
+    }
+    if (keys.length > 0) await this.client.del(keys);
   }
 
   status() { return { mode: 'redis', available: this.client.isReady, durable: true }; }

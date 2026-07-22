@@ -128,7 +128,7 @@
                 </section>
                 <details class="settings-group policy-editor">
                   <summary><span><strong>来源政策</strong><small>域名、署名、许可与版本</small></span><i aria-hidden="true"></i></summary>
-                  <label>审核来源政策（JSON 数组）<textarea name="sourcePolicies" rows="9" spellcheck="false" placeholder='[{"id":"local-culture","domain":"example.gov.cn","attribution":"发布机构","license":"许可说明","version":"2026-07","enabled":true}]' required></textarea><small>每项须含 id、domain、attribution、license、version、enabled；只允许启用的域名被检索。</small></label>
+                  <label>审核来源政策（JSON 数组）<textarea name="sourcePolicies" rows="9" spellcheck="false" placeholder='[{"id":"local-culture","domain":"example.gov.cn","attribution":"发布机构","license":"许可说明","version":"2026-07","enabled":true,"crawlEnabled":false,"crawlMode":"static","allowedPathPrefixes":[],"deniedPathPatterns":[]}]' required></textarea><small>搜索与抓取分开授权；抓取默认关闭，启用时必须声明允许路径，且当前只支持禁用脚本的 static 模式。</small></label>
                 </details>
               </div>
               <footer class="settings-actions"><button type="submit">保存搜索配置</button></footer>

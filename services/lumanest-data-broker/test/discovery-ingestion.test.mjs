@@ -25,12 +25,23 @@ test('reviewed Tavily profile requires an enabled attributable source and keeps 
     timeoutMs: 8_000, sourcePolicies: [policy],
   });
   assert.equal(profile.baseUrl, 'https://api.tavily.com');
-  assert.deepEqual(profile.sourcePolicies, [{ ...policy, qualityTier: 'B' }]);
+  assert.deepEqual(profile.sourcePolicies, [{
+    ...policy,
+    qualityTier: 'B',
+    crawlEnabled: false,
+    crawlMode: 'static',
+    allowedPathPrefixes: [],
+    deniedPathPatterns: [],
+  }]);
   assert.throws(() => validateDiscoverySearchProfile({ ...profile, sourcePolicies: [{ ...policy, extra: true }] }), /Unknown/);
   assert.throws(() => validateDiscoverySearchProfile({
     ...profile,
     sourcePolicies: [{ ...policy, attribution: 'a'.repeat(81) }],
   }), /attribution/);
+  assert.throws(() => validateDiscoverySearchProfile({
+    ...profile,
+    sourcePolicies: [{ ...policy, crawlEnabled: true }],
+  }), /allowedPathPrefix/);
 });
 
 test('search accepts Chinese requests only for enabled reviewed domains', () => {
@@ -50,6 +61,8 @@ test('Tavily results are filtered to reviewed HTTPS sources and retain attributi
   assert.deepEqual(results, [{
     title: '活动公告', snippet: '本周末在盐官举办摄影展。', url: 'https://culture.example.gov.cn/event?id=1',
     sourceId: 'haining-culture', publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
+    crawlEnabled: false, crawlMode: 'static',
+    allowedPathPrefixes: [], deniedPathPatterns: [],
     publishedAt: '2026-07-14T00:00:00.000Z',
   }]);
 });

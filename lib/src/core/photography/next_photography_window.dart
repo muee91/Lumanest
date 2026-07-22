@@ -31,9 +31,9 @@ class NextPhotographyWindowDecision {
 /// Chooses a truthful night-time bridge when no stronger structured
 /// opportunity or shooting session is active.
 ///
-/// This resolver deliberately never claims a Milky Way window: the current
-/// snapshot has weather and moon illumination, but not Galactic-centre
-/// trajectory, light-pollution or horizon evidence.
+/// This resolver deliberately never claims a Milky Way window. Context may
+/// contain Galactic-centre and Moon geometry, but light-pollution, local
+/// horizon, access and reviewed-place evidence are still required.
 abstract final class NextPhotographyWindowResolver {
   static NextPhotographyWindowDecision? resolve({
     required ContextSnapshot snapshot,
