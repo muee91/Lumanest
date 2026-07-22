@@ -112,6 +112,6 @@ void main() {
       transport: transport,
     );
 
-    expect(repository.fetch(point), throwsFormatException);
+    await expectLater(repository.fetch(point), throwsFormatException);
   });
 }
