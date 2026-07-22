@@ -6,6 +6,18 @@ const unavailableCacheTtlMilliseconds = 15 * 60 * 1_000;
 const unconfiguredCacheTtlMilliseconds = 5 * 60 * 1_000;
 const maximumCacheEntries = 512;
 const terrainDatasetRevision = 'copernicus-dem-glo90-2021';
+const spatialAnalysisVersion = 'viirs-spatial-radiance.1';
+const neighborhoodRadiiKm = Object.freeze([1, 5, 20]);
+const lightDomeDirections = Object.freeze([
+  Object.freeze({ direction: 'north', azimuthCenterDegrees: 0 }),
+  Object.freeze({ direction: 'northeast', azimuthCenterDegrees: 45 }),
+  Object.freeze({ direction: 'east', azimuthCenterDegrees: 90 }),
+  Object.freeze({ direction: 'southeast', azimuthCenterDegrees: 135 }),
+  Object.freeze({ direction: 'south', azimuthCenterDegrees: 180 }),
+  Object.freeze({ direction: 'southwest', azimuthCenterDegrees: 225 }),
+  Object.freeze({ direction: 'west', azimuthCenterDegrees: 270 }),
+  Object.freeze({ direction: 'northwest', azimuthCenterDegrees: 315 }),
+]);
 
 function finite(value, minimum, maximum) {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
@@ -34,6 +46,11 @@ function boundedRevision(value) {
     : '';
 }
 
+function objectWithExactKeys(value, keys) {
+  return value != null && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+}
+
 export function validSiteEnvironmentQuery(searchParams) {
   const latitude = Number(searchParams.get('lat'));
   const longitude = Number(searchParams.get('lon'));
@@ -48,6 +65,105 @@ export function relativeRadianceBand(radiance) {
   if (radiance <= 2) return 'moderate';
   if (radiance <= 10) return 'bright';
   return 'veryBright';
+}
+
+function validatedSummary(value) {
+  const sampleCount = value.sampleCount;
+  const coverageRatio = value.coverageRatio;
+  const median = value.median;
+  const p90 = value.p90;
+  const maximum = value.maximum;
+  if (!Number.isInteger(sampleCount) || sampleCount < 0 || sampleCount > 10_000_000 ||
+      !finite(coverageRatio, 0, 1)) return null;
+  if (sampleCount === 0) {
+    if (median !== null || p90 !== null || maximum !== null) return null;
+    return { sampleCount, coverageRatio, median: null, p90: null, maximum: null };
+  }
+  if (!finite(median, 0, 1_000_000) || !finite(p90, 0, 1_000_000) ||
+      !finite(maximum, 0, 1_000_000) || median > p90 || p90 > maximum) return null;
+  return { sampleCount, coverageRatio, median, p90, maximum };
+}
+
+function validatedSpatialAnalysis(value) {
+  if (!objectWithExactKeys(value, [
+    'analysisVersion', 'maximumRadiusKm', 'neighborhoods', 'lightDomes',
+  ]) || value.analysisVersion !== spatialAnalysisVersion || value.maximumRadiusKm !== 20 ||
+      !Array.isArray(value.neighborhoods) || value.neighborhoods.length !== neighborhoodRadiiKm.length) {
+    return null;
+  }
+  const neighborhoods = [];
+  for (let index = 0; index < neighborhoodRadiiKm.length; index += 1) {
+    const item = value.neighborhoods[index];
+    if (!objectWithExactKeys(item, [
+      'radiusKm', 'sampleCount', 'coverageRatio', 'median', 'p90', 'maximum',
+    ]) || item.radiusKm !== neighborhoodRadiiKm[index]) return null;
+    const summary = validatedSummary(item);
+    if (summary == null) return null;
+    neighborhoods.push({
+      radiusKm: item.radiusKm,
+      ...summary,
+      relativeRadianceBand: summary.p90 == null ? null : relativeRadianceBand(summary.p90),
+    });
+  }
+
+  const lightDomes = value.lightDomes;
+  if (!objectWithExactKeys(lightDomes, [
+    'innerRadiusKm', 'outerRadiusKm', 'sectorCount', 'dominantDirection',
+    'dominantAzimuthDegrees', 'sectors',
+  ]) || lightDomes.innerRadiusKm !== 1 || lightDomes.outerRadiusKm !== 20 ||
+      lightDomes.sectorCount !== lightDomeDirections.length ||
+      !Array.isArray(lightDomes.sectors) || lightDomes.sectors.length !== lightDomeDirections.length) {
+    return null;
+  }
+  const sectors = [];
+  for (let index = 0; index < lightDomeDirections.length; index += 1) {
+    const expected = lightDomeDirections[index];
+    const item = lightDomes.sectors[index];
+    if (!objectWithExactKeys(item, [
+      'direction', 'azimuthCenterDegrees', 'sampleCount', 'coverageRatio',
+      'median', 'p90', 'maximum', 'peakDistanceKm',
+    ]) || item.direction !== expected.direction ||
+        item.azimuthCenterDegrees !== expected.azimuthCenterDegrees) return null;
+    const summary = validatedSummary(item);
+    if (summary == null) return null;
+    const peakDistanceKm = item.peakDistanceKm;
+    if ((summary.sampleCount === 0 && peakDistanceKm !== null) ||
+        (summary.sampleCount > 0 && !finite(peakDistanceKm, 1, 20))) return null;
+    sectors.push({
+      direction: item.direction,
+      azimuthCenterDegrees: item.azimuthCenterDegrees,
+      ...summary,
+      peakDistanceKm,
+      relativeRadianceBand: summary.p90 == null ? null : relativeRadianceBand(summary.p90),
+    });
+  }
+  const usable = sectors.filter((sector) => sector.sampleCount > 0);
+  const dominant = usable.reduce((best, sector) => {
+    if (best == null) return sector;
+    if (sector.p90 > best.p90 ||
+        (sector.p90 === best.p90 && sector.maximum > best.maximum) ||
+        (sector.p90 === best.p90 && sector.maximum === best.maximum &&
+          sector.sampleCount > best.sampleCount)) return sector;
+    return best;
+  }, null);
+  if (dominant == null) {
+    if (lightDomes.dominantDirection !== null || lightDomes.dominantAzimuthDegrees !== null) return null;
+  } else if (lightDomes.dominantDirection !== dominant.direction ||
+      lightDomes.dominantAzimuthDegrees !== dominant.azimuthCenterDegrees) return null;
+
+  return {
+    analysisVersion: spatialAnalysisVersion,
+    maximumRadiusKm: 20,
+    neighborhoods,
+    lightDomes: {
+      innerRadiusKm: 1,
+      outerRadiusKm: 20,
+      sectorCount: lightDomeDirections.length,
+      dominantDirection: dominant?.direction ?? null,
+      dominantAzimuthDegrees: dominant?.azimuthCenterDegrees ?? null,
+      sectors,
+    },
+  };
 }
 
 function normalizedPoint(query, decimals = 3) {
@@ -121,6 +237,7 @@ function unavailableNightSkyBackground(status, point, instant, cacheStatus = 'mi
     datasetYear: null,
     datasetRevision: null,
     resolutionMeters: null,
+    spatialAnalysis: null,
     ...factMetadata(point, instant, ttl, cacheStatus),
     source: null,
   };
@@ -182,11 +299,12 @@ async function nightSkyBackgroundFact({
     const resolutionMeters = Number(payload?.resolutionMeters);
     const sampledLatitude = Number(payload?.sampledLatitude);
     const sampledLongitude = Number(payload?.sampledLongitude);
+    const spatialAnalysis = validatedSpatialAnalysis(payload?.spatialAnalysis);
     if (!response.ok || payload?.status !== 'ready' || !finite(radiance, 0, 1_000_000) ||
         !Number.isInteger(datasetYear) || datasetYear < 2012 || datasetYear > 2100 ||
         datasetRevision.length === 0 ||
         (expectedDatasetRevision.length > 0 && datasetRevision !== expectedDatasetRevision) ||
-        !finite(resolutionMeters, 1, 10_000) ||
+        !finite(resolutionMeters, 1, 10_000) || spatialAnalysis == null ||
         !finite(sampledLatitude, -90, 90) || !finite(sampledLongitude, -180, 180) ||
         typeof payload?.sourceId !== 'string' ||
         payload.sourceId.length === 0 || payload.sourceId.length > 120) {
@@ -205,6 +323,7 @@ async function nightSkyBackgroundFact({
       datasetYear,
       datasetRevision,
       resolutionMeters,
+      spatialAnalysis,
       ...factMetadata(sampledPoint, instant, ttl),
       source: {
         id: payload.sourceId,
@@ -249,7 +368,7 @@ export class SiteEnvironmentService {
       this.#nightSky(query, instant),
     ]);
     return {
-      contractVersion: 2,
+      contractVersion: 3,
       requestedCoordinate: coordinate(query),
       terrain,
       nightSkyBackground,
