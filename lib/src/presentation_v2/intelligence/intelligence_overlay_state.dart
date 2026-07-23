@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -57,7 +59,7 @@ class _IntelligenceOverlayLifecycleState
   @override
   void dispose() {
     final controller = _visibilityController;
-    Future<void>(() {
+    scheduleMicrotask(() {
       try {
         controller.hide();
       } on StateError {
