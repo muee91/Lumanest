@@ -2,18 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/design/luma_nest_motion.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
-import 'package:luma_nest/src/design/luma_nest_motion.dart';
+import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
+import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
-import 'package:luma_nest/src/presentation_v2/inspiration/v2_inspiration_page.dart';
+import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
 import 'package:luma_nest/src/presentation_v2/opportunity/v2_opportunity_page.dart';
 import 'package:luma_nest/src/presentation_v2/profile/v2_profile_page.dart';
 import 'package:luma_nest/src/presentation_v2/route/v2_route_page.dart';
 import 'package:luma_nest/src/presentation_v2/shell/v2_app_shell.dart';
 import 'package:luma_nest/src/presentation_v2/today/v2_today_page.dart';
-import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
-import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_debug_page.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -22,9 +22,6 @@ final _exploreNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'shell-explore',
 );
 final _routeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-route');
-final _inspirationNavigatorKey = GlobalKey<NavigatorState>(
-  debugLabel: 'shell-inspiration',
-);
 final _profileNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'shell-profile',
 );
@@ -91,16 +88,6 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
           StatefulShellBranch(
-            navigatorKey: _inspirationNavigatorKey,
-            routes: [
-              GoRoute(
-                path: '/inspiration',
-                pageBuilder: (context, state) =>
-                    _tabPage(state, child: const V2InspirationPage()),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
             navigatorKey: _profileNavigatorKey,
             routes: [
               GoRoute(
@@ -111,6 +98,29 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/intelligence',
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2IntelligencePage(
+            initialSnapshot: initialContext,
+            initialNoteId: state.uri.queryParameters['note'],
+          ),
+        ),
+      ),
+      // Preserve old deep links while the former shell branch is retired.
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/inspiration',
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2IntelligencePage(
+            initialSnapshot: initialContext,
+            initialNoteId: state.uri.queryParameters['note'],
+          ),
+        ),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
@@ -158,7 +168,10 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         path: '/insight/:id',
         pageBuilder: (context, state) => _v2DetailPage(
           state,
-          child: V2InspirationPage(initialNoteId: state.pathParameters['id']),
+          child: V2IntelligencePage(
+            initialSnapshot: initialContext,
+            initialNoteId: state.pathParameters['id'],
+          ),
         ),
       ),
       GoRoute(
