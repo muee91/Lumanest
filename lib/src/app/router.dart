@@ -8,6 +8,7 @@ import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
+import 'package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
 import 'package:luma_nest/src/presentation_v2/opportunity/v2_opportunity_page.dart';
 import 'package:luma_nest/src/presentation_v2/profile/v2_profile_page.dart';
@@ -104,9 +105,11 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         path: '/intelligence',
         pageBuilder: (context, state) => _v2DetailPage(
           state,
-          child: V2IntelligencePage(
-            initialSnapshot: initialContext,
-            initialNoteId: state.uri.queryParameters['note'],
+          child: IntelligenceOverlayLifecycle(
+            child: V2IntelligencePage(
+              initialSnapshot: initialContext,
+              initialNoteId: state.uri.queryParameters['note'],
+            ),
           ),
         ),
       ),
@@ -116,9 +119,11 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         path: '/inspiration',
         pageBuilder: (context, state) => _v2DetailPage(
           state,
-          child: V2IntelligencePage(
-            initialSnapshot: initialContext,
-            initialNoteId: state.uri.queryParameters['note'],
+          child: IntelligenceOverlayLifecycle(
+            child: V2IntelligencePage(
+              initialSnapshot: initialContext,
+              initialNoteId: state.uri.queryParameters['note'],
+            ),
           ),
         ),
       ),
@@ -168,9 +173,11 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         path: '/insight/:id',
         pageBuilder: (context, state) => _v2DetailPage(
           state,
-          child: V2IntelligencePage(
-            initialSnapshot: initialContext,
-            initialNoteId: state.pathParameters['id'],
+          child: IntelligenceOverlayLifecycle(
+            child: V2IntelligencePage(
+              initialSnapshot: initialContext,
+              initialNoteId: state.pathParameters['id'],
+            ),
           ),
         ),
       ),
