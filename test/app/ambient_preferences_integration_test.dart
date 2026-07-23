@@ -33,15 +33,18 @@ void main() {
       1.0,
     );
 
-    await tester.tap(find.bySemanticsLabel('灵感'));
+    await tester.tap(
+      find.bySemanticsLabel('栖光：问问题或抽取灵感'),
+    );
     await tester.pump();
     await tester.pump();
     expect(find.byType(AmbientCanvas), findsNothing);
 
-    // Inspiration hides the dock; leave through its own close action.
-    await tester.tap(find.bySemanticsLabel('关闭'));
+    // Intelligence is an overlay; closing restores the originating Today page.
+    await tester.tap(find.bySemanticsLabel('关闭栖光'));
     await tester.pump();
     await tester.pump();
+    expect(find.byType(AmbientCanvas), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('路线'));
     await tester.pump();
