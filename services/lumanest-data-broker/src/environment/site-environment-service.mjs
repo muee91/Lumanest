@@ -1,3 +1,6 @@
+import { createSkySiteAssessment } from './sky-site-assessment.mjs';
+import { fetchTerrainHorizon } from './terrain-horizon.mjs';
+
 const openMeteoBaseUrl = 'https://api.open-meteo.com';
 const terrainReadyTtlMilliseconds = 90 * 24 * 60 * 60 * 1_000;
 const nightSkyReadyTtlMilliseconds = 30 * 24 * 60 * 60 * 1_000;
@@ -5,7 +8,7 @@ const nightSkyUnversionedTtlMilliseconds = 24 * 60 * 60 * 1_000;
 const unavailableCacheTtlMilliseconds = 15 * 60 * 1_000;
 const unconfiguredCacheTtlMilliseconds = 5 * 60 * 1_000;
 const maximumCacheEntries = 512;
-const terrainDatasetRevision = 'copernicus-dem-glo90-2021';
+const elevationDatasetRevision = 'copernicus-dem-glo90-2021';
 const spatialAnalysisVersion = 'viirs-spatial-radiance.1';
 const neighborhoodRadiiKm = Object.freeze([1, 5, 20]);
 const lightDomeDirections = Object.freeze([
@@ -55,7 +58,20 @@ export function validSiteEnvironmentQuery(searchParams) {
   const latitude = Number(searchParams.get('lat'));
   const longitude = Number(searchParams.get('lon'));
   if (!finite(latitude, -90, 90) || !finite(longitude, -180, 180)) return null;
-  return { latitude, longitude };
+  const include = searchParams.get('include');
+  const at = searchParams.get('at');
+  if (include == null && at == null) return { latitude, longitude };
+  if (include !== 'skyAssessment' || typeof at !== 'string' || at.length < 20 || at.length > 40 ||
+      !at.endsWith('Z')) return null;
+  const observedAt = new Date(at);
+  if (!Number.isFinite(observedAt.getTime()) || observedAt.getUTCFullYear() < 2020 ||
+      observedAt.getUTCFullYear() > 2100) return null;
+  return {
+    latitude,
+    longitude,
+    includeSkyAssessment: true,
+    observedAt: observedAt.toISOString(),
+  };
 }
 
 export function relativeRadianceBand(radiance) {
@@ -261,7 +277,7 @@ async function elevationFact(point, fetcher, timeoutMs, instant) {
       source: {
         id: 'open-meteo-elevation',
         dataset: 'Copernicus DEM GLO-90 2021',
-        revision: terrainDatasetRevision,
+        revision: elevationDatasetRevision,
         resolutionMeters: 90,
         attribution: 'Copernicus DEM · Open-Meteo',
       },
@@ -343,22 +359,31 @@ export class SiteEnvironmentService {
     rasterServiceUrl = '',
     rasterServiceToken = process.env.LUMANEST_RASTER_SERVICE_TOKEN?.trim() ?? '',
     rasterDatasetRevision = process.env.LUMANEST_RASTER_DATASET_REVISION?.trim() ?? '',
+    terrainServiceUrl = process.env.LUMANEST_TERRAIN_SERVICE_URL?.trim() ?? '',
+    terrainServiceToken = process.env.LUMANEST_TERRAIN_SERVICE_TOKEN?.trim() ?? '',
+    terrainHorizonDatasetRevision = process.env.LUMANEST_TERRAIN_DATASET_REVISION?.trim() ?? '',
     fetcher = fetch,
     now = () => new Date(),
     timeoutMs = 8_000,
     terrainCache = new Map(),
     nightSkyCache = new Map(),
+    horizonCache = new Map(),
   } = {}) {
     this.rasterServiceUrl = rasterServiceUrl;
     this.rasterServiceToken = boundedToken(rasterServiceToken);
     this.rasterDatasetRevision = boundedRevision(rasterDatasetRevision);
+    this.terrainServiceUrl = terrainServiceUrl;
+    this.terrainServiceToken = boundedToken(terrainServiceToken);
+    this.terrainHorizonDatasetRevision = boundedRevision(terrainHorizonDatasetRevision);
     this.fetcher = fetcher;
     this.now = now;
     this.timeoutMs = timeoutMs;
     this.terrainCache = terrainCache;
     this.nightSkyCache = nightSkyCache;
+    this.horizonCache = horizonCache;
     this.terrainInFlight = new Map();
     this.nightSkyInFlight = new Map();
+    this.horizonInFlight = new Map();
   }
 
   async facts(query) {
@@ -367,18 +392,34 @@ export class SiteEnvironmentService {
       this.#terrain(query, instant),
       this.#nightSky(query, instant),
     ]);
-    return {
+    const base = {
       contractVersion: 3,
       requestedCoordinate: coordinate(query),
       terrain,
       nightSkyBackground,
       generatedAt: instant.toISOString(),
     };
+    if (query.includeSkyAssessment !== true) return base;
+    const terrainHorizon = await this.#horizon(query, instant);
+    const observedAt = new Date(query.observedAt);
+    return {
+      ...base,
+      contractVersion: 4,
+      observedAt: observedAt.toISOString(),
+      terrainHorizon,
+      skySiteAssessment: createSkySiteAssessment({
+        latitude: query.latitude,
+        longitude: query.longitude,
+        observedAt,
+        horizon: terrainHorizon,
+        nightSkyBackground,
+      }),
+    };
   }
 
   async #terrain(query, instant) {
     const point = normalizedPoint(query);
-    const key = cacheKey('terrain', point, terrainDatasetRevision);
+    const key = cacheKey('terrain', point, elevationDatasetRevision);
     const cached = readCache(this.terrainCache, key, instant);
     if (cached != null) return cached;
     if (this.terrainInFlight.has(key)) {
@@ -419,6 +460,33 @@ export class SiteEnvironmentService {
       return fact;
     }).finally(() => this.nightSkyInFlight.delete(key));
     this.nightSkyInFlight.set(key, request);
+    return request;
+  }
+
+  async #horizon(query, instant) {
+    const point = normalizedPoint(query);
+    const revision = this.terrainHorizonDatasetRevision || 'service-reported';
+    const baseUrl = sanitizedBaseUrl(this.terrainServiceUrl);
+    const key = cacheKey(`terrain-horizon:${baseUrl?.origin ?? 'unconfigured'}`, point, revision);
+    const cached = readCache(this.horizonCache, key, instant);
+    if (cached != null) return cached;
+    if (this.horizonInFlight.has(key)) {
+      const fact = await this.horizonInFlight.get(key);
+      return { ...structuredClone(fact), cacheStatus: 'coalesced' };
+    }
+    const request = fetchTerrainHorizon({
+      point,
+      serviceUrl: this.terrainServiceUrl,
+      serviceToken: this.terrainServiceToken,
+      expectedDatasetRevision: this.terrainHorizonDatasetRevision,
+      fetcher: this.fetcher,
+      timeoutMs: Math.min(this.timeoutMs, 20_000),
+      instant,
+    }).then((fact) => {
+      writeCache(this.horizonCache, key, fact);
+      return fact;
+    }).finally(() => this.horizonInFlight.delete(key));
+    this.horizonInFlight.set(key, request);
     return request;
   }
 }
