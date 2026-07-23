@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
+    "astronomy-engine": "2.1.19",
     "redis": "^5.12.1"
   }
 }
