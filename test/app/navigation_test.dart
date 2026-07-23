@@ -55,6 +55,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(V2IntelligencePage), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsNothing);
+      expect(find.bySemanticsLabel('关闭栖光'), findsOneWidget);
 
       await tester.tap(find.bySemanticsLabel('关闭栖光'));
       await tester.pumpAndSettle();
