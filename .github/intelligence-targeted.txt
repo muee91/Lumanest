@@ -1,0 +1,110 @@
+TARGETED_EXIT=1
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 99.0.0 (105.0.0 available)
+  analyzer 12.1.0 (14.1.0 available)
+  battery_plus 7.1.0 (7.1.1 available)
+  build 4.0.7 (4.0.8 available)
+  build_runner 2.15.1 (2.15.2 available)
+  cli_util 0.4.2 (0.5.2 available)
+  dart_style 3.1.8 (3.1.12 available)
+  drift 2.34.1 (2.34.2 available)
+  drift_dev 2.34.0 (2.34.5 available)
+  file_selector_android 0.5.2+8 (0.5.2+9 available)
+  flutter_adaptive_scaffold 0.1.12 (0.3.3+1 available)
+  flutter_local_notifications 22.0.1 (22.1.0 available)
+  flutter_local_notifications_platform_interface 12.0.0 (12.0.1 available)
+  hooks 2.0.2 (2.1.0 available)
+  jni 0.14.2 (1.0.0 available)
+  matcher 0.12.19 (0.12.20 available)
+  meta 1.18.0 (1.19.0 available)
+  native_toolchain_c 0.19.2 (0.19.3 available)
+  package_config 2.2.0 (3.0.0 available)
+  package_info_plus 10.2.0 (10.2.1 available)
+  path_provider_android 2.2.23 (2.3.1 available)
+  record_use 0.6.0 (1.0.0 available)
+  sentry 9.24.0 (9.25.0 available)
+  sentry_flutter 9.24.0 (9.25.0 available)
+  shared_preferences_android 2.4.26 (2.4.27 available)
+  source_gen 4.2.3 (4.2.4 available)
+  sqlite3 3.3.4 (3.5.0 available)
+  sqlparser 0.44.5 (0.45.0 available)
+  test 1.31.0 (1.31.2 available)
+  test_api 0.7.11 (0.7.13 available)
+  test_core 0.6.17 (0.6.19 available)
+  uuid 4.5.3 (4.6.0 available)
+  vector_math 2.2.0 (2.4.1 available)
+  x_amap_base 1.0.3 (2.0.0+2 available)
+  xml 6.6.1 (7.0.1 available)
+Got dependencies!
+35 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart
+00:00 +0: /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 four-page shell and intelligence stay usable at 360 x 800
+2026-07-23T21:15:03.890402Z DEBUG   [context.snapshot] context.refresh_started {source: automatic}
+2026-07-23T21:15:03.900951Z WARNING [context.degradation] context.refresh_failed {reason: configMissing}
+00:01 +1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 Today and Opportunity tolerate enlarged text
+2026-07-23T21:15:04.135395Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+2026-07-23T21:15:04.141866Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+2026-07-23T21:15:04.305811Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+2026-07-23T21:15:04.306639Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+00:01 +2: loading /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart
+00:02 +2: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: session route keeps only a validated stable ID
+00:02 +3: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: four destinations persist while intelligence opens above the shell
+2026-07-23T21:15:06.292989Z DEBUG   [context.snapshot] context.refresh_started {source: automatic}
+2026-07-23T21:15:06.303528Z WARNING [context.degradation] context.refresh_failed {reason: configMissing}
+00:03 +4: loading /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart
+00:04 +4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and one intelligent entrance
+00:05 +5: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: accepts an injected context snapshot
+2026-07-23T21:15:08.372715Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+2026-07-23T21:15:08.385532Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+00:05 +6: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: quiet Today keeps one judgment line without shortcut cards
+2026-07-23T21:15:08.676342Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T21:15:08.677513Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+2026-07-23T21:15:08.722202Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T21:15:08.723233Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+00:06 +7: loading /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart
+00:07 +7: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: system animation setting makes the ambient canvas static
+00:08 +8: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+2026-07-23T21:15:11.436901Z DEBUG   [context.snapshot] context.refresh_started {source: automatic}
+2026-07-23T21:15:11.446454Z WARNING [context.degradation] context.refresh_failed {reason: configMissing}
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+pumpAndSettle timed out
+
+When the exception was thrown, this was the stack:
+#0      WidgetTester.pumpAndSettle.<anonymous closure> (package:flutter_test/src/widget_tester.dart:717:11)
+<asynchronous suspension>
+#1      TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:130:27)
+<asynchronous suspension>
+#2      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart:39:5)
+<asynchronous suspension>
+#3      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#4      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  navigation disposes the ambient field outside Today
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:12 +8 -1: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today [E]
+  Test failed. See exception logs above.
+  The test description was: navigation disposes the ambient field outside Today
+  
+00:12 +8 -1: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: V2 privacy controls global accessibility rendering
+00:12 +9 -1: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart
+00:13 +9 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 Today keeps the opportunity as one Hero object
+2026-07-23T21:15:16.774093Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+2026-07-23T21:15:16.785870Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+2026-07-23T21:15:17.114911Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+2026-07-23T21:15:17.115994Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+00:14 +10 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 exposes four shell destinations and intelligence
+00:14 +11 -1: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/intelligence/v2_intelligence_page_test.dart
+00:15 +11 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/intelligence/v2_intelligence_page_test.dart: contracts only the inspiration stage while typing
+00:16 +12 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/intelligence/v2_intelligence_page_test.dart: interprets an inspiration in place without another sheet
+00:17 +13 -1: Some tests failed.
+
+Failing tests:
+  /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
