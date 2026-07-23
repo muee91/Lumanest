@@ -1,0 +1,309 @@
+FULL_TEST_EXIT=1
+
+===== FAILING TESTS =====
+Failing tests:
+  /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 four-page shell and intelligence stay usable at 360 x 800
+  /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+  /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: four destinations persist while intelligence opens above the shell
+
+===== LAST 300 LINES =====
+#27     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#28     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#29     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#30     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#31     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#32     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#33     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#34     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#35     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#36     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#37     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#38     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#39     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#40     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#41     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#42     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#43     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#44     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#45     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#46     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#47     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#48     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#49     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#50     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#51     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#52     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#53     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#54     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#55     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#56     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#57     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#58     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#59     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#60     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#61     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#62     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#63     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#64     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#65     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#66     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#67     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#68     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#69     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#70     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#71     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#72     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#73     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#74     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#75     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#76     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#77     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#78     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#79     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#80     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#81     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#82     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#83     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#84     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#85     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#86     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#87     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#88     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#89     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#90     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#91     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#92     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#93     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#94     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#95     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#96     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#97     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#98     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#99     ListIterable.forEach (dart:_internal/iterable.dart:49:13)
+#100    _InactiveElements._unmountAll (package:flutter/src/widgets/framework.dart:2126:25)
+#101    BuildOwner.lockState (package:flutter/src/widgets/framework.dart:3020:15)
+#102    BuildOwner.finalizeTree (package:flutter/src/widgets/framework.dart:3344:7)
+#103    AutomatedTestWidgetsFlutterBinding.drawFrame (package:flutter_test/src/binding.dart:2453:19)
+#104    RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:509:5)
+#105    SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#106    SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#107    AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:2260:9)
+#110    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#111    AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:2249:27)
+#112    WidgetTester.pumpAndSettle.<anonymous closure> (package:flutter_test/src/widget_tester.dart:719:23)
+<asynchronous suspension>
+#113    TestAsyncUtils.guard.<anonymous closure> (package:flutter_test/src/test_async_utils.dart:130:27)
+<asynchronous suspension>
+#114    main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart:61:7)
+<asynchronous suspension>
+#115    testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#116    TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 3 frames from dart:async and package:stack_trace)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:53 +570 -2: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: four destinations persist while intelligence opens above the shell [E]
+  Test failed. See exception logs above.
+  The test description was: four destinations persist while intelligence opens above the shell
+  
+01:53 +570 -2: loading /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart
+01:53 +570 -2: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and one intelligent entrance
+01:54 +571 -2: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: accepts an injected context snapshot
+2026-07-23T22:52:26.631071Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+2026-07-23T22:52:26.640006Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+01:55 +572 -2: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: quiet Today keeps one judgment line without shortcut cards
+2026-07-23T22:52:26.816461Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T22:52:26.817357Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+2026-07-23T22:52:26.846639Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T22:52:26.847344Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+01:55 +573 -2: loading /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart
+01:55 +573 -2: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: system animation setting makes the ambient canvas static
+01:56 +574 -2: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+2026-07-23T22:52:28.444793Z DEBUG   [context.snapshot] context.refresh_started {source: automatic}
+2026-07-23T22:52:28.452856Z WARNING [context.degradation] context.refresh_failed {reason: configMissing}
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+The following assertion was thrown while finalizing the widget tree:
+Tried to modify a provider while the widget tree was building.
+If you are encountering this error, chances are you tried to modify a provider
+in a widget life-cycle, such as but not limited to:
+- build
+- initState
+- dispose
+- didUpdateWidget
+- didChangeDependencies
+
+Modifying a provider inside those life-cycles is not allowed, as it could
+lead to an inconsistent UI state. For example, two widgets could listen to the
+same provider, but incorrectly receive different states.
+
+
+To fix this problem, you have one of two solutions:
+- (preferred) Move the logic for modifying your provider outside of a widget
+  life-cycle. For example, maybe you could update your provider inside a button's
+  onPressed instead.
+
+- Delay your modification, such as by encapsulating the modification
+  in a `Future(() {...})`.
+  This will perform your update after the widget tree is done building.
+
+When the exception was thrown, this was the stack:
+#0      _UncontrolledProviderScopeState._debugCanModifyProviders (package:flutter_riverpod/src/core/provider_scope.dart:374:7)
+#1      ProviderElement._debugAssertNotificationAllowed (package:riverpod/src/core/element.dart:805:30)
+#2      ProviderElement._notifyListeners (package:riverpod/src/core/element.dart:854:38)
+#3      ProviderElement.setValue (package:riverpod/src/core/element.dart:478:7)
+#4      ElementWithFuture.asyncTransition (package:riverpod/src/core/element.dart:66:18)
+#5      ElementWithFuture.onData (package:riverpod/src/core/element.dart:145:22)
+#6      AsyncValueExtensions.map (package:riverpod/src/core/async_value.dart:158:20)
+#7      ElementWithFuture.setValue (package:riverpod/src/core/element.dart:74:18)
+#8      SyncProviderElement.setValueFromState (package:riverpod/src/core/element.dart:1422:43)
+#9      AnyNotifier.state= (package:riverpod/src/core/provider/notifier_provider.dart:93:18)
+#10     IntelligenceOverlayVisibilityController.hide (package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart:18:16)
+#11     _IntelligenceOverlayLifecycleState.dispose (package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart:59:27)
+#12     StatefulElement.unmount (package:flutter/src/widgets/framework.dart:6030:11)
+#13     ConsumerStatefulElement.unmount (package:flutter_riverpod/src/core/consumer.dart:506:11)
+#14     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2117:13)
+#15     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#16     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#17     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#18     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#19     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#20     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#21     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#22     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#23     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#24     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#25     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#26     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#27     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#28     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#29     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#30     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#31     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#32     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#33     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#34     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#35     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#36     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#37     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#38     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#39     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#40     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#41     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#42     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#43     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#44     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#45     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#46     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#47     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#48     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#49     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#50     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#51     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#52     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#53     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#54     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#55     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#56     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#57     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#58     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#59     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#60     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#61     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#62     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#63     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#64     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#65     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#66     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#67     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#68     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#69     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#70     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#71     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#72     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#73     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#74     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#75     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#76     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#77     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#78     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#79     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#80     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#81     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#82     SingleChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7101:14)
+#83     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#84     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#85     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#86     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#87     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#88     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#89     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#90     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#91     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#92     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#93     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#94     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#95     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#96     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115:7)
+#97     ComponentElement.visitChildren (package:flutter/src/widgets/framework.dart:5871:14)
+#98     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113:13)
+#99     ListIterable.forEach (dart:_internal/iterable.dart:49:13)
+#100    _InactiveElements._unmountAll (package:flutter/src/widgets/framework.dart:2126:25)
+#101    BuildOwner.lockState (package:flutter/src/widgets/framework.dart:3020:15)
+#102    BuildOwner.finalizeTree (package:flutter/src/widgets/framework.dart:3344:7)
+#103    AutomatedTestWidgetsFlutterBinding.drawFrame (package:flutter_test/src/binding.dart:2453:19)
+#104    RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:509:5)
+#105    SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#106    SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#107    AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:2260:9)
+#110    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#111    AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:2249:27)
+#112    WidgetTester.pump.<anonymous closure> (package:flutter_test/src/widget_tester.dart:652:53)
+#115    TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#116    WidgetTester.pump (package:flutter_test/src/widget_tester.dart:652:27)
+#117    main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart:47:18)
+<asynchronous suspension>
+#118    testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#119    TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 5 frames from dart:async and package:stack_trace)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TypeWidgetFinder:<Found 0 widgets with type "AmbientCanvas": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart:49:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart line 49
+The test description was:
+  navigation disposes the ambient field outside Today
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following message was thrown:
+Multiple exceptions (2) were detected during the running of the current test, and at least one was
+unexpected.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+01:56 +574 -3: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today [E]
+  Test failed. See exception logs above.
+  The test description was: navigation disposes the ambient field outside Today
+  
+01:56 +574 -3: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: V2 privacy controls global accessibility rendering
+01:57 +575 -3: Some tests failed.
+
+Failing tests:
+  /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 four-page shell and intelligence stay usable at 360 x 800
+  /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+  /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: four destinations persist while intelligence opens above the shell
