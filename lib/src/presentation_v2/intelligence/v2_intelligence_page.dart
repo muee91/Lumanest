@@ -99,7 +99,6 @@ class _IntelligenceWorkspaceState
   InspirationNote? _selectedNote;
   AssistantIntent? _pendingIntent;
   String _pendingText = '';
-  String? _pendingFallback;
   String? _pendingSource;
   _PendingPhase? _pendingPhase;
   AssistantFailure? _lastFailure;
@@ -196,7 +195,7 @@ class _IntelligenceWorkspaceState
                     snapshot: widget.snapshot,
                     notes: visibleNotes,
                     selectedNote: _selectedNote,
-                    compact: inspirationHeight <= 128,
+                    compact: inspirationHeight <= 190,
                     saved: _selectedNote != null &&
                         _isSaved(library, _selectedNote!),
                     onSelect: _selectNote,
@@ -232,6 +231,7 @@ class _IntelligenceWorkspaceState
                     scrollController: _conversationScroll,
                     bottomSafe: bottomSafe,
                     onSubmit: _submitText,
+                    onInputChanged: () => setState(() {}),
                     onSuggestion: _ask,
                   ),
                 ),
@@ -357,7 +357,6 @@ class _IntelligenceWorkspaceState
       _ask(
         '请详细解读灵感「${note.label}」',
         note: note,
-        automatic: true,
       ),
     );
   }
@@ -413,7 +412,6 @@ class _IntelligenceWorkspaceState
   Future<void> _ask(
     String question, {
     InspirationNote? note,
-    bool automatic = false,
   }) async {
     final parsed = AssistantIntentParser.parse(question);
     if (parsed == null) return;
@@ -434,7 +432,6 @@ class _IntelligenceWorkspaceState
       _lastFailure = null;
       _pendingIntent = intent;
       _pendingText = canUseModel ? '' : fallback;
-      _pendingFallback = fallback;
       _pendingSource = canUseModel ? 'model' : 'template';
       _pendingPhase = canUseModel ? _PendingPhase.thinking : null;
     });
@@ -615,7 +612,6 @@ class _IntelligenceWorkspaceState
   void _clearPending() {
     _pendingIntent = null;
     _pendingText = '';
-    _pendingFallback = null;
     _pendingSource = null;
     _pendingPhase = null;
   }
@@ -941,6 +937,7 @@ class _AssistantStage extends StatelessWidget {
     required this.scrollController,
     required this.bottomSafe,
     required this.onSubmit,
+    required this.onInputChanged,
     required this.onSuggestion,
   });
 
@@ -957,6 +954,7 @@ class _AssistantStage extends StatelessWidget {
   final ScrollController scrollController;
   final double bottomSafe;
   final VoidCallback onSubmit;
+  final VoidCallback onInputChanged;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -1286,7 +1284,7 @@ class _AssistantStage extends StatelessWidget {
                 controller: inputController,
                 focusNode: inputFocus,
                 textInputAction: TextInputAction.send,
-                onChanged: (_) => (context as Element).markNeedsBuild(),
+                onChanged: (_) => onInputChanged(),
                 onSubmitted: (_) => onSubmit(),
                 minLines: 1,
                 maxLines: 3,
