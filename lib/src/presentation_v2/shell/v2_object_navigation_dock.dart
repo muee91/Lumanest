@@ -6,21 +6,23 @@ import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 
-/// A single moving selection object plus one isolated creation action.
+/// Four persistent destinations plus one isolated intelligent entrance.
 ///
-/// The hierarchy follows the live calLog reference: frequent destinations
-/// share one quiet material capsule, while the creation action remains a
-/// separate circular object. Labels stay in semantics instead of chrome.
+/// The isolated action is intentionally not a shell branch. It pushes the
+/// unified inspiration-and-assistant surface over whichever destination the
+/// user is currently using, so closing it restores the exact prior context.
 class V2ObjectNavigationDock extends StatefulWidget {
   const V2ObjectNavigationDock({
     super.key,
     required this.currentIndex,
     required this.onSelected,
+    required this.onIntelligence,
     required this.reduceMotion,
   });
 
   final int currentIndex;
   final ValueChanged<int> onSelected;
+  final VoidCallback onIntelligence;
   final bool reduceMotion;
 
   @override
@@ -48,40 +50,32 @@ class _V2ObjectNavigationDockState extends State<V2ObjectNavigationDock> {
       selectedIcon: CupertinoIcons.map_fill,
     ),
     _V2DockItem(
-      branchIndex: 4,
+      branchIndex: 3,
       label: '我的',
       icon: CupertinoIcons.person_crop_circle,
       selectedIcon: CupertinoIcons.person_crop_circle_fill,
     ),
   ];
 
-  static const _inspiration = _V2DockItem(
-    branchIndex: 3,
-    label: '灵感',
-    icon: CupertinoIcons.sparkles,
-    selectedIcon: CupertinoIcons.sparkles,
-  );
-
   late int _displayedSlot;
 
-  int? get _selectedSlot {
+  int get _selectedSlot {
     final slot = _primaryItems.indexWhere(
       (item) => item.branchIndex == widget.currentIndex,
     );
-    return slot < 0 ? null : slot;
+    return slot < 0 ? 0 : slot;
   }
 
   @override
   void initState() {
     super.initState();
-    _displayedSlot = _selectedSlot ?? 0;
+    _displayedSlot = _selectedSlot;
   }
 
   @override
   void didUpdateWidget(covariant V2ObjectNavigationDock oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final selectedSlot = _selectedSlot;
-    if (selectedSlot != null) _displayedSlot = selectedSlot;
+    _displayedSlot = _selectedSlot;
   }
 
   Duration get _moveDuration =>
@@ -99,13 +93,9 @@ class _V2ObjectNavigationDockState extends State<V2ObjectNavigationDock> {
         children: [
           Expanded(child: _buildPrimaryRail()),
           const SizedBox(width: 10),
-          _V2DockButton(
-            key: const Key('v2-inspiration-navigation-action'),
-            item: _inspiration,
-            selected: widget.currentIndex == _inspiration.branchIndex,
-            isolated: true,
+          _IntelligenceDockButton(
             reduceMotion: widget.reduceMotion,
-            onTap: () => widget.onSelected(_inspiration.branchIndex),
+            onTap: widget.onIntelligence,
           ),
         ],
       ),
@@ -143,15 +133,9 @@ class _V2ObjectNavigationDockState extends State<V2ObjectNavigationDock> {
                   top: 4,
                   width: slotWidth - 8,
                   bottom: 4,
-                  child: AnimatedOpacity(
-                    duration: widget.reduceMotion
-                        ? Duration.zero
-                        : LumaNestMotion.contentEnter,
-                    opacity: _selectedSlot == null ? 0 : 1,
-                    child: _V2MovingSelectionLens(
-                      slot: _displayedSlot,
-                      reduceMotion: widget.reduceMotion,
-                    ),
+                  child: _V2MovingSelectionLens(
+                    slot: _displayedSlot,
+                    reduceMotion: widget.reduceMotion,
                   ),
                 ),
                 Row(
@@ -267,19 +251,16 @@ class _V2MovingSelectionLensState extends State<_V2MovingSelectionLens>
 
 class _V2DockButton extends StatefulWidget {
   const _V2DockButton({
-    super.key,
     required this.item,
     required this.selected,
     required this.reduceMotion,
     required this.onTap,
-    this.isolated = false,
   });
 
   final _V2DockItem item;
   final bool selected;
   final bool reduceMotion;
   final VoidCallback onTap;
-  final bool isolated;
 
   @override
   State<_V2DockButton> createState() => _V2DockButtonState();
@@ -311,64 +292,99 @@ class _V2DockButtonState extends State<_V2DockButton> {
               ? LumaNestMotion.pressIn
               : LumaNestMotion.pressOut,
           scale: _pressed ? .88 : 1,
-          child: AnimatedContainer(
-            duration: widget.reduceMotion
-                ? Duration.zero
-                : LumaNestMotion.containerTransform,
-            curve: LumaNestMotion.emphasized,
-            width: widget.isolated ? 64 : null,
-            height: widget.isolated ? 64 : null,
-            decoration: widget.isolated
-                ? BoxDecoration(
-                    color: widget.selected
-                        ? V2Palette.moss
-                        : const Color(0xF7F4F4F1),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: .9),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: V2Palette.ink.withValues(alpha: .17),
-                        blurRadius: 24,
-                        offset: const Offset(0, 11),
-                      ),
-                    ],
-                  )
-                : null,
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: _duration,
-                switchInCurve: Curves.easeOutBack,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: ScaleTransition(
-                    scale: Tween<double>(begin: .7, end: 1).animate(animation),
-                    child: RotationTransition(
-                      turns: Tween<double>(
-                        begin: -.045,
-                        end: 0,
-                      ).animate(animation),
-                      child: child,
-                    ),
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: _duration,
+              switchInCurve: Curves.easeOutBack,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              ),
+              child: Icon(
+                widget.selected
+                    ? widget.item.selectedIcon
+                    : widget.item.icon,
+                key: ValueKey(widget.selected),
+                size: widget.selected ? 27 : 24,
+                color: widget.selected
+                    ? V2Palette.moss
+                    : V2Palette.mutedInk.withValues(alpha: .68),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _IntelligenceDockButton extends StatefulWidget {
+  const _IntelligenceDockButton({
+    required this.reduceMotion,
+    required this.onTap,
+  });
+
+  final bool reduceMotion;
+  final VoidCallback onTap;
+
+  @override
+  State<_IntelligenceDockButton> createState() =>
+      _IntelligenceDockButtonState();
+}
+
+class _IntelligenceDockButtonState extends State<_IntelligenceDockButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '栖光：问问题或抽取灵感',
+    child: ExcludeSemantics(
+      child: GestureDetector(
+        key: const Key('v2-intelligence-navigation-action'),
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          duration: widget.reduceMotion
+              ? Duration.zero
+              : _pressed
+              ? LumaNestMotion.pressIn
+              : LumaNestMotion.pressOut,
+          scale: _pressed ? .9 : 1,
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: V2Palette.moss,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: .9)),
+              boxShadow: [
+                BoxShadow(
+                  color: V2Palette.ink.withValues(alpha: .17),
+                  blurRadius: 24,
+                  offset: const Offset(0, 11),
+                ),
+              ],
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.sparkles, color: Colors.white, size: 24),
+                SizedBox(height: 1),
+                Text(
+                  '栖光',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .4,
                   ),
                 ),
-                child: Icon(
-                  widget.selected ? widget.item.selectedIcon : widget.item.icon,
-                  key: ValueKey(widget.selected),
-                  size: widget.isolated
-                      ? 27
-                      : widget.selected
-                      ? 27
-                      : 24,
-                  color: widget.isolated && widget.selected
-                      ? Colors.white
-                      : widget.selected
-                      ? V2Palette.moss
-                      : V2Palette.mutedInk.withValues(alpha: .68),
-                ),
-              ),
+              ],
             ),
           ),
         ),
