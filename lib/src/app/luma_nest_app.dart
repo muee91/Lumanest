@@ -19,6 +19,7 @@ import 'package:luma_nest/src/features/notifications/application/photography_wat
 import 'package:luma_nest/src/features/sky_opportunity/application/sky_opportunity_providers.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_ambient.dart';
+import 'package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_field_parameters.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_composer.dart';
@@ -99,6 +100,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   @override
   Widget build(BuildContext context) {
     final preferences = ref.watch(profilePreferencesProvider);
+    final intelligenceOverlayVisible = ref.watch(
+      intelligenceOverlayVisibleProvider,
+    );
     final consentGranted = ref.watch(environmentConsentProvider);
     final liveSnapshot = widget.initialContext == null && consentGranted
         ? ref.watch(environmentSnapshotProvider)
@@ -234,6 +238,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
             children: [
               const ColoredBox(color: Color(0xFFF5F5F1)),
               if (preferences.ambientBackgroundEnabled &&
+                  !intelligenceOverlayVisible &&
                   _routeLocation == '/today')
                 _TodayAmbientLayer(
                   debugLabel: previewOverride?.label,

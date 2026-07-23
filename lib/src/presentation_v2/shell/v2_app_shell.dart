@@ -28,31 +28,36 @@ class V2AppShell extends ConsumerWidget {
         // the lower map instead of resizing the whole page and camera surface.
         resizeToAvoidBottomInset: navigationShell.currentIndex != 1,
         body: navigationShell,
-        bottomNavigationBar: navigationShell.currentIndex == 3
-            ? null
-            : V2ObjectNavigationDock(
-                currentIndex: navigationShell.currentIndex,
-                reduceMotion:
-                    preferences.reduceMotion ||
-                    MediaQuery.disableAnimationsOf(context),
-                onSelected: (index) => _select(index, navigationShell),
-              ),
+        bottomNavigationBar: V2ObjectNavigationDock(
+          currentIndex: navigationShell.currentIndex,
+          reduceMotion:
+              preferences.reduceMotion ||
+              MediaQuery.disableAnimationsOf(context),
+          onSelected: (index) => _select(index, navigationShell),
+          onIntelligence: () => _openIntelligence(context),
+        ),
       ),
     );
   }
 
   static void _select(int index, StatefulNavigationShell navigationShell) {
-    final inspiration = index == 3;
     LumaNestFeedbackService.instance.play(
-      inspiration ? LumaNestSound.paper : LumaNestSound.changeCard,
+      LumaNestSound.changeCard,
       volume: .18,
-      haptic: inspiration
-          ? LumaNestHaptic.mediumImpact
-          : LumaNestHaptic.selection,
+      haptic: LumaNestHaptic.selection,
     );
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,
     );
+  }
+
+  static void _openIntelligence(BuildContext context) {
+    LumaNestFeedbackService.instance.play(
+      LumaNestSound.paper,
+      volume: .18,
+      haptic: LumaNestHaptic.mediumImpact,
+    );
+    context.push('/intelligence');
   }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/app/router.dart';
-import 'package:luma_nest/src/presentation_v2/inspiration/v2_inspiration_page.dart';
+import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
   });
 
   testWidgets(
-    'five destinations navigate while the dock yields on inspiration',
+    'four destinations persist while intelligence opens above the shell',
     (tester) async {
       await tester.pumpWidget(const LumaNestApp());
       await tester.pump();
@@ -49,17 +49,18 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       expect(find.text('先选一个要抵达的地方'), findsOneWidget);
 
-      await tester.tap(find.bySemanticsLabel('灵感'));
-      await tester.pump();
-      expect(find.byType(V2InspirationPage), findsOneWidget);
-      // Inspiration is an immersive surface: the dock steps away and the page
-      // owns its exit back to Today.
+      await tester.tap(
+        find.bySemanticsLabel('栖光：问问题或抽取灵感'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(V2IntelligencePage), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsNothing);
+      expect(find.bySemanticsLabel('关闭栖光'), findsOneWidget);
 
-      await tester.tap(find.bySemanticsLabel('关闭'));
-      await tester.pump();
-      await tester.pump();
-      expect(find.text('从此刻的位置开始'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('关闭栖光'));
+      await tester.pumpAndSettle();
+      expect(find.text('先选一个要抵达的地方'), findsOneWidget);
+      expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
 
       await tester.tap(find.bySemanticsLabel('我的'));
       await tester.pump();
