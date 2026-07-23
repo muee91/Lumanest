@@ -5,7 +5,7 @@ on:
     branches:
       - agent/unified-intelligence-surface
     paths:
-      - .github/agent-ambient-targeted.trigger
+      - .github/workflows/agent-ambient-targeted.yml
 
 permissions:
   contents: write
@@ -29,7 +29,6 @@ jobs:
           status=$?
           printf '\nTARGETED_EXIT=%s\n' "$status" >> .github/ambient-targeted.txt
           rm .github/workflows/agent-ambient-targeted.yml
-          rm .github/agent-ambient-targeted.trigger
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f .github/ambient-targeted.txt
