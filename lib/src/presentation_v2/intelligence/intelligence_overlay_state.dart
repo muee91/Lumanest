@@ -40,18 +40,23 @@ class IntelligenceOverlayLifecycle extends ConsumerStatefulWidget {
 
 class _IntelligenceOverlayLifecycleState
     extends ConsumerState<IntelligenceOverlayLifecycle> {
+  late final IntelligenceOverlayVisibilityController _visibilityController;
+
   @override
   void initState() {
     super.initState();
+    _visibilityController = ref.read(
+      intelligenceOverlayVisibleProvider.notifier,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(intelligenceOverlayVisibleProvider.notifier).show();
+      _visibilityController.show();
     });
   }
 
   @override
   void dispose() {
-    ref.read(intelligenceOverlayVisibleProvider.notifier).hide();
+    _visibilityController.hide();
     super.dispose();
   }
 
