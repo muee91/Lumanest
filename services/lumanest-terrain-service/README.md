@@ -8,6 +8,8 @@ accuracy and exposes data coverage with every profile.
 
 ## Environment
 
+Terrain service:
+
 ```text
 DEM_RASTER_PATH=/data/dem/current/copernicus-glo30.tif
 DEM_DATASET_REVISION=copernicus-glo30-2024-r1
@@ -17,9 +19,18 @@ DEM_RESOLUTION_METERS=30
 TERRAIN_SERVICE_TOKEN=<private-random-token>
 ```
 
+Data Broker:
+
+```text
+LUMANEST_TERRAIN_SERVICE_URL=http://lumanest-terrain-service:8793
+LUMANEST_TERRAIN_SERVICE_TOKEN=<same-private-random-token>
+LUMANEST_TERRAIN_DATASET_REVISION=copernicus-glo30-2024-r1
+```
+
 The DEM file is deployment data and must not be committed to Git. Promote a
 new dataset through a versioned directory or atomic symlink switch, then update
-the Broker's expected revision at the same time.
+the Terrain service and Broker revisions together. Keep port `8793` on the
+private container network.
 
 ## API
 
@@ -33,3 +44,9 @@ The horizon endpoint returns observer DEM elevation, per-direction terrain
 altitude, obstruction distance and elevation, per-direction coverage, and the
 overall profile coverage. Copernicus GLO-30 is a DSM; vegetation and structures
 may influence the result.
+
+The public Broker keeps its existing Contract V3 response unless the client
+explicitly requests `include=skyAssessment` with a UTC `at` timestamp. That
+request returns Contract V4 with the terrain horizon and a direction-aware
+assessment. The assessment does not include a Bortle conversion or success
+probability.
