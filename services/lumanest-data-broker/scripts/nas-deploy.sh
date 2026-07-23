@@ -9,6 +9,8 @@ PROJECT_NAME=${PROJECT_NAME:-qweather-token-broker}
 BROKER_DOCKERFILE=${BROKER_DOCKERFILE:-Dockerfile}
 CONTEXT_DOCKERFILE=${CONTEXT_DOCKERFILE:-Dockerfile}
 DISCOVERY_DOCKERFILE=${DISCOVERY_DOCKERFILE:-Dockerfile}
+RASTER_DOCKERFILE=${RASTER_DOCKERFILE:-Dockerfile}
+TERRAIN_DOCKERFILE=${TERRAIN_DOCKERFILE:-Dockerfile}
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine}
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
@@ -128,7 +130,7 @@ backup_application_images() {
   broker_backed_up=0
   : > "$images_tmp"
 
-  for service in qweather-token-broker context-service discovery-api discovery-worker; do
+  for service in qweather-token-broker context-service discovery-api discovery-worker lumanest-raster-service lumanest-terrain-service; do
     if ! printf '%s\n' "$services" | grep -qx "$service"; then
       continue
     fi
@@ -331,6 +333,27 @@ verify_release_discovery_worker() {
   done
 }
 
+verify_release_service_health() {
+  service=$1
+  attempt=1
+  while :; do
+    container_id=$(compose_release ps -q "$service" 2>/dev/null || true)
+    health_status=
+    if [ -n "$container_id" ]; then
+      health_status=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id" 2>/dev/null || true)
+    fi
+    if [ "$health_status" = "healthy" ]; then
+      return 0
+    fi
+    if [ "$attempt" -ge "$HEALTHCHECK_ATTEMPTS" ]; then
+      echo "$service health check timed out (last status: ${health_status:-missing})." >&2
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$HEALTHCHECK_INTERVAL_SECONDS"
+  done
+}
+
 restore_old_stack() {
   restore_backup_images || return 1
   compose_previous up -d --no-build --remove-orphans
@@ -397,7 +420,15 @@ if ! valid_identifier "$DISCOVERY_DOCKERFILE"; then
   echo "Unsafe Discovery Dockerfile name: $DISCOVERY_DOCKERFILE" >&2
   exit 1
 fi
-export BROKER_DOCKERFILE CONTEXT_DOCKERFILE DISCOVERY_DOCKERFILE
+if ! valid_identifier "$RASTER_DOCKERFILE"; then
+  echo "Unsafe Raster Dockerfile name: $RASTER_DOCKERFILE" >&2
+  exit 1
+fi
+if ! valid_identifier "$TERRAIN_DOCKERFILE"; then
+  echo "Unsafe Terrain Dockerfile name: $TERRAIN_DOCKERFILE" >&2
+  exit 1
+fi
+export BROKER_DOCKERFILE CONTEXT_DOCKERFILE DISCOVERY_DOCKERFILE RASTER_DOCKERFILE TERRAIN_DOCKERFILE
 case "$HEALTHCHECK_ATTEMPTS" in
   ''|0|*[!0-9]*) echo "HEALTHCHECK_ATTEMPTS must be a positive integer." >&2; exit 1 ;;
 esac
@@ -440,6 +471,8 @@ BACKUP_DIR=$LUMANEST_ROOT/backups/$TIMESTAMP
 require_file "$COMPOSE_FILE"
 require_file "$RELEASE_DIR/$BROKER_DOCKERFILE"
 require_file "$RELEASE_DIR/../lumanest-context-service/$CONTEXT_DOCKERFILE"
+require_file "$RELEASE_DIR/../lumanest-raster-service/$RASTER_DOCKERFILE"
+require_file "$RELEASE_DIR/../lumanest-terrain-service/$TERRAIN_DOCKERFILE"
 # Older release fixtures have no Discovery service. A real release with the
 # Discovery compose stanza is still validated by `compose config` below before
 # the previous stack is stopped.
@@ -531,6 +564,8 @@ compose_release exec -T context-service python -c \
 compose_release exec -T discovery-api python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/readyz', timeout=3)" >/dev/null
 verify_release_discovery_worker
+verify_release_service_health lumanest-raster-service
+verify_release_service_health lumanest-terrain-service
 
 # last-backup is written first; current-release is the final commit marker.
 atomic_write "$LUMANEST_ROOT/last-backup" "$BACKUP_DIR"

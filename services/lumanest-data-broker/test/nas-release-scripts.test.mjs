@@ -198,14 +198,22 @@ test('deployment validates selected Dockerfiles before stopping the previous sta
   const brokerRequirement = 'require_file "$RELEASE_DIR/$BROKER_DOCKERFILE"';
   const contextRequirement =
     'require_file "$RELEASE_DIR/../lumanest-context-service/$CONTEXT_DOCKERFILE"';
+  const rasterRequirement =
+    'require_file "$RELEASE_DIR/../lumanest-raster-service/$RASTER_DOCKERFILE"';
+  const terrainRequirement =
+    'require_file "$RELEASE_DIR/../lumanest-terrain-service/$TERRAIN_DOCKERFILE"';
   const stopPrevious = 'compose_previous stop';
 
   assert.match(source, /valid_identifier "\$BROKER_DOCKERFILE"/);
   assert.match(source, /valid_identifier "\$CONTEXT_DOCKERFILE"/);
   assert.ok(source.indexOf(brokerRequirement) >= 0);
   assert.ok(source.indexOf(contextRequirement) >= 0);
+  assert.ok(source.indexOf(rasterRequirement) >= 0);
+  assert.ok(source.indexOf(terrainRequirement) >= 0);
   assert.ok(source.indexOf(brokerRequirement) < source.indexOf(stopPrevious));
   assert.ok(source.indexOf(contextRequirement) < source.indexOf(stopPrevious));
+  assert.ok(source.indexOf(rasterRequirement) < source.indexOf(stopPrevious));
+  assert.ok(source.indexOf(terrainRequirement) < source.indexOf(stopPrevious));
 });
 
 async function deploymentFixture() {
@@ -213,6 +221,8 @@ async function deploymentFixture() {
   const previousRelease = join(root, 'releases', 'old', 'qweather-token-broker');
   const releaseDir = join(root, 'releases', 'new', 'qweather-token-broker');
   const contextDir = join(root, 'releases', 'new', 'lumanest-context-service');
+  const rasterDir = join(root, 'releases', 'new', 'lumanest-raster-service');
+  const terrainDir = join(root, 'releases', 'new', 'lumanest-terrain-service');
   const deployScript = join(releaseDir, 'scripts', 'nas-deploy.sh');
   const binDir = join(root, 'test-bin');
   const volumeSource = join(root, 'volume-source');
@@ -223,6 +233,8 @@ async function deploymentFixture() {
     mkdir(join(previousRelease), { recursive: true }),
     mkdir(join(releaseDir, 'scripts'), { recursive: true }),
     mkdir(contextDir, { recursive: true }),
+    mkdir(rasterDir, { recursive: true }),
+    mkdir(terrainDir, { recursive: true }),
     mkdir(binDir, { recursive: true }),
     mkdir(volumeSource, { recursive: true }),
   ]);
@@ -232,6 +244,8 @@ async function deploymentFixture() {
     writeFile(join(releaseDir, 'compose.yaml'), 'services: {}\n'),
     writeFile(join(releaseDir, 'Dockerfile'), 'FROM scratch\n'),
     writeFile(join(contextDir, 'Dockerfile'), 'FROM scratch\n'),
+    writeFile(join(rasterDir, 'Dockerfile'), 'FROM scratch\n'),
+    writeFile(join(terrainDir, 'Dockerfile'), 'FROM scratch\n'),
     writeFile(join(root, 'current-release'), `${previousRelease}\n`),
     writeFile(join(volumeSource, 'data.txt'), 'pre-migration\n'),
     writeFile(logFile, ''),

@@ -1449,10 +1449,22 @@ test('environment configuration has no single-provider AI fields', async () => {
       QWEATHER_PRIVATE_KEY_PATH: privateKeyPath,
       QWEATHER_KEY_ID: 'key-id', QWEATHER_PROJECT_ID: 'project-id',
       LUMANEST_SERVICE_TOKEN: 'service-token', AMAP_WEB_KEY: 'amap-key',
+      LUMANEST_RASTER_SERVICE_URL: 'http://lumanest-raster-service:8792',
+      LUMANEST_RASTER_SERVICE_TOKEN: 'raster-token',
+      LUMANEST_RASTER_DATASET_REVISION: 'eog-v2.2-2024-median-masked-r1',
+      LUMANEST_TERRAIN_SERVICE_URL: 'http://lumanest-terrain-service:8793',
+      LUMANEST_TERRAIN_SERVICE_TOKEN: 'terrain-token',
+      LUMANEST_TERRAIN_DATASET_REVISION: 'copernicus-glo30-2024-r1',
     });
     assert.equal(Object.hasOwn(configuration, 'aiApiKey'), false);
     assert.equal(Object.hasOwn(configuration, 'aiBaseUrl'), false);
     assert.equal(Object.hasOwn(configuration, 'aiModel'), false);
+    assert.equal(configuration.rasterServiceUrl, 'http://lumanest-raster-service:8792');
+    assert.equal(configuration.rasterServiceToken, 'raster-token');
+    assert.equal(configuration.rasterDatasetRevision, 'eog-v2.2-2024-median-masked-r1');
+    assert.equal(configuration.terrainServiceUrl, 'http://lumanest-terrain-service:8793');
+    assert.equal(configuration.terrainServiceToken, 'terrain-token');
+    assert.equal(configuration.terrainHorizonDatasetRevision, 'copernicus-glo30-2024-r1');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
