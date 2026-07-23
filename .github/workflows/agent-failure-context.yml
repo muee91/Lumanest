@@ -27,6 +27,7 @@ jobs:
           set +e
           flutter test --reporter expanded > /tmp/full-test.txt 2>&1
           status=$?
+          printf '%s' "$status" > /tmp/status
           python3 - <<'PY'
           from pathlib import Path
           lines = Path('/tmp/full-test.txt').read_text(errors='replace').splitlines()
@@ -49,5 +50,3 @@ jobs:
           git add -u
           git commit -m "chore: capture full test failure contexts"
           git push origin HEAD:agent/unified-intelligence-surface
-        env:
-          PLACEHOLDER: diagnostics
