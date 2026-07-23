@@ -1,0 +1,85 @@
+name: Agent machine test diagnostics
+
+on:
+  push:
+    branches:
+      - agent/unified-intelligence-surface
+    paths:
+      - .github/agent-machine-test-diagnostics.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-intelligence-surface
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Capture failed test identities
+        run: |
+          set +e
+          flutter test --machine > /tmp/tests.jsonl 2>/tmp/tests.stderr
+          status=$?
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          tests = {}
+          groups = {}
+          errors = {}
+          failed = []
+          for raw in Path('/tmp/tests.jsonl').read_text(errors='replace').splitlines():
+              try:
+                  event = json.loads(raw)
+              except Exception:
+                  continue
+              kind = event.get('type')
+              if kind == 'group':
+                  groups[event['group']['id']] = event['group']
+              elif kind == 'testStart':
+                  test = event['test']
+                  tests[test['id']] = test
+              elif kind == 'error':
+                  errors.setdefault(event.get('testID'), []).append({
+                      'error': event.get('error', ''),
+                      'stackTrace': event.get('stackTrace', ''),
+                  })
+              elif kind == 'testDone' and event.get('result') not in ('success', 'skipped'):
+                  failed.append(event)
+
+          lines = [f'MACHINE_TEST_EXIT={Path("/tmp/status").read_text().strip()}']
+          for event in failed:
+              tid = event.get('testID')
+              test = tests.get(tid, {})
+              group = groups.get(test.get('groupIDs', [None])[-1], {}) if test.get('groupIDs') else {}
+              lines.append('--- FAILURE ---')
+              lines.append(f"testID={tid}")
+              lines.append(f"name={test.get('name', '')}")
+              lines.append(f"url={test.get('url', group.get('url', ''))}")
+              lines.append(f"result={event.get('result')}")
+              for detail in errors.get(tid, []):
+                  lines.append('error=' + detail['error'].replace('\n', '\\n'))
+                  lines.append('stack=' + detail['stackTrace'].replace('\n', '\\n'))
+          if not failed:
+              lines.append('NO_FAILED_TEST_EVENTS')
+          Path('.github/intelligence-machine-test.txt').write_text('\n'.join(lines) + '\n')
+          PY
+          rm .github/workflows/agent-machine-test-diagnostics.yml
+          rm .github/agent-machine-test-diagnostics.trigger
+          rm -f .github/intelligence-test.txt .github/intelligence-full-test.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .github/intelligence-machine-test.txt
+          git add -u
+          git commit -m "chore: capture failed test identities"
+          git push origin HEAD:agent/unified-intelligence-surface
+        env:
+          # Written separately so the parser always receives the process status.
+          STATUS_FILE: /tmp/status
