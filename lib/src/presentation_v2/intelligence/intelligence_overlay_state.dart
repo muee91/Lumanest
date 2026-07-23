@@ -56,7 +56,14 @@ class _IntelligenceOverlayLifecycleState
 
   @override
   void dispose() {
-    _visibilityController.hide();
+    final controller = _visibilityController;
+    Future<void>(() {
+      try {
+        controller.hide();
+      } on StateError {
+        // The whole ProviderScope may already be gone during app teardown.
+      }
+    });
     super.dispose();
   }
 
