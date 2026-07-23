@@ -27,6 +27,7 @@ jobs:
           set +e
           flutter test --machine > /tmp/tests.jsonl 2>/tmp/tests.stderr
           status=$?
+          printf '%s' "$status" > /tmp/status
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -58,7 +59,8 @@ jobs:
           for event in failed:
               tid = event.get('testID')
               test = tests.get(tid, {})
-              group = groups.get(test.get('groupIDs', [None])[-1], {}) if test.get('groupIDs') else {}
+              group_ids = test.get('groupIDs') or []
+              group = groups.get(group_ids[-1], {}) if group_ids else {}
               lines.append('--- FAILURE ---')
               lines.append(f"testID={tid}")
               lines.append(f"name={test.get('name', '')}")
@@ -80,6 +82,3 @@ jobs:
           git add -u
           git commit -m "chore: capture failed test identities"
           git push origin HEAD:agent/unified-intelligence-surface
-        env:
-          # Written separately so the parser always receives the process status.
-          STATUS_FILE: /tmp/status
