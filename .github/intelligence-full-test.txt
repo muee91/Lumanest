@@ -1,0 +1,335 @@
+FULL_TEST_EXIT=1
+--- FAILURE MARKERS ---
+43:══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+248:══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+249:The following TestFailure was thrown running a test:
+250:Expected: exactly one matching candidate
+251:  Actual: _ElementPredicateWidgetFinder:<Found 0 widgets with a semantics label named "灵感": []>
+333:══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+361:══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+389:══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+390:The following TestFailure was thrown running a test:
+391:Expected: exactly one matching candidate
+392:  Actual: _ElementPredicateWidgetFinder:<Found 0 widgets with a semantics label named "灵感": []>
+959:02:08 +573 -5: Some tests failed.
+--- LOG TAIL ---
+01:14 +339 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_personalization_test.dart: personalized primary keeps summary and inspiration preview coherent
+01:14 +340 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_personalization_test.dart: astro and unknown events neither reorder nor invent creative events
+01:14 +341 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_personalization_test.dart: personalization never changes safety items or their metadata
+01:14 +342 -5: loading /home/runner/work/Lumanest/Lumanest/test/core/manifest/creative_personalization_test.dart
+01:15 +342 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/creative_personalization_test.dart: fingerprint is stable for set order and clamps intensity
+01:15 +343 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/creative_personalization_test.dart: every approved preference maps only to its explicit creative IDs
+01:15 +344 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/creative_personalization_test.dart: fingerprint changes for each personalization input
+01:15 +345 -5: loading /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart
+01:16 +345 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: quiet city emits no dynamic opportunity placeholders
+01:16 +346 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: lake sunset prioritizes the water session
+01:16 +347 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: mountain dawn emits the Core session only when present
+01:16 +348 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: safety events are separate from creative cards (structured event)
+01:16 +349 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: wildlife opportunities and risks enter separate channels (structured)
+01:16 +350 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: manifest carries metadata and drops expired structured events
+01:16 +351 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: current catalog fallback works without a server manifest
+01:16 +352 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest server layout and creative order follow manifest
+01:16 +353 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest server safety layout maps to operation
+01:16 +354 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest unhealthy AQI uses the weather action and stays in safety
+01:16 +355 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest missing structured safety in server list still shows
+01:16 +356 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest unknown official safety event gets generic title
+01:16 +357 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest reviewed astronomy event keeps catalog title and authority URL
+01:16 +358 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest unknown non-official safety event gets generic title
+01:16 +359 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest event openRoute action is preserved for hiking-return-check
+01:16 +360 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest expired server event is not shown
+01:16 +361 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest bare bear-risk without structured event does not show
+01:16 +362 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest structured unexpired wildlifeSafety bear-risk shows
+01:16 +363 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest server creative without current event is dropped
+01:16 +364 -5: /home/runner/work/Lumanest/Lumanest/test/core/manifest/manifest_policy_test.dart: server manifest server quiet layout with no events
+01:16 +365 -5: loading /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart
+01:23 +365 -5: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart: missing DSN starts the app without initializing monitoring
+01:23 +366 -5: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart: Sentry options disable user and visual context collection
+01:23 +367 -5: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart: monitoring initialization failure still starts the app once
+01:23 +368 -5: loading /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart
+01:24 +368 -5: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart: emits only approved scalar fields as an immutable UTC record
+01:24 +369 -5: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart: invalid event and values cannot reach the sink
+01:24 +370 -5: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart: disabled logger emits no records
+01:24 +371 -5: loading /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart
+01:25 +371 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme light theme exposes readable color scheme
+01:25 +372 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme dark theme exposes readable color scheme
+01:25 +373 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme light and dark themes produce different color schemes
+01:25 +374 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme maps the LumaNest accent tokens to secondary colors
+01:25 +375 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme applies the shared daylight component language
+01:25 +376 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme keeps page titles and body copy on the system sans-serif face
+01:25 +377 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme uses the three-tier radii tokens
+01:25 +378 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme high contrast themes increase primary contrast
+01:25 +379 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme WCAG contrast light primary/onPrimary contrast ≥ 4.5:1
+01:25 +380 -5: /home/runner/work/Lumanest/Lumanest/test/design/luma_nest_theme_test.dart: LumaNestTheme WCAG contrast dark primary/onPrimary contrast ≥ 4.5:1
+01:25 +381 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_store_test.dart
+01:25 +381 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_store_test.dart: drift store round-trips the current library schema
+01:25 +382 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_store_test.dart: a write replaces removed current-schema values
+01:25 +383 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart
+01:26 +383 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: saved authority notes reject non-HTTPS action targets
+01:26 +384 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: restores, toggles and persists saved places
+01:26 +385 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: persists only the latest route destination
+01:26 +386 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: explicitly saves and removes a bounded local route
+01:26 +387 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: records an explicit journey lifecycle and rejects overlap
+01:26 +388 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: cold-start restorer activates an unfinished walking journey
+01:26 +389 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: persists and deletes an imported GPX track
+01:26 +390 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: keeps an imported track while its journey is active
+01:26 +391 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: clears only the selected local library category
+01:26 +392 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: saves and removes a local inspiration note without source context
+01:26 +393 -5: /home/runner/work/Lumanest/Lumanest/test/features/library/user_library_controller_test.dart: keeps explicit photography feedback and packs local and clearable
+01:26 +394 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_candidate_ranker_test.dart
+01:27 +394 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_candidate_ranker_test.dart: AI evidence boosts but cannot outweigh a much shorter real drive
+01:27 +395 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_candidate_ranker_test.dart: source candidate merges into the matching AMap POI by name
+01:27 +396 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_candidate_ranker_test.dart: shortlist keeps keyword diversity before filling by distance
+01:27 +397 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_cache_test.dart
+01:27 +397 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_cache_test.dart: restores only a nearby matching category and radius
+01:27 +398 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_cache_test.dart: rejects far-away and expired nearby results
+01:27 +399 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_cache_test.dart: uses cache for response failure but not configuration failure
+01:27 +400 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_cache_test.dart: clear removes cached nearby coordinates
+01:27 +401 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_composition_engine_test.dart
+01:28 +401 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_composition_engine_test.dart: an active warning never blocks Explore
+01:28 +402 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_composition_engine_test.dart: without facts Explore falls back to map rather than a placeholder
+01:28 +403 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/region_discovery_highlight_test.dart
+01:29 +403 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/region_discovery_highlight_test.dart: selects a verified actionable regional finding
+01:29 +404 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/region_discovery_highlight_test.dart: hides candidate, conflicting, expired and identity-only findings
+01:29 +405 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/verified_place_media_repository_test.dart
+01:29 +405 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/verified_place_media_repository_test.dart: loads only broker-verified detail media after a place is selected
+01:29 +406 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/verified_place_media_repository_test.dart: returns no media when the resolver cannot prove a match
+01:29 +407 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/verified_place_media_repository_test.dart: rejects a direct third-party image URL from the response
+01:29 +408 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart
+01:30 +408 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: queries the NAS broker and parses GCJ-02 places
+01:30 +409 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: drops malformed POIs instead of inventing coordinates
+01:30 +410 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: sunrise candidate search merges configured POI queries and deduplicates
+01:32 +411 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: waterfront search covers multiple kinds of usable waterside POI
+01:33 +412 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: does not convert an already GCJ-02 route sample a second time
+01:33 +413 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: candidate search drops explicitly closed or non-public places
+01:35 +414 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_nearby_place_repository_test.dart: recomputes distance, sorts nearby first and drops outliers
+01:35 +415 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/resilient_wildlife_map_layer_repository_test.dart
+01:36 +415 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/resilient_wildlife_map_layer_repository_test.dart: writes live results including an empty reviewed layer
+01:36 +416 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/resilient_wildlife_map_layer_repository_test.dart: uses cache for network failure but not missing configuration
+01:36 +417 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/resilient_wildlife_map_layer_repository_test.dart: privacy invalidation blocks a late network result from writing
+01:36 +418 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_layer_cache_test.dart
+01:36 +418 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_layer_cache_test.dart: round-trips a bounded layer and marks it as offline cache
+01:36 +419 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_layer_cache_test.dart: does not return expired, far-away or radius-mismatched layers
+01:37 +420 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_layer_cache_test.dart: online empty result replaces old areas and clear removes all rows
+01:37 +421 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_layer_cache_test.dart: keeps only the eight most recently written locations
+01:37 +422 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_overlays_test.dart
+01:37 +422 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_overlays_test.dart: converts WGS84 rings only for AMap rendering and keeps a stable id
+01:37 +423 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/wildlife_map_overlays_test.dart: does not reserve overlays when no reviewed layer is available
+01:37 +424 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/data_broker_wildlife_map_layer_repository_test.dart
+01:38 +424 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/data_broker_wildlife_map_layer_repository_test.dart: parses reviewed polygon areas without changing WGS84 coordinates
+01:38 +425 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/data_broker_wildlife_map_layer_repository_test.dart: rejects points, unknown fields and GCJ-02 query centers
+01:38 +426 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_providers_test.dart
+01:39 +426 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_providers_test.dart: optional discovery evidence failure keeps real POI flow available
+01:39 +427 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_place_providers_test.dart: POI failure leaves the discovery lane available
+01:39 +428 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart
+01:39 +428 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: missing amap key returns configuration-missing state
+01:39 +429 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: configured key without consent returns awaiting-consent state
+01:39 +430 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: granting consent updates privacy agreement and enters ready
+01:39 +431 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: privacy statement has all three flags set to true on consent
+01:39 +432 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: granting consent when already ready is idempotent
+01:39 +433 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: revoking consent gates the map and persists the choice
+01:39 +434 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: restores consent and updates SDK before entering ready
+01:39 +435 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: session revoke wins over an in-flight restore
+01:39 +436 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: revoke persistence follows an in-flight grant persistence
+01:39 +437 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: amap api key from environment config is used for init
+01:39 +438 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: init is called after privacy agree when flow is triggered correctly
+01:39 +439 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: grantConsent when config is missing does not enter ready
+01:39 +440 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/map_consent_controller_test.dart: ensureInitialized when not in ready state throws
+01:39 +441 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/drift_region_brief_cache_test.dart
+01:40 +441 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/drift_region_brief_cache_test.dart: round-trips only a current Region Brief for the same coarse grid
+01:40 +442 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/drift_region_brief_cache_test.dart: does not restore an expired Region Brief
+01:40 +443 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/region_brief_providers_test.dart
+01:41 +443 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/region_brief_providers_test.dart: automatic region brief load starts after notifier initialization
+01:41 +444 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/data_broker_popular_place_repository_test.dart
+01:42 +444 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/data_broker_popular_place_repository_test.dart: uses the discovery API and retains only source-linked coordinates
+01:42 +445 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/data_broker_popular_place_repository_test.dart: pending or malformed discovery data collapses without blocking POI
+01:42 +446 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_discovery_engine_test.dart
+01:42 +446 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_discovery_engine_test.dart: passive discovery is capped at three entries
+01:42 +447 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_discovery_engine_test.dart: supported POI evidence does not imply a reviewed shooting target
+01:42 +448 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart
+01:43 +448 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: entry focus selects its category and remains explicitly temporary
+01:43 +449 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: sunrise entry activates the dedicated multi-candidate layer
+01:43 +450 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: manual completion keeps the chosen category and clears intent
+01:43 +451 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: timeout restores the photography layer only when an intent is active
+01:43 +452 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: scene defaults select lake and humanity layers deterministically
+01:43 +453 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: manual category is not overwritten by later scene updates
+01:43 +454 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: temporary intent expires back to the latest scene layer
+01:43 +455 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/explore_intent_controller_test.dart: creative intent resolves to its existing nearby category
+01:43 +456 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_marker_icon_factory_test.dart
+01:43 +456 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/amap_marker_icon_factory_test.dart: builds category-specific PNG marker icons and selected states
+01:44 +457 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_search_area_test.dart
+01:45 +457 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_search_area_test.dart: map movement remains pending until the user searches that area
+01:45 +458 -5: /home/runner/work/Lumanest/Lumanest/test/features/explore/nearby_search_area_test.dart: base-location sync preserves the driving candidate radius
+01:45 +459 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/location/amap_location_search_repository_test.dart
+01:45 +459 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/amap_location_search_repository_test.dart: searches the NAS broker and keeps returned AMap coordinates as GCJ-02
+01:45 +460 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/amap_location_search_repository_test.dart: merges nearby and global matches with distance tiers
+01:45 +461 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/amap_location_search_repository_test.dart: keeps global search usable when nearby lookup fails
+01:45 +462 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/location/manual_location_store_test.dart
+01:46 +462 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/manual_location_store_test.dart: manual location survives a new store instance and clears locally
+01:46 +463 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/location/location_search_cache_test.dart
+01:46 +463 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/location_search_cache_test.dart: round-trips a normalized query as explicit offline data
+01:46 +464 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/location_search_cache_test.dart: rejects a different or expired search query
+01:46 +465 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/location_search_cache_test.dart: isolates location-aware results by center and keeps distance
+01:46 +466 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/location_search_cache_test.dart: uses cache for network failure but not configuration failure
+01:46 +467 -5: /home/runner/work/Lumanest/Lumanest/test/features/location/location_search_cache_test.dart: clear removes cached search text and coordinates
+01:46 +468 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/notifications/route_reminder_service_test.dart
+01:47 +468 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/route_reminder_service_test.dart: does not schedule an already passed return time
+01:47 +469 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/route_reminder_service_test.dart: enables only after permission and persists the choice
+01:47 +470 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/route_reminder_service_test.dart: denied permission leaves reminders disabled
+01:47 +471 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/route_reminder_service_test.dart: revoked system permission clears a previously enabled choice
+01:47 +472 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/route_reminder_service_test.dart: disabling cancels every pending return reminder
+01:47 +473 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/notifications/photography_watch_notification_service_test.dart
+01:48 +473 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/photography_watch_notification_service_test.dart: notification payload targets only its stable session ID
+01:48 +474 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/photography_watch_notification_service_test.dart: schedules an explicit watch fifteen minutes before session start
+01:48 +475 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/photography_watch_notification_service_test.dart: uses one immediate notification for a current session
+01:48 +476 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/photography_watch_notification_service_test.dart: stale or missing sessions cancel their prior notification
+01:48 +477 -5: /home/runner/work/Lumanest/Lumanest/test/features/notifications/photography_watch_notification_service_test.dart: permission-denied preference cannot be enabled
+01:48 +478 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart
+01:49 +478 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart: samples a bounded corridor and deduplicates repeated POIs
+01:49 +479 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart: walking corridors request food and supplies but never fuel
+01:49 +480 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart: keeps successful corridor data when one category fails
+01:49 +481 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart: fails only when every corridor request fails
+01:49 +482 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart: restores matching cached support when every live request fails
+01:49 +483 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_corridor_scanner_test.dart: derives sample progress from geometry rather than point index
+01:49 +484 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_elevation_repository_test.dart
+01:49 +484 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_elevation_repository_test.dart: requests a bounded broker profile and parses numeric elevations
+01:49 +485 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_elevation_repository_test.dart: rejects missing or mismatched elevation values
+01:49 +486 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/elevation_aware_route_repository_test.dart
+01:50 +486 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/elevation_aware_route_repository_test.dart: enriches and persists a live walking route
+01:50 +487 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/elevation_aware_route_repository_test.dart: elevation failure keeps the base walking route usable
+01:50 +488 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart
+01:51 +488 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart: round-trips matching route support as explicitly cached data
+01:51 +489 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart: rejects a different route and expired support data
+01:51 +490 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart: clear removes cached support coordinates
+01:51 +491 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_route_weather_repository_test.dart
+01:51 +491 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_route_weather_repository_test.dart: posts bounded WGS84 route samples and parses a forecast report
+01:51 +492 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_route_weather_repository_test.dart: rejects a mismatched route id or malformed coverage
+01:51 +493 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart
+01:52 +493 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: orders departure, overlapping shooting windows and arrival
+01:52 +494 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: keeps departure and arrival when solar data is unavailable
+01:52 +495 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: turns a reviewed-target session into an arrival action
+01:52 +496 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: marks a session missed when arrival is after its end
+01:52 +497 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: does not project targetless sessions or stale snapshots
+01:52 +498 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: merges support, route risk, elevation and hiking return nodes
+01:52 +499 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_timeline_test.dart: limits support nodes while preserving route-wide coverage
+01:52 +500 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/amap_driving_route_repository_test.dart
+01:53 +500 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/amap_driving_route_repository_test.dart: plans through the NAS broker and parses route details
+01:53 +501 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/amap_driving_route_repository_test.dart: walking mode uses the walking broker endpoint
+01:53 +502 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/amap_navigation_handoff_test.dart
+01:53 +502 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/amap_navigation_handoff_test.dart: builds a GCJ-02 AMap handoff URI from canonical WGS84 destination
+01:53 +503 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/amap_navigation_handoff_test.dart: keeps an existing GCJ-02 point and encodes walking mode
+01:53 +504 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/resilient_driving_route_repository_test.dart
+01:54 +504 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/resilient_driving_route_repository_test.dart: writes a successful live route to cache
+01:54 +505 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/resilient_driving_route_repository_test.dart: returns matching stale cache when live planning fails
+01:54 +506 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/route_map_preview_test.dart
+01:55 +506 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_map_preview_test.dart: requires the shared AMap consent before building route map
+01:55 +507 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_map_preview_test.dart: route points missing uses a stable text fallback
+01:55 +508 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_map_preview_test.dart: route markers avoid asset-backed icons on Android
+initState AMapWidget
+deactivate AMapWidget
+01:55 +509 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_map_preview_test.dart: explains map creation and a slow platform view
+initState AMapWidget
+deactivate AMapWidget
+01:55 +510 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_map_preview_test.dart: renders imported GPX segments as separate polylines
+initState AMapWidget
+deactivate AMapWidget
+01:56 +511 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/route_elevation_service_test.dart
+01:56 +511 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_elevation_service_test.dart: converts sampled GCJ route points and calculates gain and loss
+01:56 +512 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_elevation_service_test.dart: bounds long route profiles to 64 samples including endpoints
+01:56 +513 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/route_elevation_service_test.dart: does not request elevation for driving routes
+01:56 +514 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/gpx_track_parser_test.dart
+01:57 +514 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/gpx_track_parser_test.dart: parses a namespaced GPX track with recorded time and elevation
+01:57 +515 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/gpx_track_parser_test.dart: falls back to the filename and estimates duration without timestamps
+01:57 +516 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/gpx_track_parser_test.dart: preserves GPX segment breaks without inventing distance between them
+01:57 +517 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/gpx_track_parser_test.dart: rejects declarations that can expand external entities
+01:57 +518 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/gpx_track_parser_test.dart: enforces file size and point count limits before persistence
+01:57 +519 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/hiking_return_assessment_test.dart
+01:58 +519 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/hiking_return_assessment_test.dart: warns when an immediate out-and-back estimate crosses sunset
+01:58 +520 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/hiking_return_assessment_test.dart: does not claim a daylight result without sunset data
+01:58 +521 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/hiking_return_assessment_test.dart: does not create a hiking assessment for driving routes
+01:58 +522 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/route/driving_route_cache_test.dart
+01:58 +522 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/driving_route_cache_test.dart: round-trips a matching route as an explicitly stale result
+01:58 +523 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/driving_route_cache_test.dart: rejects a different origin, destination or expired route
+01:58 +524 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/driving_route_cache_test.dart: round-trips walking elevation metadata
+01:58 +525 -5: /home/runner/work/Lumanest/Lumanest/test/features/route/driving_route_cache_test.dart: clear removes the persisted route including its polyline
+01:58 +526 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/shooting_window/shooting_window_timeline_test.dart
+01:59 +526 -5: /home/runner/work/Lumanest/Lumanest/test/features/shooting_window/shooting_window_timeline_test.dart: builds ordered dawn, sunset and blue-hour reference windows
+01:59 +527 -5: /home/runner/work/Lumanest/Lumanest/test/features/shooting_window/shooting_window_timeline_test.dart: returns no fabricated windows when solar events are unavailable
+01:59 +528 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart
+02:00 +528 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: current shooting sessions become factual inspiration notes
+02:00 +529 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: generic shooting sessions degrade to a safe local paper
+02:00 +530 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: validated narrative can refine wording but cannot create facts
+02:00 +531 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: safety and wildlife events never enter the inspiration bottle
+02:00 +532 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: generated creative catalog keeps inventory at target size 36
+02:00 +533 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: equipment-matched generated prompts rank ahead of unmet prompts
+02:00 +534 -5: /home/runner/work/Lumanest/Lumanest/test/features/inspiration/inspiration_note_test.dart: eligible structured sky result creates one factual routeable paper note
+02:00 +535 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_ambient_test.dart
+02:00 +535 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_ambient_test.dart: creative warmth is bounded to 25 percent and preserves weather motion
+02:00 +536 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_ambient_test.dart: safety state completely suppresses the creative color contribution
+02:00 +537 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_ambient_test.dart: missing enhancement leaves the authoritative weather field untouched
+02:00 +538 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_presentation_test.dart
+02:01 +538 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_presentation_test.dart: eligible result becomes the Today object without a second fixed slot
+2026-07-23T20:38:47.342714Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.357209Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+2026-07-23T20:38:47.657358Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.658384Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+02:02 +539 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_presentation_test.dart: unavailable result reserves no sky opportunity widget
+2026-07-23T20:38:47.782852Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.783796Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+2026-07-23T20:38:47.818719Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.819616Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+02:02 +540 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_presentation_test.dart: night home never keeps a past sunset as its action anchor
+2026-07-23T20:38:47.871558Z DEBUG   [manifest] manifest.built {scene: village, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.872479Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+2026-07-23T20:38:47.911793Z DEBUG   [manifest] manifest.built {scene: village, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.912600Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+02:02 +541 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_presentation_test.dart: a local shooting session remains ahead of a city-level sky signal
+2026-07-23T20:38:47.969931Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:47.971027Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+2026-07-23T20:38:48.012505Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 0, safetyCount: 0}
+2026-07-23T20:38:48.013272Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+02:02 +542 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_presentation_test.dart: detail labels source, disclaimer, models and stale data honestly
+02:02 +543 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_repository_test.dart
+02:03 +543 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_repository_test.dart: requests only the LumaNest daily API and parses the unified model
+02:03 +544 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_repository_test.dart: malformed or failed enhancement returns a fully collapsed state
+02:03 +545 -5: /home/runner/work/Lumanest/Lumanest/test/features/sky_opportunity/sky_opportunity_repository_test.dart: rejects a legacy numeric response instead of silently accepting it
+02:03 +546 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart
+02:04 +546 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: defaults enables ambient background and disables reduced motion and flashing
+02:04 +547 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: toggleAmbientBackground returns an immutable new state with the flag flipped
+02:04 +548 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: toggleReduceMotion returns an immutable new state with the flag flipped
+02:04 +549 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: toggleReduceFlashing returns an immutable new state with the flag flipped
+02:04 +550 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: toggles and persists high contrast independently
+02:04 +551 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: ProfilePreferences equality treats matching fields as equal
+02:04 +552 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: sets and persists the ambient performance mode
+02:04 +553 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: anonymous photography feedback is off until explicitly enabled
+02:04 +554 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_controller_test.dart: restores persisted accessibility preferences
+02:04 +555 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_store_test.dart
+02:04 +555 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_store_test.dart: drift round-trips every current profile preference
+02:05 +556 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_preferences_store_test.dart: a later write replaces the singleton preference row
+02:05 +557 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_privacy_service_test.dart
+02:05 +557 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_privacy_service_test.dart: revokes environment use and clears only environment state
+02:05 +558 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_cache_maintenance_service_test.dart
+02:06 +558 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_cache_maintenance_service_test.dart: reports snapshot freshness and clears all environment caches
+02:06 +559 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart
+02:07 +559 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget operational status reserves no space
+02:07 +560 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget shows concise message for missing AMap config
+02:07 +561 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget shows concise message for missing QWeather config
+02:07 +562 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget shows concise message for denied location permission
+02:07 +563 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget shows concise message for stale cache
+02:07 +564 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget never renders sensitive key or host values in any diagnostic state
+02:08 +565 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget tapping the retry action invokes onRetry callback
+02:08 +566 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget location service action invokes onOpenLocationSettings
+02:08 +567 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget permission action invokes onOpenAppSettings
+02:08 +568 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget tapping the privacy-consent action invokes onOpenPrivacyConsent
+02:08 +569 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/environment_diagnostics_test.dart: EnvironmentDiagnostics widget does not render an action button when the callback is null
+02:08 +570 -5: loading /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_personalization_test.dart
+02:08 +570 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_personalization_test.dart: maps every persisted profile option to the typed contract
+02:08 +571 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_personalization_test.dart: unknown labels are ignored rather than becoming inferred interests
+02:08 +572 -5: /home/runner/work/Lumanest/Lumanest/test/features/profile/profile_personalization_test.dart: equipment and accessibility never change the preference fingerprint
+02:08 +573 -5: Some tests failed.
+
+Failing tests:
+  /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 five-page shell stays usable at 360 x 800
+  /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+  /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations
+  /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: five destinations navigate while the dock yields on inspiration
+  /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 shell exposes five semantic destinations
