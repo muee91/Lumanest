@@ -1,0 +1,70 @@
+name: Agent intelligence fallback fix
+
+on:
+  push:
+    branches:
+      - agent/unified-intelligence-surface
+    paths:
+      - .github/agent-intelligence-fallback-fix.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-intelligence-surface
+      - name: Patch fallback and route-settle contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page = Path('lib/src/presentation_v2/intelligence/v2_intelligence_page.dart')
+          text = page.read_text()
+          old = "            action: '返回',\n            onAction: () => _close(context),"
+          new = "            action: '关闭栖光',\n            onAction: () => _close(context),"
+          if old not in text:
+              raise SystemExit('intelligence error fallback fragment missing')
+          page.write_text(text.replace(old, new, 1))
+
+          replacements = {
+            'test/acceptance/v2_compact_layout_test.dart': [
+              ("    await tester.pump();\n    await tester.pump(const Duration(milliseconds: 450));\n    expect(tester.takeException(), isNull, reason: '栖光 must not overflow');",
+               "    await tester.pumpAndSettle();\n    expect(tester.takeException(), isNull, reason: '栖光 must not overflow');"),
+              ("    await tester.pump();\n    await tester.pump(const Duration(milliseconds: 450));\n    expect(find.text('先选一个要抵达的地方'), findsOneWidget);",
+               "    await tester.pumpAndSettle();\n    expect(find.text('先选一个要抵达的地方'), findsOneWidget);"),
+            ],
+            'test/app/navigation_test.dart': [
+              ("      await tester.pump();\n      expect(find.byType(V2IntelligencePage), findsOneWidget);",
+               "      await tester.pumpAndSettle();\n      expect(find.byType(V2IntelligencePage), findsOneWidget);"),
+              ("      await tester.pump();\n      await tester.pump();\n      expect(find.text('先选一个要抵达的地方'), findsOneWidget);",
+               "      await tester.pumpAndSettle();\n      expect(find.text('先选一个要抵达的地方'), findsOneWidget);"),
+            ],
+            'test/app/ambient_preferences_integration_test.dart': [
+              ("    await tester.pump();\n    await tester.pump();\n    expect(find.byType(AmbientCanvas), findsNothing);",
+               "    await tester.pumpAndSettle();\n    expect(find.byType(AmbientCanvas), findsNothing);"),
+              ("    await tester.pump();\n    await tester.pump();\n    expect(find.byType(AmbientCanvas), findsOneWidget);",
+               "    await tester.pumpAndSettle();\n    expect(find.byType(AmbientCanvas), findsOneWidget);"),
+            ],
+          }
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              content = path.read_text()
+              for old, new in pairs:
+                  if old not in content:
+                      raise SystemExit(f'missing expected fragment in {filename}: {old!r}')
+                  content = content.replace(old, new, 1)
+              path.write_text(content)
+
+          Path('.github/intelligence-targeted.txt').unlink(missing_ok=True)
+          Path('.github/workflows/agent-intelligence-fallback-fix.yml').unlink()
+          Path('.github/agent-intelligence-fallback-fix.trigger').unlink()
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: keep intelligence fallback closable"
+          git push origin HEAD:agent/unified-intelligence-surface
