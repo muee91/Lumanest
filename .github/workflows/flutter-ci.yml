@@ -101,6 +101,30 @@ jobs:
         working-directory: services/lumanest-raster-service
         run: pytest
 
+  terrain-service:
+    name: Test terrain service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/lumanest-terrain-service/pyproject.toml
+
+      - name: Install terrain service dependencies
+        working-directory: services/lumanest-terrain-service
+        run: pip install -e '.[test]'
+
+      - name: Run terrain service tests
+        working-directory: services/lumanest-terrain-service
+        run: pytest
+
   android-debug:
     name: Build debug APK
     runs-on: ubuntu-latest
