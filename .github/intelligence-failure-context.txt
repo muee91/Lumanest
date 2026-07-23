@@ -1,0 +1,421 @@
+FULL_TEST_EXIT=1
+EXCEPTIONS=5
+
+===== EXCEPTION 1 =====
+269: 00:25 +191: /home/runner/work/Lumanest/Lumanest/test/core/photography/opportunity_ranker_test.dart: hard filters inactive tiers, unavailable core and safety conflicts
+270: 00:26 +192: /home/runner/work/Lumanest/Lumanest/test/core/photography/opportunity_ranker_test.dart: uses fixed scoring and stable tie breakers
+271: 00:26 +193: /home/runner/work/Lumanest/Lumanest/test/core/photography/opportunity_ranker_test.dart: rejects missing or expired required evidence
+272: 00:26 +194: loading /home/runner/work/Lumanest/Lumanest/test/core/photography/opportunity_catalog_domain_test.dart
+273: 00:26 +194: /home/runner/work/Lumanest/Lumanest/test/core/photography/opportunity_catalog_domain_test.dart: decodes the generated catalog into bounded domain enums
+274: 00:26 +195: /home/runner/work/Lumanest/Lumanest/test/core/photography/opportunity_catalog_domain_test.dart: keeps per-policy evidence TTL instead of one global duration
+275: 00:26 +196: loading /home/runner/work/Lumanest/Lumanest/test/core/photography/equipment_capability_test.dart
+276: 00:27 +196: /home/runner/work/Lumanest/Lumanest/test/core/photography/equipment_capability_test.dart: parses conservative equipment capabilities from local free text
+277: 00:27 +197: /home/runner/work/Lumanest/Lumanest/test/core/photography/equipment_capability_test.dart: unknown equipment text does not invent capabilities
+278: 00:27 +198: /home/runner/work/Lumanest/Lumanest/test/core/photography/equipment_capability_test.dart: matches required capabilities without uploading profile text
+279: 00:27 +199: loading /home/runner/work/Lumanest/Lumanest/test/core/location/geo_point_test.dart
+280: 00:27 +199: /home/runner/work/Lumanest/Lumanest/test/core/location/geo_point_test.dart: geo point is explicitly WGS84
+281: 00:28 +200: /home/runner/work/Lumanest/Lumanest/test/core/location/geo_point_test.dart: latitude outside valid range is rejected
+282: 00:28 +201: /home/runner/work/Lumanest/Lumanest/test/core/location/geo_point_test.dart: longitude outside valid range is rejected
+283: 00:28 +202: /home/runner/work/Lumanest/Lumanest/test/core/location/geo_point_test.dart: location reading preserves observation metadata
+284: 00:28 +203: loading /home/runner/work/Lumanest/Lumanest/test/core/location/china_coordinate_converter_test.dart
+285: 00:28 +203: /home/runner/work/Lumanest/Lumanest/test/core/location/china_coordinate_converter_test.dart: converts Shanghai WGS84 into the expected GCJ-02 neighborhood
+286: 00:28 +204: /home/runner/work/Lumanest/Lumanest/test/core/location/china_coordinate_converter_test.dart: does not offset points outside mainland China
+287: 00:28 +205: /home/runner/work/Lumanest/Lumanest/test/core/location/china_coordinate_converter_test.dart: round-trips a mainland GCJ-02 point back to WGS84
+288: 00:28 +206: loading /home/runner/work/Lumanest/Lumanest/test/core/companion/companion_client_test.dart
+289: 00:29 +206: /home/runner/work/Lumanest/Lumanest/test/core/companion/companion_client_test.dart: inventory strictly parses the current insight contract
+290: 00:29 +207: /home/runner/work/Lumanest/Lumanest/test/core/companion/companion_client_test.dart: unknown or malformed inventory fields fail the whole response
+291: 00:29 +208: /home/runner/work/Lumanest/Lumanest/test/core/companion/companion_client_test.dart: wildlife and non-bottle insights never become inspiration notes
+292: 00:29 +209: /home/runner/work/Lumanest/Lumanest/test/core/companion/companion_client_test.dart: refresh and feedback send authorization and idempotency headers
+293: 00:29 +210: /home/runner/work/Lumanest/Lumanest/test/core/companion/companion_client_test.dart: controller keeps the last inventory when the Broker fails
+294: 00:29 +211: loading /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart
+295: 00:30 +211: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart: emits only approved scalar fields as an immutable UTC record
+296: 00:30 +212: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart: invalid event and values cannot reach the sink
+297: 00:30 +213: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/app_logger_test.dart: disabled logger emits no records
+298: 00:30 +214: loading /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart
+299: 00:37 +214: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart: missing DSN starts the app without initializing monitoring
+300: 00:37 +215: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart: Sentry options disable user and visual context collection
+301: 00:37 +216: /home/runner/work/Lumanest/Lumanest/test/core/monitoring/crash_monitoring_test.dart: monitoring initialization failure still starts the app once
+302: 00:37 +217: loading /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart
+303: 00:40 +217: /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 five-page shell stays usable at 360 x 800
+304: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+305: The following assertion was thrown running a test:
+306: The finder "Found 0 widgets with a semantics label named "灵感": []" (used in a call to "tap()") could
+307: not find any matching widgets.
+308: 
+309: When the exception was thrown, this was the stack:
+310: #0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+311: #1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+312: #2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+313: #3      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart:18:20)
+314: <asynchronous suspension>
+315: #4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+316: <asynchronous suspension>
+317: #5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+318: <asynchronous suspension>
+319: <asynchronous suspension>
+320: (elided one frame from package:stack_trace)
+321: 
+322: The test description was:
+323:   V2 five-page shell stays usable at 360 x 800
+324: ════════════════════════════════════════════════════════════════════════════════════════════════════
+325: 00:41 +217 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 five-page shell stays usable at 360 x 800 [E]
+326:   Test failed. See exception logs above.
+327:   The test description was: V2 five-page shell stays usable at 360 x 800
+328:   
+329: 00:41 +217 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 Today and Opportunity tolerate enlarged text
+330: 2026-07-23T20:51:13.527182Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+331: 2026-07-23T20:51:13.536974Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+332: 2026-07-23T20:51:13.680818Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+333: 2026-07-23T20:51:13.681886Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+334: 00:42 +218 -1: loading /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart
+335: 00:42 +218 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 城市：场景、通道、顺序和路线状态正确
+336: 00:42 +219 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 城市：结构化事件具有可追溯元数据和允许动作
+337: 00:42 +220 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 城市：事件到期后退场且动作不越过白名单
+338: 00:42 +221 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 湖泊：场景、通道、顺序和路线状态正确
+339: 00:42 +222 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 湖泊：结构化事件具有可追溯元数据和允许动作
+340: 00:42 +223 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 湖泊：事件到期后退场且动作不越过白名单
+341: 00:42 +224 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 高山：场景、通道、顺序和路线状态正确
+342: 00:42 +225 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 高山：结构化事件具有可追溯元数据和允许动作
+343: 00:42 +226 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 高山：事件到期后退场且动作不越过白名单
+344: 00:42 +227 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 沙漠戈壁：场景、通道、顺序和路线状态正确
+345: 00:42 +228 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 沙漠戈壁：结构化事件具有可追溯元数据和允许动作
+346: 00:42 +229 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 沙漠戈壁：事件到期后退场且动作不越过白名单
+347: 00:42 +230 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 村落人文：场景、通道、顺序和路线状态正确
+348: 00:42 +231 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 村落人文：结构化事件具有可追溯元数据和允许动作
+349: 00:42 +232 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 村落人文：事件到期后退场且动作不越过白名单
+350: 00:42 +233 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 自驾：场景、通道、顺序和路线状态正确
+351: 00:42 +234 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 自驾：结构化事件具有可追溯元数据和允许动作
+352: 00:42 +235 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 自驾：事件到期后退场且动作不越过白名单
+353: 00:42 +236 -1: /home/runner/work/Lumanest/Lumanest/test/acceptance/v1_scene_manifest_matrix_test.dart: 场景与活动 Manifest 验收矩阵 徒步：场景、通道、顺序和路线状态正确
+
+===== EXCEPTION 2 =====
+687: 01:35 +488 -1: loading /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_route_weather_repository_test.dart
+688: 01:36 +488 -1: /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_route_weather_repository_test.dart: posts bounded WGS84 route samples and parses a forecast report
+689: 01:36 +489 -1: /home/runner/work/Lumanest/Lumanest/test/features/route/data_broker_route_weather_repository_test.dart: rejects a mismatched route id or malformed coverage
+690: 01:36 +490 -1: loading /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart
+691: 01:37 +490 -1: /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart: round-trips matching route support as explicitly cached data
+692: 01:37 +491 -1: /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart: rejects a different route and expired support data
+693: 01:37 +492 -1: /home/runner/work/Lumanest/Lumanest/test/features/route/route_support_cache_test.dart: clear removes cached support coordinates
+694: 01:37 +493 -1: loading /home/runner/work/Lumanest/Lumanest/test/features/shooting_window/shooting_window_timeline_test.dart
+695: 01:37 +493 -1: /home/runner/work/Lumanest/Lumanest/test/features/shooting_window/shooting_window_timeline_test.dart: builds ordered dawn, sunset and blue-hour reference windows
+696: 01:37 +494 -1: /home/runner/work/Lumanest/Lumanest/test/features/shooting_window/shooting_window_timeline_test.dart: returns no fabricated windows when solar events are unavailable
+697: 01:37 +495 -1: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/explore/v2_explore_theme_strip_test.dart
+698: 01:38 +495 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/explore/v2_explore_theme_strip_test.dart: explore themes form one horizontal strip below search controls
+699: initState AMapWidget
+700: deactivate AMapWidget
+701: 01:39 +496 -1: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/ai/v2_ai_entry_test.dart
+702: 01:40 +496 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/ai/v2_ai_entry_test.dart: AI entry is a text conversation without unsupported controls
+703: 2026-07-23T20:52:13.254988Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+704: 2026-07-23T20:52:13.270937Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+705: 2026-07-23T20:52:13.621243Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+706: 2026-07-23T20:52:13.622351Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+707: 01:41 +497 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/ai/v2_ai_entry_test.dart: AI entry only shows model-selected creative candidates
+708: 2026-07-23T20:52:13.786075Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+709: 2026-07-23T20:52:13.787070Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+710: 2026-07-23T20:52:13.839222Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+711: 2026-07-23T20:52:13.840022Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+712: 01:42 +498 -1: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/ai/v2_ask_luma_nest_header_test.dart
+713: 01:42 +498 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/ai/v2_ask_luma_nest_header_test.dart: assistant header stays simple and uses the Qiguang name
+714: 01:44 +499 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/ai/v2_ask_luma_nest_header_test.dart: assistant renders questions and answers as readable dialogue
+715: 01:44 +500 -1: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart
+716: 01:44 +500 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 Today keeps the opportunity as one Hero object
+717: 2026-07-23T20:52:17.484363Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+718: 2026-07-23T20:52:17.506426Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+719: 2026-07-23T20:52:17.806048Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+720: 2026-07-23T20:52:17.807179Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+721: 01:46 +501 -1: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 shell exposes five semantic destinations
+722: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+723: The following TestFailure was thrown running a test:
+724: Expected: exactly one matching candidate
+725:   Actual: _ElementPredicateWidgetFinder:<Found 0 widgets with a semantics label named "灵感": []>
+726:    Which: means none were found but one was expected
+727: 
+728: When the exception was thrown, this was the stack:
+729: #4      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart:55:7)
+730: <asynchronous suspension>
+731: #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+732: <asynchronous suspension>
+733: #6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+734: <asynchronous suspension>
+735: <asynchronous suspension>
+736: (elided one frame from package:stack_trace)
+737: 
+738: This was caught by the test expectation on the following line:
+739:   file:///home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart line 55
+740: The test description was:
+741:   V2 shell exposes five semantic destinations
+742: ════════════════════════════════════════════════════════════════════════════════════════════════════
+743: 01:46 +501 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 shell exposes five semantic destinations [E]
+744:   Test failed. See exception logs above.
+745:   The test description was: V2 shell exposes five semantic destinations
+746:   
+747: 01:46 +501 -2: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/intelligence/v2_intelligence_page_test.dart
+748: 01:47 +501 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/intelligence/v2_intelligence_page_test.dart: contracts only the inspiration stage while typing
+749: 01:48 +502 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/intelligence/v2_intelligence_page_test.dart: interprets an inspiration in place without another sheet
+750: 01:49 +503 -2: loading /home/runner/work/Lumanest/Lumanest/test/presentation_v2/today/v2_today_safety_test.dart
+751: 01:50 +503 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/today/v2_today_safety_test.dart: warning stays in the top-right while photography remains hero
+752: 2026-07-23T20:52:22.484630Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 1}
+753: 2026-07-23T20:52:22.498173Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+754: 2026-07-23T20:52:22.855719Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 1}
+755: 2026-07-23T20:52:22.856779Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+756: 01:51 +504 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/today/v2_today_safety_test.dart: warning button opens the safety detail sheet
+757: 2026-07-23T20:52:22.975309Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 1}
+758: 2026-07-23T20:52:22.976250Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+759: 2026-07-23T20:52:23.025970Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 1}
+760: 2026-07-23T20:52:23.026746Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+761: 01:51 +505 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/today/v2_today_safety_test.dart: no warning renders no button and reserves no space
+762: 2026-07-23T20:52:23.204774Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+763: 2026-07-23T20:52:23.205578Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+764: 2026-07-23T20:52:23.244036Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+765: 2026-07-23T20:52:23.244842Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+766: 01:51 +506 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/today/v2_today_safety_test.dart: reliable current conditions enrich the hero without shortcuts
+767: 2026-07-23T20:52:23.275615Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+768: 2026-07-23T20:52:23.276397Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+769: 2026-07-23T20:52:23.317765Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+770: 2026-07-23T20:52:23.318587Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+771: 01:51 +507 -2: /home/runner/work/Lumanest/Lumanest/test/presentation_v2/today/v2_today_safety_test.dart: current conditions reserve no space without reliable facts
+
+===== EXCEPTION 3 =====
+835: 02:04 +546 -2: loading /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_field_parameters_test.dart
+836: 02:04 +546 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_field_parameters_test.dart: field parameters use value equality and immutable colors
+837: 02:04 +547 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_field_parameters_test.dart: field parameters require exactly three colors
+838: 02:04 +548 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_field_parameters_test.dart: validator rejects non-finite and out-of-range values
+839: 02:04 +549 -2: loading /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart
+840: 02:05 +549 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart: renders a static non-interactive environment color layer
+841: 02:06 +550 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart: does not intercept pointer events
+842: 02:06 +551 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart: reduceMotion true produces no continuously ticking animation
+843: 02:06 +552 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart: runtime reduceMotion toggle stops and starts animation
+844: 02:06 +553 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart: static mode can suppress weather texture independently
+845: 02:06 +554 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_canvas_test.dart: zero intensity stops ticker and restarting intensity restores it
+846: 02:06 +555 -2: loading /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_v2_shader_surface_test.dart
+847: 02:07 +555 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_v2_shader_surface_test.dart: V2 shader surface loads and keeps a stable widget contract
+848: 02:08 +556 -2: loading /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_rendering_policy_test.dart
+849: 02:08 +556 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_rendering_policy_test.dart: device energy constraint downgrades full rendering
+850: 02:08 +557 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_rendering_policy_test.dart: device energy does not override a user-selected static mode
+851: 02:08 +558 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_rendering_policy_test.dart: unknown device energy preserves the full user preferences
+852: 02:08 +559 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_rendering_policy_test.dart: route intensity follows the page hierarchy
+853: 02:08 +560 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_rendering_policy_test.dart: nested routes inherit their top-level intensity
+854: 02:08 +561 -2: loading /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_composer_test.dart
+855: 02:09 +561 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_composer_test.dart: (setUpAll)
+856: 02:09 +561 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_composer_test.dart: composer preserves semantic colors and maps motion and wind
+857: 02:09 +562 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_composer_test.dart: static quality has no time or warp motion
+858: 02:09 +563 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_composer_test.dart: safety remains authoritative over opportunity color enhancement
+859: 02:09 +564 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_composer_test.dart: (tearDownAll)
+860: 02:09 +564 -2: loading /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart
+861: 02:09 +564 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: (setUpAll)
+862: 02:09 +564 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: bundled catalog parses ten unique reviewed-shape presets
+863: 02:09 +565 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: selector follows weather and day phase deterministically
+864: 02:09 +566 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: quality override is applied and remains within validated bounds
+865: 02:09 +567 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: unsupported schema and unsafe sample values are rejected
+866: 02:10 +568 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: (tearDownAll)
+867: 02:10 +568 -2: loading /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart
+868: 02:11 +568 -2: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: session route keeps only a validated stable ID
+869: 02:11 +569 -2: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: five destinations navigate while the dock yields on inspiration
+870: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+871: The following assertion was thrown running a test:
+872: The finder "Found 0 widgets with a semantics label named "灵感": []" (used in a call to "tap()") could
+873: not find any matching widgets.
+874: 
+875: When the exception was thrown, this was the stack:
+876: #0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+877: #1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+878: #2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+879: #3      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart:52:20)
+880: <asynchronous suspension>
+881: #4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+882: <asynchronous suspension>
+883: #5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+884: <asynchronous suspension>
+885: <asynchronous suspension>
+886: (elided one frame from package:stack_trace)
+887: 
+888: The test description was:
+889:   five destinations navigate while the dock yields on inspiration
+890: ════════════════════════════════════════════════════════════════════════════════════════════════════
+891: 02:12 +569 -3: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: five destinations navigate while the dock yields on inspiration [E]
+892:   Test failed. See exception logs above.
+893:   The test description was: five destinations navigate while the dock yields on inspiration
+894:   
+895: 02:12 +569 -3: loading /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart
+896: 02:13 +569 -3: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations
+897: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+898: The following TestFailure was thrown running a test:
+899: Expected: exactly one matching candidate
+900:   Actual: _ElementPredicateWidgetFinder:<Found 0 widgets with a semantics label named "灵感": []>
+901:    Which: means none were found but one was expected
+902: 
+903: When the exception was thrown, this was the stack:
+904: #4      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart:16:5)
+905: <asynchronous suspension>
+906: #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+907: <asynchronous suspension>
+908: #6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+909: <asynchronous suspension>
+910: <asynchronous suspension>
+911: (elided one frame from package:stack_trace)
+912: 
+913: This was caught by the test expectation on the following line:
+914:   file:///home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart line 16
+915: The test description was:
+916:   shows privacy-first entry and five destinations
+917: ════════════════════════════════════════════════════════════════════════════════════════════════════
+918: 02:14 +569 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations [E]
+919:   Test failed. See exception logs above.
+
+===== EXCEPTION 4 =====
+862: 02:09 +564 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: bundled catalog parses ten unique reviewed-shape presets
+863: 02:09 +565 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: selector follows weather and day phase deterministically
+864: 02:09 +566 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: quality override is applied and remains within validated bounds
+865: 02:09 +567 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: unsupported schema and unsafe sample values are rejected
+866: 02:10 +568 -2: /home/runner/work/Lumanest/Lumanest/test/shared/widgets/ambient/ambient_preset_test.dart: (tearDownAll)
+867: 02:10 +568 -2: loading /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart
+868: 02:11 +568 -2: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: session route keeps only a validated stable ID
+869: 02:11 +569 -2: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: five destinations navigate while the dock yields on inspiration
+870: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+871: The following assertion was thrown running a test:
+872: The finder "Found 0 widgets with a semantics label named "灵感": []" (used in a call to "tap()") could
+873: not find any matching widgets.
+874: 
+875: When the exception was thrown, this was the stack:
+876: #0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+877: #1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+878: #2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+879: #3      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart:52:20)
+880: <asynchronous suspension>
+881: #4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+882: <asynchronous suspension>
+883: #5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+884: <asynchronous suspension>
+885: <asynchronous suspension>
+886: (elided one frame from package:stack_trace)
+887: 
+888: The test description was:
+889:   five destinations navigate while the dock yields on inspiration
+890: ════════════════════════════════════════════════════════════════════════════════════════════════════
+891: 02:12 +569 -3: /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: five destinations navigate while the dock yields on inspiration [E]
+892:   Test failed. See exception logs above.
+893:   The test description was: five destinations navigate while the dock yields on inspiration
+894:   
+895: 02:12 +569 -3: loading /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart
+896: 02:13 +569 -3: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations
+897: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+898: The following TestFailure was thrown running a test:
+899: Expected: exactly one matching candidate
+900:   Actual: _ElementPredicateWidgetFinder:<Found 0 widgets with a semantics label named "灵感": []>
+901:    Which: means none were found but one was expected
+902: 
+903: When the exception was thrown, this was the stack:
+904: #4      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart:16:5)
+905: <asynchronous suspension>
+906: #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+907: <asynchronous suspension>
+908: #6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+909: <asynchronous suspension>
+910: <asynchronous suspension>
+911: (elided one frame from package:stack_trace)
+912: 
+913: This was caught by the test expectation on the following line:
+914:   file:///home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart line 16
+915: The test description was:
+916:   shows privacy-first entry and five destinations
+917: ════════════════════════════════════════════════════════════════════════════════════════════════════
+918: 02:14 +569 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations [E]
+919:   Test failed. See exception logs above.
+920:   The test description was: shows privacy-first entry and five destinations
+921:   
+922: 02:14 +569 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: accepts an injected context snapshot
+923: 2026-07-23T20:52:46.391415Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+924: 2026-07-23T20:52:46.400784Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+925: 02:14 +570 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: quiet Today keeps one judgment line without shortcut cards
+926: 2026-07-23T20:52:46.601291Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+927: 2026-07-23T20:52:46.602294Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+928: 2026-07-23T20:52:46.639939Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+929: 2026-07-23T20:52:46.640814Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+930: 02:14 +571 -4: loading /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart
+931: 02:15 +571 -4: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: system animation setting makes the ambient canvas static
+932: 02:16 +572 -4: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+933: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+934: The following assertion was thrown running a test:
+935: The finder "Found 0 widgets with a semantics label named "灵感": []" (used in a call to "tap()") could
+936: not find any matching widgets.
+937: 
+938: When the exception was thrown, this was the stack:
+939: #0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+940: #1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+941: #2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+942: #3      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart:36:18)
+943: <asynchronous suspension>
+944: #4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+945: <asynchronous suspension>
+946: #5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+
+===== EXCEPTION 5 =====
+898: The following TestFailure was thrown running a test:
+899: Expected: exactly one matching candidate
+900:   Actual: _ElementPredicateWidgetFinder:<Found 0 widgets with a semantics label named "灵感": []>
+901:    Which: means none were found but one was expected
+902: 
+903: When the exception was thrown, this was the stack:
+904: #4      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart:16:5)
+905: <asynchronous suspension>
+906: #5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+907: <asynchronous suspension>
+908: #6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+909: <asynchronous suspension>
+910: <asynchronous suspension>
+911: (elided one frame from package:stack_trace)
+912: 
+913: This was caught by the test expectation on the following line:
+914:   file:///home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart line 16
+915: The test description was:
+916:   shows privacy-first entry and five destinations
+917: ════════════════════════════════════════════════════════════════════════════════════════════════════
+918: 02:14 +569 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations [E]
+919:   Test failed. See exception logs above.
+920:   The test description was: shows privacy-first entry and five destinations
+921:   
+922: 02:14 +569 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: accepts an injected context snapshot
+923: 2026-07-23T20:52:46.391415Z DEBUG   [manifest] manifest.built {scene: lake, eventCount: 1, safetyCount: 0}
+924: 2026-07-23T20:52:46.400784Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 1}
+925: 02:14 +570 -4: /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: quiet Today keeps one judgment line without shortcut cards
+926: 2026-07-23T20:52:46.601291Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+927: 2026-07-23T20:52:46.602294Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+928: 2026-07-23T20:52:46.639939Z DEBUG   [manifest] manifest.built {scene: city, eventCount: 0, safetyCount: 0}
+929: 2026-07-23T20:52:46.640814Z DEBUG   [ai.call] narrative.template_used {source: template, reason: modelUnavailable, tone: balanced, eventCount: 0}
+930: 02:14 +571 -4: loading /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart
+931: 02:15 +571 -4: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: system animation setting makes the ambient canvas static
+932: 02:16 +572 -4: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+933: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+934: The following assertion was thrown running a test:
+935: The finder "Found 0 widgets with a semantics label named "灵感": []" (used in a call to "tap()") could
+936: not find any matching widgets.
+937: 
+938: When the exception was thrown, this was the stack:
+939: #0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2095:7)
+940: #1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+941: #2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+942: #3      main.<anonymous closure> (file:///home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart:36:18)
+943: <asynchronous suspension>
+944: #4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+945: <asynchronous suspension>
+946: #5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+947: <asynchronous suspension>
+948: <asynchronous suspension>
+949: (elided one frame from package:stack_trace)
+950: 
+951: The test description was:
+952:   navigation disposes the ambient field outside Today
+953: ════════════════════════════════════════════════════════════════════════════════════════════════════
+954: 02:16 +572 -5: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today [E]
+955:   Test failed. See exception logs above.
+956:   The test description was: navigation disposes the ambient field outside Today
+957:   
+958: 02:16 +572 -5: /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: V2 privacy controls global accessibility rendering
+959: 02:17 +573 -5: Some tests failed.
+960: 
+961: Failing tests:
+962:   /home/runner/work/Lumanest/Lumanest/test/acceptance/v2_compact_layout_test.dart: V2 five-page shell stays usable at 360 x 800
+963:   /home/runner/work/Lumanest/Lumanest/test/app/ambient_preferences_integration_test.dart: navigation disposes the ambient field outside Today
+964:   /home/runner/work/Lumanest/Lumanest/test/app/luma_nest_app_test.dart: shows privacy-first entry and five destinations
+965:   /home/runner/work/Lumanest/Lumanest/test/app/navigation_test.dart: five destinations navigate while the dock yields on inspiration
+966:   /home/runner/work/Lumanest/Lumanest/test/presentation_v2/v2_presentation_contract_test.dart: V2 shell exposes five semantic destinations
