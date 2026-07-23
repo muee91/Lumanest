@@ -511,7 +511,7 @@ class _IntelligenceWorkspaceState
       ...widget.snapshot.wildlifeEventIds,
       ...widget.snapshot.events.map((item) => item.id),
       ...widget.snapshot.shootingSessions.map((item) => item.id),
-      if (note?.opportunityId case final id?) id,
+      ?note?.opportunityId,
     };
     return ids.take(24).toList(growable: false);
   }
