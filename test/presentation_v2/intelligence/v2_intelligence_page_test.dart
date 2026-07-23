@@ -32,6 +32,10 @@ void main() {
 
     final after = tester.getSize(stage).height;
     expect(after, lessThanOrEqualTo(110));
+    expect(
+      find.byKey(const Key('v2-intelligence-compact-inspiration')),
+      findsOne,
+    );
     expect(find.byKey(const Key('v2-intelligence-assistant-stage')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-composer')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-input')), findsOne);
