@@ -36,12 +36,16 @@ void main() {
     await tester.tap(
       find.bySemanticsLabel('栖光：问问题或抽取灵感'),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
     expect(find.byType(AmbientCanvas), findsNothing);
 
     // Intelligence is an overlay; closing restores the originating Today page.
     await tester.tap(find.bySemanticsLabel('关闭栖光'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
     expect(find.byType(AmbientCanvas), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('路线'));
