@@ -1,0 +1,44 @@
+name: Agent final test tail
+
+on:
+  push:
+    branches:
+      - agent/unified-intelligence-surface
+    paths:
+      - .github/agent-final-test-tail.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-intelligence-surface
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Capture failing test tail
+        run: |
+          set +e
+          flutter test --reporter expanded > /tmp/full-test.txt 2>&1
+          status=$?
+          {
+            printf 'FULL_TEST_EXIT=%s\n' "$status"
+            printf '\n===== FAILING TESTS =====\n'
+            grep -A 30 -F 'Failing tests:' /tmp/full-test.txt || true
+            printf '\n===== LAST 300 LINES =====\n'
+            tail -n 300 /tmp/full-test.txt
+          } > .github/final-test-tail.txt
+          rm .github/workflows/agent-final-test-tail.yml
+          rm .github/agent-final-test-tail.trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .github/final-test-tail.txt
+          git add -u
+          git commit -m "chore: capture final test failure tail"
+          git push origin HEAD:agent/unified-intelligence-surface
