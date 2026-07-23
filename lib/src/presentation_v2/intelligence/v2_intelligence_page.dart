@@ -53,7 +53,7 @@ class V2IntelligencePage extends ConsumerWidget {
             icon: CupertinoIcons.sparkles,
             title: '栖光暂时没有接住环境',
             detail: '刷新当前环境后，仍可从同一个入口提问或抽取灵感。',
-            action: '返回',
+            action: '关闭栖光',
             onAction: () => _close(context),
           ),
         ),

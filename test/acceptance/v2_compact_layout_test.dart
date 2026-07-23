@@ -30,15 +30,13 @@ void main() {
     await tester.tap(
       find.bySemanticsLabel('栖光：问问题或抽取灵感'),
     );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: '栖光 must not overflow');
 
     // The intelligent surface is pushed over Route and must restore Route when
     // closed instead of resetting the shell to Today.
     await tester.tap(find.bySemanticsLabel('关闭栖光'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
     expect(find.text('先选一个要抵达的地方'), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('我的'));

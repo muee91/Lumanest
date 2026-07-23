@@ -52,13 +52,12 @@ void main() {
       await tester.tap(
         find.bySemanticsLabel('栖光：问问题或抽取灵感'),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.byType(V2IntelligencePage), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsNothing);
 
       await tester.tap(find.bySemanticsLabel('关闭栖光'));
-      await tester.pump();
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('先选一个要抵达的地方'), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
 
