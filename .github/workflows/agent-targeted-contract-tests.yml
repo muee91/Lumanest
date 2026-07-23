@@ -1,0 +1,48 @@
+name: Agent final targeted contract diagnostics
+
+on:
+  push:
+    branches:
+      - agent/unified-intelligence-surface
+    paths:
+      - .github/agent-targeted-contract-tests.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-intelligence-surface
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Run affected contracts
+        run: |
+          set +e
+          flutter test --reporter expanded \
+            test/acceptance/v2_compact_layout_test.dart \
+            test/app/navigation_test.dart \
+            test/app/luma_nest_app_test.dart \
+            test/app/ambient_preferences_integration_test.dart \
+            test/presentation_v2/v2_presentation_contract_test.dart \
+            test/presentation_v2/intelligence/v2_intelligence_page_test.dart \
+            > /tmp/targeted.txt 2>&1
+          status=$?
+          {
+            echo "TARGETED_EXIT=$status"
+            tail -n 500 /tmp/targeted.txt
+          } > .github/intelligence-targeted.txt
+          rm .github/workflows/agent-targeted-contract-tests.yml
+          rm .github/agent-targeted-contract-tests.trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .github/intelligence-targeted.txt
+          git add -u
+          git commit -m "chore: capture final targeted diagnostics"
+          git push origin HEAD:agent/unified-intelligence-surface
