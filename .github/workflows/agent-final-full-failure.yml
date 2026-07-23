@@ -1,0 +1,55 @@
+name: Agent final full suite diagnostics
+
+on:
+  push:
+    branches:
+      - agent/unified-intelligence-surface
+    paths:
+      - .github/agent-final-full-failure.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/unified-intelligence-surface
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Extract full suite failures
+        run: |
+          set +e
+          flutter test --reporter expanded > /tmp/full.txt 2>&1
+          status=$?
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path('/tmp/full.txt').read_text(errors='replace').splitlines()
+          markers = [i for i, line in enumerate(lines) if 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK' in line]
+          out = [f'FULL_EXIT={Path("/tmp/status").read_text().strip()}', f'EXCEPTIONS={len(markers)}']
+          for number, index in enumerate(markers, 1):
+              out.append(f'\n===== EXCEPTION {number} =====')
+              start = max(0, index - 28)
+              end = min(len(lines), index + 55)
+              out.extend(f'{i + 1}: {lines[i]}' for i in range(start, end))
+          out.append('\n===== FAILING TESTS =====')
+          for line in lines[-120:]:
+              if 'Failing tests:' in line or '/home/runner/work/' in line and '[E]' in line:
+                  out.append(line)
+          Path('.github/intelligence-final-full.txt').write_text('\n'.join(out) + '\n')
+          PY
+          rm .github/workflows/agent-final-full-failure.yml
+          rm .github/agent-final-full-failure.trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .github/intelligence-final-full.txt
+          git add -u
+          git commit -m "chore: capture final full suite failures"
+          git push origin HEAD:agent/unified-intelligence-surface
+        env:
+          PLACEHOLDER: final
