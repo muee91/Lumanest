@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "build:sky-calibration": "node scripts/build-sky-brightness-calibration.mjs"
   },
   "engines": {
     "node": ">=22"
