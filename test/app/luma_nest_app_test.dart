@@ -4,7 +4,7 @@ import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 
 void main() {
-  testWidgets('shows privacy-first entry and five destinations', (
+  testWidgets('shows privacy-first entry and one intelligent entrance', (
     tester,
   ) async {
     await tester.pumpWidget(const LumaNestApp());
@@ -13,8 +13,11 @@ void main() {
     expect(find.bySemanticsLabel('今日'), findsOneWidget);
     expect(find.bySemanticsLabel('探索'), findsOneWidget);
     expect(find.bySemanticsLabel('路线'), findsOneWidget);
-    expect(find.bySemanticsLabel('灵感'), findsOneWidget);
     expect(find.bySemanticsLabel('我的'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('栖光：问问题或抽取灵感'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('accepts an injected context snapshot', (tester) async {
