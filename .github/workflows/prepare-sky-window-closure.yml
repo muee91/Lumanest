@@ -1,0 +1,45 @@
+name: Prepare sky window closure
+
+on:
+  push:
+    branches:
+      - agent/sky-window-closure
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prepare-sky-window-closure
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/sky-window-closure
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+      - name: Refresh lockfile
+        working-directory: services/lumanest-data-broker
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Apply bounded server patch
+        run: node tools/apply-sky-window-closure.mjs
+      - name: Commit generated changes
+        run: |
+          if git diff --quiet -- services/lumanest-data-broker/package-lock.json services/lumanest-data-broker/src/server.mjs; then
+            echo 'No generated changes'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add services/lumanest-data-broker/package-lock.json services/lumanest-data-broker/src/server.mjs
+          git commit -m 'build: wire sky window closure'
+          git push origin HEAD:agent/sky-window-closure
