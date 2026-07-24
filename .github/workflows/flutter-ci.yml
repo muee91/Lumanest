@@ -77,6 +77,30 @@ jobs:
         working-directory: services/lumanest-data-broker
         run: npm test
 
+  discovery-service:
+    name: Test discovery service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/lumanest-discovery-service/pyproject.toml
+
+      - name: Install discovery service dependencies
+        working-directory: services/lumanest-discovery-service
+        run: pip install -e '.[test]'
+
+      - name: Run discovery service tests
+        working-directory: services/lumanest-discovery-service
+        run: pytest
+
   raster-service:
     name: Test raster service
     runs-on: ubuntu-latest
