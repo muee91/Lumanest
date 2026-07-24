@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from ..models import BrokerSearchResult, MissionType
 
 
-TIER_RANK = {"A": 4, "B": 3, "C": 2, "D": 1}
+TIER_RANK = {"S": 4, "A": 3, "B": 2, "C": 1}
 MISSION_TERMS: dict[str, tuple[str, ...]] = {
     "popularPlaces": ("地点", "摄影", "观景", "打卡", "热门"),
     "hiddenPlaces": ("小众", "地点", "摄影", "观景", "机位"),

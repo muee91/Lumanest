@@ -156,7 +156,7 @@ services:
       start_period: 20s
 
   discovery-api:
-    build:
+    build: &discovery-api-build
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
       args:
@@ -237,6 +237,47 @@ services:
       retries: 3
       start_period: 20s
 
+  discovery-feed-worker:
+    build: *discovery-api-build
+    container_name: lumanest-discovery-feed-worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lumanest:${LUMANEST_DATABASE_PASSWORD:?Set LUMANEST_DATABASE_PASSWORD}@postgres/lumanest
+      REDIS_URL: redis://redis:6379/0
+      DISCOVERY_BROKER_URL: http://qweather-token-broker:8787
+      DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
+      DISCOVERY_FEED_SOURCES_JSON: ${DISCOVERY_FEED_SOURCES_JSON:-[]}
+      DISCOVERY_FEED_CONCURRENCY: ${DISCOVERY_FEED_CONCURRENCY:-3}
+      DISCOVERY_FEED_POLL_SECONDS: ${DISCOVERY_FEED_POLL_SECONDS:-30}
+      LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
+      HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      NO_PROXY: 127.0.0.1,localhost,qweather-token-broker,context-service,discovery-api,redis,postgres
+    command: ["python", "-m", "app.feed_worker"]
+    mem_limit: 384m
+    pids_limit: 96
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
+      - mihomo
+    depends_on:
+      qweather-token-broker:
+        condition: service_healthy
+      discovery-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:feed-worker:heartbeat') == 'ok'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
   postgres:
     image: postgis/postgis:17-3.5
     platform: ${POSTGIS_PLATFORM:-linux/amd64}
@@ -300,4 +341,3 @@ networks:
   default: {}
   mihomo:
     external: true
-    name: ${LUMANEST_MIHOMO_NETWORK:-mihomo_default}
