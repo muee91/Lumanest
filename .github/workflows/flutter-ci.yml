@@ -98,8 +98,23 @@ jobs:
         run: pip install -e '.[test]'
 
       - name: Run discovery service tests
+        shell: bash
         working-directory: services/lumanest-discovery-service
-        run: pytest
+        run: |
+          set +e
+          pytest -q --tb=short > discovery-test.log 2>&1
+          status=$?
+          cat discovery-test.log
+          exit "$status"
+
+      - name: Upload discovery service test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discovery-test-log-${{ github.sha }}
+          path: services/lumanest-discovery-service/discovery-test.log
+          if-no-files-found: error
+          retention-days: 7
 
   raster-service:
     name: Test raster service
