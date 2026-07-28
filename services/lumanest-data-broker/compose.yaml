@@ -343,3 +343,4 @@ networks:
   default: {}
   mihomo:
     external: true
+    name: ${LUMANEST_MIHOMO_NETWORK:-mihomo_default}
