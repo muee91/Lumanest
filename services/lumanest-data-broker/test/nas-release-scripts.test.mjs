@@ -195,6 +195,8 @@ test('release state writes and recovery failures remain explicit', async () => {
     deploy,
     /while ! compose_release exec -T discovery-feed-worker python -c/,
   );
+  assert.match(deploy, /sky_data_ready/);
+  assert.match(deploy, /Sky data profile disabled; Broker will keep sky facts unavailable/);
   assert.match(rollback, /verify_http_boundary/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });

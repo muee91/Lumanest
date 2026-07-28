@@ -72,6 +72,36 @@ environment_value() {
   awk -v name="$name" 'index($0, name "=") == 1 { value=substr($0, length(name) + 2) } END { print value }' "$ENV_FILE"
 }
 
+environment_value_from() {
+  source_file=$1
+  name=$2
+  awk -v name="$name" 'index($0, name "=") == 1 { value=substr($0, length(name) + 2) } END { print value }' "$source_file"
+}
+
+sky_data_ready() {
+  source_file=$1
+  viirs_host=$(environment_value_from "$source_file" VIIRS_RASTER_HOST_DIR)
+  viirs_path=$(environment_value_from "$source_file" VIIRS_RASTER_PATH)
+  viirs_revision=$(environment_value_from "$source_file" VIIRS_DATASET_REVISION)
+  raster_url=$(environment_value_from "$source_file" LUMANEST_RASTER_SERVICE_URL)
+  raster_token=$(environment_value_from "$source_file" LUMANEST_RASTER_SERVICE_TOKEN)
+  raster_revision=$(environment_value_from "$source_file" LUMANEST_RASTER_DATASET_REVISION)
+  dem_host=$(environment_value_from "$source_file" DEM_RASTER_HOST_DIR)
+  dem_path=$(environment_value_from "$source_file" DEM_RASTER_PATH)
+  dem_revision=$(environment_value_from "$source_file" DEM_DATASET_REVISION)
+  terrain_url=$(environment_value_from "$source_file" LUMANEST_TERRAIN_SERVICE_URL)
+  terrain_token=$(environment_value_from "$source_file" LUMANEST_TERRAIN_SERVICE_TOKEN)
+  terrain_revision=$(environment_value_from "$source_file" LUMANEST_TERRAIN_DATASET_REVISION)
+  case "$viirs_path" in /data/viirs/*) viirs_file=$viirs_host${viirs_path#/data/viirs} ;; *) return 1 ;; esac
+  case "$dem_path" in /data/dem/*) dem_file=$dem_host${dem_path#/data/dem} ;; *) return 1 ;; esac
+  [ -r "$viirs_file" ] && [ -r "$dem_file" ] && \
+    [ "$raster_url" = "http://lumanest-raster-service:8792" ] && \
+    [ "$terrain_url" = "http://lumanest-terrain-service:8793" ] && \
+    [ ${#raster_token} -ge 24 ] && [ ${#terrain_token} -ge 24 ] && \
+    [ -n "$viirs_revision" ] && [ "$viirs_revision" = "$raster_revision" ] && \
+    [ -n "$dem_revision" ] && [ "$dem_revision" = "$terrain_revision" ]
+}
+
 upsert_environment_value() {
   name=$1
   value=$2
@@ -112,15 +142,28 @@ ensure_outbound_network_environment() {
 }
 
 compose_release() {
-  docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  if [ "$SKY_DATA_ENABLED" = 1 ]; then
+    docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" --profile sky-data "$@"
+  else
+    docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  fi
 }
 
 compose_previous() {
-  docker compose \
-    -p "$PROJECT_NAME" \
-    --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
-    -f "$PREVIOUS_RELEASE/compose.yaml" \
-    "$@"
+  if [ "$PREVIOUS_SKY_DATA_ENABLED" = 1 ]; then
+    docker compose \
+      -p "$PROJECT_NAME" \
+      --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
+      -f "$PREVIOUS_RELEASE/compose.yaml" \
+      --profile sky-data \
+      "$@"
+  else
+    docker compose \
+      -p "$PROJECT_NAME" \
+      --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
+      -f "$PREVIOUS_RELEASE/compose.yaml" \
+      "$@"
+  fi
 }
 
 backup_application_images() {
@@ -356,6 +399,9 @@ verify_release_feed_worker() {
 
 verify_release_service_health() {
   service=$1
+  if ! compose_release config --services | grep -qx "$service"; then
+    return 0
+  fi
   attempt=1
   while :; do
     container_id=$(compose_release ps -q "$service" 2>/dev/null || true)
@@ -511,6 +557,18 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 require_file "$ENV_FILE"
 ensure_outbound_network_environment
+if sky_data_ready "$ENV_FILE"; then
+  SKY_DATA_ENABLED=1
+  echo "Sky data profile enabled with reviewed local raster files."
+else
+  SKY_DATA_ENABLED=0
+  echo "Sky data profile disabled; Broker will keep sky facts unavailable."
+fi
+if sky_data_ready "$PREVIOUS_RELEASE/qweather-token-broker.env"; then
+  PREVIOUS_SKY_DATA_ENABLED=1
+else
+  PREVIOUS_SKY_DATA_ENABLED=0
+fi
 
 command -v docker >/dev/null
 command -v curl >/dev/null
