@@ -18,6 +18,8 @@ HEALTHCHECK_INTERVAL_SECONDS=${HEALTHCHECK_INTERVAL_SECONDS:-3}
 SKIP_BUILD=${SKIP_BUILD:-0}
 DATA_MAY_BE_CHANGED=0
 BACKUP_COMPLETE=0
+DEPLOY_LOCK_DIR=
+DEPLOY_LOCK_HELD=0
 
 require_file() {
   if [ ! -f "$1" ]; then
@@ -52,11 +54,49 @@ valid_image_reference() {
   esac
 }
 
+valid_sha256() {
+  case "$1" in
+    ''|*[!0-9A-Fa-f]*) return 1 ;;
+  esac
+  [ ${#1} -eq 64 ]
+}
+
+file_sha256() {
+  source_file=$1
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$source_file" | awk '{print $1}' | tr 'A-F' 'a-f'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$source_file" | awk '{print $1}' | tr 'A-F' 'a-f'
+  else
+    return 1
+  fi
+}
+
 require_under_root() {
   case "$1" in
     "$LUMANEST_ROOT"/*) ;;
     *) echo "$2 must be under $LUMANEST_ROOT." >&2; exit 1 ;;
   esac
+}
+
+acquire_deploy_lock() {
+  DEPLOY_LOCK_DIR=$LUMANEST_ROOT/.lumanest-deploy.lock
+  if ! mkdir "$DEPLOY_LOCK_DIR" 2>/dev/null; then
+    echo "Another LumaNest deployment is active; inspect $DEPLOY_LOCK_DIR before retrying." >&2
+    return 1
+  fi
+  DEPLOY_LOCK_HELD=1
+}
+
+release_deploy_lock() {
+  if [ "$DEPLOY_LOCK_HELD" -ne 1 ]; then
+    return 0
+  fi
+  if ! rmdir "$DEPLOY_LOCK_DIR" 2>/dev/null; then
+    echo "Deployment lock cleanup failed: $DEPLOY_LOCK_DIR" >&2
+    return 1
+  fi
+  DEPLOY_LOCK_HELD=0
 }
 
 atomic_write() {
@@ -83,12 +123,21 @@ sky_data_ready() {
   viirs_host=$(environment_value_from "$source_file" VIIRS_RASTER_HOST_DIR)
   viirs_path=$(environment_value_from "$source_file" VIIRS_RASTER_PATH)
   viirs_revision=$(environment_value_from "$source_file" VIIRS_DATASET_REVISION)
+  viirs_year=$(environment_value_from "$source_file" VIIRS_DATASET_YEAR)
+  viirs_source=$(environment_value_from "$source_file" VIIRS_SOURCE_ID)
+  viirs_attribution=$(environment_value_from "$source_file" VIIRS_ATTRIBUTION)
+  viirs_resolution=$(environment_value_from "$source_file" VIIRS_RESOLUTION_METERS)
+  viirs_sha256=$(environment_value_from "$source_file" VIIRS_RASTER_SHA256)
   raster_url=$(environment_value_from "$source_file" LUMANEST_RASTER_SERVICE_URL)
   raster_token=$(environment_value_from "$source_file" LUMANEST_RASTER_SERVICE_TOKEN)
   raster_revision=$(environment_value_from "$source_file" LUMANEST_RASTER_DATASET_REVISION)
   dem_host=$(environment_value_from "$source_file" DEM_RASTER_HOST_DIR)
   dem_path=$(environment_value_from "$source_file" DEM_RASTER_PATH)
   dem_revision=$(environment_value_from "$source_file" DEM_DATASET_REVISION)
+  dem_source=$(environment_value_from "$source_file" DEM_SOURCE_ID)
+  dem_attribution=$(environment_value_from "$source_file" DEM_ATTRIBUTION)
+  dem_resolution=$(environment_value_from "$source_file" DEM_RESOLUTION_METERS)
+  dem_sha256=$(environment_value_from "$source_file" DEM_RASTER_SHA256)
   terrain_url=$(environment_value_from "$source_file" LUMANEST_TERRAIN_SERVICE_URL)
   terrain_token=$(environment_value_from "$source_file" LUMANEST_TERRAIN_SERVICE_TOKEN)
   terrain_revision=$(environment_value_from "$source_file" LUMANEST_TERRAIN_DATASET_REVISION)
@@ -98,8 +147,13 @@ sky_data_ready() {
     [ "$raster_url" = "http://lumanest-raster-service:8792" ] && \
     [ "$terrain_url" = "http://lumanest-terrain-service:8793" ] && \
     [ ${#raster_token} -ge 24 ] && [ ${#terrain_token} -ge 24 ] && \
+    [ -n "$viirs_year" ] && [ -n "$viirs_source" ] && [ -n "$viirs_attribution" ] && [ -n "$viirs_resolution" ] && \
     [ -n "$viirs_revision" ] && [ "$viirs_revision" = "$raster_revision" ] && \
-    [ -n "$dem_revision" ] && [ "$dem_revision" = "$terrain_revision" ]
+    [ -n "$dem_source" ] && [ -n "$dem_attribution" ] && [ -n "$dem_resolution" ] && \
+    [ -n "$dem_revision" ] && [ "$dem_revision" = "$terrain_revision" ] && \
+    valid_sha256 "$viirs_sha256" && valid_sha256 "$dem_sha256" || return 1
+  [ "$(file_sha256 "$viirs_file")" = "$(printf '%s' "$viirs_sha256" | tr 'A-F' 'a-f')" ] && \
+    [ "$(file_sha256 "$dem_file")" = "$(printf '%s' "$dem_sha256" | tr 'A-F' 'a-f')" ]
 }
 
 upsert_environment_value() {
@@ -468,6 +522,7 @@ deployment_failed() {
     fi
   fi
   echo "Backup retained at $BACKUP_DIR" >&2
+  release_deploy_lock || true
   exit "$original_status"
 }
 
@@ -512,6 +567,10 @@ LUMANEST_ROOT=$(canonical_dir "$LUMANEST_ROOT_INPUT") || {
   exit 1
 }
 require_under_root "$RELEASE_DIR" "Release directory"
+if ! acquire_deploy_lock; then
+  exit 1
+fi
+trap 'release_deploy_lock' EXIT
 
 PREVIOUS_RELEASE_RAW=$(cat "$LUMANEST_ROOT/current-release" 2>/dev/null || true)
 if [ -z "$PREVIOUS_RELEASE_RAW" ]; then
@@ -557,18 +616,6 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 require_file "$ENV_FILE"
 ensure_outbound_network_environment
-if sky_data_ready "$ENV_FILE"; then
-  SKY_DATA_ENABLED=1
-  echo "Sky data profile enabled with reviewed local raster files."
-else
-  SKY_DATA_ENABLED=0
-  echo "Sky data profile disabled; Broker will keep sky facts unavailable."
-fi
-if sky_data_ready "$PREVIOUS_RELEASE/qweather-token-broker.env"; then
-  PREVIOUS_SKY_DATA_ENABLED=1
-else
-  PREVIOUS_SKY_DATA_ENABLED=0
-fi
 
 command -v docker >/dev/null
 command -v curl >/dev/null
@@ -577,9 +624,25 @@ command -v tar >/dev/null
 command -v awk >/dev/null
 command -v od >/dev/null
 command -v tr >/dev/null
+if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+  echo "A SHA-256 command is required to verify sky-data files." >&2
+  exit 1
+fi
 if ! docker info >/dev/null 2>&1; then
   echo "The current user cannot access Docker. Add it to the docker group and start a new session." >&2
   exit 1
+fi
+if sky_data_ready "$ENV_FILE"; then
+  SKY_DATA_ENABLED=1
+  echo "Sky data profile enabled with reviewed, checksum-verified local raster files."
+else
+  SKY_DATA_ENABLED=0
+  echo "Sky data profile disabled; Broker will keep sky facts unavailable."
+fi
+if sky_data_ready "$PREVIOUS_RELEASE/qweather-token-broker.env"; then
+  PREVIOUS_SKY_DATA_ENABLED=1
+else
+  PREVIOUS_SKY_DATA_ENABLED=0
 fi
 
 # Validate interpolation and build contexts before stopping the running stack.
@@ -650,6 +713,7 @@ verify_release_service_health lumanest-terrain-service
 # last-backup is written first; current-release is the final commit marker.
 atomic_write "$LUMANEST_ROOT/last-backup" "$BACKUP_DIR"
 atomic_write "$LUMANEST_ROOT/current-release" "$RELEASE_DIR"
+release_deploy_lock
 trap - EXIT INT TERM
 
 cleanup_backup_image_tags

@@ -109,6 +109,25 @@ test('deployment recovery restores archived volumes before starting the previous
   assert.match(await readFile(join(fixture.releaseDir, 'qweather-token-broker.env'), 'utf8'), /TEST_ONLY=1/);
 });
 
+test('deployment refuses a concurrent release before touching Docker', async () => {
+  const fixture = await deploymentFixture();
+  await mkdir(join(fixture.root, '.lumanest-deploy.lock'));
+  const result = spawnSync('sh', [fixture.deployScript], {
+    cwd: dirname(fixture.deployScript),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${fixture.binDir}:${process.env.PATH}`,
+      LUMANEST_ROOT: fixture.root,
+      TEST_LOG: fixture.logFile,
+    },
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Another LumaNest deployment is active/);
+  assert.equal(await readFile(fixture.logFile, 'utf8'), '');
+});
+
 test('rollback health failure does not publish the restored release pointer', async () => {
   const fixture = await rollbackFixture();
   const result = spawnSync('sh', [fileURLToPath(scripts[1]), fixture.backupDir], {
@@ -197,6 +216,8 @@ test('release state writes and recovery failures remain explicit', async () => {
   );
   assert.match(deploy, /sky_data_ready/);
   assert.match(deploy, /Sky data profile disabled; Broker will keep sky facts unavailable/);
+  assert.match(deploy, /acquire_deploy_lock/);
+  assert.match(deploy, /release_deploy_lock/);
   assert.match(rollback, /verify_http_boundary/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });
