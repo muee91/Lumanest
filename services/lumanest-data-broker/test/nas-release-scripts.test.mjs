@@ -189,6 +189,12 @@ test('release state writes and recovery failures remain explicit', async () => {
     deploy,
     /while ! compose_release exec -T discovery-worker python -c/,
   );
+  assert.match(deploy, /verify_release_feed_worker/);
+  assert.match(deploy, /Discovery feed worker heartbeat check timed out/);
+  assert.match(
+    deploy,
+    /while ! compose_release exec -T discovery-feed-worker python -c/,
+  );
   assert.match(rollback, /verify_http_boundary/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });

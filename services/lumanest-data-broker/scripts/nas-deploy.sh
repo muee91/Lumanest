@@ -130,7 +130,7 @@ backup_application_images() {
   broker_backed_up=0
   : > "$images_tmp"
 
-  for service in qweather-token-broker context-service discovery-api discovery-worker lumanest-raster-service lumanest-terrain-service; do
+  for service in qweather-token-broker context-service discovery-api discovery-worker discovery-feed-worker lumanest-raster-service lumanest-terrain-service; do
     if ! printf '%s\n' "$services" | grep -qx "$service"; then
       continue
     fi
@@ -320,12 +320,33 @@ verify_previous_discovery_worker() {
   fi
 }
 
+verify_previous_feed_worker() {
+  services=$(compose_previous config --services) || return 1
+  if printf '%s\n' "$services" | grep -qx 'discovery-feed-worker'; then
+    compose_previous exec -T discovery-feed-worker python -c \
+      "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:feed-worker:heartbeat') == 'ok'" >/dev/null
+  fi
+}
+
 verify_release_discovery_worker() {
   attempt=1
   while ! compose_release exec -T discovery-worker python -c \
     "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:worker:heartbeat') == 'ok'" >/dev/null 2>&1; do
     if [ "$attempt" -ge "$HEALTHCHECK_ATTEMPTS" ]; then
       echo "Discovery worker heartbeat check timed out." >&2
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$HEALTHCHECK_INTERVAL_SECONDS"
+  done
+}
+
+verify_release_feed_worker() {
+  attempt=1
+  while ! compose_release exec -T discovery-feed-worker python -c \
+    "import os; from redis import Redis; assert Redis.from_url(os.environ['REDIS_URL'], decode_responses=True).get('discovery:feed-worker:heartbeat') == 'ok'" >/dev/null 2>&1; do
+    if [ "$attempt" -ge "$HEALTHCHECK_ATTEMPTS" ]; then
+      echo "Discovery feed worker heartbeat check timed out." >&2
       return 1
     fi
     attempt=$((attempt + 1))
@@ -381,7 +402,7 @@ deployment_failed() {
     if ! restore_old_stack; then
       echo "Recovery failed: the previous stack could not be started." >&2
       recovery_status=1
-    elif ! verify_http_boundary "" || ! verify_previous_context || ! verify_previous_discovery || ! verify_previous_discovery_worker; then
+    elif ! verify_http_boundary "" || ! verify_previous_context || ! verify_previous_discovery || ! verify_previous_discovery_worker || ! verify_previous_feed_worker; then
       echo "Recovery failed: the previous stack did not pass health checks." >&2
       recovery_status=1
     fi
@@ -564,6 +585,7 @@ compose_release exec -T context-service python -c \
 compose_release exec -T discovery-api python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/readyz', timeout=3)" >/dev/null
 verify_release_discovery_worker
+verify_release_feed_worker
 verify_release_service_health lumanest-raster-service
 verify_release_service_health lumanest-terrain-service
 
