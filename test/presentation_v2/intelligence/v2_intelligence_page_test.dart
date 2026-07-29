@@ -15,28 +15,22 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('contracts only the inspiration stage while typing', (
+  testWidgets('keeps the conversation entry visible while typing', (
     tester,
   ) async {
     await _pump(tester);
 
-    final stage = find.byKey(const Key('v2-intelligence-inspiration-stage'));
-    final before = tester.getSize(stage).height;
-    expect(before, greaterThan(200));
+    expect(find.byKey(const Key('v2-intelligence-welcome')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-assistant-stage')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-composer')), findsOne);
-    expect(find.byKey(const Key('v2-intelligence-note-2')), findsOne);
-    expect(find.byKey(const Key('v2-intelligence-note-3')), findsNothing);
+    expect(find.byKey(const Key('v2-intelligence-note-0')), findsOne);
+    expect(find.byKey(const Key('v2-intelligence-note-1')), findsOne);
+    expect(find.byKey(const Key('v2-intelligence-note-2')), findsNothing);
 
     await tester.tap(find.byKey(const Key('v2-intelligence-input')));
     await tester.pumpAndSettle();
 
-    final after = tester.getSize(stage).height;
-    expect(after, lessThanOrEqualTo(110));
-    expect(
-      find.byKey(const Key('v2-intelligence-compact-inspiration')),
-      findsOne,
-    );
+    expect(find.byKey(const Key('v2-intelligence-welcome')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-assistant-stage')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-composer')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-input')), findsOne);
@@ -50,10 +44,7 @@ void main() {
     await tester.tap(find.byKey(const Key('v2-intelligence-note-0')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('v2-intelligence-compact-inspiration')),
-      findsOne,
-    );
+    expect(find.byKey(const Key('v2-intelligence-welcome')), findsNothing);
     expect(
       find.byKey(const Key('v2-intelligence-assistant-message')),
       findsOne,
@@ -87,12 +78,11 @@ void main() {
   ) async {
     await _pump(tester);
 
-    final input = tester.widget<TextField>(
-      find.byKey(const Key('v2-intelligence-input')),
+    final surface = tester.widget<Container>(
+      find.byKey(const Key('v2-intelligence-composer-surface')),
     );
-    final decoration = input.decoration!;
-    expect(decoration.filled, isTrue);
-    expect(decoration.fillColor, const Color(0xFFF5F5F1));
+    final decoration = surface.decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0xFFF5F5F1));
   });
 }
 

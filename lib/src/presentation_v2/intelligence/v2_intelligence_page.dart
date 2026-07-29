@@ -10,24 +10,17 @@ import 'package:luma_nest/src/core/assistant/assistant_model.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
-import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
-import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
-import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
-import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// The single intelligent entrance for both free conversation and inspiration.
-///
-/// The upper stage owns inspiration and never scrolls with the conversation.
-/// The lower stage owns assistant history and its composer. When the composer
-/// gains focus, only the inspiration stage contracts; the page itself is not
-/// placed inside a scroll view, so the keyboard cannot reorder the surface.
+/// The single intelligent entrance for free conversation and grounded
+/// inspiration. The empty state offers a small set of real prompts; once a
+/// question is asked, the page yields its full height to the conversation.
 class V2IntelligencePage extends ConsumerWidget {
   const V2IntelligencePage({
     super.key,
@@ -74,8 +67,6 @@ class V2IntelligencePage extends ConsumerWidget {
     }
   }
 }
-
-enum _IntelligenceLayoutState { home, inspiration, conversation, typing }
 
 enum _PendingPhase { thinking, generating }
 
@@ -145,15 +136,6 @@ class _IntelligenceWorkspaceState
     if (mounted) setState(() {});
   }
 
-  _IntelligenceLayoutState get _layoutState {
-    if (_inputFocus.hasFocus) return _IntelligenceLayoutState.typing;
-    if (_conversation.turns.isNotEmpty || _pendingIntent != null) {
-      return _IntelligenceLayoutState.conversation;
-    }
-    if (_selectedNote != null) return _IntelligenceLayoutState.inspiration;
-    return _IntelligenceLayoutState.home;
-  }
-
   @override
   Widget build(BuildContext context) {
     final preferences = ref.watch(profilePreferencesProvider);
@@ -165,7 +147,6 @@ class _IntelligenceWorkspaceState
     );
     _resolveInitialNote(notes);
     final visibleNotes = _rotatedNotes(notes);
-    final library = ref.watch(userLibraryProvider).asData?.value;
     final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
     final bottomSafe = keyboardHeight > 0
         ? 0.0
@@ -173,74 +154,41 @@ class _IntelligenceWorkspaceState
 
     return SafeArea(
       bottom: false,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final usableHeight = (constraints.maxHeight - keyboardHeight).clamp(
-            280.0,
-            constraints.maxHeight,
-          );
-          final inspirationHeight = _inspirationHeight(usableHeight);
-          return AnimatedPadding(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.only(bottom: keyboardHeight),
-            child: Column(
-              children: [
-                _topBar(),
-                AnimatedContainer(
-                  key: const Key('v2-intelligence-inspiration-stage'),
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  height: inspirationHeight,
-                  child: _InspirationStage(
-                    snapshot: widget.snapshot,
-                    notes: visibleNotes,
-                    selectedNote: _selectedNote,
-                    compact: inspirationHeight <= 190,
-                    saved:
-                        _selectedNote != null &&
-                        _isSaved(library, _selectedNote!),
-                    onSelect: _selectNote,
-                    onShuffle: () => setState(() {
-                      if (notes.isNotEmpty) {
-                        _noteOffset = (_noteOffset + 5) % notes.length;
-                      }
-                    }),
-                    onSave: _selectedNote == null
-                        ? null
-                        : () => _saveSelected(_selectedNote!),
-                    onAction: _selectedNote == null
-                        ? null
-                        : () => _actOnNote(_selectedNote!),
-                    onExpand: () {
-                      _inputFocus.unfocus();
-                      setState(() {});
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: _AssistantStage(
-                    snapshot: widget.snapshot,
-                    selectedNote: _selectedNote,
-                    conversation: _conversation,
-                    pendingIntent: _pendingIntent,
-                    pendingText: _pendingText,
-                    pendingSource: _pendingSource,
-                    pendingPhase: _pendingPhase,
-                    lastFailure: _lastFailure,
-                    inputController: _inputController,
-                    inputFocus: _inputFocus,
-                    scrollController: _conversationScroll,
-                    bottomSafe: bottomSafe,
-                    onSubmit: _submitText,
-                    onInputChanged: () => setState(() {}),
-                    onSuggestion: _ask,
-                  ),
-                ),
-              ],
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.only(bottom: keyboardHeight),
+        child: Column(
+          children: [
+            _topBar(),
+            Expanded(
+              child: _AssistantStage(
+                snapshot: widget.snapshot,
+                notes: visibleNotes,
+                selectedNote: _selectedNote,
+                conversation: _conversation,
+                pendingIntent: _pendingIntent,
+                pendingText: _pendingText,
+                pendingSource: _pendingSource,
+                pendingPhase: _pendingPhase,
+                lastFailure: _lastFailure,
+                inputController: _inputController,
+                inputFocus: _inputFocus,
+                scrollController: _conversationScroll,
+                bottomSafe: bottomSafe,
+                onSubmit: _submitText,
+                onInputChanged: () => setState(() {}),
+                onSuggestion: _ask,
+                onSelectNote: _selectNote,
+                onShuffleNotes: () => setState(() {
+                  if (notes.isNotEmpty) {
+                    _noteOffset = (_noteOffset + 5) % notes.length;
+                  }
+                }),
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -262,29 +210,16 @@ class _IntelligenceWorkspaceState
               }
             },
           ),
+          const SizedBox(width: 8),
           const Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '栖光',
-                  style: TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .2,
-                  ),
-                ),
-                SizedBox(height: 1),
-                Text(
-                  '灵感与对话',
-                  style: TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+            child: Text(
+              '栖光',
+              style: TextStyle(
+                color: V2Palette.ink,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -.35,
+              ),
             ),
           ),
           _roundAction(
@@ -314,20 +249,6 @@ class _IntelligenceWorkspaceState
     ),
   );
 
-  double _inspirationHeight(double usableHeight) {
-    switch (_layoutState) {
-      case _IntelligenceLayoutState.typing:
-        return usableHeight < 520 ? 92 : 104;
-      case _IntelligenceLayoutState.conversation:
-        return usableHeight < 600 ? 126 : 150;
-      case _IntelligenceLayoutState.inspiration:
-        return (usableHeight * .31).clamp(170.0, 238.0);
-      case _IntelligenceLayoutState.home:
-        if (usableHeight < 600) return 200;
-        return (usableHeight * .29).clamp(210.0, 235.0);
-    }
-  }
-
   void _resolveInitialNote(List<InspirationNote> notes) {
     if (_initialNoteResolved) return;
     final requested = widget.initialNoteId;
@@ -356,41 +277,6 @@ class _IntelligenceWorkspaceState
     _inputFocus.unfocus();
     setState(() => _selectedNote = note);
     unawaited(_ask('请详细解读灵感「${note.label}」', note: note));
-  }
-
-  Future<void> _saveSelected(InspirationNote note) async {
-    await ref
-        .read(userLibraryProvider.notifier)
-        .saveInspirationNote(snapshotId: widget.snapshot.id, note: note);
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已收藏这张灵感')));
-  }
-
-  bool _isSaved(UserLibraryState? library, InspirationNote note) {
-    final id = SavedInspirationNote.idFor(
-      snapshotId: widget.snapshot.id,
-      noteId: note.id,
-    );
-    return library?.savedNotes.any((item) => item.id == id) == true;
-  }
-
-  void _actOnNote(InspirationNote note) {
-    if (note.routeLocation case final route?) {
-      context.push(route);
-      return;
-    }
-    handleManifestAction(
-      context,
-      ManifestItem(
-        id: note.id,
-        title: note.label,
-        action: note.action,
-        authorityUri: note.authorityUri,
-      ),
-      detailOverride: note.detail,
-    );
   }
 
   void _submitText() {
@@ -687,281 +573,10 @@ class _IntelligenceWorkspaceState
   };
 }
 
-class _InspirationStage extends StatelessWidget {
-  const _InspirationStage({
-    required this.snapshot,
-    required this.notes,
-    required this.selectedNote,
-    required this.compact,
-    required this.saved,
-    required this.onSelect,
-    required this.onShuffle,
-    required this.onSave,
-    required this.onAction,
-    required this.onExpand,
-  });
-
-  final ContextSnapshot snapshot;
-  final List<InspirationNote> notes;
-  final InspirationNote? selectedNote;
-  final bool compact;
-  final bool saved;
-  final ValueChanged<InspirationNote> onSelect;
-  final VoidCallback onShuffle;
-  final VoidCallback? onSave;
-  final VoidCallback? onAction;
-  final VoidCallback onExpand;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(14, 2, 14, 8),
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(compact ? 24 : 32),
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFFE6EEE7), Color(0xFFF2E9DD)],
-      ),
-      border: Border.all(color: Colors.white.withValues(alpha: .9)),
-      boxShadow: [
-        BoxShadow(
-          color: V2Palette.ink.withValues(alpha: .09),
-          blurRadius: 24,
-          offset: const Offset(0, 10),
-        ),
-      ],
-    ),
-    child: compact ? _compact(context) : _expanded(context),
-  );
-
-  Widget _compact(BuildContext context) {
-    final note = selectedNote;
-    return InkWell(
-      key: const Key('v2-intelligence-compact-inspiration'),
-      onTap: onExpand,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .72),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                note?.emoji ?? '✦',
-                style: const TextStyle(fontSize: 20),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    note?.label ?? '此刻灵感',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: V2Palette.ink,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    note == null ? '输入时收拢，灵感上下文仍会保留' : note.detail,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: V2Palette.mutedInk,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(CupertinoIcons.chevron_down, color: V2Palette.moss),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _expanded(BuildContext context) {
-    final note = selectedNote;
-    final visibleNotes = notes.take(3).toList(growable: false);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                '此刻灵感',
-                style: TextStyle(
-                  color: V2Palette.moss,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: onShuffle,
-                icon: const Icon(CupertinoIcons.shuffle, size: 15),
-                label: const Text('换一组'),
-                style: TextButton.styleFrom(foregroundColor: V2Palette.ink),
-              ),
-            ],
-          ),
-          if (note == null) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              key: const Key('v2-intelligence-inspiration-rail'),
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var index = 0; index < visibleNotes.length; index++)
-                  _V2InspirationNoteAction(
-                    key: Key('v2-intelligence-note-$index'),
-                    item: visibleNotes[index],
-                    onTap: () => onSelect(visibleNotes[index]),
-                  ),
-              ],
-            ),
-          ] else ...[
-            Expanded(
-              key: const Key('v2-intelligence-selected-note'),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .68),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      note.emoji,
-                      style: const TextStyle(fontSize: 32),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          note.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: V2Palette.ink,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -.8,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          note.detail,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: V2Palette.mutedInk,
-                            fontSize: 12,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Row(
-              children: [
-                TextButton.icon(
-                  onPressed: onSave,
-                  icon: Icon(
-                    saved
-                        ? CupertinoIcons.bookmark_fill
-                        : CupertinoIcons.bookmark,
-                    size: 16,
-                  ),
-                  label: Text(saved ? '已收藏' : '收藏'),
-                ),
-                const Spacer(),
-                if (onAction != null)
-                  FilledButton.tonalIcon(
-                    onPressed: onAction,
-                    icon: const Icon(CupertinoIcons.arrow_up_right, size: 15),
-                    label: const Text('相关内容'),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _V2InspirationNoteAction extends StatelessWidget {
-  const _V2InspirationNoteAction({
-    super.key,
-    required this.item,
-    required this.onTap,
-  });
-
-  final InspirationNote item;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: '查看灵感：${item.label}',
-    child: Material(
-      color: Colors.white.withValues(alpha: .72),
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(item.emoji),
-              const SizedBox(width: 6),
-              Text(
-                item.label,
-                style: const TextStyle(
-                  color: V2Palette.ink,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
 class _AssistantStage extends StatelessWidget {
   const _AssistantStage({
     required this.snapshot,
+    required this.notes,
     required this.selectedNote,
     required this.conversation,
     required this.pendingIntent,
@@ -976,9 +591,12 @@ class _AssistantStage extends StatelessWidget {
     required this.onSubmit,
     required this.onInputChanged,
     required this.onSuggestion,
+    required this.onSelectNote,
+    required this.onShuffleNotes,
   });
 
   final ContextSnapshot snapshot;
+  final List<InspirationNote> notes;
   final InspirationNote? selectedNote;
   final AssistantConversationState conversation;
   final AssistantIntent? pendingIntent;
@@ -993,17 +611,17 @@ class _AssistantStage extends StatelessWidget {
   final VoidCallback onSubmit;
   final VoidCallback onInputChanged;
   final ValueChanged<String> onSuggestion;
+  final ValueChanged<InspirationNote> onSelectNote;
+  final VoidCallback onShuffleNotes;
 
   @override
   Widget build(BuildContext context) => Container(
     key: const Key('v2-intelligence-assistant-stage'),
-    decoration: const BoxDecoration(
-      color: V2Palette.paper,
-      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-    ),
+    color: V2Palette.paper,
     child: Column(
       children: [
-        _contextStrip(),
+        if (conversation.turns.isNotEmpty || pendingIntent != null)
+          _contextStrip(),
         Expanded(
           child: conversation.turns.isEmpty && pendingIntent == null
               ? _welcome()
@@ -1015,25 +633,26 @@ class _AssistantStage extends StatelessWidget {
   );
 
   Widget _contextStrip() => Container(
-    height: 42,
-    padding: const EdgeInsets.symmetric(horizontal: 18),
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: V2Palette.line)),
+    margin: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: V2Palette.mossSoft,
+      borderRadius: BorderRadius.circular(14),
     ),
     child: Row(
       children: [
-        const Icon(CupertinoIcons.scope, color: V2Palette.moss, size: 15),
-        const SizedBox(width: 7),
+        const Icon(CupertinoIcons.scope, color: V2Palette.moss, size: 14),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
             selectedNote == null
-                ? '正在参考当前环境 · ${snapshot.shootingSessions.length} 条拍摄机会'
-                : '正在参考「${selectedNote!.label}」· 当前环境 · 拍摄机会',
+                ? '已带入当前环境 · ${snapshot.shootingSessions.length} 条拍摄机会'
+                : '已带入「${selectedNote!.label}」和当前环境',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: V2Palette.mutedInk,
-              fontSize: 11,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1044,63 +663,146 @@ class _AssistantStage extends StatelessWidget {
 
   Widget _welcome() {
     final suggestions = selectedNote == null
-        ? const ['今天适合拍什么？', '什么时候出发？', '需要带什么器材？', '沿途哪里值得停？']
+        ? const ['今天适合拍什么？', '什么时候出发？', '需要带什么器材？']
         : ['这个灵感怎么拍？', '附近哪里适合？', '需要什么器材？', '换一种构图思路'];
     return ListView(
-      key: const Key('v2-intelligence-empty-conversation'),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      key: const Key('v2-intelligence-welcome'),
+      padding: const EdgeInsets.fromLTRB(24, 34, 24, 16),
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _avatar(),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
-                decoration: BoxDecoration(
-                  color: V2Palette.canvas,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(5),
-                    topRight: Radius.circular(18),
-                    bottomLeft: Radius.circular(18),
-                    bottomRight: Radius.circular(18),
-                  ),
-                  border: Border.all(color: V2Palette.line),
-                ),
-                child: const Text(
-                  '直接问我想拍什么、准备去哪，或从上方抽一张灵感。',
-                  style: TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 14,
-                    height: 1.45,
-                  ),
+        Text(
+          selectedNote == null ? '现在，想拍什么？' : '围绕「${selectedNote!.label}」聊聊。',
+          style: const TextStyle(
+            color: V2Palette.ink,
+            fontSize: 28,
+            height: 1.15,
+            letterSpacing: -1.1,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Text(
+          selectedNote == null
+              ? '栖光会结合你此刻的环境、天气与拍摄机会回答。'
+              : '灵感来自当前环境；继续问，我会把它变成可执行的拍摄思路。',
+          style: const TextStyle(
+            color: V2Palette.mutedInk,
+            fontSize: 14,
+            height: 1.45,
+          ),
+        ),
+        if (selectedNote == null && notes.isNotEmpty) ...[
+          const SizedBox(height: 28),
+          Row(
+            children: [
+              const Text(
+                '此刻灵感',
+                style: TextStyle(
+                  color: V2Palette.moss,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
                 ),
               ),
-            ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: onShuffleNotes,
+                icon: const Icon(CupertinoIcons.shuffle, size: 14),
+                label: const Text('换一组'),
+                style: TextButton.styleFrom(
+                  foregroundColor: V2Palette.mutedInk,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (var index = 0; index < notes.take(2).length; index++) ...[
+            _inspirationPrompt(notes[index], index),
+            if (index == 0) const SizedBox(height: 8),
           ],
+        ],
+        const SizedBox(height: 28),
+        const Text(
+          '你可以这样问',
+          style: TextStyle(
+            color: V2Palette.mutedInk,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             for (final item in suggestions)
-              ActionChip(
-                label: Text(item),
-                onPressed: () => onSuggestion(item),
-                backgroundColor: V2Palette.mossSoft,
-                side: const BorderSide(color: V2Palette.line),
-                labelStyle: const TextStyle(
-                  color: V2Palette.ink,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+              _questionPrompt(item: item, onTap: () => onSuggestion(item)),
           ],
         ),
       ],
     );
   }
+
+  Widget _inspirationPrompt(InspirationNote note, int index) => Semantics(
+    button: true,
+    label: '查看灵感：${note.label}',
+    child: Material(
+      color: V2Palette.canvas,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('v2-intelligence-note-$index'),
+        onTap: () => onSelectNote(note),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  note.label,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const Icon(
+                CupertinoIcons.arrow_up_right,
+                color: V2Palette.moss,
+                size: 16,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _questionPrompt({required String item, required VoidCallback onTap}) =>
+      Semantics(
+        button: true,
+        label: '提问：$item',
+        child: Material(
+          color: V2Palette.paper,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Text(
+                item,
+                style: const TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 
   Widget _conversation() => ListView(
     controller: scrollController,
@@ -1305,21 +1007,28 @@ class _AssistantStage extends StatelessWidget {
     final canSend = inputController.text.trim().isNotEmpty;
     return Container(
       key: const Key('v2-intelligence-composer'),
-      padding: EdgeInsets.fromLTRB(16, 9, 16, 10 + bottomSafe),
-      decoration: const BoxDecoration(
-        color: V2Palette.paper,
-        border: Border(top: BorderSide(color: V2Palette.line)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 46),
-              decoration: BoxDecoration(
-                color: V2Palette.canvas,
-                borderRadius: BorderRadius.circular(18),
-              ),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 10 + bottomSafe),
+      color: V2Palette.paper,
+      child: Container(
+        key: const Key('v2-intelligence-composer-surface'),
+        constraints: const BoxConstraints(minHeight: 52),
+        padding: const EdgeInsets.fromLTRB(14, 4, 5, 4),
+        decoration: BoxDecoration(
+          color: V2Palette.canvas,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: V2Palette.line),
+          boxShadow: [
+            BoxShadow(
+              color: V2Palette.ink.withValues(alpha: .06),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
               child: TextField(
                 key: const Key('v2-intelligence-input'),
                 controller: inputController,
@@ -1335,38 +1044,34 @@ class _AssistantStage extends StatelessWidget {
                   height: 1.35,
                 ),
                 decoration: const InputDecoration(
-                  hintText: '直接问栖光…',
+                  hintText: '问栖光任何拍摄问题',
                   hintStyle: TextStyle(color: V2Palette.mutedInk),
                   filled: true,
                   fillColor: V2Palette.canvas,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
+                  contentPadding: EdgeInsets.symmetric(vertical: 11),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            key: const Key('v2-intelligence-send'),
-            tooltip: '发送',
-            onPressed: canSend ? onSubmit : null,
-            style: IconButton.styleFrom(
-              minimumSize: const Size.square(46),
-              maximumSize: const Size.square(46),
-              padding: EdgeInsets.zero,
-              backgroundColor: V2Palette.moss,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: V2Palette.canvas,
-              disabledForegroundColor: V2Palette.line,
+            IconButton(
+              key: const Key('v2-intelligence-send'),
+              tooltip: '发送',
+              onPressed: canSend ? onSubmit : null,
+              style: IconButton.styleFrom(
+                minimumSize: const Size.square(42),
+                maximumSize: const Size.square(42),
+                padding: EdgeInsets.zero,
+                backgroundColor: V2Palette.moss,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: V2Palette.paper,
+                disabledForegroundColor: V2Palette.line,
+              ),
+              icon: const Icon(CupertinoIcons.arrow_up, size: 18),
             ),
-            icon: const Icon(CupertinoIcons.arrow_up, size: 20),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
