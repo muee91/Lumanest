@@ -302,6 +302,59 @@ test('inspiration assistant accepts the bounded creative question', async () => 
   }, { companionStore, now: () => now });
 });
 
+test('assistant keeps current photography questions on grounded snapshot facts', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
+  snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
+  snapshot.facts.shootingSessions[0].phases = [{
+    ...snapshot.facts.shootingSessions[0].phases[0],
+    startAt: '2026-07-20T00:10:00Z',
+    peakAt: '2026-07-20T00:30:00Z',
+    endAt: '2026-07-20T00:50:00Z',
+  }];
+  snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
+  companionStore.rememberSnapshot(snapshot);
+  let upstreamCalls = 0;
+
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        // The server must reclassify this even if a stale client labels it
+        // general, so the model cannot deny context facts that are present.
+        questionType: 'general',
+        question: '今天适合拍什么？',
+        eventIds: [snapshot.facts.shootingSessions[0].id],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const answer = events.filter((event) => event.event === 'delta')
+      .map((event) => event.data.text).join('');
+    assert.match(answer, /湖岸晚间窗口/);
+    assert.match(answer, /08:10—08:50/);
+    assert.equal(events.find((event) => event.event === 'done').data.source, 'template');
+  }, {
+    companionStore,
+    now: () => now,
+    aiApiKey: 'test-ai-key',
+    fetcher: async () => {
+      upstreamCalls += 1;
+      throw new Error('current context question must not reach a model');
+    },
+  });
+
+  assert.equal(upstreamCalls, 0);
+});
+
 test('assistant sends a free-form photography question to the model without a template', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
   const companionStore = new CompanionStore({ now: () => now });

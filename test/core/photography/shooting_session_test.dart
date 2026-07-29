@@ -89,6 +89,14 @@ void main() {
     expect(session.canStartWatchingAt(session.endsAt), isFalse);
   });
 
+  test('presentation window is the primary evidence-bearing phase', () {
+    final session = ContextFixtures.waterEveningSession(observedAt: now);
+
+    expect(session.presentationStartsAt, session.primaryPhaseValue.startsAt);
+    expect(session.presentationEndsAt, session.primaryPhaseValue.endsAt);
+    expect(session.presentationEndsAt, isNot(session.endsAt));
+  });
+
   test('selector prefers the nearest upcoming session', () {
     final morning = ContextFixtures.waterMorningSession(observedAt: now);
     final evening = ContextFixtures.waterEveningSession(

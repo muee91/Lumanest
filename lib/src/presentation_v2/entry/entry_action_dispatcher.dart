@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_action.dart';
@@ -7,13 +8,19 @@ import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
 abstract final class EntryActionDispatcher {
-  static Future<void> dispatch(BuildContext context, ContextEntry entry) async {
+  static Future<void> dispatch(
+    BuildContext context,
+    ContextEntry entry, {
+    ContextSnapshot? snapshot,
+  }) async {
     final action = entry.actions.firstOrNull;
     if (action == null) return;
     switch (action.type) {
       case EntryActionType.openShootingWindow:
         final id = action.targetId;
-        if (id != null) context.push('/session/${Uri.encodeComponent(id)}');
+        if (id != null) {
+          context.push('/session/${Uri.encodeComponent(id)}', extra: snapshot);
+        }
       case EntryActionType.openExplore:
         final query = action.query;
         context.go(query == null ? '/explore' : '/explore?focus=$query');

@@ -369,9 +369,10 @@ const narrativeRequestKeys = new Set([
 ]);
 
 const narrativeTones = new Set(['concise', 'balanced', 'detailed']);
-const assistantQuestionTypes = new Set(['general', 'why', 'prepare', 'wording', 'nearby', 'timing', 'creative', 'safety']);
+const assistantQuestionTypes = new Set(['general', 'shootingPlan', 'why', 'prepare', 'wording', 'nearby', 'timing', 'creative', 'safety']);
 const assistantSurfaces = new Set(['today', 'explore', 'inspiration', 'shootingWindow']);
 const assistantSafetyQuestionPattern = /安全(?!快门)|危险|雷暴|雷电|暴雨|大风|降雪|结冰|下雨|下雪|天气|预警|封路|封闭|禁入|能不能去|适合出门|能出门|可以去吗/;
+const assistantCurrentShootingPattern = /(?:今天|现在|此刻|当前).{0,16}(?:适合拍|拍什么|可拍)|(?:今天|现在|此刻|当前)?适合拍什么/;
 const assistantSensitiveQuestionPattern = /银行卡|密码|验证码|密钥|私钥|助记词|身份证号|api\s*key|access\s*token|secret/i;
 const narrativeCreativeIds = new Set([
   ...opportunityCatalog
@@ -552,6 +553,7 @@ function effectiveAssistantQuestionType(body) {
       assistantSensitiveQuestionPattern.test(question)) {
     return 'safety';
   }
+  if (assistantCurrentShootingPattern.test(question)) return 'shootingPlan';
   return body.questionType;
 }
 
@@ -565,6 +567,15 @@ function assistantTemplate(snapshot, questionType, eventIds, placeSummaries) {
   const sessions = (snapshot.facts?.shootingSessions ?? []).filter((session) =>
     eventIds.length === 0 || eventIds.includes(session.id));
   const session = sessions[0] ?? null;
+  if (questionType === 'shootingPlan') {
+    if (session == null) {
+      return '当前没有仍有效的拍摄窗口，先观察现场光线变化。';
+    }
+    const { startAt, endAt } = assistantPresentationWindow(session);
+    const start = new Date(startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const end = new Date(endAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `今天优先拍「${session.title}」，窗口为${start}—${end}。打开机会详情可查看依据和行动安排。`;
+  }
   if (questionType === 'why') {
     if (session == null) return '当前没有独立的拍摄窗口，先看环境变化。';
     const factors = (session.factors ?? [])
@@ -592,8 +603,9 @@ function assistantTemplate(snapshot, questionType, eventIds, placeSummaries) {
   }
   if (questionType === 'timing') {
     if (session == null) return '当前没有可执行的拍摄时间窗口。';
-    const start = new Date(session.startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const end = new Date(session.endAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const { startAt, endAt } = assistantPresentationWindow(session);
+    const start = new Date(startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const end = new Date(endAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
     return `当前窗口是${start}—${end}，先看时间再决定是否出发。`;
   }
   if (questionType === 'creative') {
@@ -606,6 +618,18 @@ function assistantTemplate(snapshot, questionType, eventIds, placeSummaries) {
   return snapshot.environment?.scene === 'village'
     ? '先看时间，再决定是否出发。'
     : '先看当前窗口，再决定下一步。';
+}
+
+// A session lifecycle can intentionally outlast its primary phase (for
+// notification and subsequent-phase handling). User-facing windows must keep
+// the same primary phase the Today card presents.
+function assistantPresentationWindow(session) {
+  const phases = Array.isArray(session?.phases) ? session.phases : [];
+  const primary = phases.find((phase) => phase?.kind === session?.primaryPhase);
+  return {
+    startAt: typeof primary?.startAt === 'string' ? primary.startAt : session.startAt,
+    endAt: typeof primary?.endAt === 'string' ? primary.endAt : session.endAt,
+  };
 }
 
 // Place summaries are derived server-side from the Broker's own Amap lookup so
@@ -1919,7 +1943,7 @@ export function createTokenBrokerServer({
       let source = 'template';
       let webSources = [];
       let degraded = null;
-      if (effectiveQuestionType !== 'safety' && configuration.settings.aiEnabled && configuration.llmRouting.primaryProfileId != null) {
+      if (effectiveQuestionType !== 'safety' && effectiveQuestionType !== 'shootingPlan' && configuration.settings.aiEnabled && configuration.llmRouting.primaryProfileId != null) {
         let routedError = null;
         let routedText = null;
         // Agent path (web_search via Tavily) is attempted first when: search is

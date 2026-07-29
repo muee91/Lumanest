@@ -38,8 +38,8 @@ function prompt(questionType, templateAnswer) {
   };
 }
 
-test('nearby and safety prompts never contact a model', async () => {
-  for (const questionType of ['nearby', 'safety']) {
+test('nearby, safety and current shooting prompts never contact a model', async () => {
+  for (const questionType of ['nearby', 'safety', 'shootingPlan']) {
     let contacted = false;
     const result = await routeNarrative({
       profiles: [primary],

@@ -149,7 +149,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     title: session.title,
                     detail: decision.reason,
                     timeLabel:
-                        '${_time(session.startsAt)}—${_time(session.endsAt)}',
+                        '${_time(session.presentationStartsAt)}—'
+                        '${_time(session.presentationEndsAt)}',
                     accent: _accent(session.conditionBand),
                   ),
                   const SizedBox(height: 20),

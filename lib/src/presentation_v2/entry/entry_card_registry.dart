@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_payload.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 import 'package:luma_nest/src/presentation_v2/entry/entry_action_dispatcher.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_opportunity_object.dart';
@@ -13,13 +14,15 @@ abstract final class EntryCardRegistry {
     BuildContext context,
     ContextEntry entry,
     CompositionSlot slot, {
+    ContextSnapshot? snapshot,
     VoidCallback? onCollapse,
   }) {
     if (entry.kind == EntryKind.safety &&
         slot == CompositionSlot.blockingSafety) {
       return _SafetyEntryCard(
         entry: entry,
-        onTap: () => EntryActionDispatcher.dispatch(context, entry),
+        onTap: () =>
+            EntryActionDispatcher.dispatch(context, entry, snapshot: snapshot),
         onCollapse: onCollapse,
       );
     }
@@ -31,7 +34,8 @@ abstract final class EntryCardRegistry {
       timeLabel: entry.presentation.timeLabel,
       actionLabel: entry.presentation.actionLabel,
       accent: _accent(entry.presentation.accent),
-      onTap: () => EntryActionDispatcher.dispatch(context, entry),
+      onTap: () =>
+          EntryActionDispatcher.dispatch(context, entry, snapshot: snapshot),
     );
   }
 

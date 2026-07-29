@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/app/luma_nest_app.dart';
 import 'package:luma_nest/src/app/router.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 
@@ -14,6 +15,20 @@ void main() {
     expect(shootingSessionIdFrom(Uri.parse('/session/x')), isNull);
     expect(
       shootingSessionIdFrom(Uri.parse('/opportunity/photo-valid')),
+      isNull,
+    );
+  });
+
+  test('opportunity route retains only a matching source snapshot', () {
+    final snapshot = ContextFixtures.lakeSunset(observedAt: DateTime.now());
+    final sessionId = snapshot.shootingSessions.single.id;
+
+    expect(
+      opportunitySnapshotFromRoute(snapshot, sessionId: sessionId),
+      same(snapshot),
+    );
+    expect(
+      opportunitySnapshotFromRoute(snapshot, sessionId: 'another-session'),
       isNull,
     );
   });
@@ -49,9 +64,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       expect(find.text('先选一个要抵达的地方'), findsOneWidget);
 
-      await tester.tap(
-        find.bySemanticsLabel('栖光：问问题或抽取灵感'),
-      );
+      await tester.tap(find.bySemanticsLabel('栖光：问问题或抽取灵感'));
       await tester.pumpAndSettle();
       expect(find.byType(V2IntelligencePage), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsNothing);

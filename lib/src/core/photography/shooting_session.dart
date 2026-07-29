@@ -221,6 +221,13 @@ class ShootingSession {
   ShootingSessionPhase get primaryPhaseValue =>
       phases.firstWhere((phase) => phase.kind == primaryPhase);
 
+  /// The user-visible window is the primary, evidence-bearing phase shown by
+  /// the Today card. [endsAt] remains the broader session lifecycle bound for
+  /// selection, notifications and subsequent phases.
+  DateTime get presentationStartsAt => primaryPhaseValue.startsAt;
+
+  DateTime get presentationEndsAt => primaryPhaseValue.endsAt;
+
   bool isEvidenceExpiredAt(DateTime now) => !expiresAt.isAfter(now);
 
   /// Foreground watch mode is useful only shortly before an actionable

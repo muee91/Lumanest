@@ -149,24 +149,40 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/opportunity/:id',
-        pageBuilder: (context, state) => _v2DetailPage(
-          state,
-          child: V2OpportunityPage(
-            sessionId: state.pathParameters['id']!,
-            initialSnapshot: initialContext,
-          ),
-        ),
+        pageBuilder: (context, state) {
+          final sessionId = state.pathParameters['id']!;
+          return _v2DetailPage(
+            state,
+            child: V2OpportunityPage(
+              sessionId: sessionId,
+              initialSnapshot:
+                  opportunitySnapshotFromRoute(
+                    state.extra,
+                    sessionId: sessionId,
+                  ) ??
+                  initialContext,
+            ),
+          );
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/session/:id',
-        pageBuilder: (context, state) => _v2DetailPage(
-          state,
-          child: V2OpportunityPage(
-            sessionId: state.pathParameters['id']!,
-            initialSnapshot: initialContext,
-          ),
-        ),
+        pageBuilder: (context, state) {
+          final sessionId = state.pathParameters['id']!;
+          return _v2DetailPage(
+            state,
+            child: V2OpportunityPage(
+              sessionId: sessionId,
+              initialSnapshot:
+                  opportunitySnapshotFromRoute(
+                    state.extra,
+                    sessionId: sessionId,
+                  ) ??
+                  initialContext,
+            ),
+          );
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
@@ -277,5 +293,18 @@ String? shootingSessionIdFrom(Uri uri) {
   final value = segments[1];
   return RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$').hasMatch(value)
       ? value
+      : null;
+}
+
+/// A detail page must render the exact snapshot that produced the tapped
+/// opportunity. A later refresh may legitimately alter that session's end
+/// time, but it must not alter the detail Hero midway through one navigation.
+ContextSnapshot? opportunitySnapshotFromRoute(
+  Object? extra, {
+  required String sessionId,
+}) {
+  if (extra is! ContextSnapshot) return null;
+  return extra.shootingSessions.any((session) => session.id == sessionId)
+      ? extra
       : null;
 }

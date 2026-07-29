@@ -97,6 +97,15 @@ abstract final class AssistantIntentParser {
   }
 
   static AssistantQuestionType? _questionType(String text) {
+    // A question about what is suitable *now* is a request to interpret the
+    // current ContextSnapshot, not general photography knowledge. Keeping it
+    // local prevents the model from correctly refusing facts that the app
+    // already has.
+    if (RegExp(
+      r'(?:今天|现在|此刻|当前).{0,16}(?:适合拍|拍什么|可拍)|(?:今天|现在|此刻|当前)?适合拍什么',
+    ).hasMatch(text)) {
+      return AssistantQuestionType.shootingPlan;
+    }
     if (RegExp(r'日出|银河|星空|夜空').hasMatch(text) &&
         RegExp(r'最近|附近|哪里|地点|去哪|什么时间|什么时候|几点|出发|去').hasMatch(text)) {
       return AssistantQuestionType.shootingPlan;

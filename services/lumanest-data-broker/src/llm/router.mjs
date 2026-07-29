@@ -54,7 +54,7 @@ export class LLMPromptBudget {
     if (budgetText == null) {
       return { allowed: true, reason: null };
     }
-    if (user.questionType === 'safety' || user.questionType === 'nearby') {
+    if (user.questionType === 'safety' || user.questionType === 'nearby' || user.questionType === 'shootingPlan') {
       return { allowed: false, reason: 'deterministic_only' };
     }
 

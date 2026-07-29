@@ -158,8 +158,11 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                         ? null
                         : _V2SafetyAlertButton(
                             entry: safety,
-                            onTap: () =>
-                                EntryActionDispatcher.dispatch(context, safety),
+                            onTap: () => EntryActionDispatcher.dispatch(
+                              context,
+                              safety,
+                              snapshot: snapshot,
+                            ),
                           ),
                   ),
                   SizedBox(height: compact ? 20 : 30),
@@ -200,6 +203,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                       context,
                       primary,
                       CompositionSlot.primary,
+                      snapshot: snapshot,
                     ),
                   ),
                   _V2CurrentConditions(snapshot: snapshot, now: now),
@@ -209,6 +213,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                     now: now,
                     onOpen: (session) => context.push(
                       '/session/${Uri.encodeComponent(session.id)}',
+                      extra: snapshot,
                     ),
                   ),
                   if (widget.regionalHighlight case final highlight?) ...[
@@ -732,8 +737,8 @@ class _V2OpportunityRail extends StatelessWidget {
   }
 
   static String _sessionTime(ShootingSession session, DateTime now) {
-    final start = session.startsAt.toLocal();
-    final end = session.endsAt.toLocal();
+    final start = session.presentationStartsAt.toLocal();
+    final end = session.presentationEndsAt.toLocal();
     final localNow = now.toLocal();
     final today = DateTime(localNow.year, localNow.month, localNow.day);
     final sessionDay = DateTime(start.year, start.month, start.day);

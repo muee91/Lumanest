@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/assistant/assistant_model.dart';
+import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
@@ -19,9 +20,7 @@ void main() {
   ) async {
     await _pump(tester);
 
-    final stage = find.byKey(
-      const Key('v2-intelligence-inspiration-stage'),
-    );
+    final stage = find.byKey(const Key('v2-intelligence-inspiration-stage'));
     final before = tester.getSize(stage).height;
     expect(before, greaterThan(200));
     expect(find.byKey(const Key('v2-intelligence-assistant-stage')), findsOne);
@@ -59,6 +58,39 @@ void main() {
     );
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.byKey(const Key('v2-intelligence-composer')), findsOne);
+  });
+
+  testWidgets('answers current photography questions from the fresh snapshot', (
+    tester,
+  ) async {
+    final snapshot = ContextFixtures.lakeSunset(observedAt: DateTime.now());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [assistantModelProvider.overrideWithValue(null)],
+        child: MaterialApp(home: V2IntelligencePage(initialSnapshot: snapshot)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('今天适合拍什么？'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('湖岸晚间窗口'), findsOneWidget);
+    expect(find.textContaining('当前多云'), findsOneWidget);
+    expect(find.text('栖光规则 · 当前数据'), findsOneWidget);
+  });
+
+  testWidgets('keeps the conversation composer on the light canvas', (
+    tester,
+  ) async {
+    await _pump(tester);
+
+    final input = tester.widget<TextField>(
+      find.byKey(const Key('v2-intelligence-input')),
+    );
+    final decoration = input.decoration!;
+    expect(decoration.filled, isTrue);
+    expect(decoration.fillColor, const Color(0xFFF5F5F1));
   });
 }
 
