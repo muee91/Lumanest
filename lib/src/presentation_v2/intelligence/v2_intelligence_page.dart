@@ -738,8 +738,27 @@ class _AssistantStage extends StatelessWidget {
   Widget _welcome() {
     return ListView(
       key: const Key('v2-intelligence-welcome'),
-      padding: const EdgeInsets.fromLTRB(24, 34, 24, 16),
+      padding: const EdgeInsets.fromLTRB(24, 26, 24, 16),
       children: [
+        Text(
+          _environmentSignature,
+          style: const TextStyle(
+            color: V2Palette.moss,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .7,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: 28,
+          height: 3,
+          decoration: BoxDecoration(
+            color: V2Palette.moss,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 18),
         Text(
           selectedNote == null ? '现在，想拍什么？' : '围绕「${selectedNote!.label}」聊聊。',
           style: const TextStyle(
@@ -796,41 +815,116 @@ class _AssistantStage extends StatelessWidget {
     );
   }
 
+  String get _environmentSignature {
+    final local = snapshot.observedAt.toLocal();
+    final time =
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+    final weather = switch (snapshot.weather) {
+      WeatherType.clear => '晴朗',
+      WeatherType.cloudy => '多云',
+      WeatherType.rain => '有雨',
+      WeatherType.snow => '降雪',
+      WeatherType.dust => '扬尘',
+      WeatherType.unknown => '环境已同步',
+    };
+    return '$time · $weather · 此刻环境';
+  }
+
   Widget _inspirationPrompt(InspirationNote note, int index) => Semantics(
     button: true,
     label: '查看灵感：${note.label}',
     child: Material(
-      color: V2Palette.canvas,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: Key('v2-intelligence-note-$index'),
         onTap: () => onSelectNote(note),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  note.label,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: index.isEven
+                  ? const [Color(0xFFF7F4EC), Color(0xFFF1F4EA)]
+                  : const [Color(0xFFF1F5F1), Color(0xFFF4F1E9)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: V2Palette.line.withValues(alpha: .7)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .72),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _inspirationIcon(note.category),
+                    color: V2Palette.moss,
+                    size: 15,
                   ),
                 ),
-              ),
-              const Icon(
-                CupertinoIcons.arrow_up_right,
-                color: V2Palette.moss,
-                size: 16,
-              ),
-            ],
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '灵感纸条',
+                        style: TextStyle(
+                          color: V2Palette.mutedInk,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        note.label,
+                        style: const TextStyle(
+                          color: V2Palette.ink,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: V2Palette.paper,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.arrow_up_right,
+                    color: V2Palette.moss,
+                    size: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     ),
   );
+
+  static IconData _inspirationIcon(InspirationCategory category) =>
+      switch (category) {
+        InspirationCategory.light => CupertinoIcons.sun_max,
+        InspirationCategory.weather => CupertinoIcons.cloud_sun,
+        InspirationCategory.place => CupertinoIcons.location,
+        InspirationCategory.composition => CupertinoIcons.viewfinder,
+      };
 
   Widget _conversation() => ListView(
     controller: scrollController,
@@ -1056,6 +1150,14 @@ class _AssistantStage extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            const Padding(
+              padding: EdgeInsets.only(right: 9, bottom: 12),
+              child: Icon(
+                CupertinoIcons.scope,
+                color: V2Palette.moss,
+                size: 17,
+              ),
+            ),
             Expanded(
               child: TextField(
                 key: const Key('v2-intelligence-input'),
