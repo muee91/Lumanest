@@ -28,7 +28,7 @@ test('place media request requires an exact name and valid coordinate', () => {
     lat: `${request.latitude}`,
     lon: `${request.longitude}`,
   }));
-  assert.deepEqual(valid, request);
+  assert.deepEqual(valid, { ...request, poiId: null });
   assert.equal(parsePlaceMediaRequest(new URLSearchParams({
     name: '湿地', lat: '91', lon: '120',
   })), null);
@@ -52,12 +52,13 @@ test('verified media accepts exact place-name evidence and exposes only a broker
     }]),
   });
   assert.equal(result.ok, true);
-  assert.equal(result.media.attribution, 'Wikimedia Commons');
-  assert.equal(result.media.matchBasis, 'name');
-  assert.equal(result.media.creator, 'Example photographer');
-  assert.match(result.media.proxyPath, /^\/v1\/explore\/media\/[A-Za-z0-9_-]+$/);
-  assert.equal('url' in result.media, false);
-  const token = result.media.proxyPath.split('/').at(-1);
+  assert.equal(result.media[0].attribution, 'Wikimedia Commons');
+  assert.equal(result.media[0].sourceTier, 'primary');
+  assert.equal(result.media[0].matchBasis, 'name');
+  assert.equal(result.media[0].creator, 'Example photographer');
+  assert.match(result.media[0].proxyPath, /^\/v1\/explore\/media\/[A-Za-z0-9_-]+$/);
+  assert.equal('url' in result.media[0], false);
+  const token = result.media[0].proxyPath.split('/').at(-1);
   assert.equal(
     decodedVerifiedMediaUrl(token).toString(),
     'https://upload.wikimedia.org/example/wetland.jpg',
@@ -79,7 +80,7 @@ test('verified media rejects a visually plausible but unrelated search result', 
       }],
     }]),
   });
-  assert.deepEqual(result, { ok: true, media: null });
+  assert.deepEqual(result, { ok: true, media: [] });
 });
 
 test('verified media rejects a nearby photo that does not name the requested POI', async () => {
@@ -96,7 +97,25 @@ test('verified media rejects a nearby photo that does not name the requested POI
       }],
     }]),
   });
-  assert.deepEqual(result, { ok: true, media: null });
+  assert.deepEqual(result, { ok: true, media: [] });
+});
+
+test('verified media retains multiple independently named Commons photos', async () => {
+  const result = await searchVerifiedPlaceMedia({
+    request,
+    fetcher: async () => commonsResponse([42, 43].map((pageid) => ({
+      pageid,
+      title: `File:嘉兴市长山河生态湿地公园-${pageid}.jpg`,
+      imageinfo: [{
+        mime: 'image/jpeg',
+        thumburl: `https://upload.wikimedia.org/example/wetland-${pageid}.jpg`,
+        extmetadata: { ImageDescription: { value: '嘉兴市长山河生态湿地公园' } },
+      }],
+    }))),
+  });
+
+  assert.equal(result.media.length, 2);
+  assert.equal(result.media.every((item) => item.sourceTier === 'primary'), true);
 });
 
 test('verified media proxy token rejects arbitrary hosts', () => {

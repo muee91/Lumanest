@@ -128,6 +128,7 @@ class NearbyPlaceMedia {
     this.license,
     this.sourceUrl,
     this.matchBasis,
+    this.sourceTier = 'primary',
   });
 
   final String id;
@@ -138,6 +139,7 @@ class NearbyPlaceMedia {
   final String? license;
   final String? sourceUrl;
   final String? matchBasis;
+  final String sourceTier;
 }
 
 class NearbyPlace {

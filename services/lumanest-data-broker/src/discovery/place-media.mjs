@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 const commonsApiUrl = 'https://commons.wikimedia.org/w/api.php';
 const commonsImageHost = 'upload.wikimedia.org';
+const amapImageHosts = new Set(['aos-comment.amap.com', 'store.is.autonavi.com']);
 const supportedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function boundedText(value, maximum = 240) {
@@ -49,6 +50,21 @@ function commonsImageUrl(value) {
   } catch {
     return null;
   }
+}
+
+export function amapPlaceMediaUrl(value) {
+  if (typeof value !== 'string' || value.length > 2_000) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port &&
+      amapImageHosts.has(url.hostname.toLowerCase()) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+export function placeMediaProxyPath(url) {
+  return `/v1/explore/media/${Buffer.from(url.toString(), 'utf8').toString('base64url')}`;
 }
 
 function metadataValue(metadata, key) {
@@ -101,9 +117,10 @@ function candidateFromPage(page, request) {
     media: {
       id: createHash('sha256').update(imageUrl.toString()).digest('hex').slice(0, 24),
       kind: 'photo',
-      proxyPath: `/v1/explore/media/${Buffer.from(imageUrl.toString(), 'utf8').toString('base64url')}`,
+      proxyPath: placeMediaProxyPath(imageUrl),
       title: canonicalTitle,
       attribution: 'Wikimedia Commons',
+      sourceTier: 'primary',
       ...(artist == null ? {} : { creator: artist }),
       ...(license == null ? {} : { license }),
       sourceUrl: `https://commons.wikimedia.org/?curid=${page.pageid}`,
@@ -118,7 +135,9 @@ export function parsePlaceMediaRequest(searchParams) {
   const latitude = Number(searchParams.get('lat'));
   const longitude = Number(searchParams.get('lon'));
   if (name == null || [...name].length < 2 || !validPoint(latitude, longitude)) return null;
-  return Object.freeze({ name, city, latitude, longitude });
+  const poiId = boundedText(searchParams.get('poiId'), 80);
+  if (poiId != null && !/^[A-Za-z0-9_-]{1,80}$/.test(poiId)) return null;
+  return Object.freeze({ name, city, latitude, longitude, poiId });
 }
 
 export async function searchVerifiedPlaceMedia({ request, fetcher = fetch, timeoutMs = 8_000 }) {
@@ -150,7 +169,7 @@ export async function searchVerifiedPlaceMedia({ request, fetcher = fetch, timeo
       .map((page) => candidateFromPage(page, request))
       .filter(Boolean)
       .sort((first, second) => second.score - first.score);
-    return { ok: true, media: ranked[0]?.media ?? null };
+    return { ok: true, media: ranked.slice(0, 3).map((candidate) => candidate.media) };
   } catch {
     return { ok: false, error: 'upstream_unavailable' };
   }
@@ -159,7 +178,8 @@ export async function searchVerifiedPlaceMedia({ request, fetcher = fetch, timeo
 export function decodedVerifiedMediaUrl(token) {
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{16,2800}$/.test(token)) return null;
   try {
-    return commonsImageUrl(Buffer.from(token, 'base64url').toString('utf8'));
+    const value = Buffer.from(token, 'base64url').toString('utf8');
+    return commonsImageUrl(value) ?? amapPlaceMediaUrl(value);
   } catch {
     return null;
   }

@@ -1446,9 +1446,9 @@ class _V2ExploreResultObject extends ConsumerWidget {
         ? null
         : ref.watch(verifiedPlaceMediaProvider(selectedPlace!));
     if (selectedMedia != null && !selectedMedia.isLoading) {
-      final media = selectedMedia.asData?.value;
+      final media = selectedMedia.asData?.value ?? const <NearbyPlaceMedia>[];
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        onMediaResolved(media != null);
+        onMediaResolved(media.isNotEmpty);
       });
     }
     final candidateCount = places.asData?.value.length;
@@ -1632,13 +1632,14 @@ class _V2ExploreResultObject extends ConsumerWidget {
     required bool candidateMode,
     required int candidateCount,
     required Map<String, String>? mediaHeaders,
-    required AsyncValue<NearbyPlaceMedia?>? selectedMedia,
+    required AsyncValue<List<NearbyPlaceMedia>>? selectedMedia,
   }) {
     final selected = selectedPlace;
     if (selected != null) {
-      final verifiedMedia = selectedMedia?.asData?.value;
+      final verifiedMedia =
+          selectedMedia?.asData?.value ?? const <NearbyPlaceMedia>[];
       final resolvedMedia = selectedMedia == null || selectedMedia.isLoading
-          ? null
+          ? const <NearbyPlaceMedia>[]
           : verifiedMedia;
       return _V2SelectedPlace(
         name: selected.name,
@@ -2074,7 +2075,7 @@ class _V2SelectedPlace extends StatelessWidget {
     this.onBack,
     this.backLabel = '返回候选',
     this.routeLabel = '规划路线',
-    this.media,
+    this.media = const [],
     this.mediaLoading = false,
     this.mediaHeaders,
   });
@@ -2087,7 +2088,7 @@ class _V2SelectedPlace extends StatelessWidget {
   final String backLabel;
   final String routeLabel;
   final VoidCallback onRoute;
-  final NearbyPlaceMedia? media;
+  final List<NearbyPlaceMedia> media;
   final bool mediaLoading;
   final Map<String, String>? mediaHeaders;
 
@@ -2108,17 +2109,17 @@ class _V2SelectedPlace extends StatelessWidget {
           duration: const Duration(milliseconds: 320),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
-          child: switch ((mediaLoading, media)) {
-            (_, final item?) => _V2PlaceDetailPhoto(
-              key: ValueKey(item.id),
-              media: item,
+          child: switch ((mediaLoading, media.isNotEmpty)) {
+            (_, true) => _V2PlaceDetailGallery(
+              key: ValueKey(media.first.id),
+              media: media,
               headers: mediaHeaders,
             ),
             (true, _) => const _V2PlacePhotoLoading(),
             _ => const SizedBox.shrink(),
           },
         ),
-        SizedBox(height: media != null || mediaLoading ? 16 : 8),
+        SizedBox(height: media.isNotEmpty || mediaLoading ? 16 : 8),
         if (eyebrow case final label?) ...[
           DecoratedBox(
             decoration: BoxDecoration(
@@ -2230,12 +2231,71 @@ class _V2PlacePhotoLoading extends StatelessWidget {
   );
 }
 
-class _V2PlaceDetailPhoto extends StatefulWidget {
-  const _V2PlaceDetailPhoto({
+class _V2PlaceDetailGallery extends StatefulWidget {
+  const _V2PlaceDetailGallery({
     required this.media,
     required this.headers,
     super.key,
   });
+
+  final List<NearbyPlaceMedia> media;
+  final Map<String, String>? headers;
+
+  @override
+  State<_V2PlaceDetailGallery> createState() => _V2PlaceDetailGalleryState();
+}
+
+class _V2PlaceDetailGalleryState extends State<_V2PlaceDetailGallery> {
+  var _index = 0;
+
+  @override
+  void didUpdateWidget(covariant _V2PlaceDetailGallery oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_index >= widget.media.length) _index = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 156,
+    child: Stack(
+      children: [
+        PageView.builder(
+          itemCount: widget.media.length,
+          onPageChanged: (value) => setState(() => _index = value),
+          itemBuilder: (context, index) => _V2PlaceDetailPhoto(
+            media: widget.media[index],
+            headers: widget.headers,
+          ),
+        ),
+        if (widget.media.length > 1)
+          Positioned(
+            top: 9,
+            right: 9,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: .58),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                child: Text(
+                  '${_index + 1}/${widget.media.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class _V2PlaceDetailPhoto extends StatefulWidget {
+  const _V2PlaceDetailPhoto({required this.media, required this.headers});
 
   final NearbyPlaceMedia media;
   final Map<String, String>? headers;
@@ -2332,6 +2392,7 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
                     switch (_activeMedia.matchBasis) {
                       'coordinate' => '已按地点坐标核对',
                       'name' => '已按地点名称核对',
+                      'amapPoiId' => '已按高德 POI 绑定',
                       _ => '平台资料图 · 仅供辨认',
                     },
                     style: const TextStyle(
@@ -2357,8 +2418,8 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
                     vertical: 4,
                   ),
                   child: Text(
-                    _activeMedia.attribution == '高德地图'
-                        ? '地点资料图 · 高德参考'
+                    _activeMedia.sourceTier == 'supplemental'
+                        ? '同 POI 附图 · ${_activeMedia.attribution}'
                         : '地点资料图 · ${_activeMedia.attribution}',
                     style: const TextStyle(
                       color: Colors.white,

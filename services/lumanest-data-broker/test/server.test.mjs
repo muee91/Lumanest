@@ -1796,14 +1796,14 @@ test('Amap nearby strips provider photos instead of treating them as place evide
   assert.equal(upstreamRequests, 1);
 });
 
-test('place detail media uses a strict Commons match, caches lookup and proxies bytes', async () => {
+test('place detail media prioritizes strict Commons evidence and supplements a matching AMap POI', async () => {
   const photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
   let searchRequests = 0;
   let mediaRequests = 0;
   await withServer(async (baseUrl) => {
     const path = '/v1/explore/place-media?name=' +
       encodeURIComponent('长山河生态湿地公园') +
-      '&city=' + encodeURIComponent('嘉兴市') + '&lat=30.6842&lon=120.7281';
+      '&city=' + encodeURIComponent('嘉兴市') + '&poiId=poi-1&lat=30.6842&lon=120.7281';
     const first = await fetch(`${baseUrl}${path}`, {
       headers: { Authorization: 'Bearer test-service-token' },
     });
@@ -1811,16 +1811,21 @@ test('place detail media uses a strict Commons match, caches lookup and proxies 
     const body = await first.json();
     assert.equal(body.status, 'ok');
     assert.equal(body.cacheStatus, 'miss');
-    assert.equal(body.media.attribution, 'Wikimedia Commons');
-    assert.equal(body.media.matchBasis, 'name');
-    assert.equal('url' in body.media, false);
+    assert.equal(body.media.length, 2);
+    assert.equal(body.media[0].attribution, 'Wikimedia Commons');
+    assert.equal(body.media[0].sourceTier, 'primary');
+    assert.equal(body.media[0].matchBasis, 'name');
+    assert.equal(body.media[1].attribution, '高德地图');
+    assert.equal(body.media[1].sourceTier, 'supplemental');
+    assert.equal(body.media[1].matchBasis, 'amapPoiId');
+    assert.equal('url' in body.media[0], false);
 
     const second = await fetch(`${baseUrl}${path}`, {
       headers: { Authorization: 'Bearer test-service-token' },
     });
     assert.equal((await second.json()).cacheStatus, 'hit');
 
-    const image = await fetch(`${baseUrl}${body.media.proxyPath}`, {
+    const image = await fetch(`${baseUrl}${body.media[1].proxyPath}`, {
       headers: { Authorization: 'Bearer test-service-token' },
     });
     assert.equal(image.status, 200);
@@ -1847,8 +1852,23 @@ test('place detail media uses a strict Commons match, caches lookup and proxies 
           },
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
+      if (url.hostname === 'restapi.amap.com') {
+        assert.equal(url.pathname, '/v3/place/detail');
+        assert.equal(url.searchParams.get('id'), 'poi-1');
+        return new Response(JSON.stringify({
+          status: '1',
+          pois: [{
+            id: 'poi-1',
+            name: '长山河生态湿地公园',
+            photos: [{
+              title: '湖岸步道',
+              url: 'https://aos-comment.amap.com/example/wetland.jpg',
+            }],
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       mediaRequests += 1;
-      assert.equal(url.hostname, 'upload.wikimedia.org');
+      assert.equal(url.hostname, 'aos-comment.amap.com');
       return new Response(photoBytes, {
         status: 200,
         headers: { 'Content-Type': 'image/jpeg', 'Content-Length': `${photoBytes.length}` },

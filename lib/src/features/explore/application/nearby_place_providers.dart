@@ -188,7 +188,7 @@ final verifiedPlaceMediaRepositoryProvider =
     });
 
 final verifiedPlaceMediaProvider = FutureProvider.autoDispose
-    .family<NearbyPlaceMedia?, NearbyPlace>(
+    .family<List<NearbyPlaceMedia>, NearbyPlace>(
       (ref, place) =>
           ref.watch(verifiedPlaceMediaRepositoryProvider).fetch(place),
     );
@@ -247,7 +247,11 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
     focus: _discoveryFocus(category, null),
   );
   final (places, evidence) = await (placesFuture, evidenceFuture).wait;
-  final merged = NearbyCandidateRanker.mergeEvidence(places, evidence, category);
+  final merged = NearbyCandidateRanker.mergeEvidence(
+    places,
+    evidence,
+    category,
+  );
   final shortlist = NearbyCandidateRanker.shortlist(merged);
   final routed = candidateMode
       ? await _withDrivingTimes(
@@ -269,7 +273,9 @@ List<NearbyPlace> _publishNearbyDiscovery(
   final store = ref.read(contextEntryStoreProvider);
   final nextIds = result.entries.map((entry) => entry.id).toSet();
   final removeIds = store
-      .query(const EntryQuery(surface: EntrySurface.explore, kind: EntryKind.place))
+      .query(
+        const EntryQuery(surface: EntrySurface.explore, kind: EntryKind.place),
+      )
       .where(
         (entry) =>
             entry.sourceNamespace == 'lumanest.local-entry-adapter' &&

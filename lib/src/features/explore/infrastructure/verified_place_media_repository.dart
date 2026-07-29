@@ -44,13 +44,14 @@ class VerifiedPlaceMediaRepository {
   final String serviceToken;
   final VerifiedPlaceMediaTransport transport;
 
-  Future<NearbyPlaceMedia?> fetch(NearbyPlace place) async {
-    if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) return null;
+  Future<List<NearbyPlaceMedia>> fetch(NearbyPlace place) async {
+    if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) return const [];
     final point = ChinaCoordinateConverter.gcj02ToWgs84(place.point);
     final query = <String, String>{
       'name': place.name,
       'lat': point.latitude.toStringAsFixed(6),
       'lon': point.longitude.toStringAsFixed(6),
+      'poiId': place.id,
     };
     final city = place.cityName;
     if (city != null) query['city'] = city;
@@ -60,12 +61,24 @@ class VerifiedPlaceMediaRepository {
         query: query,
         headers: {'Authorization': 'Bearer $serviceToken'},
       );
-      if (body['status'] != 'ok' || body['media'] is! Map) return null;
-      return _parse(Map<String, Object?>.from(body['media']! as Map));
+      if (body['status'] != 'ok' || body['media'] is! List) return const [];
+      final parsed = (body['media'] as List)
+          .whereType<Map>()
+          .map((item) => _parse(Map<String, Object?>.from(item)))
+          .whereType<NearbyPlaceMedia>()
+          .toList(growable: false);
+      parsed.sort(
+        (first, second) => first.sourceTier == second.sourceTier
+            ? 0
+            : first.sourceTier == 'primary'
+            ? -1
+            : 1,
+      );
+      return List.unmodifiable(parsed);
     } on DioException {
-      return null;
+      return const [];
     } on Object {
-      return null;
+      return const [];
     }
   }
 
@@ -102,8 +115,12 @@ class VerifiedPlaceMediaRepository {
       sourceUrl: sourceUrl.toString(),
       matchBasis: switch (raw['matchBasis']) {
         'name' => 'name',
+        'amapPoiId' => 'amapPoiId',
         _ => null,
       },
+      sourceTier: raw['sourceTier'] == 'supplemental'
+          ? 'supplemental'
+          : 'primary',
     );
   }
 

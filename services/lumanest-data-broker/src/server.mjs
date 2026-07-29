@@ -48,8 +48,10 @@ import {
 } from './discovery/deterministic.mjs';
 import { resolvePlace, validResolvePlaceRequest } from './discovery/geocode.mjs';
 import {
+  amapPlaceMediaUrl,
   decodedVerifiedMediaUrl,
   parsePlaceMediaRequest,
+  placeMediaProxyPath,
   searchVerifiedPlaceMedia,
   verifiedPlaceMediaContentTypes,
 } from './discovery/place-media.mjs';
@@ -197,6 +199,61 @@ function normalizedAmapNearbyBody(body) {
       return fields;
     }),
   };
+}
+
+function normalizedPlaceName(value) {
+  return typeof value === 'string'
+    ? value.normalize('NFKC').toLocaleLowerCase('zh-CN').replace(/[\p{P}\p{S}\s]/gu, '')
+    : '';
+}
+
+function boundedAmapText(value, maximum = 160) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length === 0 ? null : [...normalized].slice(0, maximum).join('');
+}
+
+async function searchAmapPoiMedia({ request, amapWebKey, fetcher, timeoutMs }) {
+  if (request.poiId == null || typeof amapWebKey !== 'string' || amapWebKey.length === 0) {
+    return [];
+  }
+  const url = new URL('/v3/place/detail', amapBaseUrl);
+  url.search = new URLSearchParams({
+    key: amapWebKey,
+    id: request.poiId,
+    extensions: 'all',
+  }).toString();
+  try {
+    const response = await fetcher(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(Math.min(timeoutMs, 8_000)),
+    });
+    const body = await response.json().catch(() => null);
+    const place = Array.isArray(body?.pois)
+      ? body.pois.find((item) => item?.id === request.poiId)
+      : null;
+    if (!response.ok || body?.status !== '1' || place == null ||
+        normalizedPlaceName(place.name) !== normalizedPlaceName(request.name)) {
+      return [];
+    }
+    const photos = Array.isArray(place.photos) ? place.photos : [];
+    return photos.flatMap((photo) => {
+      const imageUrl = amapPlaceMediaUrl(photo?.url);
+      if (imageUrl == null) return [];
+      return [{
+        id: createHash('sha256').update(`${request.poiId}|${imageUrl}`).digest('hex').slice(0, 24),
+        kind: 'photo',
+        proxyPath: placeMediaProxyPath(imageUrl),
+        title: boundedAmapText(photo?.title) ?? boundedAmapText(place.name),
+        attribution: '高德地图',
+        sourceUrl: `https://www.amap.com/place/${encodeURIComponent(request.poiId)}`,
+        matchBasis: 'amapPoiId',
+        sourceTier: 'supplemental',
+      }];
+    }).slice(0, 3);
+  } catch {
+    return [];
+  }
 }
 
 async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
@@ -1549,31 +1606,40 @@ export function createTokenBrokerServer({
         return;
       }
       const cacheKey = createHash('sha256')
-        .update(`${mediaRequest.name}:${mediaRequest.city ?? ''}:` +
+        .update(`${mediaRequest.poiId ?? ''}:${mediaRequest.name}:${mediaRequest.city ?? ''}:` +
           `${mediaRequest.latitude.toFixed(4)}:${mediaRequest.longitude.toFixed(4)}`)
         .digest('hex');
       const cached = placeMediaCache.get(cacheKey);
       if (cached != null && now().getTime() - cached.createdAt < 24 * 60 * 60 * 1_000) {
         writeJson(response, 200, {
-          status: cached.media == null ? 'unavailable' : 'ok',
+          status: cached.media.length === 0 ? 'unavailable' : 'ok',
           media: cached.media,
           cacheStatus: 'hit',
         });
         return;
       }
-      const result = await searchVerifiedPlaceMedia({
-        request: mediaRequest,
-        fetcher,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
-      if (!result.ok) {
+      const [commons, amap] = await Promise.all([
+        searchVerifiedPlaceMedia({
+          request: mediaRequest,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+        }),
+        searchAmapPoiMedia({
+          request: mediaRequest,
+          amapWebKey: configuration.amapWebKey,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+        }),
+      ]);
+      const media = [...(commons.media ?? []), ...amap].slice(0, 6);
+      if (!commons.ok && media.length === 0) {
         writeJson(response, 200, { status: 'unavailable', media: null, cacheStatus: 'miss' });
         return;
       }
-      placeMediaCache.set(cacheKey, { createdAt: now().getTime(), media: result.media });
+      placeMediaCache.set(cacheKey, { createdAt: now().getTime(), media });
       writeJson(response, 200, {
-        status: result.media == null ? 'unavailable' : 'ok',
-        media: result.media,
+        status: media.length === 0 ? 'unavailable' : 'ok',
+        media,
         cacheStatus: 'miss',
       });
       return;
