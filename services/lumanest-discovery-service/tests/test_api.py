@@ -362,6 +362,14 @@ async def test_humanity_candidate_query_excludes_generic_discovery_scope():
     assert captured["discovery_scope"] == "humanity"
 
 
+def test_candidate_scope_binding_is_explicitly_typed_for_null_ready_probe():
+    # asyncpg cannot infer a bare NULL bind used in both IS NULL and equality.
+    # The readiness probe deliberately passes None to inspect all scopes.
+    from app.store import CANDIDATE_QUERY_SQL
+
+    assert "CAST(:discovery_scope AS text) IS NULL" in CANDIDATE_QUERY_SQL
+
+
 def test_response_cache_fingerprint_uses_the_mission_refresh_bucket_not_each_open_timestamp():
     first = DiscoveryRequest.model_validate(payload())
     later_payload = payload()

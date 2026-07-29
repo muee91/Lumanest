@@ -56,7 +56,8 @@ CANDIDATE_QUERY_SQL = """
     ) AS evidence ON TRUE
     WHERE places.published = TRUE
       AND places.kind = ANY(CAST(:kinds AS text[]))
-      AND (:discovery_scope IS NULL OR places.discovery_scope = :discovery_scope)
+      AND (CAST(:discovery_scope AS text) IS NULL
+           OR places.discovery_scope = CAST(:discovery_scope AS text))
       AND (places.valid_until IS NULL OR places.valid_until > NOW())
       AND ST_DWithin(
             places.geometry::geography,
