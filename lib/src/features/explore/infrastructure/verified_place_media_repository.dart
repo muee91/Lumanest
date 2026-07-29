@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 
 abstract interface class VerifiedPlaceMediaTransport {
   Future<Map<String, Object?>> get(
@@ -44,16 +46,33 @@ class VerifiedPlaceMediaRepository {
   final String serviceToken;
   final VerifiedPlaceMediaTransport transport;
 
-  Future<List<NearbyPlaceMedia>> fetch(NearbyPlace place) async {
+  Future<List<NearbyPlaceMedia>> fetch(NearbyPlace place) => _fetch(
+    id: place.id,
+    name: place.name,
+    point: place.point,
+    city: place.cityName,
+  );
+
+  Future<List<NearbyPlaceMedia>> fetchSearchResult(
+    LocationSearchResult result,
+  ) => _fetch(id: result.id, name: result.name, point: result.point);
+
+  Future<List<NearbyPlaceMedia>> _fetch({
+    required String id,
+    required String name,
+    required GeoPoint point,
+    String? city,
+  }) async {
     if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) return const [];
-    final point = ChinaCoordinateConverter.gcj02ToWgs84(place.point);
+    final sourcePoint = point.coordinateSystem == CoordinateSystem.gcj02
+        ? ChinaCoordinateConverter.gcj02ToWgs84(point)
+        : point;
     final query = <String, String>{
-      'name': place.name,
-      'lat': point.latitude.toStringAsFixed(6),
-      'lon': point.longitude.toStringAsFixed(6),
-      'poiId': place.id,
+      'name': name,
+      'lat': sourcePoint.latitude.toStringAsFixed(6),
+      'lon': sourcePoint.longitude.toStringAsFixed(6),
+      'poiId': id,
     };
-    final city = place.cityName;
     if (city != null) query['city'] = city;
     try {
       final body = await transport.get(
@@ -115,6 +134,7 @@ class VerifiedPlaceMediaRepository {
       sourceUrl: sourceUrl.toString(),
       matchBasis: switch (raw['matchBasis']) {
         'name' => 'name',
+        'wikidataEntity' => 'wikidataEntity',
         'amapPoiId' => 'amapPoiId',
         _ => null,
       },

@@ -642,8 +642,8 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
         // dock twice and leaving a gap below the handle.
         final bottomSafeArea = MediaQuery.viewPaddingOf(context).bottom;
         final bottomInset = _searchOpen
-            ? 0.0
-            : MediaQuery.viewInsetsOf(context).bottom;
+            ? MediaQuery.viewInsetsOf(context).bottom
+            : 0.0;
         // Keep the sheet attached to the physical bottom like the reference.
         // Its collapsed body sits behind navigation and only the top handle
         // remains visible above the dock.
@@ -753,6 +753,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 ),
               ),
             AnimatedPositioned(
+              key: const Key('v2-explore-results-panel'),
               duration: _panelDragging
                   ? Duration.zero
                   : const Duration(milliseconds: 260),
@@ -980,6 +981,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
 
   void _selectSearchResult(LocationSearchResult item) {
     _searchFocus.unfocus();
+    _lastMediaResolved = null;
     setState(() {
       _selectedSearchResult = item;
       _selectedPlace = null;
@@ -989,7 +991,9 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   }
 
   void _resolveSelectedMediaLayout(bool hasMedia) {
-    if (!mounted || _selectedPlace == null) return;
+    if (!mounted || (_selectedPlace == null && _selectedSearchResult == null)) {
+      return;
+    }
     // Avoid redundant setState when the resolved state hasn't changed.
     if (_lastMediaResolved == hasMedia) return;
     _lastMediaResolved = hasMedia;
@@ -1442,9 +1446,11 @@ class _V2ExploreResultObject extends ConsumerWidget {
     final mediaHeaders = serviceToken.isEmpty
         ? null
         : <String, String>{'Authorization': 'Bearer $serviceToken'};
-    final selectedMedia = selectedPlace == null
-        ? null
-        : ref.watch(verifiedPlaceMediaProvider(selectedPlace!));
+    final selectedMedia = selectedPlace != null
+        ? ref.watch(verifiedPlaceMediaProvider(selectedPlace!))
+        : selectedSearchResult != null
+        ? ref.watch(verifiedSearchResultMediaProvider(selectedSearchResult!))
+        : null;
     if (selectedMedia != null && !selectedMedia.isLoading) {
       final media = selectedMedia.asData?.value ?? const <NearbyPlaceMedia>[];
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1662,6 +1668,8 @@ class _V2ExploreResultObject extends ConsumerWidget {
     }
     final searched = selectedSearchResult;
     if (searched != null) {
+      final verifiedMedia =
+          selectedMedia?.asData?.value ?? const <NearbyPlaceMedia>[];
       return _V2SelectedPlace(
         name: searched.name,
         detail: [
@@ -1670,6 +1678,9 @@ class _V2ExploreResultObject extends ConsumerWidget {
             _distance(searched.distanceMeters!),
         ].join(' · '),
         onRoute: () => onRoute(searched.name, searched.point),
+        media: verifiedMedia,
+        mediaLoading: selectedMedia?.isLoading == true,
+        mediaHeaders: mediaHeaders,
       );
     }
     final search = searchResults;
@@ -1682,6 +1693,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
           title: (item) => item.name,
           detail: (item) => item.address ?? '地点结果',
           onTap: onSearchResult,
+          emptyLabel: '没有匹配地点，试试地点全名或加上城市名',
         ),
       );
     }
@@ -1976,16 +1988,18 @@ class _V2ResultList<T> extends StatelessWidget {
     required this.detail,
     required this.onTap,
     this.rankedCandidates = false,
+    this.emptyLabel = '这个范围暂无线索',
   });
   final List<T> items;
   final String Function(T) title;
   final String Function(T) detail;
   final ValueChanged<T> onTap;
   final bool rankedCandidates;
+  final String emptyLabel;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const Center(child: Text('这个范围暂无线索'));
+    if (items.isEmpty) return Center(child: Text(emptyLabel));
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 22),
       itemCount: items.length,
@@ -2392,6 +2406,7 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
                     switch (_activeMedia.matchBasis) {
                       'coordinate' => '已按地点坐标核对',
                       'name' => '已按地点名称核对',
+                      'wikidataEntity' => '已按 Wikidata 实体核对',
                       'amapPoiId' => '已按高德 POI 绑定',
                       _ => '平台资料图 · 仅供辨认',
                     },

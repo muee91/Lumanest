@@ -118,6 +118,99 @@ test('verified media retains multiple independently named Commons photos', async
   assert.equal(result.media.every((item) => item.sourceTier === 'primary'), true);
 });
 
+test('Wikidata failure does not discard an already verified Commons image', async () => {
+  const result = await searchVerifiedPlaceMedia({
+    request,
+    fetcher: async (url) => {
+      if (url.hostname === 'www.wikidata.org') throw new Error('offline');
+      return commonsResponse([{
+        pageid: 44,
+        title: 'File:长山河生态湿地公园.jpg',
+        imageinfo: [{
+          mime: 'image/jpeg',
+          thumburl: 'https://upload.wikimedia.org/example/verified.jpg',
+          extmetadata: { ImageDescription: { value: '嘉兴市长山河生态湿地公园' } },
+        }],
+      }]);
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.media.length, 1);
+  assert.equal(result.media[0].matchBasis, 'name');
+});
+
+test('verified media resolves translated Commons titles through a coordinate-bound Wikidata entity', async () => {
+  const calls = [];
+  const result = await searchVerifiedPlaceMedia({
+    request: {
+      name: '天安门',
+      city: '北京市',
+      latitude: 39.907354,
+      longitude: 116.391220,
+    },
+    fetcher: async (url) => {
+      calls.push(url);
+      if (url.hostname === 'www.wikidata.org' && url.searchParams.get('action') === 'wbsearchentities') {
+        return new Response(JSON.stringify({
+          search: [{ id: 'Q83973', label: '天安门' }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.hostname === 'www.wikidata.org' && url.searchParams.get('action') === 'wbgetentities') {
+        return new Response(JSON.stringify({
+          entities: {
+            Q83973: {
+              id: 'Q83973',
+              labels: {
+                zh: { value: '天安门' },
+                en: { value: 'Tiananmen' },
+              },
+              aliases: {},
+              claims: {
+                P18: [{ mainsnak: { datavalue: { value: 'Tiananmen night.jpg' } } }],
+                P625: [{ mainsnak: { datavalue: { value: {
+                  latitude: 39.90735,
+                  longitude: 116.39122,
+                } } } }],
+              },
+            },
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (url.hostname === 'commons.wikimedia.org' && url.searchParams.has('titles')) {
+        return commonsResponse([{
+          pageid: 501,
+          title: 'File:Tiananmen night.jpg',
+          imageinfo: [{
+            mime: 'image/jpeg',
+            thumburl: 'https://upload.wikimedia.org/example/tiananmen-night.jpg',
+            extmetadata: { LicenseShortName: { value: 'CC BY-SA 4.0' } },
+          }],
+        }]);
+      }
+      if (url.hostname === 'commons.wikimedia.org' &&
+          url.searchParams.get('gsrsearch') === 'haswbstatement:P180=Q83973 filetype:bitmap') {
+        return commonsResponse([{
+          pageid: 502,
+          title: 'File:Tiananmen gate.jpg',
+          imageinfo: [{
+            mime: 'image/jpeg',
+            thumburl: 'https://upload.wikimedia.org/example/tiananmen-gate.jpg',
+            extmetadata: {},
+          }],
+        }]);
+      }
+      return commonsResponse([]);
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.media.length, 2);
+  assert.equal(result.media.every((item) => item.matchBasis === 'wikidataEntity'), true);
+  assert.equal(result.media.every((item) => item.sourceTier === 'primary'), true);
+  assert.equal(calls.some((url) => url.hostname === 'www.wikidata.org'), true);
+});
+
 test('verified media proxy token rejects arbitrary hosts', () => {
   const token = Buffer.from('https://images.example.com/wrong.jpg').toString('base64url');
   assert.equal(decodedVerifiedMediaUrl(token), null);

@@ -91,6 +91,16 @@ void main() {
         container.read(exploreIntentProvider).category,
         NearbyPlaceCategory.viewpoint,
       );
+
+      await tester.tap(searchButton);
+      await tester.pump();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pump();
+      final resultsPanel = tester.widget<AnimatedPositioned>(
+        find.byKey(const Key('v2-explore-results-panel')),
+      );
+      expect(resultsPanel.bottom, 320 / tester.view.devicePixelRatio);
     },
   );
 }

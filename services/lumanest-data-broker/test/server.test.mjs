@@ -1852,6 +1852,12 @@ test('place detail media prioritizes strict Commons evidence and supplements a m
           },
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
+      if (url.hostname === 'www.wikidata.org') {
+        return new Response(JSON.stringify({ search: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       if (url.hostname === 'restapi.amap.com') {
         assert.equal(url.pathname, '/v3/place/detail');
         assert.equal(url.searchParams.get('id'), 'poi-1');

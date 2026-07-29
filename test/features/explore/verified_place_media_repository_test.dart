@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/verified_place_media_repository.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 
 class _Transport implements VerifiedPlaceMediaTransport {
   _Transport(this.body);
@@ -94,6 +95,43 @@ void main() {
     );
 
     expect(await repository.fetch(_place()), isEmpty);
+  });
+
+  test('search-result details use the same verified media chain', () async {
+    final transport = _Transport({
+      'status': 'ok',
+      'media': [
+        {
+          'id': '0123456789abcdef01234567',
+          'proxyPath': '/v1/explore/media/abcdefghijklmnop',
+          'title': 'Tiananmen',
+          'attribution': 'Wikimedia Commons',
+          'sourceUrl': 'https://commons.wikimedia.org/?curid=42',
+          'matchBasis': 'wikidataEntity',
+          'sourceTier': 'primary',
+        },
+      ],
+    });
+    final repository = VerifiedPlaceMediaRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'token',
+      transport: transport,
+    );
+    const result = LocationSearchResult(
+      id: 'B000A60DA1',
+      name: '天安门',
+      point: GeoPoint(
+        latitude: 39.913,
+        longitude: 116.397,
+        coordinateSystem: CoordinateSystem.gcj02,
+      ),
+    );
+
+    final media = await repository.fetchSearchResult(result);
+
+    expect(media.single.matchBasis, 'wikidataEntity');
+    expect(transport.query?['poiId'], result.id);
+    expect(transport.query?['name'], result.name);
   });
 
   test('rejects a direct third-party image URL from the response', () async {

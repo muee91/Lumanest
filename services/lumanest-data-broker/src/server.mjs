@@ -1631,7 +1631,10 @@ export function createTokenBrokerServer({
           timeoutMs: configuration.settings.upstreamTimeoutMs,
         }),
       ]);
-      const media = [...(commons.media ?? []), ...amap].slice(0, 6);
+      const mediaIds = new Set();
+      const media = [...(commons.media ?? []), ...amap]
+        .filter((item) => mediaIds.add(item.id))
+        .slice(0, 6);
       if (!commons.ok && media.length === 0) {
         writeJson(response, 200, { status: 'unavailable', media: null, cacheStatus: 'miss' });
         return;

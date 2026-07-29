@@ -18,6 +18,7 @@ import 'package:luma_nest/src/features/explore/infrastructure/data_broker_popula
 import 'package:luma_nest/src/features/explore/infrastructure/nearby_place_cache.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/resilient_nearby_place_repository.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/verified_place_media_repository.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -191,6 +192,13 @@ final verifiedPlaceMediaProvider = FutureProvider.autoDispose
     .family<List<NearbyPlaceMedia>, NearbyPlace>(
       (ref, place) =>
           ref.watch(verifiedPlaceMediaRepositoryProvider).fetch(place),
+    );
+
+final verifiedSearchResultMediaProvider = FutureProvider.autoDispose
+    .family<List<NearbyPlaceMedia>, LocationSearchResult>(
+      (ref, result) => ref
+          .watch(verifiedPlaceMediaRepositoryProvider)
+          .fetchSearchResult(result),
     );
 
 final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
