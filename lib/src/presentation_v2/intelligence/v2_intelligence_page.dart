@@ -185,7 +185,6 @@ class _IntelligenceWorkspaceState
                 bottomSafe: bottomSafe,
                 onSubmit: _submitText,
                 onInputChanged: () => setState(() {}),
-                onSuggestion: _ask,
                 onSelectNote: _selectNote,
                 onSaveSelectedNote: _selectedNote == null
                     ? null
@@ -639,7 +638,6 @@ class _AssistantStage extends StatelessWidget {
     required this.bottomSafe,
     required this.onSubmit,
     required this.onInputChanged,
-    required this.onSuggestion,
     required this.onSelectNote,
     required this.onSaveSelectedNote,
     required this.onOpenSelectedNote,
@@ -662,7 +660,6 @@ class _AssistantStage extends StatelessWidget {
   final double bottomSafe;
   final VoidCallback onSubmit;
   final VoidCallback onInputChanged;
-  final ValueChanged<String> onSuggestion;
   final ValueChanged<InspirationNote> onSelectNote;
   final VoidCallback? onSaveSelectedNote;
   final VoidCallback? onOpenSelectedNote;
@@ -739,9 +736,6 @@ class _AssistantStage extends StatelessWidget {
   );
 
   Widget _welcome() {
-    final suggestions = selectedNote == null
-        ? const ['今天适合拍什么？', '什么时候出发？', '需要带什么器材？']
-        : ['这个灵感怎么拍？', '附近哪里适合？', '需要什么器材？', '换一种构图思路'];
     return ListView(
       key: const Key('v2-intelligence-welcome'),
       padding: const EdgeInsets.fromLTRB(24, 34, 24, 16),
@@ -798,24 +792,6 @@ class _AssistantStage extends StatelessWidget {
             if (index == 0) const SizedBox(height: 8),
           ],
         ],
-        const SizedBox(height: 28),
-        const Text(
-          '你可以这样问',
-          style: TextStyle(
-            color: V2Palette.mutedInk,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final item in suggestions)
-              _questionPrompt(item: item, onTap: () => onSuggestion(item)),
-          ],
-        ),
       ],
     );
   }
@@ -855,31 +831,6 @@ class _AssistantStage extends StatelessWidget {
       ),
     ),
   );
-
-  Widget _questionPrompt({required String item, required VoidCallback onTap}) =>
-      Semantics(
-        button: true,
-        label: '提问：$item',
-        child: Material(
-          color: V2Palette.paper,
-          borderRadius: BorderRadius.circular(18),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              child: Text(
-                item,
-                style: const TextStyle(
-                  color: V2Palette.ink,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
 
   Widget _conversation() => ListView(
     controller: scrollController,

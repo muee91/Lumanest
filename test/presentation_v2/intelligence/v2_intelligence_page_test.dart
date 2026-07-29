@@ -65,7 +65,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('今天适合拍什么？'));
+    await tester.enterText(
+      find.byKey(const Key('v2-intelligence-input')),
+      '今天适合拍什么？',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('v2-intelligence-send')));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('湖岸晚间窗口'), findsOneWidget);
