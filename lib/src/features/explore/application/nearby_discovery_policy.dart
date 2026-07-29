@@ -28,6 +28,10 @@ abstract final class NearbyDiscoveryPolicy {
               place.distanceMeters > context.radiusMeters * 2) {
             return false;
           }
+          if (context.intent == NearbyPlaceCategory.humanity &&
+              !place.hasHumanityEvidence) {
+            return false;
+          }
           if (context.mode == NearbyDiscoveryMode.passive && safetyActive) {
             final utility = {
               NearbyPlaceCategory.medical,

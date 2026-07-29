@@ -154,7 +154,9 @@ class MainActivity : FlutterActivity() {
                 isNeedAddress = false
                 isLocationCacheEnable = true
                 isGpsFirst = false
-                setWifiActiveScan(true)
+                // SDK 11 no longer exposes the deprecated active-scan toggle.
+                // Keep the bounded, one-shot Wi-Fi lookup below; do not enable
+                // the newer process-wide always-scan setting for this request.
                 setWifiScan(true)
                 setSensorEnable(true)
                 httpTimeOut = 5_000

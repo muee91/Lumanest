@@ -930,18 +930,17 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
       final point = ChinaCoordinateConverter.wgs84ToGcj02(place.point);
       nearbyPoints.add(place.point);
       final selected = _selectedPlace?.id == place.id;
-      result.add(
-        Marker(
-          position: LatLng(point.latitude, point.longitude),
-          infoWindow: InfoWindow(title: place.name),
-          icon: selected
-              ? icons.selected[place.category]!
-              : icons.regular[place.category]!,
-          anchor: const Offset(.5, .92),
-          onTap: (_) => _selectPlace(place),
-          zIndex: selected ? 2 : 1,
-        ),
-      );
+      final marker = Marker(
+        position: LatLng(point.latitude, point.longitude),
+        infoWindow: InfoWindow(title: place.name),
+        icon: selected
+            ? icons.selected[place.category]!
+            : icons.regular[place.category]!,
+        anchor: const Offset(.5, .92),
+        onTap: (_) => _selectPlace(place),
+        zIndex: selected ? 2 : 1,
+      )..setIdForCopy('nearby:${place.id}');
+      result.add(marker);
     }
     for (final item
         in _searchResults?.asData?.value ?? const <LocationSearchResult>[]) {
@@ -955,16 +954,15 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
       if (tooClose) continue;
       final point = ChinaCoordinateConverter.wgs84ToGcj02(item.point);
       final selected = _selectedSearchResult?.id == item.id;
-      result.add(
-        Marker(
-          position: LatLng(point.latitude, point.longitude),
-          infoWindow: InfoWindow(title: item.name),
-          icon: selected ? icons.selectedSearch : icons.search,
-          anchor: const Offset(.5, .92),
-          onTap: (_) => _selectSearchResult(item),
-          zIndex: selected ? 3 : 1,
-        ),
-      );
+      final marker = Marker(
+        position: LatLng(point.latitude, point.longitude),
+        infoWindow: InfoWindow(title: item.name),
+        icon: selected ? icons.selectedSearch : icons.search,
+        anchor: const Offset(.5, .92),
+        onTap: (_) => _selectSearchResult(item),
+        zIndex: selected ? 3 : 1,
+      )..setIdForCopy('search:${item.id}');
+      result.add(marker);
     }
     return result;
   }

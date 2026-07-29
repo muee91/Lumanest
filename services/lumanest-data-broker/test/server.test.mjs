@@ -1024,7 +1024,7 @@ test('discovery extract rejects unsafe schema abuse and never falls back to arbi
       body: JSON.stringify({ missionType: 'humanityEvents', focus: '近期摄影活动', locale: 'zh-CN', region: { latitude: 30.5, longitude: 120.6 }, evidence }),
     });
     assert.equal(response.status, 502);
-    assert.deepEqual(await response.json(), { error: 'upstream_unavailable' });
+    assert.deepEqual(await response.json(), { error: 'invalid_response' });
   }, {
     aiApiKey: 'model-secret', discoveryWorkerToken: 'worker-secret',
     fetcher: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({

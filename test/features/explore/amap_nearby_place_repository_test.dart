@@ -129,6 +129,48 @@ void main() {
     },
   );
 
+  test('humanity search rejects commercial keyword spillover', () async {
+    final repository = AmapNearbyPlaceRepository(
+      brokerBaseUrl: 'https://broker.example.com',
+      serviceToken: 'service-token',
+      transport: _FakeTransport({
+        'status': '1',
+        'pois': [
+          {
+            'id': 'shop',
+            'name': '硖石街道森乐副食品店',
+            'location': '120.0010,30.0000',
+            'type': '购物服务;便民商店/便利店',
+          },
+          {
+            'id': 'lottery',
+            'name': '商惠街福利彩票店',
+            'location': '120.0020,30.0000',
+            'type': '生活服务;彩票彩券销售点',
+          },
+          {
+            'id': 'museum',
+            'name': '海宁博物馆',
+            'location': '120.0030,30.0000',
+            'type': '科教文化服务;文化场馆;博物馆',
+          },
+        ],
+      }),
+    );
+
+    final places = await repository.fetchNearby(
+      center: const GeoPoint(
+        latitude: 30,
+        longitude: 120,
+        coordinateSystem: CoordinateSystem.gcj02,
+      ),
+      category: NearbyPlaceCategory.humanity,
+    );
+
+    expect(places.map((place) => place.name), ['海宁博物馆']);
+    expect(places.single.hasHumanityEvidence, isTrue);
+  });
+
   test(
     'does not convert an already GCJ-02 route sample a second time',
     () async {

@@ -73,7 +73,10 @@ dependencies {
     // The map plugin consumes this internally, but the automatic-location
     // fallback is implemented in MainActivity and therefore needs the same
     // AMap location SDK on the app module's Kotlin compile classpath.
-    implementation("com.amap.api:3dmap-location-search:10.1.200_loc6.4.9_sea9.7.4")
+    // 11.2 fixes the Android 16 high-text-contrast reflection path in the
+    // underlying map renderer. The Flutter plugin's public API usage remains
+    // compatible with this vendor SDK line.
+    implementation("com.amap.api:3dmap-location-search:11.2.000_loc11.2.000_sea9.8.0")
 }
 
 kotlin {

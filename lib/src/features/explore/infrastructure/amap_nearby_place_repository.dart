@@ -190,6 +190,7 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
       point: point,
       distanceMeters: distance,
       address: address is String && address.isNotEmpty ? address : null,
+      providerType: _text(raw['type']),
       provinceName: provinceName,
       cityName: cityName,
       districtName: districtName,
@@ -252,12 +253,15 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
     Map<String, Object?> raw,
     NearbyPlaceCategory category,
   ) {
+    final name = _text(raw['name']) ?? '';
+    final type = _text(raw['type']);
+    if (category == NearbyPlaceCategory.humanity) {
+      return NearbyPlace.hasHumanityEvidenceFor(name: name, providerType: type);
+    }
     if (category != NearbyPlaceCategory.sunriseCandidate &&
         category != NearbyPlaceCategory.nightSkyCandidate) {
       return true;
     }
-    final name = _text(raw['name']) ?? '';
-    final type = _text(raw['type']);
     if (RegExp(
       r'公交站|停车场|酒店|公寓|足道|派出所|售票处|游客中心|不对外开放|暂停营业|停止开放|临时关闭',
     ).hasMatch(name)) {

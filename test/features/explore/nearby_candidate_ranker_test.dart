@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_candidate_ranker.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_discovery_context.dart';
+import 'package:luma_nest/src/features/explore/application/nearby_discovery_policy.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/popular_place_evidence.dart';
 
@@ -87,5 +90,51 @@ void main() {
     final result = NearbyCandidateRanker.shortlist(candidates, maximum: 4);
 
     expect(result.map((item) => item.id), contains('windmill'));
+  });
+
+  test('humanity policy keeps only culturally evidenced discovery items', () {
+    final context = NearbyDiscoveryContext(
+      origin: const GeoPoint(latitude: 30, longitude: 120),
+      searchCenter: const GeoPoint(latitude: 30, longitude: 120),
+      radiusMeters: 5000,
+      intent: NearbyPlaceCategory.humanity,
+      mode: NearbyDiscoveryMode.explicit,
+      now: DateTime.utc(2026),
+      snapshot: ContextSnapshot(
+        id: 'humanity-test',
+        observedAt: DateTime.utc(2026),
+        expiresAt: DateTime.utc(2026, 1, 1),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: false,
+      ),
+    );
+    final places = [
+      NearbyPlace(
+        id: 'shop',
+        name: '老街副食品店',
+        category: NearbyPlaceCategory.humanity,
+        point: const GeoPoint(latitude: 30, longitude: 120),
+        distanceMeters: 100,
+        sourceEvidenceCount: 2,
+        aiDiscovered: true,
+      ),
+      NearbyPlace(
+        id: 'hall',
+        name: '海宁博物馆',
+        category: NearbyPlaceCategory.humanity,
+        point: const GeoPoint(latitude: 30.001, longitude: 120),
+        distanceMeters: 120,
+      ),
+    ];
+
+    expect(
+      NearbyDiscoveryPolicy.hardFilter(
+        places,
+        context,
+      ).map((place) => place.id),
+      ['hall'],
+    );
   });
 }

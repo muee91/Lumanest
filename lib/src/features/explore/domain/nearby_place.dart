@@ -148,6 +148,7 @@ class NearbyPlace {
     required this.point,
     required this.distanceMeters,
     this.address,
+    this.providerType,
     this.provinceName,
     this.cityName,
     this.districtName,
@@ -168,6 +169,10 @@ class NearbyPlace {
   final GeoPoint point;
   final int distanceMeters;
   final String? address;
+
+  /// The provider's structured POI classification. It is only used for
+  /// deterministic eligibility checks; UI must not present it as a user fact.
+  final String? providerType;
   final String? provinceName;
   final String? cityName;
   final String? districtName;
@@ -183,6 +188,35 @@ class NearbyPlace {
 
   bool get isOfflineCache => cachedAt != null;
   NearbyPlaceMedia? get coverMedia => media.firstOrNull;
+
+  /// A humanities result needs a cultural or historic signal in the POI name
+  /// or in the provider classification. A keyword search alone is recall, not
+  /// evidence: for example a convenience store returned for “古镇” must never
+  /// become a human-interest place.
+  bool get hasHumanityEvidence {
+    if (category != NearbyPlaceCategory.humanity) return true;
+    return hasHumanityEvidenceFor(name: name, providerType: providerType);
+  }
+
+  static bool hasHumanityEvidenceFor({
+    required String name,
+    String? providerType,
+  }) {
+    final evidence = '$name ${providerType ?? ''}';
+    if (_humanityCommercialOrUtility.hasMatch(evidence)) return false;
+    return _humanityNameEvidence.hasMatch(name) ||
+        _humanityProviderEvidence.hasMatch(providerType ?? '');
+  }
+
+  static final RegExp _humanityCommercialOrUtility = RegExp(
+    r'副食品|便利店|超市|商店|彩票|纱窗|合作店|专卖店|五金|建材|家电|服装|鞋业|餐饮|饭店|酒店|宾馆|银行|药店|诊所|停车场|加油站|购物服务|餐饮服务|生活服务|公司企业|汽车服务|住宿服务|金融保险服务|医疗保健服务|交通设施服务',
+  );
+  static final RegExp _humanityNameEvidence = RegExp(
+    r'古镇|古村|古街|老街|历史(?:文化)?街区|传统村落|故居|纪念馆|博物馆|文化馆|文化站|图书馆|美术馆|展览馆|档案馆|剧院|戏院|祠堂|宗祠|寺|庙|塔|书院|遗址|古建筑|牌坊|城隍|城门|会馆|教堂|清真寺',
+  );
+  static final RegExp _humanityProviderEvidence = RegExp(
+    r'文化场馆|文物古迹|古迹遗址|宗教场所',
+  );
 
   NearbyCandidateEvidenceBand get evidenceBand {
     if (drivingDurationSeconds != null &&
@@ -220,6 +254,7 @@ class NearbyPlace {
     point: point,
     distanceMeters: distanceMeters,
     address: address,
+    providerType: providerType,
     provinceName: provinceName,
     cityName: cityName,
     districtName: districtName,
