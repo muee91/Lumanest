@@ -16,6 +16,7 @@ from app.worker import (
     is_deterministic_admissible,
     parse_job,
     process_job,
+    broker_failure_code,
 )
 
 
@@ -142,6 +143,11 @@ def test_evergreen_regional_missions_do_not_apply_a_rolling_search_cutoff():
     assert BrokerClient._freshness_days("localFoodAndSpecialties") is None
     assert BrokerClient._freshness_days("culturalEtiquette") is None
     assert BrokerClient._freshness_days("humanityEvents") == 1
+
+
+def test_broker_failure_logging_keeps_only_stable_internal_error_categories():
+    assert broker_failure_code(502, {"error": "invalid_response"}) == "broker_invalid_response"
+    assert broker_failure_code(502, {"error": "raw provider details must never escape"}) == "broker_http_502"
 
 
 @pytest.mark.asyncio

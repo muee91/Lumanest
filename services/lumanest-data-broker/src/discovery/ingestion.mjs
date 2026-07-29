@@ -327,7 +327,11 @@ export async function extractDiscoveryCandidates({
     signal,
     callBudget,
   });
-  if (!routed.ok) return { ok: false, error: routed.error === 'ai_unconfigured' ? 'ai_unconfigured' : 'upstream_unavailable' };
+  // This route is internal-only and all router errors are stable categories.
+  // Preserve the category so the worker can distinguish a malformed model
+  // response from a timeout or a provider outage without logging prompts,
+  // evidence text, credentials, or raw model output.
+  if (!routed.ok) return { ok: false, error: routed.error };
   const result = parseDiscoveryCandidates(routed.text, body.evidence);
-  return result == null ? { ok: false, error: 'upstream_unavailable' } : { ok: true, ...result };
+  return result == null ? { ok: false, error: 'invalid_response' } : { ok: true, ...result };
 }

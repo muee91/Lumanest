@@ -54,6 +54,21 @@ class BrokerFailure(RuntimeError):
     pass
 
 
+_SAFE_BROKER_ERROR_CODES = {
+    "ai_unconfigured", "authentication_failed", "invalid_response",
+    "model_not_found", "rate_limited", "request_rejected", "timeout",
+    "upstream_unavailable",
+}
+
+
+def broker_failure_code(status_code: int, body: object) -> str:
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, str) and error in _SAFE_BROKER_ERROR_CODES:
+            return f"broker_{error}"
+    return f"broker_http_{status_code}"
+
+
 @dataclass(frozen=True)
 class BrokerClient:
     base_url: str
@@ -224,7 +239,11 @@ class BrokerClient:
                     headers={"X-Discovery-Worker-Token": self.token},
                 )
                 if response.status_code != 200:
-                    raise BrokerFailure(f"broker_http_{response.status_code}")
+                    try:
+                        payload = response.json()
+                    except ValueError:
+                        payload = None
+                    raise BrokerFailure(broker_failure_code(response.status_code, payload))
                 return response.json()
         except (httpx.HTTPError, ValueError) as error:
             raise BrokerFailure("broker_unavailable") from error
