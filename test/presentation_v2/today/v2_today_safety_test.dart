@@ -9,6 +9,26 @@ import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/presentation_v2/today/v2_today_page.dart';
 
 void main() {
+  testWidgets('Today date follows the refreshed snapshot generation time', (
+    tester,
+  ) async {
+    final generatedAt = DateTime.utc(2030, 1, 2, 16, 5);
+    final snapshot = ContextSnapshot(
+      id: 'ctx_today_date',
+      observedAt: DateTime.utc(2030, 1, 2, 15, 55),
+      expiresAt: DateTime.utc(2030, 1, 2, 16, 15),
+      remoteGeneratedAt: generatedAt,
+      primaryScene: SceneType.city,
+      dayPhase: DayPhase.night,
+      weather: WeatherType.clear,
+      activeRoute: false,
+    );
+
+    await tester.pumpWidget(_host(snapshot));
+
+    expect(find.text('1月3日 · 夜间'), findsOneWidget);
+  });
+
   final now = DateTime.now().toUtc();
 
   testWidgets('warning stays in the top-right while photography remains hero', (

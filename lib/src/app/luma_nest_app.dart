@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/companion/companion_client.dart';
@@ -56,6 +57,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   String? _lastPhotographyWatchReconciliation;
   String? _lastCompanionRefresh;
   AmbientPresetBundle? _ambientPresets;
+  Timer? _environmentRefreshTimer;
+  DateTime? _environmentRefreshDeadline;
+  bool _environmentRefreshInFlight = false;
 
   /// Becomes true while the user scrolls content so the ambient canvas can
   /// auto-decelerate per design §9.3.
@@ -91,6 +95,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _router.routerDelegate.removeListener(_handleRouterChange);
+    _environmentRefreshTimer?.cancel();
     _interactionSuppressed.dispose();
     unawaited(LumaNestFeedbackService.instance.dispose());
     _router.dispose();
@@ -117,6 +122,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         ?.value;
     final reconciliationSnapshot =
         widget.initialContext ?? liveSnapshot?.asData?.value;
+    if (widget.initialContext == null && reconciliationSnapshot != null) {
+      _scheduleEnvironmentRefresh(reconciliationSnapshot);
+    }
     final skyPoint = reconciliationSnapshot?.location;
     final now = ref.watch(currentTimeProvider)();
     final skyOpportunity = skyPoint == null
@@ -340,10 +348,57 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     }
   }
 
+  void _scheduleEnvironmentRefresh(ContextSnapshot snapshot) {
+    final now = ref.read(currentTimeProvider)();
+    final deadline = EnvironmentRefreshPolicy.nextRefreshAt(
+      snapshot: snapshot,
+      now: now,
+    );
+    if (_environmentRefreshDeadline == deadline) return;
+    _environmentRefreshTimer?.cancel();
+    _environmentRefreshDeadline = deadline;
+    final delay = deadline.difference(now.toUtc());
+    _environmentRefreshTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () {
+        _environmentRefreshDeadline = null;
+        unawaited(_refreshEnvironment(force: true));
+      },
+    );
+  }
+
+  Future<void> _refreshEnvironment({required bool force}) async {
+    if (widget.initialContext != null ||
+        !ref.read(environmentConsentProvider) ||
+        _environmentRefreshInFlight) {
+      return;
+    }
+    final now = ref.read(currentTimeProvider)();
+    final snapshot = ref.read(environmentSnapshotProvider).asData?.value;
+    if (!force &&
+        !EnvironmentRefreshPolicy.needsRefreshOnResume(
+          snapshot: snapshot,
+          now: now,
+        )) {
+      return;
+    }
+    _environmentRefreshInFlight = true;
+    try {
+      await ref.read(environmentSnapshotProvider.notifier).refresh();
+    } finally {
+      _environmentRefreshInFlight = false;
+      if (mounted) {
+        final refreshed = ref.read(environmentSnapshotProvider).asData?.value;
+        if (refreshed != null) _scheduleEnvironmentRefresh(refreshed);
+      }
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.invalidate(deviceEnergyProvider);
+      unawaited(_refreshEnvironment(force: false));
     }
   }
 }

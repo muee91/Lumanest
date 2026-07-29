@@ -40,7 +40,10 @@ final environmentConfigProvider = Provider<EnvironmentConfig>((ref) {
 /// "now". Keeping it injectable prevents a cached snapshot, the Today page
 /// and a sky-opportunity response from disagreeing at a day boundary.
 final currentTimeProvider = Provider<DateTime Function()>((ref) {
-  return DateTime.now;
+  // Android supplies the device zone, but presentation code must always use
+  // an explicit local instant for calendar labels and day-boundary policy.
+  // Network contracts normalize this value to UTC at their boundary.
+  return () => DateTime.now().toLocal();
 });
 
 final locationRepositoryProvider = Provider<LocationRepository>((ref) {
