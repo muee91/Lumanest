@@ -10,12 +10,16 @@ import 'package:luma_nest/src/core/assistant/assistant_model.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
+import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
+import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
+import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// The single intelligent entrance for free conversation and grounded
@@ -147,6 +151,7 @@ class _IntelligenceWorkspaceState
     );
     _resolveInitialNote(notes);
     final visibleNotes = _rotatedNotes(notes);
+    final library = ref.watch(userLibraryProvider).asData?.value;
     final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
     final bottomSafe = keyboardHeight > 0
         ? 0.0
@@ -166,6 +171,8 @@ class _IntelligenceWorkspaceState
                 snapshot: widget.snapshot,
                 notes: visibleNotes,
                 selectedNote: _selectedNote,
+                selectedNoteSaved:
+                    _selectedNote != null && _isSaved(library, _selectedNote!),
                 conversation: _conversation,
                 pendingIntent: _pendingIntent,
                 pendingText: _pendingText,
@@ -180,6 +187,12 @@ class _IntelligenceWorkspaceState
                 onInputChanged: () => setState(() {}),
                 onSuggestion: _ask,
                 onSelectNote: _selectNote,
+                onSaveSelectedNote: _selectedNote == null
+                    ? null
+                    : () => _saveSelected(_selectedNote!),
+                onOpenSelectedNote: _selectedNote == null
+                    ? null
+                    : () => _actOnNote(_selectedNote!),
                 onShuffleNotes: () => setState(() {
                   if (notes.isNotEmpty) {
                     _noteOffset = (_noteOffset + 5) % notes.length;
@@ -277,6 +290,41 @@ class _IntelligenceWorkspaceState
     _inputFocus.unfocus();
     setState(() => _selectedNote = note);
     unawaited(_ask('请详细解读灵感「${note.label}」', note: note));
+  }
+
+  Future<void> _saveSelected(InspirationNote note) async {
+    await ref
+        .read(userLibraryProvider.notifier)
+        .saveInspirationNote(snapshotId: widget.snapshot.id, note: note);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已收藏这张灵感')));
+  }
+
+  bool _isSaved(UserLibraryState? library, InspirationNote note) {
+    final id = SavedInspirationNote.idFor(
+      snapshotId: widget.snapshot.id,
+      noteId: note.id,
+    );
+    return library?.savedNotes.any((item) => item.id == id) == true;
+  }
+
+  void _actOnNote(InspirationNote note) {
+    if (note.routeLocation case final route?) {
+      context.push(route);
+      return;
+    }
+    handleManifestAction(
+      context,
+      ManifestItem(
+        id: note.id,
+        title: note.label,
+        action: note.action,
+        authorityUri: note.authorityUri,
+      ),
+      detailOverride: note.detail,
+    );
   }
 
   void _submitText() {
@@ -578,6 +626,7 @@ class _AssistantStage extends StatelessWidget {
     required this.snapshot,
     required this.notes,
     required this.selectedNote,
+    required this.selectedNoteSaved,
     required this.conversation,
     required this.pendingIntent,
     required this.pendingText,
@@ -592,12 +641,15 @@ class _AssistantStage extends StatelessWidget {
     required this.onInputChanged,
     required this.onSuggestion,
     required this.onSelectNote,
+    required this.onSaveSelectedNote,
+    required this.onOpenSelectedNote,
     required this.onShuffleNotes,
   });
 
   final ContextSnapshot snapshot;
   final List<InspirationNote> notes;
   final InspirationNote? selectedNote;
+  final bool selectedNoteSaved;
   final AssistantConversationState conversation;
   final AssistantIntent? pendingIntent;
   final String pendingText;
@@ -612,6 +664,8 @@ class _AssistantStage extends StatelessWidget {
   final VoidCallback onInputChanged;
   final ValueChanged<String> onSuggestion;
   final ValueChanged<InspirationNote> onSelectNote;
+  final VoidCallback? onSaveSelectedNote;
+  final VoidCallback? onOpenSelectedNote;
   final VoidCallback onShuffleNotes;
 
   @override
@@ -657,6 +711,29 @@ class _AssistantStage extends StatelessWidget {
             ),
           ),
         ),
+        if (selectedNote != null) ...[
+          IconButton(
+            tooltip: selectedNoteSaved ? '已收藏灵感' : '收藏灵感',
+            onPressed: selectedNoteSaved ? null : onSaveSelectedNote,
+            icon: Icon(
+              selectedNoteSaved
+                  ? CupertinoIcons.bookmark_fill
+                  : CupertinoIcons.bookmark,
+              size: 17,
+            ),
+            color: V2Palette.moss,
+            disabledColor: V2Palette.moss,
+            visualDensity: VisualDensity.compact,
+          ),
+          if (onOpenSelectedNote != null)
+            IconButton(
+              tooltip: '打开相关内容',
+              onPressed: onOpenSelectedNote,
+              icon: const Icon(CupertinoIcons.arrow_up_right, size: 17),
+              color: V2Palette.moss,
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
       ],
     ),
   );
