@@ -175,14 +175,6 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
     final provinceName = _text(raw['pname']);
     final cityName = _text(raw['cityname']);
     final districtName = _text(raw['adname']);
-    final media = raw['media'] is List
-        ? (raw['media'] as List)
-              .whereType<Map>()
-              .map((item) => _parseMedia(Map<String, Object?>.from(item)))
-              .whereType<NearbyPlaceMedia>()
-              .take(3)
-              .toList(growable: false)
-        : const <NearbyPlaceMedia>[];
     return NearbyPlace(
       id: id,
       name: name,
@@ -195,37 +187,11 @@ class AmapNearbyPlaceRepository implements NearbyPlaceRepository {
       cityName: cityName,
       districtName: districtName,
       matchedKeyword: matchedKeyword,
-      media: List.unmodifiable(media),
       administrativeRelation: _relation(
         originAdministration,
         cityName: cityName,
         districtName: districtName,
       ),
-    );
-  }
-
-  NearbyPlaceMedia? _parseMedia(Map<String, Object?> raw) {
-    final id = raw['id'];
-    final proxyPath = raw['proxyPath'];
-    final attribution = _text(raw['attribution']);
-    if (id is! String ||
-        !RegExp(r'^[a-f0-9]{24}$').hasMatch(id) ||
-        proxyPath is! String ||
-        !RegExp(
-          r'^/v1/amap/media/[A-Za-z0-9_-]{16,1800}$',
-        ).hasMatch(proxyPath) ||
-        attribution == null) {
-      return null;
-    }
-    final base = Uri.tryParse(brokerBaseUrl);
-    if (base == null || !base.hasScheme || base.host.isEmpty) return null;
-    final url = base.resolve(proxyPath);
-    if (url.scheme != 'https' && url.scheme != 'http') return null;
-    return NearbyPlaceMedia(
-      id: id,
-      url: url.toString(),
-      attribution: attribution,
-      title: _text(raw['title']),
     );
   }
 

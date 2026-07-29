@@ -4,52 +4,51 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/amap_nearby_place_repository.dart';
 
 void main() {
-  test('queries the NAS broker and parses GCJ-02 places', () async {
-    final transport = _FakeTransport({
-      'status': '1',
-      'pois': [
-        {
-          'id': 'poi-1',
-          'name': '湖岸观景台',
-          'location': '121.4801,31.2291',
-          'distance': '860',
-          'address': '湖岸路',
-          'media': [
-            {
-              'id': '1234567890abcdef12345678',
-              'kind': 'photo',
-              'proxyPath': '/v1/amap/media/abcdefghijklmnop',
-              'title': '湖岸观景台',
-              'attribution': '高德地图',
-            },
-          ],
-        },
-      ],
-    });
-    final repository = AmapNearbyPlaceRepository(
-      brokerBaseUrl: 'https://broker.example.com',
-      serviceToken: 'service-token',
-      transport: transport,
-    );
+  test(
+    'queries the NAS broker, parses GCJ-02 places, and ignores provider photos',
+    () async {
+      final transport = _FakeTransport({
+        'status': '1',
+        'pois': [
+          {
+            'id': 'poi-1',
+            'name': '湖岸观景台',
+            'location': '121.4801,31.2291',
+            'distance': '860',
+            'address': '湖岸路',
+            'media': [
+              {
+                'id': '1234567890abcdef12345678',
+                'kind': 'photo',
+                'proxyPath': '/v1/amap/media/abcdefghijklmnop',
+                'title': '湖岸观景台',
+                'attribution': '高德地图',
+              },
+            ],
+          },
+        ],
+      });
+      final repository = AmapNearbyPlaceRepository(
+        brokerBaseUrl: 'https://broker.example.com',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
 
-    final places = await repository.fetchNearby(
-      center: const GeoPoint(latitude: 31.2304, longitude: 121.4737),
-      category: NearbyPlaceCategory.viewpoint,
-    );
+      final places = await repository.fetchNearby(
+        center: const GeoPoint(latitude: 31.2304, longitude: 121.4737),
+        category: NearbyPlaceCategory.viewpoint,
+      );
 
-    expect(transport.url, 'https://broker.example.com/v1/amap/nearby');
-    expect(transport.query['keywords'], '观景台');
-    expect(transport.query['location'], isNot('121.4737,31.2304'));
-    expect(transport.headers['Authorization'], 'Bearer service-token');
-    expect(places.single.name, '湖岸观景台');
-    expect(places.single.distanceMeters, inInclusiveRange(0, 1000));
-    expect(places.single.point.coordinateSystem, CoordinateSystem.gcj02);
-    expect(
-      places.single.coverMedia?.url,
-      'https://broker.example.com/v1/amap/media/abcdefghijklmnop',
-    );
-    expect(places.single.coverMedia?.attribution, '高德地图');
-  });
+      expect(transport.url, 'https://broker.example.com/v1/amap/nearby');
+      expect(transport.query['keywords'], '观景台');
+      expect(transport.query['location'], isNot('121.4737,31.2304'));
+      expect(transport.headers['Authorization'], 'Bearer service-token');
+      expect(places.single.name, '湖岸观景台');
+      expect(places.single.distanceMeters, inInclusiveRange(0, 1000));
+      expect(places.single.point.coordinateSystem, CoordinateSystem.gcj02);
+      expect(places.single.coverMedia, isNull);
+    },
+  );
 
   test('drops malformed POIs instead of inventing coordinates', () async {
     final repository = AmapNearbyPlaceRepository(

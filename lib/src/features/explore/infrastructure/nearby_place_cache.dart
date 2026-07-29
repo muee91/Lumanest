@@ -24,7 +24,7 @@ abstract interface class NearbyPlaceCache {
 class PersistentNearbyPlaceCache implements NearbyPlaceCache {
   PersistentNearbyPlaceCache(
     this._preferences, {
-    this.storageKey = 'nearby_place_cache_v6',
+    this.storageKey = 'nearby_place_cache_v7',
     this.maximumAge = const Duration(hours: 24),
     this.maximumCenterDistanceMeters = 500,
     this.maximumEntries = 16,
@@ -110,7 +110,7 @@ class PersistentNearbyPlaceCache implements NearbyPlaceCache {
       await _preferences.setString(
         storageKey,
         jsonEncode({
-          'version': 6,
+          'version': 7,
           'entries': entries.take(maximumEntries).toList(growable: false),
         }),
       );
@@ -131,7 +131,7 @@ class PersistentNearbyPlaceCache implements NearbyPlaceCache {
     if (raw == null) return [];
     try {
       final body = jsonDecode(raw);
-      if (body is! Map || body['version'] != 6 || body['entries'] is! List) {
+      if (body is! Map || body['version'] != 7 || body['entries'] is! List) {
         return [];
       }
       return (body['entries'] as List)
@@ -192,17 +192,10 @@ class PersistentNearbyPlaceCache implements NearbyPlaceCache {
     'drivingDistanceMeters': place.drivingDistanceMeters,
     'sourceEvidenceCount': place.sourceEvidenceCount,
     'aiDiscovered': place.aiDiscovered,
-    'media': place.media
-        .take(3)
-        .map(
-          (item) => {
-            'id': item.id,
-            'url': item.url,
-            'attribution': item.attribution,
-            'title': item.title,
-          },
-        )
-        .toList(growable: false),
+    // POI-attached provider images cannot prove that the pictured subject is
+    // this place. Verified media is resolved on demand and never persisted in
+    // the nearby-place cache.
+    'media': const [],
   };
 
   static NearbyPlace? _decodePlace(Object? raw, DateTime savedAt) {
@@ -246,11 +239,6 @@ class PersistentNearbyPlaceCache implements NearbyPlaceCache {
         address != null && (address is! String || address.length > 300)) {
       return null;
     }
-    final media = rawMedia
-        .map(_decodeMedia)
-        .whereType<NearbyPlaceMedia>()
-        .toList(growable: false);
-    if (media.length != rawMedia.length) return null;
     return NearbyPlace(
       id: id,
       name: name,
@@ -267,34 +255,8 @@ class PersistentNearbyPlaceCache implements NearbyPlaceCache {
       drivingDistanceMeters: drivingDistance as int?,
       sourceEvidenceCount: sourceEvidenceCount,
       aiDiscovered: aiDiscovered,
-      media: List.unmodifiable(media),
+      media: const [],
       cachedAt: savedAt,
-    );
-  }
-
-  static NearbyPlaceMedia? _decodeMedia(Object? raw) {
-    if (raw is! Map) return null;
-    final id = raw['id'];
-    final urlText = raw['url'];
-    final attribution = raw['attribution'];
-    final title = raw['title'];
-    final url = urlText is String ? Uri.tryParse(urlText) : null;
-    if (id is! String ||
-        !RegExp(r'^[a-f0-9]{24}$').hasMatch(id) ||
-        url == null ||
-        (url.scheme != 'https' && url.scheme != 'http') ||
-        url.host.isEmpty ||
-        attribution is! String ||
-        attribution.trim().isEmpty ||
-        attribution.length > 80 ||
-        title != null && (title is! String || title.length > 160)) {
-      return null;
-    }
-    return NearbyPlaceMedia(
-      id: id,
-      url: url.toString(),
-      attribution: attribution,
-      title: title as String?,
     );
   }
 

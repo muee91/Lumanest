@@ -80,15 +80,16 @@ function candidateFromPage(page, request) {
     normalizedMatchText(searchable).includes(normalizedName);
   const coordinate = pageCoordinate(page);
   const distance = coordinate == null ? null : distanceMeters(request, coordinate);
-  const coordinateMatched = distance != null && distance <= 1_500;
-
-  // A broad keyword result is not enough. The exact place name must be present
-  // in Commons metadata, or the media itself must be geotagged near the POI.
-  if (!nameMatched && !coordinateMatched) return null;
+  const coordinateMatched = distance != null && distance <= 250;
 
   const city = normalizedMatchText(request.city);
   const cityMatched = city.length >= 2 && normalizedMatchText(searchable).includes(city);
-  const score = (nameMatched ? 100 : 0) +
+  // A nearby image alone can be a different shop, building, or view. It must
+  // name the requested POI, and for a city-scoped lookup have city or tight
+  // coordinate corroboration before it can enter the product.
+  if (!nameMatched || (city.length >= 2 && !cityMatched && !coordinateMatched)) return null;
+
+  const score = 100 +
     (coordinateMatched ? Math.max(40, 100 - (distance / 25)) : 0) +
     (cityMatched ? 10 : 0);
   const license = metadataValue(metadata, 'LicenseShortName') ??
@@ -106,7 +107,7 @@ function candidateFromPage(page, request) {
       ...(artist == null ? {} : { creator: artist }),
       ...(license == null ? {} : { license }),
       sourceUrl: `https://commons.wikimedia.org/?curid=${page.pageid}`,
-      matchBasis: coordinateMatched ? 'coordinate' : 'name',
+      matchBasis: 'name',
     },
   };
 }

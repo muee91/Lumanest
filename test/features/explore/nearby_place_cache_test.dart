@@ -32,46 +32,49 @@ void main() {
     ),
   ];
 
-  test('restores only a nearby matching category and radius', () async {
-    final cache = PersistentNearbyPlaceCache(
-      SharedPreferencesAsync(),
-      storageKey: 'nearby-place-roundtrip',
-      now: () => now,
-    );
-    await cache.write(
-      center: center,
-      category: NearbyPlaceCategory.viewpoint,
-      radiusMeters: 5000,
-      places: places,
-    );
-
-    final restored = await cache.readMatching(
-      center: const GeoPoint(latitude: 30.232, longitude: 120.133),
-      category: NearbyPlaceCategory.viewpoint,
-      radiusMeters: 5000,
-    );
-
-    expect(restored?.single.name, '湖岸观景台');
-    expect(restored?.single.cachedAt, now);
-    expect(restored?.single.isOfflineCache, isTrue);
-    expect(restored?.single.coverMedia?.attribution, '高德地图');
-    expect(
-      await cache.readMatching(
-        center: center,
-        category: NearbyPlaceCategory.food,
-        radiusMeters: 5000,
-      ),
-      isNull,
-    );
-    expect(
-      await cache.readMatching(
+  test(
+    'restores only a nearby matching category and radius without provider media',
+    () async {
+      final cache = PersistentNearbyPlaceCache(
+        SharedPreferencesAsync(),
+        storageKey: 'nearby-place-roundtrip',
+        now: () => now,
+      );
+      await cache.write(
         center: center,
         category: NearbyPlaceCategory.viewpoint,
-        radiusMeters: 3000,
-      ),
-      isNull,
-    );
-  });
+        radiusMeters: 5000,
+        places: places,
+      );
+
+      final restored = await cache.readMatching(
+        center: const GeoPoint(latitude: 30.232, longitude: 120.133),
+        category: NearbyPlaceCategory.viewpoint,
+        radiusMeters: 5000,
+      );
+
+      expect(restored?.single.name, '湖岸观景台');
+      expect(restored?.single.cachedAt, now);
+      expect(restored?.single.isOfflineCache, isTrue);
+      expect(restored?.single.coverMedia, isNull);
+      expect(
+        await cache.readMatching(
+          center: center,
+          category: NearbyPlaceCategory.food,
+          radiusMeters: 5000,
+        ),
+        isNull,
+      );
+      expect(
+        await cache.readMatching(
+          center: center,
+          category: NearbyPlaceCategory.viewpoint,
+          radiusMeters: 3000,
+        ),
+        isNull,
+      );
+    },
+  );
 
   test('rejects far-away and expired nearby results', () async {
     final preferences = SharedPreferencesAsync();

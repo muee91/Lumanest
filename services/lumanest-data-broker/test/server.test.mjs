@@ -1763,9 +1763,8 @@ test('Amap proxy requires the app service token', async () => {
   });
 });
 
-test('Amap nearby photos become bounded authenticated media resources', async () => {
-  const photoBytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
-  let mediaRequests = 0;
+test('Amap nearby strips provider photos instead of treating them as place evidence', async () => {
+  let upstreamRequests = 0;
   await withServer(async (baseUrl) => {
     const nearby = await fetch(
       `${baseUrl}/v1/amap/nearby?location=120.70,30.52&keywords=%E6%B9%BF%E5%9C%B0%E5%85%AC%E5%9B%AD`,
@@ -1774,18 +1773,10 @@ test('Amap nearby photos become bounded authenticated media resources', async ()
     assert.equal(nearby.status, 200);
     const body = await nearby.json();
     assert.equal('photos' in body.pois[0], false);
-    assert.equal(body.pois[0].media.length, 1);
-    assert.equal(body.pois[0].media[0].attribution, '高德地图');
-    assert.match(body.pois[0].media[0].proxyPath, /^\/v1\/amap\/media\/[A-Za-z0-9_-]+$/);
-
-    const image = await fetch(`${baseUrl}${body.pois[0].media[0].proxyPath}`, {
-      headers: { Authorization: 'Bearer test-service-token' },
-    });
-    assert.equal(image.status, 200);
-    assert.equal(image.headers.get('content-type'), 'image/jpeg');
-    assert.deepEqual(Buffer.from(await image.arrayBuffer()), photoBytes);
+    assert.equal('media' in body.pois[0], false);
   }, {
     fetcher: async (url) => {
+      upstreamRequests += 1;
       if (url.hostname === 'restapi.amap.com') {
         return new Response(JSON.stringify({
           status: '1',
@@ -1799,33 +1790,10 @@ test('Amap nearby photos become bounded authenticated media resources', async ()
           }],
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
-      mediaRequests += 1;
-      assert.equal(url.hostname, 'aos-comment.amap.com');
-      return new Response(photoBytes, {
-        status: 200,
-        headers: { 'Content-Type': 'image/jpeg', 'Content-Length': String(photoBytes.length) },
-      });
+      throw new Error('provider image must never be fetched');
     },
   });
-  assert.equal(mediaRequests, 1);
-});
-
-test('Amap media proxy rejects non-AMap hosts before fetching', async () => {
-  let upstreamCalls = 0;
-  const token = Buffer.from('https://evil.example/photo.jpg').toString('base64url');
-  await withServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/v1/amap/media/${token}`, {
-      headers: { Authorization: 'Bearer test-service-token' },
-    });
-    assert.equal(response.status, 400);
-    assert.deepEqual(await response.json(), { error: 'invalid_media_reference' });
-  }, {
-    fetcher: async () => {
-      upstreamCalls += 1;
-      return new Response('unexpected', { status: 200 });
-    },
-  });
-  assert.equal(upstreamCalls, 0);
+  assert.equal(upstreamRequests, 1);
 });
 
 test('place detail media uses a strict Commons match, caches lookup and proxies bytes', async () => {
@@ -1871,7 +1839,7 @@ test('place detail media uses a strict Commons match, caches lookup and proxies 
                 mime: 'image/jpeg',
                 thumburl: 'https://upload.wikimedia.org/example/wetland.jpg',
                 extmetadata: {
-                  ImageDescription: { value: '长山河生态湿地公园' },
+                  ImageDescription: { value: '嘉兴市长山河生态湿地公园' },
                   LicenseShortName: { value: 'CC BY-SA 4.0' },
                 },
               }],

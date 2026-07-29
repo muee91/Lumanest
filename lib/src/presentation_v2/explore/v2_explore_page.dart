@@ -1446,7 +1446,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
         ? null
         : ref.watch(verifiedPlaceMediaProvider(selectedPlace!));
     if (selectedMedia != null && !selectedMedia.isLoading) {
-      final media = selectedMedia.asData?.value ?? selectedPlace?.coverMedia;
+      final media = selectedMedia.asData?.value;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         onMediaResolved(media != null);
       });
@@ -1637,10 +1637,9 @@ class _V2ExploreResultObject extends ConsumerWidget {
     final selected = selectedPlace;
     if (selected != null) {
       final verifiedMedia = selectedMedia?.asData?.value;
-      final amapFallbackMedia = selected.coverMedia;
       final resolvedMedia = selectedMedia == null || selectedMedia.isLoading
           ? null
-          : verifiedMedia ?? amapFallbackMedia;
+          : verifiedMedia;
       return _V2SelectedPlace(
         name: selected.name,
         eyebrow: candidateMode
@@ -1656,7 +1655,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
         onRoute: () => onRoute(selected.name, selected.point),
         routeLabel: candidateMode ? '查看驾车路线' : '规划路线',
         media: resolvedMedia,
-        fallbackMedia: verifiedMedia == null ? null : amapFallbackMedia,
         mediaLoading: selectedMedia?.isLoading == true,
         mediaHeaders: mediaHeaders,
       );
@@ -2077,7 +2075,6 @@ class _V2SelectedPlace extends StatelessWidget {
     this.backLabel = '返回候选',
     this.routeLabel = '规划路线',
     this.media,
-    this.fallbackMedia,
     this.mediaLoading = false,
     this.mediaHeaders,
   });
@@ -2091,7 +2088,6 @@ class _V2SelectedPlace extends StatelessWidget {
   final String routeLabel;
   final VoidCallback onRoute;
   final NearbyPlaceMedia? media;
-  final NearbyPlaceMedia? fallbackMedia;
   final bool mediaLoading;
   final Map<String, String>? mediaHeaders;
 
@@ -2116,7 +2112,6 @@ class _V2SelectedPlace extends StatelessWidget {
             (_, final item?) => _V2PlaceDetailPhoto(
               key: ValueKey(item.id),
               media: item,
-              fallbackMedia: fallbackMedia,
               headers: mediaHeaders,
             ),
             (true, _) => const _V2PlacePhotoLoading(),
@@ -2238,13 +2233,11 @@ class _V2PlacePhotoLoading extends StatelessWidget {
 class _V2PlaceDetailPhoto extends StatefulWidget {
   const _V2PlaceDetailPhoto({
     required this.media,
-    required this.fallbackMedia,
     required this.headers,
     super.key,
   });
 
   final NearbyPlaceMedia media;
-  final NearbyPlaceMedia? fallbackMedia;
   final Map<String, String>? headers;
 
   @override
@@ -2268,12 +2261,7 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
     if (_failed) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final fallback = widget.fallbackMedia;
-      if (fallback != null && fallback.url != _activeMedia.url) {
-        setState(() => _activeMedia = fallback);
-      } else {
-        setState(() => _failed = true);
-      }
+      setState(() => _failed = true);
     });
   }
 

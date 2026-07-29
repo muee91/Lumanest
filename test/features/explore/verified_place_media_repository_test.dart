@@ -49,7 +49,7 @@ void main() {
           'creator': 'Example',
           'license': 'CC BY-SA 4.0',
           'sourceUrl': 'https://commons.wikimedia.org/?curid=42',
-          'matchBasis': 'coordinate',
+          'matchBasis': 'name',
         },
       });
       final repository = VerifiedPlaceMediaRepository(
@@ -65,7 +65,7 @@ void main() {
         'https://broker.example/v1/explore/media/abcdefghijklmnop',
       );
       expect(media?.attribution, 'Wikimedia Commons');
-      expect(media?.matchBasis, 'coordinate');
+      expect(media?.matchBasis, 'name');
       expect(transport.query?['name'], '长山河生态湿地公园');
       expect(transport.query?['city'], '嘉兴市');
       expect(transport.query?['lat'], isNot('30.684200'));

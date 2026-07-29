@@ -82,7 +82,7 @@ test('verified media rejects a visually plausible but unrelated search result', 
   assert.deepEqual(result, { ok: true, media: null });
 });
 
-test('verified media accepts a geotagged photo close to the requested POI', async () => {
+test('verified media rejects a nearby photo that does not name the requested POI', async () => {
   const result = await searchVerifiedPlaceMedia({
     request,
     fetcher: async () => commonsResponse([{
@@ -96,7 +96,7 @@ test('verified media accepts a geotagged photo close to the requested POI', asyn
       }],
     }]),
   });
-  assert.equal(result.media.matchBasis, 'coordinate');
+  assert.deepEqual(result, { ok: true, media: null });
 });
 
 test('verified media proxy token rejects arbitrary hosts', () => {

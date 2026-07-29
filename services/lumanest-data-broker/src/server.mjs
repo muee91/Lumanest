@@ -104,9 +104,6 @@ import {
 import { selectCreativeWithModel } from './companion/model-selector.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
-const amapPhotoHosts = new Set(['aos-comment.amap.com', 'store.is.autonavi.com']);
-const amapPhotoContentTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const maximumAmapPhotoBytes = 8 * 1024 * 1024;
 const maximumVerifiedPlaceMediaBytes = 8 * 1024 * 1024;
 const gbifBaseUrl = 'https://api.gbif.org';
 const elevationBaseUrl = 'https://api.open-meteo.com';
@@ -190,39 +187,6 @@ function validKeywords(value) {
   return normalized.length > 0 && normalized.length <= 80;
 }
 
-function parsedAmapPhotoUrl(value) {
-  if (typeof value !== 'string' || value.length === 0 || value.length > 1_200) return null;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
-        !amapPhotoHosts.has(url.hostname.toLowerCase())) return null;
-    return url;
-  } catch {
-    return null;
-  }
-}
-
-function amapPhotoMedia(value) {
-  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
-  const url = parsedAmapPhotoUrl(value.url);
-  if (url == null) return null;
-  const sourceUrl = url.toString();
-  const token = Buffer.from(sourceUrl, 'utf8').toString('base64url');
-  const title = typeof value.title === 'string' && value.title.trim()
-    ? value.title.trim().slice(0, 160)
-    : null;
-  const provider = typeof value.provider === 'string' && value.provider.trim()
-    ? value.provider.trim().slice(0, 80)
-    : '高德地图';
-  return {
-    id: createHash('sha256').update(sourceUrl).digest('hex').slice(0, 24),
-    kind: 'photo',
-    proxyPath: `/v1/amap/media/${token}`,
-    title,
-    attribution: provider,
-  };
-}
-
 function normalizedAmapNearbyBody(body) {
   if (!Array.isArray(body?.pois)) return body;
   return {
@@ -230,65 +194,9 @@ function normalizedAmapNearbyBody(body) {
     pois: body.pois.map((poi) => {
       if (poi == null || typeof poi !== 'object' || Array.isArray(poi)) return poi;
       const { photos, ...fields } = poi;
-      const media = Array.isArray(photos)
-        ? photos.map(amapPhotoMedia).filter(Boolean).slice(0, 3)
-        : [];
-      return { ...fields, media };
+      return fields;
     }),
   };
-}
-
-function decodedAmapPhotoUrl(token) {
-  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{16,1800}$/.test(token)) return null;
-  try {
-    return parsedAmapPhotoUrl(Buffer.from(token, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-}
-
-async function proxyAmapPhoto(response, token, fetcher, timeoutMs) {
-  const url = decodedAmapPhotoUrl(token);
-  if (url == null) {
-    writeJson(response, 400, { error: 'invalid_media_reference' });
-    return;
-  }
-  try {
-    const upstream = await fetcher(url, {
-      redirect: 'error',
-      signal: AbortSignal.timeout(Math.min(timeoutMs, 12_000)),
-      headers: { 'User-Agent': 'LumaNest/1.0 PlaceMediaProxy' },
-    });
-    const contentType = upstream.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
-    const declaredLength = Number.parseInt(upstream.headers.get('content-length') ?? '', 10);
-    if (!upstream.ok || !amapPhotoContentTypes.has(contentType) ||
-        (Number.isFinite(declaredLength) && declaredLength > maximumAmapPhotoBytes) ||
-        upstream.body == null) {
-      writeJson(response, 502, { error: 'media_unavailable' });
-      return;
-    }
-    const chunks = [];
-    let size = 0;
-    for await (const chunk of upstream.body) {
-      size += chunk.byteLength;
-      if (size > maximumAmapPhotoBytes) {
-        await upstream.body.cancel().catch(() => {});
-        writeJson(response, 502, { error: 'media_too_large' });
-        return;
-      }
-      chunks.push(Buffer.from(chunk));
-    }
-    const body = Buffer.concat(chunks, size);
-    response.writeHead(200, {
-      'Content-Type': contentType,
-      'Content-Length': body.length,
-      'Cache-Control': 'private, max-age=86400',
-      'X-Content-Type-Options': 'nosniff',
-    });
-    response.end(body);
-  } catch {
-    writeJson(response, 502, { error: 'media_unavailable' });
-  }
 }
 
 async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
@@ -406,9 +314,6 @@ const ratePolicies = [
 function ratePolicy(pathname) {
   if (/^\/v1\/insights\/insight_[a-f0-9]{24}\/feedback$/.test(pathname)) {
     return { limit: 60, windowMs: 60 * 1_000, key: 'insight-feedback' };
-  }
-  if (/^\/v1\/amap\/media\/[A-Za-z0-9_-]{16,1800}$/.test(pathname)) {
-    return { limit: 60, windowMs: 60 * 1_000, key: 'amap-media' };
   }
   if (/^\/v1\/explore\/media\/[A-Za-z0-9_-]{16,2800}$/.test(pathname)) {
     return { limit: 60, windowMs: 60 * 1_000, key: 'place-media' };
@@ -1621,19 +1526,6 @@ export function createTokenBrokerServer({
         return;
       }
       writeJson(response, 202, { accepted: true });
-      return;
-    }
-
-    const amapMediaMatch = requestUrl.pathname.match(
-      /^\/v1\/amap\/media\/([A-Za-z0-9_-]{16,1800})$/,
-    );
-    if (request.method === 'GET' && amapMediaMatch != null) {
-      await proxyAmapPhoto(
-        response,
-        amapMediaMatch[1],
-        fetcher,
-        configuration.settings.upstreamTimeoutMs,
-      );
       return;
     }
 

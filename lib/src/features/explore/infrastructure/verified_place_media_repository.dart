@@ -101,7 +101,6 @@ class VerifiedPlaceMediaRepository {
       license: _text(raw['license']),
       sourceUrl: sourceUrl.toString(),
       matchBasis: switch (raw['matchBasis']) {
-        'coordinate' => 'coordinate',
         'name' => 'name',
         _ => null,
       },
