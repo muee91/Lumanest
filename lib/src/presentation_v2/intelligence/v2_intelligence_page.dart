@@ -323,8 +323,8 @@ class _IntelligenceWorkspaceState
       case _IntelligenceLayoutState.inspiration:
         return (usableHeight * .31).clamp(170.0, 238.0);
       case _IntelligenceLayoutState.home:
-        if (usableHeight < 600) return 210;
-        return (usableHeight * .43).clamp(230.0, 340.0);
+        if (usableHeight < 600) return 200;
+        return (usableHeight * .29).clamp(210.0, 235.0);
     }
   }
 
@@ -822,21 +822,7 @@ class _InspirationStage extends StatelessWidget {
             ],
           ),
           if (note == null) ...[
-            Expanded(
-              child: Center(
-                child: Container(
-                  width: 86,
-                  height: 86,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .58),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white),
-                  ),
-                  child: const Text('✦', style: TextStyle(fontSize: 36)),
-                ),
-              ),
-            ),
+            const SizedBox(height: 8),
             Wrap(
               key: const Key('v2-intelligence-inspiration-rail'),
               spacing: 8,
