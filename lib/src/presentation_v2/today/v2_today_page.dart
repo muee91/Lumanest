@@ -737,8 +737,8 @@ class _V2OpportunityRail extends StatelessWidget {
   }
 
   static String _sessionTime(ShootingSession session, DateTime now) {
-    final start = session.presentationStartsAt.toLocal();
-    final end = session.presentationEndsAt.toLocal();
+    final start = session.startsAt.toLocal();
+    final end = session.endsAt.toLocal();
     final localNow = now.toLocal();
     final today = DateTime(localNow.year, localNow.month, localNow.day);
     final sessionDay = DateTime(start.year, start.month, start.day);
