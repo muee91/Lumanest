@@ -218,6 +218,16 @@ function validCandidateTime(value) {
   return typeof value === 'string' && value.length <= 80 && Number.isFinite(Date.parse(value));
 }
 
+function extractionJson(value) {
+  if (typeof value !== 'string' || value.length > 12_000) return null;
+  const trimmed = value.trim();
+  // Some OpenAI-compatible models obey the JSON-only instruction but still
+  // wrap their one object in a Markdown fence.  Accept exactly that wrapper;
+  // the strict schema validation below remains the authority for every field.
+  const fenced = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/iu.exec(trimmed);
+  return fenced == null ? trimmed : fenced[1].trim();
+}
+
 function coordinateEvidenceSupports(coordinate, coordinateEvidence, sources) {
   if (typeof coordinateEvidence !== 'string' || coordinateEvidence.length > 120) return false;
   const match = /^\s*(-?\d{1,2}(?:\.\d{1,6})?)\s*,\s*(-?\d{1,3}(?:\.\d{1,6})?)\s*$/.exec(coordinateEvidence);
@@ -232,7 +242,9 @@ function coordinateEvidenceSupports(coordinate, coordinateEvidence, sources) {
 
 export function parseDiscoveryCandidates(value, evidence) {
   try {
-    const parsed = JSON.parse(value);
+    const json = extractionJson(value);
+    if (json == null) return null;
+    const parsed = JSON.parse(json);
     if (!isPlainObject(parsed) || Object.keys(parsed).some((key) => !['candidates', 'insights'].includes(key)) ||
         !Array.isArray(parsed.candidates) || parsed.candidates.length > 6 ||
         (parsed.insights !== undefined && (!Array.isArray(parsed.insights) || parsed.insights.length > 8)) ||

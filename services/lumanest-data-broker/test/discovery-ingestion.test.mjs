@@ -170,6 +170,17 @@ test('model coordinates require an exact coordinate string in their linked evide
   assert.equal(parseDiscoveryCandidates(invented, evidence), null);
 });
 
+test('discovery extraction accepts one fenced JSON object while keeping its strict schema', () => {
+  const evidence = [{
+    title: '官方资料', snippet: '沿河保留传统街巷。',
+    url: 'https://culture.example.gov.cn/town', sourceId: 'haining-culture',
+    publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
+  }];
+  const text = '```json\n{"candidates":[],"insights":[{"type":"localStory","title":"沿河街巷","summary":"沿河保留传统街巷。","factText":"沿河保留传统街巷。","sourceIndexes":[0],"timeSensitive":false,"actionability":"detail","sceneTags":["oldTown"],"photoThemeTags":["传统建筑"]}]}\n```';
+  assert.equal(parseDiscoveryCandidates(text, evidence)?.insights[0]?.title, '沿河街巷');
+  assert.equal(parseDiscoveryCandidates('```json\n{"candidates":[]}\n``` trailing', evidence), null);
+});
+
 test('regional insights retain an exact source fact and cannot request navigation', () => {
   const evidence = [{
     title: '古镇简介', snippet: '古镇因水运商贸兴起，沿河仍保留传统街巷。',
