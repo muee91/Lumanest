@@ -29,6 +29,14 @@ enum NearbyPlaceCategory {
       '海滨公园',
       '堤岸',
     ],
+    NearbyPlaceCategory.humanity => const [
+      '古镇',
+      '历史文化街区',
+      '老街',
+      '博物馆',
+      '故居',
+      '文化馆',
+    ],
     NearbyPlaceCategory.sunriseCandidate => const [
       '观海',
       '海滨公园',

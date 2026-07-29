@@ -25,6 +25,8 @@ void main() {
     expect(before, greaterThan(200));
     expect(find.byKey(const Key('v2-intelligence-assistant-stage')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-composer')), findsOne);
+    expect(find.byKey(const Key('v2-intelligence-note-2')), findsOne);
+    expect(find.byKey(const Key('v2-intelligence-note-3')), findsNothing);
 
     await tester.tap(find.byKey(const Key('v2-intelligence-input')));
     await tester.pumpAndSettle();

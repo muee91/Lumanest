@@ -19,6 +19,7 @@ import 'package:luma_nest/src/features/explore/application/nearby_place_provider
 import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
+import 'package:luma_nest/src/features/explore/domain/region_photo_theme_focus.dart';
 import 'package:luma_nest/src/features/explore/presentation/amap_marker_icon_factory.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -56,28 +57,32 @@ class V2ExplorePage extends ConsumerWidget {
       snapshot: snapshot,
       brief: briefState.brief,
     );
+    void openMapFor(ExploreFocus selectedFocus) {
+      switch (ref.read(mapConsentControllerProvider)) {
+        case MapConsentReady():
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  _V2ExploreMap(focus: selectedFocus, placeId: placeId),
+            ),
+          );
+        case MapConsentAwaiting():
+          ref.read(mapConsentControllerProvider.notifier).grantConsent();
+        case MapConsentConfigurationMissing():
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('地图尚未配置，区域简报仍可使用。')));
+      }
+    }
+
     if (composition.showsBriefFirst && briefState.brief != null) {
       return _V2ExploreBrief(
         brief: briefState.brief!,
         refreshing: briefState.status == RegionBriefLoadStatus.refreshing,
         onRefresh: () =>
             ref.read(regionBriefControllerProvider.notifier).load(manual: true),
-        onOpenMap: () {
-          switch (ref.read(mapConsentControllerProvider)) {
-            case MapConsentReady():
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _V2ExploreMap(focus: focus, placeId: placeId),
-                ),
-              );
-            case MapConsentAwaiting():
-              ref.read(mapConsentControllerProvider.notifier).grantConsent();
-            case MapConsentConfigurationMissing():
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('地图尚未配置，区域简报仍可使用。')));
-          }
-        },
+        onOpenMap: () => openMapFor(focus),
+        onOpenTheme: (theme) => openMapFor(focusForRegionPhotoTheme(theme)),
       );
     }
     return switch (ref.watch(mapConsentControllerProvider)) {
@@ -111,12 +116,14 @@ class _V2ExploreBrief extends StatelessWidget {
     required this.refreshing,
     required this.onRefresh,
     required this.onOpenMap,
+    required this.onOpenTheme,
   });
 
   final RegionBrief brief;
   final bool refreshing;
   final VoidCallback onRefresh;
   final VoidCallback onOpenMap;
+  final ValueChanged<RegionPhotoTheme> onOpenTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -172,12 +179,9 @@ class _V2ExploreBrief extends StatelessWidget {
               ),
               if (brief.photoThemes.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                _V2BriefCard(
-                  eyebrow: '区域题材',
-                  title: brief.photoThemes
-                      .map((item) => item.label)
-                      .join(' · '),
-                  detail: '题材来自场景和已验证区域资料，不替代具体机位。',
+                _V2BriefThemeCard(
+                  themes: brief.photoThemes,
+                  onOpenTheme: onOpenTheme,
                 ),
               ],
               if (sections.isNotEmpty) ...[
@@ -281,6 +285,114 @@ class _V2BriefCard extends StatelessWidget {
           ),
         ],
       ],
+    ),
+  );
+}
+
+class _V2BriefThemeCard extends StatelessWidget {
+  const _V2BriefThemeCard({required this.themes, required this.onOpenTheme});
+
+  final List<RegionPhotoTheme> themes;
+  final ValueChanged<RegionPhotoTheme> onOpenTheme;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: V2Palette.paper,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: V2Palette.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '区域题材',
+          style: TextStyle(
+            color: V2Palette.moss,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '点击题材查看附近线索',
+          style: TextStyle(
+            color: V2Palette.ink,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          '题材来自场景和已验证区域资料，不替代具体机位。',
+          style: TextStyle(
+            color: V2Palette.mutedInk,
+            fontSize: 13,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final theme in themes)
+              _V2BriefThemeAction(
+                key: Key('v2-explore-brief-theme-${theme.id}'),
+                theme: theme,
+                onTap: () => onOpenTheme(theme),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _V2BriefThemeAction extends StatelessWidget {
+  const _V2BriefThemeAction({
+    super.key,
+    required this.theme,
+    required this.onTap,
+  });
+
+  final RegionPhotoTheme theme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '查看${theme.label}附近线索',
+    child: Material(
+      color: V2Palette.mossSoft,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                theme.label,
+                style: const TextStyle(
+                  color: V2Palette.moss,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Icon(
+                CupertinoIcons.arrow_up_right,
+                color: V2Palette.moss,
+                size: 14,
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }

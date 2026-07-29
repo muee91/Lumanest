@@ -795,6 +795,7 @@ class _InspirationStage extends StatelessWidget {
 
   Widget _expanded(BuildContext context) {
     final note = selectedNote;
+    final visibleNotes = notes.take(3).toList(growable: false);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Column(
@@ -836,77 +837,16 @@ class _InspirationStage extends StatelessWidget {
                 ),
               ),
             ),
-            Stack(
+            Wrap(
+              key: const Key('v2-intelligence-inspiration-rail'),
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                SizedBox(
-                  height: 62,
-                  child: ListView.separated(
-                    key: const Key('v2-intelligence-inspiration-rail'),
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(right: 34),
-                    itemCount: notes.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final item = notes[index];
-                      return InkWell(
-                        key: Key('v2-intelligence-note-$index'),
-                        onTap: () => onSelect(item),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 15,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: .72),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(item.emoji),
-                              const SizedBox(width: 6),
-                              Text(
-                                item.label,
-                                style: const TextStyle(
-                                  color: V2Palette.ink,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (notes.length > 2)
-                  const Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [Color(0x00F2E9DD), Color(0xFFF2E9DD)],
-                          ),
-                        ),
-                        child: SizedBox(
-                          width: 38,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Icon(
-                              CupertinoIcons.chevron_right,
-                              color: V2Palette.moss,
-                              size: 17,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                for (var index = 0; index < visibleNotes.length; index++)
+                  _V2InspirationNoteAction(
+                    key: Key('v2-intelligence-note-$index'),
+                    item: visibleNotes[index],
+                    onTap: () => onSelect(visibleNotes[index]),
                   ),
               ],
             ),
@@ -989,6 +929,48 @@ class _InspirationStage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _V2InspirationNoteAction extends StatelessWidget {
+  const _V2InspirationNoteAction({
+    super.key,
+    required this.item,
+    required this.onTap,
+  });
+
+  final InspirationNote item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '查看灵感：${item.label}',
+    child: Material(
+      color: Colors.white.withValues(alpha: .72),
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(item.emoji),
+              const SizedBox(width: 6),
+              Text(
+                item.label,
+                style: const TextStyle(
+                  color: V2Palette.ink,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _AssistantStage extends StatelessWidget {
