@@ -30,6 +30,17 @@ def source() -> FeedSourceDefinition:
     })
 
 
+def document_source() -> FeedSourceDefinition:
+    return FeedSourceDefinition.model_validate({
+        **source().model_dump(by_alias=True, mode="json"),
+        "id": "hangzhou-history-document",
+        "contentKind": "document",
+        "feedUrl": "https://culture.example.test/history/town",
+        "publishedAt": "2025-01-21T00:00:00Z",
+        "missionTypes": ["localStories"],
+    })
+
+
 @pytest.mark.asyncio
 async def test_fetch_feed_uses_conditional_headers_and_accepts_304():
     captured = {}
@@ -93,6 +104,34 @@ async def test_fetch_feed_parses_a_bounded_200_response():
     assert content_hash is not None and len(content_hash) == 64
     assert etag == '"v1"'
     assert last_modified == "Thu, 23 Jul 2026 00:00:00 GMT"
+
+
+@pytest.mark.asyncio
+async def test_fetch_document_admits_only_the_configured_reviewed_page_as_evidence():
+    payload = b"""<!doctype html><html><head>
+      <title>Historic riverside town</title><meta name="description" content="Official history." />
+      <style>.ignored { color: red; }</style></head><body>
+      <nav>Navigation</nav><article>The town preserves historic lanes and a waterfront market.</article>
+      <script>never include this</script></body></html>"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["accept"].startswith("application/atom+xml")
+        return httpx.Response(200, content=payload, request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    try:
+        evidence, *_ = await fetch_feed(
+            document_source(), FeedFetchState(), client=client, resolve_dns=False,
+        )
+    finally:
+        await client.aclose()
+
+    assert evidence is not None
+    assert len(evidence) == 1
+    assert evidence[0].title == "Historic riverside town"
+    assert "never include this" not in evidence[0].snippet
+    assert str(evidence[0].url) == "https://culture.example.test/history/town"
+    assert evidence[0].published_at is not None
 
 
 @pytest.mark.asyncio

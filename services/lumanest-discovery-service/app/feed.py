@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
+from typing import Literal
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
@@ -27,6 +28,10 @@ class FeedSourceDefinition(StrictModel):
     id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9._-]{0,79}$")
     title: str = Field(min_length=1, max_length=160)
     publisher: str = Field(min_length=1, max_length=80)
+    # ``feedUrl`` remains the transport field for compatibility with RSS/Atom
+    # sources. In document mode it is the one reviewed first-party document,
+    # never a crawl seed or an open URL.
+    content_kind: Literal["feed", "document"] = Field(default="feed", alias="contentKind")
     feed_url: HttpUrl = Field(alias="feedUrl")
     item_domains: list[str] = Field(alias="itemDomains", min_length=1, max_length=8)
     source_id: str = Field(alias="sourceId", min_length=1, max_length=80)
@@ -42,6 +47,7 @@ class FeedSourceDefinition(StrictModel):
         ge=900,
         le=604800,
     )
+    published_at: datetime | None = Field(default=None, alias="publishedAt")
     enabled: bool = True
 
     @field_validator("item_domains")
@@ -282,6 +288,96 @@ def _plain_text(value: str | None) -> str:
     except Exception:
         text = value
     return " ".join(text.split()).strip()[:MAX_FEED_TEXT]
+
+
+class _DocumentExtractor(HTMLParser):
+    """Extract script-free text from one reviewed static document.
+
+    It does not interpret links, execute JavaScript, or discover child pages.
+    Static official archives therefore gain a safe evidence path without
+    turning the feed worker into a general crawler.
+    """
+
+    _ignored_tags = {"script", "style", "noscript", "svg", "template"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._ignored_depth = 0
+        self._in_title = False
+        self.title_parts: list[str] = []
+        self.body_parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized = tag.casefold()
+        if normalized in self._ignored_tags:
+            self._ignored_depth += 1
+            return
+        if self._ignored_depth:
+            return
+        if normalized == "title":
+            self._in_title = True
+            return
+        if normalized == "meta":
+            metadata = {str(key).casefold(): value for key, value in attrs}
+            name = (metadata.get("name") or metadata.get("property") or "").casefold()
+            content = metadata.get("content")
+            if name in {"description", "og:description"} and content:
+                self.body_parts.append(content)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.casefold()
+        if normalized in self._ignored_tags:
+            self._ignored_depth = max(0, self._ignored_depth - 1)
+            return
+        if self._ignored_depth:
+            return
+        if normalized == "title":
+            self._in_title = False
+
+    def handle_data(self, data: str) -> None:
+        if self._ignored_depth:
+            return
+        if self._in_title:
+            self.title_parts.append(data)
+        self.body_parts.append(data)
+
+
+def parse_static_document(
+    payload: bytes,
+    source: FeedSourceDefinition,
+) -> list[BrokerSearchResult]:
+    if not payload or len(payload) > MAX_FEED_BYTES:
+        raise ValueError("feed_size_invalid")
+    try:
+        document = payload.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        document = payload.decode("gb18030", errors="replace")
+    parser = _DocumentExtractor()
+    try:
+        parser.feed(document)
+        parser.close()
+    except Exception as error:
+        raise ValueError("document_html_invalid") from error
+    title = " ".join(" ".join(parser.title_parts).split()).strip()
+    snippet = " ".join(" ".join(parser.body_parts).split()).strip()[:MAX_FEED_TEXT]
+    url = _allowed_item_url(str(source.feed_url), source.item_domains)
+    if not title or len(title) > 300 or len(snippet) < 30 or url is None:
+        raise ValueError("document_content_invalid")
+    return [BrokerSearchResult.model_validate({
+        "sourceId": source.source_id,
+        "publisher": source.publisher,
+        "license": source.license,
+        "version": source.source_version,
+        "qualityTier": source.quality_tier,
+        "crawlEnabled": False,
+        "crawlMode": "static",
+        "allowedPathPrefixes": [],
+        "deniedPathPatterns": [],
+        "title": title,
+        "snippet": snippet,
+        "url": url,
+        **({"publishedAt": source.published_at.isoformat()} if source.published_at else {}),
+    })]
 
 
 def _local_name(tag: str) -> str:

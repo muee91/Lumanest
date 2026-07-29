@@ -303,6 +303,8 @@ class DiscoveryStore:
         identity = next((item for item in insights if item["type"] == "areaIdentity"), None)
         orientation = next((item for item in insights if item["type"] == "orientation"), None)
         if identity is None or orientation is None:
+            if await self._brief_is_terminally_empty(request, now):
+                return self._unavailable_brief(request, region_id, now), 200
             return self._pending_brief(request, region_id, now, scheduled), 202
         themes: list[dict[str, str]] = []
         seen_themes: set[str] = set()
@@ -367,27 +369,81 @@ class DiscoveryStore:
             "refresh": {"refreshingMissions": scheduled, "retryAfterSeconds": 30},
         })
 
+    def _unavailable_brief(
+        self,
+        request: RegionBriefRequest,
+        region_id: str,
+        now: datetime,
+    ) -> RegionBriefResponse:
+        """Report a completed evidence miss without inventing regional prose.
+
+        This is intentionally distinct from ``pending``.  It lets the client
+        stop short polling after every requested mission completed with no
+        reviewed evidence, while the next normal cache window can still retry.
+        """
+        return RegionBriefResponse.model_validate({
+            "contractVersion": 2,
+            "briefId": self._hash(f"unavailable|{region_id}|{int(now.timestamp() // 300)}")[:64],
+            "regionId": region_id,
+            "regionName": "当前区域",
+            "profile": request.scene_profile.model_dump(by_alias=True),
+            "generatedAt": now,
+            "expiresAt": now + timedelta(minutes=5),
+            "status": "unavailable",
+            "completeness": "partial",
+            "identity": None,
+            "orientation": None,
+            "photoThemes": [],
+            "insights": [],
+            "sources": [],
+            "refresh": {"refreshingMissions": [], "retryAfterSeconds": None},
+        })
+
+    async def _brief_is_terminally_empty(
+        self,
+        request: RegionBriefRequest,
+        now: datetime,
+    ) -> bool:
+        """Whether every requested non-deterministic mission finished empty."""
+        missions = self._brief_missions(request)
+        if not missions or self.redis is None:
+            return False
+        states: list[str | None] = []
+        for mission in missions:
+            discovery_request = self._brief_discovery_request(request, mission, now)
+            states.append(await self.refresh_state(discovery_request))
+        return bool(states) and all(state == "empty" for state in states)
+
     async def _schedule_brief_missions(self, request: RegionBriefRequest, now: datetime) -> list[str]:
         missions = self._brief_missions(request)
         scheduled: list[str] = []
         for mission in missions:
-            discovery_request = DiscoveryRequest.model_validate({
-                "activationType": request.activation_type,
-                "missionType": mission,
-                "focus": "区域探索资料",
-                "locale": request.locale,
-                "region": request.region.model_dump(by_alias=True),
-                "timeRange": {
-                    "startsAt": now,
-                    "endsAt": now + timedelta(days=7),
-                },
-                "routeCorridor": None,
-                "interests": ["photography"],
-                "sourcePolicies": [policy.model_dump(by_alias=True) for policy in request.source_policies],
-            })
+            discovery_request = self._brief_discovery_request(request, mission, now)
             if await self.schedule_refresh(discovery_request):
                 scheduled.append(mission)
         return scheduled
+
+    @staticmethod
+    def _brief_discovery_request(
+        request: RegionBriefRequest,
+        mission: str,
+        now: datetime | None = None,
+    ) -> DiscoveryRequest:
+        generated_at = now or datetime.now(timezone.utc)
+        return DiscoveryRequest.model_validate({
+            "activationType": request.activation_type,
+            "missionType": mission,
+            "focus": "区域探索资料",
+            "locale": request.locale,
+            "region": request.region.model_dump(by_alias=True),
+            "timeRange": {
+                "startsAt": generated_at,
+                "endsAt": generated_at + timedelta(days=7),
+            },
+            "routeCorridor": None,
+            "interests": ["photography"],
+            "sourcePolicies": [policy.model_dump(by_alias=True) for policy in request.source_policies],
+        })
 
     @staticmethod
     def _brief_missions(request: RegionBriefRequest) -> list[str]:

@@ -21,6 +21,7 @@ from .feed import (
     FeedSourceDefinition,
     MAX_FEED_BYTES,
     parse_feed_document,
+    parse_static_document,
 )
 from .models import BrokerSearchResult, ExtractedCandidate
 from .store import DiscoveryStore, RefreshJob, RegionReference
@@ -91,7 +92,7 @@ async def _get_bounded(
     policy = UrlPolicy(domain=domain)
     current = guard_url(initial, policy, resolve_dns=resolve_dns)
     headers = {
-        "Accept": "application/atom+xml, application/rss+xml, application/xml, text/xml;q=0.9",
+        "Accept": "application/atom+xml, application/rss+xml, application/xml, text/xml;q=0.9, text/html;q=0.8",
         "User-Agent": "LumaNest-FeedEvidence/1.0",
     }
     if state.etag:
@@ -159,7 +160,11 @@ async def fetch_feed(
         content_hash = hashlib.sha256(payload).hexdigest()
         if content_hash == state.content_hash:
             return None, content_hash, etag, last_modified
-        evidence = parse_feed_document(payload, source)
+        evidence = (
+            parse_static_document(payload, source)
+            if source.content_kind == "document"
+            else parse_feed_document(payload, source)
+        )
         return evidence, content_hash, etag, last_modified
     finally:
         if owns_client:

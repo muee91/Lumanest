@@ -137,6 +137,13 @@ def test_region_identity_localizes_brief_search_and_extraction_focus():
     assert BrokerClient._localized_focus(generic, ()) == "30.275,120.125附近"
 
 
+def test_evergreen_regional_missions_do_not_apply_a_rolling_search_cutoff():
+    assert BrokerClient._freshness_days("localStories") is None
+    assert BrokerClient._freshness_days("localFoodAndSpecialties") is None
+    assert BrokerClient._freshness_days("culturalEtiquette") is None
+    assert BrokerClient._freshness_days("humanityEvents") == 1
+
+
 @pytest.mark.asyncio
 async def test_region_identity_resolution_uses_only_the_coarse_job_reference(monkeypatch):
     captured = {}

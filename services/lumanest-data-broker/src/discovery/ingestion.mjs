@@ -61,7 +61,12 @@ export function validDiscoverySearchRequest(body, sourcePolicies = []) {
   if (!isPlainObject(body) || Object.keys(body).some((key) => !searchKeys.has(key))) return false;
   if (text(body.query, 2, 180) == null || !/^[\p{L}\p{N}\s\-_'.,，。？！、（）()]+$/u.test(body.query)) return false;
   if (typeof body.locale !== 'string' || !/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(body.locale)) return false;
-  if (!Number.isInteger(body.freshnessDays) || body.freshnessDays < 1 || body.freshnessDays > 31) return false;
+  // Some region-identity material is deliberately evergreen: applying a
+  // rolling "recent" filter to history, craft, etiquette, or local food makes
+  // an otherwise valid official archive invisible.  `null` means no upstream
+  // recency filter, never an unbounded local cache lifetime.
+  if (body.freshnessDays !== null &&
+      (!Number.isInteger(body.freshnessDays) || body.freshnessDays < 1 || body.freshnessDays > 31)) return false;
   if (!Array.isArray(body.domains) || body.domains.length > 8) return false;
   if (body.domains.length === 0) return sourcePolicies.some((policy) => policy.enabled);
   const domains = body.domains.map((domain) => normalizedDomain(domain, sourcePolicies));
@@ -144,7 +149,7 @@ export async function searchTavily({ request, profile, fetcher = fetch, signal }
         max_results: 8,
         topic: 'general',
         ...(request.domains.length === 0 ? {} : { include_domains: request.domains }),
-        days: request.freshnessDays,
+        ...(request.freshnessDays == null ? {} : { days: request.freshnessDays }),
       }),
     });
     const payload = await response.json().catch(() => null);

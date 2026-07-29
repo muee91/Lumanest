@@ -289,7 +289,7 @@ class BrokerClient:
         return tuple(f"{area} {suffix}" for suffix in templates)
 
     @staticmethod
-    def _freshness_days(mission_type: str) -> int:
+    def _freshness_days(mission_type: str) -> int | None:
         return {
             "routeConditions": 1,
             "humanityEvents": 1,
@@ -297,9 +297,13 @@ class BrokerClient:
             "popularPlaces": 1,
             "hiddenPlaces": 3,
             "seasonalSignals": 1,
-            "localStories": 30,
-            "localFoodAndSpecialties": 14,
-            "culturalEtiquette": 30,
+            # These missions describe stable regional knowledge.  A rolling
+            # search filter turns established official records into a false
+            # "no result", while normal evidence expiry still applies after
+            # admission.
+            "localStories": None,
+            "localFoodAndSpecialties": None,
+            "culturalEtiquette": None,
         }[mission_type]
 
 
@@ -580,8 +584,12 @@ async def process_job(
                 search_job = broker._localized_job(job, region_names)
             evidence = await broker.search(search_job)
             if not evidence:
-                await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
-                await store.record_refresh(job, "completed")
+                # Keep an explicit terminal outcome.  Treating an empty,
+                # successful search as generic completion made callers poll
+                # forever and hid the difference between "still loading" and
+                # "no reviewed source returned evidence".
+                await redis.set(f"discovery:refresh:{job.dedupe_key}", "empty", ex=CACHE_TTL)
+                await store.record_refresh(job, "empty")
                 return
             selected = select_evidence(
                 evidence,
@@ -591,8 +599,8 @@ async def process_job(
                 max_per_domain=2,
             )
             if not selected:
-                await redis.set(f"discovery:refresh:{job.dedupe_key}", "completed", ex=CACHE_TTL)
-                await store.record_refresh(job, "completed")
+                await redis.set(f"discovery:refresh:{job.dedupe_key}", "empty", ex=CACHE_TTL)
+                await store.record_refresh(job, "empty")
                 return
             selected = await enrich_evidence_with_crawl(redis, selected, crawler)
             if isinstance(broker, BrokerClient):

@@ -51,6 +51,25 @@ test('search accepts Chinese requests only for enabled reviewed domains', () => 
   assert.equal(validDiscoverySearchRequest({ ...body, domains: [] }, [policy]), true);
   assert.equal(validDiscoverySearchRequest({ ...body, domains: ['www.mafengwo.cn'] }, [policy]), false);
   assert.equal(validDiscoverySearchRequest({ ...body, coordinate: { latitude: 30, longitude: 120 } }, [policy]), false);
+  assert.equal(validDiscoverySearchRequest({ ...body, freshnessDays: null }, [policy]), true);
+  assert.equal(validDiscoverySearchRequest({ ...body, freshnessDays: 0 }, [policy]), false);
+});
+
+test('evergreen searches omit upstream recency filtering rather than hiding archival official records', async () => {
+  let requestBody;
+  const result = await searchTavily({
+    request: { query: '海宁 历史', locale: 'zh-CN', freshnessDays: null, domains: [policy.domain] },
+    profile: {
+      baseUrl: 'https://api.tavily.com', apiKey: 'tavily-test-key', enabled: true,
+      timeoutMs: 8_000, sourcePolicies: [policy],
+    },
+    fetcher: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    },
+  });
+  assert.deepEqual(result, { ok: true, results: [] });
+  assert.equal(Object.hasOwn(requestBody, 'days'), false);
 });
 
 test('Tavily results are filtered to reviewed HTTPS sources and retain attribution metadata', () => {
