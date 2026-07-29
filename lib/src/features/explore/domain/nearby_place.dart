@@ -158,6 +158,7 @@ class NearbyPlace {
     this.drivingDistanceMeters,
     this.sourceEvidenceCount = 0,
     this.aiDiscovered = false,
+    this.humanityDiscoveryEvidence = false,
     this.reviewedTarget = false,
     this.media = const [],
     this.cachedAt,
@@ -182,6 +183,7 @@ class NearbyPlace {
   final int? drivingDistanceMeters;
   final int sourceEvidenceCount;
   final bool aiDiscovered;
+  final bool humanityDiscoveryEvidence;
   final bool reviewedTarget;
   final List<NearbyPlaceMedia> media;
   final DateTime? cachedAt;
@@ -195,15 +197,23 @@ class NearbyPlace {
   /// become a human-interest place.
   bool get hasHumanityEvidence {
     if (category != NearbyPlaceCategory.humanity) return true;
-    return hasHumanityEvidenceFor(name: name, providerType: providerType);
+    return hasHumanityEvidenceFor(
+      name: name,
+      providerType: providerType,
+      sourceEvidenceCount: sourceEvidenceCount,
+      humanityDiscoveryEvidence: humanityDiscoveryEvidence,
+    );
   }
 
   static bool hasHumanityEvidenceFor({
     required String name,
     String? providerType,
+    int sourceEvidenceCount = 0,
+    bool humanityDiscoveryEvidence = false,
   }) {
     final evidence = '$name ${providerType ?? ''}';
     if (_humanityCommercialOrUtility.hasMatch(evidence)) return false;
+    if (humanityDiscoveryEvidence && sourceEvidenceCount > 0) return true;
     return _humanityNameEvidence.hasMatch(name) ||
         _humanityProviderEvidence.hasMatch(providerType ?? '');
   }
@@ -243,6 +253,7 @@ class NearbyPlace {
     int? drivingDistanceMeters,
     int? sourceEvidenceCount,
     bool? aiDiscovered,
+    bool? humanityDiscoveryEvidence,
     bool? reviewedTarget,
     List<NearbyPlaceMedia>? media,
     NearbyAdministrativeRelation? administrativeRelation,
@@ -266,6 +277,8 @@ class NearbyPlace {
     drivingDistanceMeters: drivingDistanceMeters ?? this.drivingDistanceMeters,
     sourceEvidenceCount: sourceEvidenceCount ?? this.sourceEvidenceCount,
     aiDiscovered: aiDiscovered ?? this.aiDiscovered,
+    humanityDiscoveryEvidence:
+        humanityDiscoveryEvidence ?? this.humanityDiscoveryEvidence,
     reviewedTarget: reviewedTarget ?? this.reviewedTarget,
     media: media ?? this.media,
     cachedAt: cachedAt ?? this.cachedAt,

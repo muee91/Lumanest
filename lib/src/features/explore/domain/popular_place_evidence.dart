@@ -8,6 +8,7 @@ class PopularPlaceEvidence {
     required this.distanceMeters,
     required this.sourceCount,
     this.address,
+    this.humanityScoped = false,
   });
 
   final String id;
@@ -16,6 +17,10 @@ class PopularPlaceEvidence {
   final int distanceMeters;
   final int sourceCount;
   final String? address;
+
+  /// The Broker returned this item from the separately persisted humanity
+  /// discovery scope, after reviewed-source and model admission.
+  final bool humanityScoped;
 }
 
 abstract interface class PopularPlaceEvidenceRepository {

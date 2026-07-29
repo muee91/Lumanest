@@ -33,6 +33,7 @@ from .store import (
     DiscoveryStore,
     RefreshJob,
     RegionReference,
+    candidate_discovery_scope,
 )
 
 
@@ -295,7 +296,11 @@ class BrokerClient:
                 f"{area} {job.region.mission_type} local",
             )
         templates = {
-            "popularPlaces": ("最近热门 地点", "摄影机位", "本月 热门旅行地点"),
+            "popularPlaces": (
+                ("人文街巷", "历史建筑", "文化空间")
+                if candidate_discovery_scope(job.region.focus) == "humanity"
+                else ("最近热门 地点", "摄影机位", "本月 热门旅行地点")
+            ),
             "hiddenPlaces": ("小众地点", "本地人常去", "非热门摄影地点"),
             "humanityEvents": ("今日 市集 活动", "本周 民俗 节庆", "早市 夜市 展览"),
             "localStories": ("历史", "当地文化", "传统手艺"),

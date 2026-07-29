@@ -17,7 +17,10 @@ abstract final class NearbyCandidateRanker {
           .firstOrNull;
       if (match == null) return place;
       remaining.remove(match);
-      return place.copyWith(sourceEvidenceCount: match.sourceCount);
+      return place.copyWith(
+        sourceEvidenceCount: match.sourceCount,
+        humanityDiscoveryEvidence: match.humanityScoped,
+      );
     }).toList();
     for (final item in remaining) {
       merged.add(
@@ -31,6 +34,7 @@ abstract final class NearbyCandidateRanker {
           matchedKeyword: '来源资料',
           sourceEvidenceCount: item.sourceCount,
           aiDiscovered: true,
+          humanityDiscoveryEvidence: item.humanityScoped,
         ),
       );
     }

@@ -53,6 +53,25 @@ export function nearbyPrewarmRequest({ coordinate, locale, city, now = new Date(
   });
 }
 
+function humanityPrewarmRequest({ coordinate, locale, city, now = new Date(), radiusMeters = defaultRadiusMeters }) {
+  const base = nearbyPrewarmRequest({ coordinate, locale, city, now, radiusMeters });
+  if (base == null) return null;
+  const placeName = city.trim().slice(0, 80);
+  return Object.freeze({
+    ...base,
+    focus: locale === 'zh-CN'
+      ? `${placeName}周边可拍摄的人文街巷、传统建筑与文化空间`
+      : `Human-interest streets, historic architecture and cultural spaces around ${placeName}`,
+  });
+}
+
+export function nearbyPrewarmRequests(options) {
+  return [
+    nearbyPrewarmRequest(options),
+    humanityPrewarmRequest(options),
+  ].filter((request) => request != null);
+}
+
 export function regionBriefPrewarmRequests({
   coordinate,
   locale,
@@ -64,7 +83,7 @@ export function regionBriefPrewarmRequests({
   if (popular == null) return [];
   const endsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1_000).toISOString();
   const placeName = city.trim().slice(0, 80);
-  return Object.entries(regionBriefMissionFocus).map(([missionType, focus]) => Object.freeze({
+  const regional = Object.entries(regionBriefMissionFocus).map(([missionType, focus]) => Object.freeze({
     ...popular,
     missionType,
     focus: locale === 'zh-CN'
@@ -72,6 +91,8 @@ export function regionBriefPrewarmRequests({
       : `Verified regional photography context around ${placeName}: ${missionType}`,
     timeRange: { startsAt: popular.timeRange.startsAt, endsAt },
   }));
+  const humanity = humanityPrewarmRequest({ coordinate, locale, city, now, radiusMeters });
+  return humanity == null ? regional : [...regional, humanity];
 }
 
 /**
@@ -104,25 +125,25 @@ export async function prewarmNearbyDiscovery({
     timeoutMs: Math.min(timeoutMs, 5_000),
   });
   if (!city.ok || !city.requestedCity) return { queued: false, reason: 'city_unavailable' };
-  const body = nearbyPrewarmRequest({
+  const bodies = nearbyPrewarmRequests({
     coordinate,
     locale,
     city: city.requestedCity,
     now: now(),
     radiusMeters,
   });
-  if (body == null) return { queued: false, reason: 'invalid_request' };
-  const result = await forwardDiscovery({
-    body,
-    serviceUrl,
-    internalToken,
-    sourcePolicies,
-    fetcher,
-    timeoutMs,
-  });
-  return result.ok
-    ? { queued: result.body.status !== 'ready', status: result.body.status }
-    : { queued: false, reason: result.error };
+  if (bodies.length === 0) return { queued: false, reason: 'invalid_request' };
+  const results = await Promise.all(bodies.map((body) => forwardDiscovery({
+    body, serviceUrl, internalToken, sourcePolicies, fetcher, timeoutMs,
+  })));
+  const accepted = results.filter((result) => result.ok);
+  if (accepted.length === 0) {
+    return { queued: false, reason: results[0]?.error ?? 'upstream_unavailable' };
+  }
+  return {
+    queued: accepted.some((result) => result.body.status !== 'ready'),
+    acceptedRequests: accepted.length,
+  };
 }
 
 /**

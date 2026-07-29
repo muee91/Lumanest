@@ -56,6 +56,7 @@ CANDIDATE_QUERY_SQL = """
     ) AS evidence ON TRUE
     WHERE places.published = TRUE
       AND places.kind = ANY(CAST(:kinds AS text[]))
+      AND (:discovery_scope IS NULL OR places.discovery_scope = :discovery_scope)
       AND (places.valid_until IS NULL OR places.valid_until > NOW())
       AND ST_DWithin(
             places.geometry::geography,
@@ -84,6 +85,21 @@ FRESHNESS_POLICY: dict[str, FreshnessRule] = {
     "localFoodAndSpecialties": FreshnessRule(14 * 24 * 60 * 60, 7 * 24 * 60 * 60),
     "culturalEtiquette": FreshnessRule(30 * 24 * 60 * 60, 30 * 24 * 60 * 60),
 }
+
+
+def candidate_discovery_scope(focus: str) -> str:
+    """Map the explicit exploration intent to a bounded candidate pool.
+
+    Scope is request metadata, not a claim about a place. It prevents the
+    generic photography crawl from being presented as a human-interest result
+    simply because both happen to use the ``popularPlaces`` mission.
+    """
+    normalized = focus.casefold()
+    if any(term in normalized for term in (
+        "人文", "街巷", "传统建筑", "文化空间", "humanity", "historic", "cultural",
+    )):
+        return "humanity"
+    return "general"
 
 
 def response_cache_seconds(mission_type: str) -> int:
@@ -173,6 +189,7 @@ class DiscoveryStore:
                         "longitude": 0.0,
                         "radius_meters": 0,
                         "kinds": ["__readiness_probe__"],
+                        "discovery_scope": None,
                     })
                     database = True
             except Exception:
@@ -489,13 +506,14 @@ class DiscoveryStore:
 
     @classmethod
     def dedupe_key(cls, request: DiscoveryRequest) -> str:
-        """Single-flight key: coarse region, mission, time bucket and policy set."""
+        """Single-flight key: coarse region, mission, intent scope and policy."""
         region = cls.region_reference(request)
         bucket_seconds = FRESHNESS_POLICY[request.mission_type].refresh_seconds
         bucket = int(request.time_range.starts_at.timestamp()) // bucket_seconds
         payload = {
             "regionId": region.region_id,
             "missionType": request.mission_type,
+            "discoveryScope": candidate_discovery_scope(request.focus),
             "timeBucket": bucket,
             "sourcePolicies": sorted((policy.id, policy.version) for policy in request.source_policies),
         }
@@ -594,6 +612,11 @@ class DiscoveryStore:
             "localFoodAndSpecialties": ("attraction",),
             "culturalEtiquette": ("attraction",),
         }[request.mission_type]
+        discovery_scope = (
+            candidate_discovery_scope(request.focus)
+            if request.mission_type == "popularPlaces"
+            else None
+        )
         query = text(CANDIDATE_QUERY_SQL)
         try:
             async with self.engine.connect() as connection:
@@ -604,6 +627,7 @@ class DiscoveryStore:
                         "longitude": request.region.longitude,
                         "radius_meters": request.region.radius_meters,
                         "kinds": list(kind_filter),
+                        "discovery_scope": discovery_scope,
                     },
                 )).mappings().all()
         except SQLAlchemyError as error:
@@ -734,15 +758,15 @@ class DiscoveryStore:
         """)
         place_sql = text("""
             INSERT INTO discovery.places
-                (id, canonical_key, kind, name, summary, verification, published, valid_until,
+                (id, canonical_key, kind, name, summary, discovery_scope, verification, published, valid_until,
                  starts_at, ends_at, updated_at, geometry)
             VALUES
-                (:id, :canonical_key, :kind, :name, :summary, 'candidate', TRUE,
+                (:id, :canonical_key, :kind, :name, :summary, :discovery_scope, 'candidate', TRUE,
                  :valid_until, :starts_at, :ends_at, NOW(),
                  ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326))
             ON CONFLICT (canonical_key) DO UPDATE SET
                 name = EXCLUDED.name, summary = EXCLUDED.summary, published = TRUE,
-                verification = 'candidate', valid_until = EXCLUDED.valid_until,
+                discovery_scope = EXCLUDED.discovery_scope, verification = 'candidate', valid_until = EXCLUDED.valid_until,
                 starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, updated_at = NOW(),
                 geometry = EXCLUDED.geometry
         """)
@@ -763,7 +787,9 @@ class DiscoveryStore:
             async with self.engine.begin() as connection:
                 for candidate, sources in admitted:
                     assert candidate.coordinate is not None
+                    discovery_scope = candidate_discovery_scope(job.region.focus)
                     canonical = self._hash("|".join((
+                        discovery_scope,
                         candidate.kind,
                         candidate.title.strip().lower(),
                         f"{candidate.coordinate.latitude:.4f}",
@@ -775,6 +801,7 @@ class DiscoveryStore:
                         "kind": candidate.kind,
                         "name": candidate.title,
                         "summary": candidate.summary,
+                        "discovery_scope": discovery_scope,
                         "valid_until": freshness_until(job.region.mission_type, candidate.ends_at),
                         "latitude": candidate.coordinate.latitude,
                         "longitude": candidate.coordinate.longitude,

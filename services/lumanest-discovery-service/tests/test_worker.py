@@ -138,6 +138,32 @@ def test_region_identity_localizes_brief_search_and_extraction_focus():
     assert BrokerClient._localized_focus(generic, ()) == "30.275,120.125附近"
 
 
+def test_humanity_popular_place_search_uses_cultural_queries_not_hot_poi_queries():
+    base = mission_job("popularPlaces")
+    humanity = RefreshJob(
+        base.fingerprint,
+        RegionReference(
+            base.region.region_id,
+            base.region.latitude,
+            base.region.longitude,
+            base.region.locale,
+            base.region.mission_type,
+            "附近人文街巷、传统建筑与文化空间",
+            base.region.radius_meters,
+        ),
+        base.expires_at,
+        base.attempt,
+        base.activation_type,
+        base.dedupe_key,
+    )
+
+    assert BrokerClient._queries(humanity) == (
+        "附近人文街巷、传统建筑与文化空间 人文街巷",
+        "附近人文街巷、传统建筑与文化空间 历史建筑",
+        "附近人文街巷、传统建筑与文化空间 文化空间",
+    )
+
+
 def test_evergreen_regional_missions_do_not_apply_a_rolling_search_cutoff():
     assert BrokerClient._freshness_days("localStories") is None
     assert BrokerClient._freshness_days("localFoodAndSpecialties") is None

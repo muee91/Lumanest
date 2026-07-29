@@ -8,6 +8,7 @@ import {
 } from '../src/discovery/proxy.mjs';
 import {
   nearbyPrewarmRequest,
+  nearbyPrewarmRequests,
   prewarmNearbyDiscovery,
   prewarmRegionBriefDiscovery,
   regionBriefPrewarmRequests,
@@ -143,14 +144,16 @@ test('location refresh prewarm resolves a city transiently and only queues coars
       }), { status: 202, headers: { 'Content-Type': 'application/json' } });
     },
   });
-  assert.deepEqual(result, { queued: true, status: 'pending' });
-  assert.equal(calls.length, 2);
+  assert.deepEqual(result, { queued: true, acceptedRequests: 2 });
+  assert.equal(calls.length, 3);
   const queued = JSON.parse(calls[1].options.body);
   assert.equal(queued.activationType, 'foreground_opportunistic');
   assert.equal(queued.missionType, 'popularPlaces');
   assert.equal(queued.focus, '杭州周边近期值得了解的摄影地点与观景地');
   assert.equal(queued.region.radiusMeters, 15_000);
   assert.deepEqual(queued.sourcePolicies, [{ id: 'official-source', version: '2026-07' }]);
+  const humanity = JSON.parse(calls[2].options.body);
+  assert.equal(humanity.focus, '杭州周边可拍摄的人文街巷、传统建筑与文化空间');
 });
 
 test('location refresh prewarm can be disabled before any external request', async () => {
@@ -166,6 +169,9 @@ test('location refresh prewarm can be disabled before any external request', asy
   assert.equal(nearbyPrewarmRequest({
     coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' }, locale: 'zh-CN', city: '',
   }), null);
+  assert.equal(nearbyPrewarmRequests({
+    coordinate: { latitude: 30.25, longitude: 120.15, system: 'wgs84' }, locale: 'zh-CN', city: '杭州',
+  }).length, 2);
 });
 
 test('context refresh prewarms the complete regional brief mission bundle', async () => {
@@ -198,7 +204,7 @@ test('context refresh prewarms the complete regional brief mission bundle', asyn
     },
   });
 
-  assert.deepEqual(result, { queued: true, acceptedMissions: 8 });
+  assert.deepEqual(result, { queued: true, acceptedMissions: 9 });
   assert.deepEqual(queuedMissions.sort(), [
     'culturalEtiquette',
     'hiddenPlaces',
@@ -206,6 +212,7 @@ test('context refresh prewarms the complete regional brief mission bundle', asyn
     'localFoodAndSpecialties',
     'localStories',
     'openingAndClosure',
+    'popularPlaces',
     'popularPlaces',
     'seasonalSignals',
   ]);
@@ -215,6 +222,6 @@ test('context refresh prewarms the complete regional brief mission bundle', asyn
     city: '杭州',
     now: new Date('2026-07-19T00:00:00Z'),
   });
-  assert.equal(requests.length, 8);
+  assert.equal(requests.length, 9);
   assert.equal(requests.every((item) => item.activationType === 'foreground_opportunistic'), true);
 });

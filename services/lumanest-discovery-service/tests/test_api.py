@@ -7,7 +7,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models import DiscoveryItem, DiscoveryRequest, DiscoveryResponse
-from app.store import DiscoveryStore, REFRESH_STREAM, response_cache_seconds
+from app.store import (
+    DiscoveryStore,
+    REFRESH_STREAM,
+    candidate_discovery_scope,
+    response_cache_seconds,
+)
 
 
 def payload() -> dict:
@@ -302,6 +307,59 @@ def test_single_flight_key_ignores_focus_wording_within_the_same_region_and_buck
 
     assert DiscoveryStore.fingerprint(first) != DiscoveryStore.fingerprint(second)
     assert DiscoveryStore.dedupe_key(first) == DiscoveryStore.dedupe_key(second)
+
+
+def test_humanity_scope_gets_a_distinct_single_flight_key_and_candidate_pool():
+    general = DiscoveryRequest.model_validate(payload() | {
+        "missionType": "popularPlaces",
+        "focus": "附近摄影地点与观景地",
+    })
+    humanity = DiscoveryRequest.model_validate(payload() | {
+        "missionType": "popularPlaces",
+        "focus": "附近人文街巷、传统建筑与文化空间",
+    })
+
+    assert candidate_discovery_scope(general.focus) == "general"
+    assert candidate_discovery_scope(humanity.focus) == "humanity"
+    assert DiscoveryStore.dedupe_key(general) != DiscoveryStore.dedupe_key(humanity)
+
+
+@pytest.mark.asyncio
+async def test_humanity_candidate_query_excludes_generic_discovery_scope():
+    captured: dict[str, object] = {}
+
+    class Result:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return []
+
+    class Connection:
+        async def execute(self, _statement, parameters):
+            captured.update(parameters)
+            return Result()
+
+    class ConnectionContext:
+        async def __aenter__(self):
+            return Connection()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Engine:
+        def connect(self):
+            return ConnectionContext()
+
+    request = DiscoveryRequest.model_validate(payload() | {
+        "missionType": "popularPlaces",
+        "focus": "附近人文街巷、传统建筑与文化空间",
+    })
+    store = DiscoveryStore(None, None)
+    store.engine = Engine()
+
+    assert await store.candidates(request) == []
+    assert captured["discovery_scope"] == "humanity"
 
 
 def test_response_cache_fingerprint_uses_the_mission_refresh_bucket_not_each_open_timestamp():

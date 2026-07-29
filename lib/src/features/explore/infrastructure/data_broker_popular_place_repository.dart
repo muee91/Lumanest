@@ -86,10 +86,19 @@ class DataBrokerPopularPlaceEvidenceRepository
       if (body['missionType'] != 'popularPlaces' || body['items'] is! List) {
         return const [];
       }
+      final humanityScoped =
+          body['status'] == 'ready' &&
+          focus.contains('人文') &&
+          focus.contains('文化');
       return List.unmodifiable(
         (body['items'] as List)
             .whereType<Map>()
-            .map((raw) => _parse(Map<String, Object?>.from(raw)))
+            .map(
+              (raw) => _parse(
+                Map<String, Object?>.from(raw),
+                humanityScoped: humanityScoped,
+              ),
+            )
             .whereType<PopularPlaceEvidence>(),
       );
     } on Object {
@@ -99,7 +108,10 @@ class DataBrokerPopularPlaceEvidenceRepository
     }
   }
 
-  static PopularPlaceEvidence? _parse(Map<String, Object?> raw) {
+  static PopularPlaceEvidence? _parse(
+    Map<String, Object?> raw, {
+    required bool humanityScoped,
+  }) {
     final coordinate = raw['coordinate'];
     final evidence = raw['evidence'];
     if (raw['id'] is! String ||
@@ -123,6 +135,7 @@ class DataBrokerPopularPlaceEvidenceRepository
       distanceMeters: raw['distanceMeters'] as int,
       sourceCount: evidence.length.clamp(1, 4),
       address: raw['address'] is String ? raw['address'] as String : null,
+      humanityScoped: humanityScoped,
     );
   }
 }

@@ -127,6 +127,16 @@ void main() {
         point: const GeoPoint(latitude: 30.001, longitude: 120),
         distanceMeters: 120,
       ),
+      NearbyPlace(
+        id: 'web-discovery',
+        name: '康桥1924',
+        category: NearbyPlaceCategory.humanity,
+        point: const GeoPoint(latitude: 30.002, longitude: 120),
+        distanceMeters: 140,
+        sourceEvidenceCount: 2,
+        aiDiscovered: true,
+        humanityDiscoveryEvidence: true,
+      ),
     ];
 
     expect(
@@ -134,7 +144,7 @@ void main() {
         places,
         context,
       ).map((place) => place.id),
-      ['hall'],
+      ['hall', 'web-discovery'],
     );
   });
 }

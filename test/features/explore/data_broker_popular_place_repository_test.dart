@@ -70,6 +70,43 @@ void main() {
       );
     },
   );
+
+  test(
+    'marks source-linked human-interest discovery separately from POI',
+    () async {
+      final repository = DataBrokerPopularPlaceEvidenceRepository(
+        brokerBaseUrl: 'https://broker.example.com',
+        serviceToken: 'token',
+        transport: _Transport({
+          'missionType': 'popularPlaces',
+          'status': 'ready',
+          'items': [
+            {
+              'id': 'culture-1',
+              'title': '康桥1924',
+              'coordinate': {
+                'latitude': 30.52,
+                'longitude': 120.7,
+                'system': 'wgs84',
+              },
+              'distanceMeters': 400,
+              'evidence': [
+                {'publisher': '地方文旅'},
+              ],
+            },
+          ],
+        }),
+      );
+
+      final results = await repository.fetch(
+        center: const GeoPoint(latitude: 30.5, longitude: 120.7),
+        radiusMeters: 5000,
+        focus: '当前位置及周边人文街巷、传统建筑和文化空间',
+      );
+
+      expect(results.single.humanityScoped, isTrue);
+    },
+  );
 }
 
 class _Transport implements PopularPlaceEvidenceTransport {
