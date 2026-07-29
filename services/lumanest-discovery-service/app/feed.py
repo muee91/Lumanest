@@ -13,7 +13,13 @@ from xml.etree import ElementTree
 from pydantic import Field, HttpUrl, field_validator, model_validator
 from redis.asyncio import Redis
 
-from .models import BrokerSearchResult, DiscoveryRegion, MissionType, StrictModel
+from .models import (
+    BrokerSearchResult,
+    DiscoveryRegion,
+    ExtractedRegionInsight,
+    MissionType,
+    StrictModel,
+)
 
 
 FEED_SOURCE_HASH = "discovery:feed:sources:v1"
@@ -48,6 +54,14 @@ class FeedSourceDefinition(StrictModel):
         le=604800,
     )
     published_at: datetime | None = Field(default=None, alias="publishedAt")
+    # Optional editorially reviewed facts for an explicitly configured static
+    # document. They are accepted only after the worker finds the exact source
+    # text again at fetch time; this is not a prose fallback for model failure.
+    curated_insights: list[ExtractedRegionInsight] = Field(
+        default_factory=list,
+        alias="curatedInsights",
+        max_length=8,
+    )
     enabled: bool = True
 
     @field_validator("item_domains")

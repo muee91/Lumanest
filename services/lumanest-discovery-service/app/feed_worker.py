@@ -23,7 +23,7 @@ from .feed import (
     parse_feed_document,
     parse_static_document,
 )
-from .models import BrokerSearchResult, ExtractedCandidate
+from .models import BrokerSearchResult, ExtractedCandidate, ExtractedRegionInsight
 from .store import DiscoveryStore, RefreshJob, RegionReference
 from .worker import BrokerClient, BrokerFailure, is_admissible
 
@@ -190,7 +190,11 @@ async def _extract_and_persist(
         )
         if not selected:
             continue
-        extracted, insights = await broker.extract_with_insights(job, selected)
+        if source.curated_insights:
+            insights = _verified_curated_insights(source.curated_insights, selected)
+            extracted: list[ExtractedCandidate] = []
+        else:
+            extracted, insights = await broker.extract_with_insights(job, selected)
         evidence_pool = list(selected)
         resolved_candidates: list[ExtractedCandidate] = []
         for candidate in extracted:
@@ -220,6 +224,26 @@ async def _extract_and_persist(
         if insights:
             await store.persist_region_insights(job, insights, evidence_pool)
         await store.persist_candidates(job, admitted)
+
+
+def _verified_curated_insights(
+    curated: list[ExtractedRegionInsight],
+    evidence: list[BrokerSearchResult],
+) -> list[ExtractedRegionInsight]:
+    """Admit only reviewed facts that still occur verbatim in fetched evidence."""
+    verified: list[ExtractedRegionInsight] = []
+    for insight in curated:
+        if insight.summary not in insight.fact_text:
+            raise ValueError("curated_summary_not_grounded")
+        if any(index >= len(evidence) for index in insight.source_indexes):
+            raise ValueError("curated_source_index_invalid")
+        if not all(
+            insight.fact_text in f"{evidence[index].title}\n{evidence[index].snippet}"
+            for index in insight.source_indexes
+        ):
+            raise ValueError("curated_fact_not_found")
+        verified.append(insight)
+    return verified
 
 
 def _next_success(source: FeedSourceDefinition, now: datetime) -> datetime:

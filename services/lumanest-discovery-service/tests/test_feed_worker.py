@@ -4,7 +4,8 @@ import httpx
 import pytest
 
 from app.feed import FeedFetchState, FeedSourceDefinition
-from app.feed_worker import _region_reference, fetch_feed
+from app.feed_worker import _region_reference, _verified_curated_insights, fetch_feed
+from app.models import ExtractedRegionInsight
 
 
 def source() -> FeedSourceDefinition:
@@ -163,3 +164,18 @@ def test_feed_jobs_use_the_same_coarse_region_grid_as_discovery():
     assert region.latitude == 30.275
     assert region.longitude == 120.175
     assert region.mission_type == "humanityEvents"
+
+
+def test_curated_static_facts_must_remain_verbatim_grounded_in_fetched_evidence():
+    insight = ExtractedRegionInsight.model_validate({
+        "type": "localStory", "title": "沿河街巷", "summary": "沿河保留传统街巷。",
+        "factText": "沿河保留传统街巷。", "sourceIndexes": [0],
+        "timeSensitive": False, "actionability": "detail", "sceneTags": ["oldTown"],
+        "photoThemeTags": ["传统建筑"],
+    })
+    evidence = [
+        type("Evidence", (), {"title": "官方资料", "snippet": "沿河保留传统街巷。"})(),
+    ]
+    assert _verified_curated_insights([insight], evidence) == [insight]
+    with pytest.raises(ValueError, match="curated_fact_not_found"):
+        _verified_curated_insights([insight], [type("Evidence", (), {"title": "官方资料", "snippet": "内容已改变。"})()])
