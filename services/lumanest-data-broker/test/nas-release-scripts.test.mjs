@@ -55,6 +55,26 @@ test('cached NAS builds reuse application images without reinstalling dependenci
   assert.match(compose, /host\.docker\.internal:host-gateway/);
 });
 
+test('Debian package builds use HTTPS with bounded network recovery', async () => {
+  const dockerfiles = [
+    new URL('../../lumanest-raster-service/Dockerfile', import.meta.url),
+    new URL('../../lumanest-terrain-service/Dockerfile', import.meta.url),
+    new URL('../../lumanest-discovery-service/Dockerfile.crawler', import.meta.url),
+  ];
+
+  for (const dockerfile of dockerfiles) {
+    const source = await readFile(dockerfile, 'utf8');
+    assert.match(source, /s\|http:\/\/deb\.debian\.org\|https:\/\/deb\.debian\.org\|g/);
+    assert.match(source, /Acquire::Retries "5";/);
+    assert.match(source, /Acquire::ForceIPv4 "true";/);
+    assert.match(source, /Acquire::http::Timeout "60";/);
+    assert.match(source, /Acquire::https::Timeout "60";/);
+  }
+
+  const crawler = await readFile(dockerfiles[2], 'utf8');
+  assert.match(crawler, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000/);
+});
+
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {
   for (const script of scripts) {
     const path = fileURLToPath(script);
