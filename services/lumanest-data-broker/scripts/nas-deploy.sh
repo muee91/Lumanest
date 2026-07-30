@@ -172,6 +172,35 @@ upsert_environment_value() {
   mv -f "$temporary" "$ENV_FILE"
 }
 
+valid_tcp_port() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
+build_proxy_port() {
+  build_proxy=$1
+  case "$build_proxy" in
+    http://host.docker.internal:*) port=${build_proxy#http://host.docker.internal:} ;;
+    *) return 1 ;;
+  esac
+  valid_tcp_port "$port" || return 1
+  printf '%s\n' "$port"
+}
+
+derive_build_proxy_url() {
+  runtime_proxy=$1
+  case "$runtime_proxy" in
+    http://mihomo:*) port=${runtime_proxy#http://mihomo:} ;;
+    http://127.0.0.1:*) port=${runtime_proxy#http://127.0.0.1:} ;;
+    http://localhost:*) port=${runtime_proxy#http://localhost:} ;;
+    *) return 1 ;;
+  esac
+  valid_tcp_port "$port" || return 1
+  printf 'http://host.docker.internal:%s\n' "$port"
+}
+
 ensure_outbound_network_environment() {
   mode=$(environment_value LUMANEST_OUTBOUND_NETWORK_MODE)
   case "$mode" in
@@ -184,6 +213,28 @@ ensure_outbound_network_environment() {
       ;;
   esac
 
+  build_proxy=$(environment_value LUMANEST_BUILD_PROXY_URL)
+  if [ "$mode" = "direct" ]; then
+    if [ -n "$build_proxy" ]; then
+      upsert_environment_value LUMANEST_BUILD_PROXY_URL ""
+      echo "Disabled the BuildKit proxy for direct outbound mode."
+    fi
+  else
+    if [ -z "$build_proxy" ]; then
+      proxy=$(environment_value LUMANEST_OUTBOUND_PROXY_URL)
+      build_proxy=$(derive_build_proxy_url "$proxy") || {
+        echo "Unable to derive a safe BuildKit proxy from LUMANEST_OUTBOUND_PROXY_URL." >&2
+        exit 1
+      }
+      upsert_environment_value LUMANEST_BUILD_PROXY_URL "$build_proxy"
+      echo "Initialized the protected BuildKit host-gateway proxy."
+    fi
+    if ! build_proxy_port "$build_proxy" >/dev/null; then
+      echo "LUMANEST_BUILD_PROXY_URL must use http://host.docker.internal:<port>." >&2
+      exit 1
+    fi
+  fi
+
   controller_token=$(environment_value LUMANEST_NETWORK_CONTROLLER_TOKEN)
   if [ ${#controller_token} -lt 24 ]; then
     controller_token=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
@@ -192,6 +243,15 @@ ensure_outbound_network_environment() {
     esac
     upsert_environment_value LUMANEST_NETWORK_CONTROLLER_TOKEN "$controller_token"
     echo "Generated the protected network controller token."
+  fi
+}
+
+verify_build_proxy_endpoint() {
+  [ "$(environment_value LUMANEST_OUTBOUND_NETWORK_MODE)" = "mihomo" ] || return 0
+  port=$(build_proxy_port "$(environment_value LUMANEST_BUILD_PROXY_URL)") || return 1
+  if ! docker port mihomo "$port/tcp" 2>/dev/null | grep -q ":$port$"; then
+    echo "Mihomo does not publish the configured BuildKit proxy port $port." >&2
+    return 1
   fi
 }
 
@@ -632,6 +692,7 @@ if ! docker info >/dev/null 2>&1; then
   echo "The current user cannot access Docker. Add it to the docker group and start a new session." >&2
   exit 1
 fi
+verify_build_proxy_endpoint
 if sky_data_ready "$ENV_FILE"; then
   SKY_DATA_ENABLED=1
   echo "Sky data profile enabled with reviewed, checksum-verified local raster files."
@@ -647,6 +708,10 @@ fi
 
 # Validate interpolation and build contexts before stopping the running stack.
 compose_release config --quiet
+if [ "$SKIP_BUILD" = 0 ]; then
+  echo "Building the release while the current stack remains online."
+  compose_release build
+fi
 docker image inspect "$BACKUP_HELPER_IMAGE" >/dev/null 2>&1 || docker pull "$BACKUP_HELPER_IMAGE"
 
 mkdir -p "$BACKUP_DIR/volumes"
@@ -693,13 +758,9 @@ validate_volume_archives
 BACKUP_COMPLETE=1
 
 DATA_MAY_BE_CHANGED=1
-if [ "$SKIP_BUILD" = 1 ]; then
-  # Compose-only releases can reuse the already verified application images.
-  # This is also the safe path when the NAS registry mirror is unavailable.
-  compose_release up -d --no-build --remove-orphans
-else
-  compose_release up -d --build --remove-orphans
-fi
+# Images were either built and verified before stopping the old stack or were
+# explicitly supplied through SKIP_BUILD=1.
+compose_release up -d --no-build --remove-orphans
 verify_http_boundary '<title>栖光 · 管理台</title>'
 compose_release exec -T context-service python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" >/dev/null

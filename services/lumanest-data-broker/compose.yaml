@@ -1,8 +1,18 @@
+x-build-proxy-args: &build-proxy-args
+  HTTP_PROXY: ${LUMANEST_BUILD_PROXY_URL:-}
+  HTTPS_PROXY: ${LUMANEST_BUILD_PROXY_URL:-}
+  NO_PROXY: 127.0.0.1,localhost
+
+x-build-extra-hosts: &build-extra-hosts
+  - "host.docker.internal:host-gateway"
+
 services:
   qweather-token-broker:
     build:
       context: .
       dockerfile: ${BROKER_DOCKERFILE:-Dockerfile}
+      args: *build-proxy-args
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-qweather-token-broker
     restart: unless-stopped
     environment:
@@ -70,6 +80,8 @@ services:
     build:
       context: ../lumanest-raster-service
       dockerfile: ${RASTER_DOCKERFILE:-Dockerfile}
+      args: *build-proxy-args
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-raster-service
     restart: unless-stopped
     environment:
@@ -99,6 +111,8 @@ services:
     build:
       context: ../lumanest-terrain-service
       dockerfile: ${TERRAIN_DOCKERFILE:-Dockerfile}
+      args: *build-proxy-args
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-terrain-service
     restart: unless-stopped
     environment:
@@ -126,6 +140,8 @@ services:
     build:
       context: ../lumanest-context-service
       dockerfile: ${CONTEXT_DOCKERFILE:-Dockerfile}
+      args: *build-proxy-args
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-context-service
     restart: unless-stopped
     environment:
@@ -162,7 +178,9 @@ services:
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
       args:
+        <<: *build-proxy-args
         DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-discovery-api
     restart: unless-stopped
     environment:
@@ -199,7 +217,9 @@ services:
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_WORKER_DOCKERFILE:-Dockerfile.crawler}
       args:
+        <<: *build-proxy-args
         DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-discovery-worker
     restart: unless-stopped
     environment:
@@ -314,6 +334,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.network-controller
+      args: *build-proxy-args
+      extra_hosts: *build-extra-hosts
     container_name: lumanest-outbound-network-controller
     restart: unless-stopped
     environment:

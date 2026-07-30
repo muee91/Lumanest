@@ -51,6 +51,8 @@ test('cached NAS builds reuse application images without reinstalling dependenci
     compose,
     /NO_PROXY: [^\n]*lumanest-raster-service,lumanest-terrain-service/,
   );
+  assert.match(compose, /HTTP_PROXY: \$\{LUMANEST_BUILD_PROXY_URL:-\}/);
+  assert.match(compose, /host\.docker\.internal:host-gateway/);
 });
 
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {
@@ -105,6 +107,12 @@ test('deployment recovery restores archived volumes before starting the previous
   assert.match(log, /image save -o .*application-images\.tar/);
   assert.match(log, /image load -i .*application-images\.tar/);
   assert.match(log, /up -d --no-build --remove-orphans/);
+  const buildIndex = log.split('\n').findIndex(
+    (line) => line.startsWith('compose ') && line.endsWith(' build'),
+  );
+  const stopIndex = log.split('\n').findIndex((line) => line.startsWith('compose-stop:'));
+  assert.ok(buildIndex >= 0, log);
+  assert.ok(stopIndex > buildIndex, log);
   const restoreIndex = log.indexOf('restore-volume:');
   const previousStartIndex = log.indexOf(`compose-up:${fixture.previousRelease}`);
   assert.ok(restoreIndex >= 0, log);
@@ -130,6 +138,39 @@ test('deployment refuses a concurrent release before touching Docker', async () 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Another LumaNest deployment is active/);
   assert.equal(await readFile(fixture.logFile, 'utf8'), '');
+});
+
+test('deployment derives a host-gateway BuildKit proxy from the protected Mihomo URL', async () => {
+  const fixture = await deploymentFixture();
+  await writeFile(
+    join(fixture.previousRelease, 'qweather-token-broker.env'),
+    'LUMANEST_OUTBOUND_NETWORK_MODE=mihomo\n' +
+      'LUMANEST_OUTBOUND_PROXY_URL=http://mihomo:7890\n' +
+      'LUMANEST_NETWORK_CONTROLLER_TOKEN=0123456789abcdef0123456789abcdef\n',
+  );
+  const result = spawnSync('sh', [fixture.deployScript], {
+    cwd: dirname(fixture.deployScript),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${fixture.binDir}:${process.env.PATH}`,
+      LUMANEST_ROOT: fixture.root,
+      SKIP_BUILD: '1',
+      HEALTHCHECK_ATTEMPTS: '1',
+      HEALTHCHECK_INTERVAL_SECONDS: '1',
+      TEST_LOG: fixture.logFile,
+      TEST_STATE: fixture.stateFile,
+      TEST_VOLUME_SOURCE: fixture.volumeSource,
+    },
+  });
+
+  assert.notEqual(result.status, 0);
+  const environment = await readFile(
+    join(fixture.releaseDir, 'qweather-token-broker.env'),
+    'utf8',
+  );
+  assert.match(environment, /LUMANEST_BUILD_PROXY_URL=http:\/\/host\.docker\.internal:7890/);
+  assert.match(await readFile(fixture.logFile, 'utf8'), /port mihomo 7890\/tcp/);
 });
 
 test('rollback health failure does not publish the restored release pointer', async () => {
@@ -219,6 +260,9 @@ test('release state writes and recovery failures remain explicit', async () => {
     /while ! compose_release exec -T discovery-feed-worker python -c/,
   );
   assert.match(deploy, /sky_data_ready/);
+  assert.match(deploy, /derive_build_proxy_url/);
+  assert.match(deploy, /verify_build_proxy_endpoint/);
+  assert.ok(deploy.indexOf('compose_release build') < deploy.indexOf('compose_previous stop'));
   assert.match(deploy, /Sky data profile disabled; Broker will keep sky facts unavailable/);
   assert.match(deploy, /acquire_deploy_lock/);
   assert.match(deploy, /release_deploy_lock/);
@@ -344,6 +388,7 @@ set -eu
 printf '%s\\n' "$*" >> "$TEST_LOG"
 
 if [ "$1" = "info" ]; then exit 0; fi
+if [ "$1" = "port" ]; then printf '%s\n' '0.0.0.0:7890'; exit 0; fi
 if [ "$1" = "inspect" ]; then
   case "$*" in
     *'{{.Config.Image}}'*) printf '%s\\n' 'qweather-token-broker-qweather-token-broker' ;;
