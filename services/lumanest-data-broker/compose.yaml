@@ -40,7 +40,7 @@ services:
       NODE_OPTIONS: "--use-env-proxy"
       HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
       HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
-      NO_PROXY: 127.0.0.1,localhost,context-service,discovery-api,outbound-network-controller,redis,postgres
+      NO_PROXY: 127.0.0.1,localhost,context-service,discovery-api,lumanest-raster-service,lumanest-terrain-service,outbound-network-controller,redis,postgres
     networks:
       - default
       - mihomo
