@@ -2,7 +2,11 @@ import { randomInt } from 'node:crypto';
 
 const retryStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 const redirectStatuses = new Set([301, 302, 303, 307, 308]);
-const redirectPaths = Object.freeze({ meteo: '/bin/meteo.php', two: '/bin/two.php' });
+const redirectPaths = Object.freeze({
+  astro: '/bin/astro.php',
+  meteo: '/bin/meteo.php',
+  two: '/bin/two.php',
+});
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));

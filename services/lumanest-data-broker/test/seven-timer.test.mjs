@@ -112,8 +112,9 @@ test('client accepts bounded JSON compatibility responses and formats coordinate
   assert.equal(seen.searchParams.get('product'), 'astro');
 });
 
-test('client follows one allowlisted METEO or TWO redirect and rejects unsafe redirects', async () => {
+test('client follows one product-specific allowlisted redirect and rejects unsafe redirects', async () => {
   for (const [product, path, contentType] of [
+    ['astro', '/bin/astro.php', 'text/html; charset=UTF-8'],
     ['meteo', '/bin/meteo.php', 'text/plain'],
     ['two', '/bin/two.php', 'text/html; charset=UTF-8'],
   ]) {
