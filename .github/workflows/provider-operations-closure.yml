@@ -99,11 +99,14 @@ jobs:
       - name: Test Data Broker
         working-directory: services/lumanest-data-broker
         run: npm ci && npm test
-      - name: Validate Flutter closure
-        run: |
-          flutter pub get
-          flutter analyze
-          flutter test test/core/environment/provider_signal_relevance_test.dart test/presentation_v2/explore/v2_provider_facts_sheet_test.dart
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+      - name: Analyze Flutter provider closure
+        run: flutter analyze
+      - name: Test provider scene relevance
+        run: flutter test test/core/environment/provider_signal_relevance_test.dart --reporter expanded
+      - name: Test provider detail sheet
+        run: flutter test test/presentation_v2/explore/v2_provider_facts_sheet_test.dart --reporter expanded
       - name: Remove one-time executor
         run: git rm .github/workflows/provider-operations-closure.yml tools/apply_provider_operations_closure.py
       - name: Commit generated implementation
