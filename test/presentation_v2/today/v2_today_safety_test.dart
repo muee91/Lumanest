@@ -12,11 +12,11 @@ void main() {
   testWidgets('Today date follows the refreshed snapshot generation time', (
     tester,
   ) async {
-    final generatedAt = DateTime.utc(2030, 1, 2, 16, 5);
+    final generatedAt = DateTime(2030, 1, 3, 0, 5).toUtc();
     final snapshot = ContextSnapshot(
       id: 'ctx_today_date',
-      observedAt: DateTime.utc(2030, 1, 2, 15, 55),
-      expiresAt: DateTime.utc(2030, 1, 2, 16, 15),
+      observedAt: generatedAt.subtract(const Duration(minutes: 10)),
+      expiresAt: generatedAt.add(const Duration(minutes: 10)),
       remoteGeneratedAt: generatedAt,
       primaryScene: SceneType.city,
       dayPhase: DayPhase.night,

@@ -457,6 +457,12 @@ function validNarrativeText(value, minimumLength, maximumLength) {
 
 const assistantRequiredKeys = new Set(['snapshotId', 'surface', 'questionType', 'eventIds', 'tone']);
 const assistantOptionalKeys = new Set(['conversationId', 'history', 'location', 'question']);
+const assistantTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
 
 // A bounded opaque client-generated conversation id. The broker stays
 // stateless (history arrives in the request), so this only tags logs/metrics.
@@ -534,8 +540,8 @@ function assistantTemplate(snapshot, questionType, eventIds, placeSummaries) {
       return '当前没有仍有效的拍摄窗口，先观察现场光线变化。';
     }
     const { startAt, endAt } = assistantPresentationWindow(session);
-    const start = new Date(startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const end = new Date(endAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const start = assistantTimeFormatter.format(new Date(startAt));
+    const end = assistantTimeFormatter.format(new Date(endAt));
     return `今天优先拍「${session.title}」，窗口为${start}—${end}。打开机会详情可查看依据和行动安排。`;
   }
   if (questionType === 'why') {
@@ -566,8 +572,8 @@ function assistantTemplate(snapshot, questionType, eventIds, placeSummaries) {
   if (questionType === 'timing') {
     if (session == null) return '当前没有可执行的拍摄时间窗口。';
     const { startAt, endAt } = assistantPresentationWindow(session);
-    const start = new Date(startAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const end = new Date(endAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const start = assistantTimeFormatter.format(new Date(startAt));
+    const end = assistantTimeFormatter.format(new Date(endAt));
     return `当前窗口是${start}—${end}，先看时间再决定是否出发。`;
   }
   if (questionType === 'creative') {

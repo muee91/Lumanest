@@ -9,7 +9,7 @@ void main() {
 
     expect(
       EnvironmentRefreshPolicy.nextRefreshAt(snapshot: snapshot, now: now),
-      DateTime.utc(2026, 7, 29, 16),
+      DateTime(now.year, now.month, now.day + 1).toUtc(),
     );
   });
 
