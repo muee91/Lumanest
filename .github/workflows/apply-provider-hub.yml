@@ -6,13 +6,14 @@ on:
       - main
     types:
       - opened
+      - synchronize
 
 permissions:
   contents: write
 
 concurrency:
   group: apply-provider-hub
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply:
