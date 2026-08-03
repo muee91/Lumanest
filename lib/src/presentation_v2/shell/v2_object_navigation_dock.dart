@@ -302,9 +302,7 @@ class _V2DockButtonState extends State<_V2DockButton> {
                 child: ScaleTransition(scale: animation, child: child),
               ),
               child: Icon(
-                widget.selected
-                    ? widget.item.selectedIcon
-                    : widget.item.icon,
+                widget.selected ? widget.item.selectedIcon : widget.item.icon,
                 key: ValueKey(widget.selected),
                 size: widget.selected ? 27 : 24,
                 color: widget.selected
@@ -370,21 +368,12 @@ class _IntelligenceDockButtonState extends State<_IntelligenceDockButton> {
                 ),
               ],
             ),
-            child: const Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(CupertinoIcons.sparkles, color: Colors.white, size: 24),
-                SizedBox(height: 1),
-                Text(
-                  '栖光',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .4,
-                  ),
-                ),
-              ],
+            child: const Center(
+              child: Icon(
+                CupertinoIcons.sparkles,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
           ),
         ),

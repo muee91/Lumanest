@@ -56,15 +56,19 @@ void main() {
     for (final label in ['今日', '探索', '路线', '我的']) {
       expect(find.bySemanticsLabel(label), findsOneWidget);
     }
-    expect(
-      find.bySemanticsLabel('栖光：问问题或抽取灵感'),
-      findsOneWidget,
-    );
+    expect(find.bySemanticsLabel('栖光：问问题或抽取灵感'), findsOneWidget);
     expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
     expect(find.byKey(const Key('v2-object-navigation-rail')), findsOneWidget);
     expect(
       find.byKey(const Key('v2-intelligence-navigation-action')),
       findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('v2-intelligence-navigation-action')),
+        matching: find.text('栖光'),
+      ),
+      findsNothing,
     );
     expect(find.byKey(const Key('v2-moving-selection-lens')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
