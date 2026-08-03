@@ -62,10 +62,12 @@ normal source admission and corroboration.
 ### SocialSisterYi/bilibili-API-collect
 
 - Repository: https://github.com/SocialSisterYi/bilibili-API-collect
-- Status: archived, default branch marked deprecated.
-- Useful pattern: endpoint taxonomy and field naming can inform normalization.
-- Decision: no runtime dependency. Prefer RSSHub for reviewed UP accounts and
-  official Bilibili/open-platform interfaces where authorization exists.
+- Status: permanently closed after a January 2026 legal warning concerning the
+  collection and publication of non-public API mechanisms; related source and
+  documentation were removed.
+- Decision: negative reference only. Do not reproduce non-public endpoints,
+  signatures, access controls or authentication logic. Prefer reviewed RSSHub
+  account feeds and official Bilibili/open-platform interfaces where authorized.
 
 ## LumaNest target architecture
 
