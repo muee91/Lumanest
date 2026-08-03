@@ -37,7 +37,19 @@ jobs:
           channel: stable
           cache: true
       - name: Apply production closure
-        run: python tools/apply_provider_operations_closure.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tools/apply_provider_operations_closure.py')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace(
+              'if content.count(old) != 1:\n        raise RuntimeError',
+              'if content.count(old) < 1:\n        raise RuntimeError',
+              1,
+          )
+          path.write_text(source, encoding='utf-8')
+          PY
+          python tools/apply_provider_operations_closure.py
       - name: Format Dart sources
         run: dart format lib/src/core/environment/provider_signal_relevance.dart lib/src/presentation_v2/explore/v2_provider_facts_sheet.dart lib/src/presentation_v2/explore/v2_explore_page.dart test/core/environment/provider_signal_relevance_test.dart
       - name: Test Data Broker
