@@ -84,6 +84,15 @@ jobs:
               1,
           )
           provider_tests.write_text(text, encoding='utf-8')
+
+          explore_page = Path('lib/src/presentation_v2/explore/v2_explore_page.dart')
+          text = explore_page.read_text(encoding='utf-8')
+          text = text.replace(
+              "    final providerSignals = providerFacts == null || snapshot == null\n        ? const <ProviderSignal>[]\n        : selectProviderSignalsForContext(providerFacts, snapshot);",
+              "    final providerSignals = providerFacts == null\n        ? const <ProviderSignal>[]\n        : selectProviderSignalsForContext(providerFacts, snapshot);",
+              1,
+          )
+          explore_page.write_text(text, encoding='utf-8')
           PY
       - name: Format Dart sources
         run: dart format lib/src/core/environment/provider_signal_relevance.dart lib/src/presentation_v2/explore/v2_provider_facts_sheet.dart lib/src/presentation_v2/explore/v2_explore_page.dart test/core/environment/provider_signal_relevance_test.dart
