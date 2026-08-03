@@ -40,11 +40,12 @@ void main() {
       ),
     );
 
-    expect(find.text('近期光学观测'), findsOneWidget);
+    expect(find.textContaining('近期光学观测'), findsOneWidget);
     await tester.tap(find.byKey(const Key('v2-provider-facts-summary')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('v2-provider-facts-sheet')), findsOneWidget);
+    expect(find.text('近期光学观测'), findsOneWidget);
     expect(find.text('数据源状态'), findsOneWidget);
     expect(
       find.byKey(const Key('v2-provider-state-sentinel2')),
