@@ -75,6 +75,15 @@ jobs:
               if location['id'] == 'delingha' and 'operations' not in location['categories']:
                   location['categories'].append('operations')
           fixture.write_text(json.dumps(locations, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          provider_tests = Path('services/lumanest-data-broker/test/provider-facts-service.test.mjs')
+          text = provider_tests.read_text(encoding='utf-8')
+          text = text.replace(
+              "      const id = url.hostname.split('.')[0];\n      return json({ signals: [{\n        kind: `${id}Signal`,",
+              "      const id = url.hostname.split('.')[0];\n      const kind = id === 'cams'\n        ? 'aerosolOpticalDepth'\n        : id === 'notices'\n          ? 'closure'\n          : 'significantWaveHeight';\n      return json({ signals: [{\n        kind,",
+              1,
+          )
+          provider_tests.write_text(text, encoding='utf-8')
           PY
       - name: Format Dart sources
         run: dart format lib/src/core/environment/provider_signal_relevance.dart lib/src/presentation_v2/explore/v2_provider_facts_sheet.dart lib/src/presentation_v2/explore/v2_explore_page.dart test/core/environment/provider_signal_relevance_test.dart
