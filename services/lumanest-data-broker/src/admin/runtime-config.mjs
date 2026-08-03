@@ -3,6 +3,7 @@ import { createPrivateKey } from 'node:crypto';
 import { defaultRuntimeSettings, validateRuntimeSettings } from './runtime-settings.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { defaultDiscoverySearchProfile, validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
+import { providerSourceDefaults, validateProviderSources } from '../environment/provider-runtime-config.mjs';
 
 const configurableFields = new Set([
   'qweatherPrivateKeyPem',
@@ -13,6 +14,7 @@ const configurableFields = new Set([
   'llmProfiles',
   'llmRouting',
   'discoverySearchProfile',
+  'providerSources',
   'settings',
 ]);
 
@@ -58,6 +60,10 @@ function validatePatch(patch) {
       }
       continue;
     }
+    if (name === 'providerSources') {
+      validateProviderSources(value, { partial: true });
+      continue;
+    }
     if (typeof value !== 'string') {
       throw new TypeError(`${name} must be a string or null`);
     }
@@ -93,6 +99,11 @@ function mergedOverrides(current, patch) {
           current.discoverySearchProfile?.apiKey !== undefined) {
         result.discoverySearchProfile.apiKey = current.discoverySearchProfile.apiKey;
       }
+    } else if (name === 'providerSources') {
+      result.providerSources = {
+        ...(result.providerSources ?? {}),
+        ...value,
+      };
     } else {
       result[name] = value;
     }
@@ -181,6 +192,11 @@ function buildSnapshot(defaults, overrides, revision) {
     ...defaultDiscoverySearchProfile(),
     ...(overrides.discoverySearchProfile ?? {}),
   });
+  const providerSources = validateProviderSources({
+    ...providerSourceDefaults(),
+    ...(defaults.providerSources ?? {}),
+    ...(overrides.providerSources ?? {}),
+  });
   const effective = {
     privateKey: privateKeyFrom(defaults, overrides),
     keyId: overrides.keyId ?? defaults.keyId,
@@ -190,6 +206,7 @@ function buildSnapshot(defaults, overrides, revision) {
     llmProfiles,
     llmRouting,
     discoverySearchProfile,
+    providerSources,
     contextServiceUrl: defaults.contextServiceUrl ?? '',
     contextInternalToken: defaults.contextInternalToken ?? '',
     discoveryServiceUrl: defaults.discoveryServiceUrl ?? '',

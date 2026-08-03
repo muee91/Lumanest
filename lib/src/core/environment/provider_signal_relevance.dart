@@ -17,24 +17,25 @@ List<ProviderSignal> selectProviderSignalsForContext(
   if (current.isEmpty) return const <ProviderSignal>[];
 
   final priorities = _categoryPriorities(snapshot);
-  final ranked = [...current]..sort((a, b) {
-    final aAuthoritative =
-        a.verification == ProviderVerification.authoritative;
-    final bAuthoritative =
-        b.verification == ProviderVerification.authoritative;
-    if (aAuthoritative != bAuthoritative) return aAuthoritative ? -1 : 1;
+  final ranked = [...current]
+    ..sort((a, b) {
+      final aAuthoritative =
+          a.verification == ProviderVerification.authoritative;
+      final bAuthoritative =
+          b.verification == ProviderVerification.authoritative;
+      if (aAuthoritative != bAuthoritative) return aAuthoritative ? -1 : 1;
 
-    final relevance = (priorities[a.category] ?? 99).compareTo(
-      priorities[b.category] ?? 99,
-    );
-    if (relevance != 0) return relevance;
+      final relevance = (priorities[a.category] ?? 99).compareTo(
+        priorities[b.category] ?? 99,
+      );
+      if (relevance != 0) return relevance;
 
-    final evidence = _authorityRank(a.verification).compareTo(
-      _authorityRank(b.verification),
-    );
-    if (evidence != 0) return evidence;
-    return b.observedAt.compareTo(a.observedAt);
-  });
+      final evidence = _authorityRank(
+        a.verification,
+      ).compareTo(_authorityRank(b.verification));
+      if (evidence != 0) return evidence;
+      return b.observedAt.compareTo(a.observedAt);
+    });
 
   final selected = <ProviderSignal>[];
   final kinds = <String>{};
@@ -134,10 +135,7 @@ Map<ProviderCategory, int> _categoryPriorities(ContextSnapshot snapshot) {
 
   if (snapshot.dayPhase == DayPhase.night ||
       snapshot.dayPhase == DayPhase.blueHour) {
-    add(const [
-      ProviderCategory.astronomy,
-      ProviderCategory.spaceWeather,
-    ]);
+    add(const [ProviderCategory.astronomy, ProviderCategory.spaceWeather]);
   }
 
   add(ProviderCategory.values);

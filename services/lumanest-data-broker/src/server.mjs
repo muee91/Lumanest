@@ -429,13 +429,31 @@ function safetyDetailsFor(contextId, warnings, eventIds) {
       title: warning.title,
       description,
       guidance,
-      source: '和风天气 · 官方预警',
+      source: typeof warning.source === 'string' ? warning.source : '和风天气 · 官方预警',
       severity: warning.severity,
       observedAt: warning.observedAt,
       expiresAt: warning.expiresAt,
       contextId,
     }];
   });
+}
+
+async function boundedProviderSafetyWarnings(service, body) {
+  let timer;
+  try {
+    return await Promise.race([
+      service.authoritativeSafetyNotices({
+        latitude: body.coordinate.latitude,
+        longitude: body.coordinate.longitude,
+        radiusKm: 25,
+        locale: body.locale,
+        observedAt: body.observedAt,
+      }).catch(() => []),
+      new Promise((resolve) => { timer = setTimeout(() => resolve([]), 1_500); }),
+    ]);
+  } finally {
+    if (timer != null) clearTimeout(timer);
+  }
 }
 
 function validNarrativeRequest(body) {
@@ -1251,6 +1269,9 @@ export function createTokenBrokerServer({
     fetcher,
     now,
     timeoutMs: Math.min(configurationSource.snapshot().settings.upstreamTimeoutMs, 12_000),
+    configuration: runtimeConfig == null
+      ? null
+      : () => configurationSource.snapshot().providerSources,
   });
   const activeOpenMeteoForecast = new OpenMeteoNightSkyForecast({
     baseUrl: openMeteoForecastBaseUrl,
@@ -1508,7 +1529,7 @@ export function createTokenBrokerServer({
     }
 
     if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
-      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}`);
+      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}${activeProviderFactsService.toPrometheus()}`);
       return;
     }
 
@@ -2054,7 +2075,7 @@ export function createTokenBrokerServer({
           return;
         }
       }
-      const [weather, sceneEvidence] = await Promise.all([
+      const [weather, sceneEvidence, providerWarnings] = await Promise.all([
         authoritativeWeather({
           coordinate: body.coordinate,
           apiHost: configuration.qweatherApiHost,
@@ -2072,6 +2093,7 @@ export function createTokenBrokerServer({
           fetcher,
           timeoutMs: configuration.settings.upstreamTimeoutMs,
         }),
+        boundedProviderSafetyWarnings(activeProviderFactsService, body),
       ]);
       if (!weather.ok) {
         writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
@@ -2079,6 +2101,10 @@ export function createTokenBrokerServer({
         });
         return;
       }
+      const allOfficialWarnings = [...weather.body.officialWarnings, ...providerWarnings]
+        .filter((warning) => Date.parse(warning.expiresAt) > now().getTime())
+        .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt))
+        .slice(0, 8);
       const internalBody = {
         contractVersion: body.contractVersion,
         coordinate: body.coordinate,
@@ -2095,7 +2121,7 @@ export function createTokenBrokerServer({
         },
         weather: weather.body.weather,
         forecast: weather.body.forecast,
-        officialWarnings: weather.body.officialWarnings.map((warning) => ({
+        officialWarnings: allOfficialWarnings.map((warning) => ({
           id: warning.id,
           observedAt: warning.observedAt,
           expiresAt: warning.expiresAt,
@@ -2118,7 +2144,7 @@ export function createTokenBrokerServer({
       }
       const details = safetyDetailsFor(
         result.body.contextId,
-        weather.body.officialWarnings,
+        allOfficialWarnings,
         result.body.facts.events.map((event) => event.id),
       );
       if (details.length > 0 && typeof weatherCache.setSafetyDetails === 'function') {
@@ -2350,6 +2376,10 @@ export async function createBrokerServices(environment = process.env, {
   });
   const runtimeConfig = new RuntimeConfigService({ defaults, store: configStore });
   await runtimeConfig.initialize();
+  const providerFactsService = new ProviderFactsService({
+    configuration: () => runtimeConfig.snapshot().providerSources,
+    timeoutMs: Math.min(runtimeConfig.snapshot().settings.upstreamTimeoutMs, 12_000),
+  });
 
   const authService = new AdminAuthService({
     filePath: `${dataDirectory}/admin-auth.json`,
@@ -2415,6 +2445,7 @@ export async function createBrokerServices(environment = process.env, {
     skyOpportunityLogger: (entry) => console.info(JSON.stringify(entry)),
     requestRateLimiter,
     simulationRegistry,
+    providerFactsService,
   });
   const adminServer = createAdminServer({
     authService,
@@ -2422,6 +2453,8 @@ export async function createBrokerServices(environment = process.env, {
     auditLog,
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),
     getBrokerHealth: () => brokerHealthMonitor.snapshot(),
+    getProviderHealth: () => providerFactsService.healthSnapshot(),
+    testProvider: (query) => providerFactsService.testProvider(query),
     getAuditLogHealth: () => auditLog.status(),
     testSevenTimer: (query) => sevenTimerService.testProduct(query),
     testConnection: createConnectionTester({ runtimeConfig }),
@@ -2458,6 +2491,7 @@ export async function createBrokerServices(environment = process.env, {
         weatherCache.clear(),
         skyOpportunityCache.clear(),
         sevenTimerCache.clear(),
+        Promise.resolve(providerFactsService.clearCache()),
       ]);
     },
     outboundNetworkController: createOutboundNetworkControllerClient({

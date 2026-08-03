@@ -18,6 +18,7 @@ async function withAdmin(run, {
   simulationRegistry = null,
   sevenTimer = null,
   getBrokerHealth = async () => ({ status: 'unknown' }),
+  providerHub = null,
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
@@ -54,6 +55,8 @@ async function withAdmin(run, {
     getSevenTimerHealth: async () => sevenTimer?.health ?? ({ provider: '7timer', enabled: true, status: 'unknown', products: [] }),
     testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
     getBrokerHealth,
+    getProviderHealth: async () => providerHub?.health ?? ({ provider: 'providerHub', enabled: true, providers: [], cache: {} }),
+    testProvider: async (query) => providerHub?.test?.(query) ?? ({ ok: false, error: 'not_configured' }),
     getAuditLogHealth,
     clearCache: async () => operations.push('clear'),
     restart: async () => operations.push('restart'),
@@ -559,5 +562,32 @@ test('authenticated health audit payload only exposes safe fields and never leak
       coordinates: { latitude: 31.23, longitude: 121.47 },
       token: 'service-secret-9012',
     }),
+  });
+});
+
+
+test('provider configuration is masked and diagnostics never audit coordinates', async () => {
+  await withAdmin(async ({ baseUrl, auditLog }) => {
+    const credentials = await login(baseUrl);
+    const config = await fetch(`${baseUrl}/admin-api/config`, { headers: { Cookie: credentials.cookie } });
+    const text = await config.text();
+    assert.equal(text.includes('provider-secret-value'), false);
+    const parsed = JSON.parse(text);
+    assert.equal(Array.isArray(parsed.providers.catalog), true);
+
+    const headers = { Cookie: credentials.cookie, 'X-CSRF-Token': credentials.csrf, 'Content-Type': 'application/json' };
+    const response = await fetch(`${baseUrl}/admin-api/providers/test`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ providerId: 'osm', latitude: 30.25, longitude: 120.15, radiusKm: 25 }),
+    });
+    assert.equal(response.status, 200);
+    const entry = (await auditLog.list()).find((item) => item.operation === 'test_provider');
+    assert.deepEqual(entry.details, { providerId: 'osm', traceId: 'provider-trace' });
+    assert.doesNotMatch(JSON.stringify(entry), /30\.25|120\.15/);
+  }, {
+    providerHub: {
+      health: { provider: 'providerHub', enabled: true, providers: [], cache: {} },
+      test: () => ({ ok: true, providerId: 'osm', status: 'ready', signalCount: 1, latencyMs: 5, traceId: 'provider-trace', error: null }),
+    },
   });
 });

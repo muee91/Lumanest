@@ -6,12 +6,16 @@ import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
 Future<void> showV2ProviderFactsSheet(
   BuildContext context,
-  ProviderFactsBundle bundle,
-) => showModalBottomSheet<void>(
+  ProviderFactsBundle bundle, {
+  List<ProviderSignal>? prioritizedSignals,
+}) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
   backgroundColor: Colors.transparent,
-  builder: (context) => _V2ProviderFactsSheet(bundle: bundle),
+  builder: (context) => _V2ProviderFactsSheet(
+    bundle: bundle,
+    prioritizedSignals: prioritizedSignals,
+  ),
 );
 
 class V2ProviderFactsSummaryCard extends StatelessWidget {
@@ -19,14 +23,18 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
     super.key,
     required this.bundle,
     required this.onTap,
+    this.signals,
   });
 
   final ProviderFactsBundle bundle;
+  final List<ProviderSignal>? signals;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final signals = bundle.displayableSignals.take(2).toList(growable: false);
+    final signals = (this.signals ?? bundle.displayableSignals)
+        .take(2)
+        .toList(growable: false);
     if (signals.isEmpty) return const SizedBox.shrink();
     return V2Pressable(
       key: const Key('v2-provider-facts-summary'),
@@ -84,13 +92,17 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
 }
 
 class _V2ProviderFactsSheet extends StatelessWidget {
-  const _V2ProviderFactsSheet({required this.bundle});
+  const _V2ProviderFactsSheet({
+    required this.bundle,
+    required this.prioritizedSignals,
+  });
 
   final ProviderFactsBundle bundle;
+  final List<ProviderSignal>? prioritizedSignals;
 
   @override
   Widget build(BuildContext context) {
-    final current = bundle.displayableSignals;
+    final current = prioritizedSignals ?? bundle.displayableSignals;
     return DraggableScrollableSheet(
       initialChildSize: .72,
       minChildSize: .42,

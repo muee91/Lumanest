@@ -125,3 +125,26 @@ test('rejects unknown configuration fields', async () => {
   await service.initialize();
   await assert.rejects(() => service.replace({ surprise: 'value' }), /Unknown runtime configuration/);
 });
+
+
+test('provider configuration is persisted and omitted secrets remain encrypted', async () => {
+  const store = new MemoryStore({
+    providerSources: {
+      ebirdToken: 'initial-ebird-token',
+      firmsMapKey: 'initial-firms-key',
+      enabledProviders: ['ebird', 'firms'],
+    },
+  });
+  const service = new RuntimeConfigService({ defaults: environmentDefaults(), store });
+  await service.initialize();
+  await service.replace({
+    providerSources: {
+      enabledProviders: ['ebird'],
+      ebirdBaseUrl: 'https://api.ebird.org',
+    },
+  });
+  assert.equal(service.snapshot().providerSources.ebirdToken, 'initial-ebird-token');
+  assert.equal(service.snapshot().providerSources.firmsMapKey, 'initial-firms-key');
+  assert.deepEqual(service.snapshot().providerSources.enabledProviders, ['ebird']);
+  assert.equal(store.value.providerSources.ebirdToken, 'initial-ebird-token');
+});

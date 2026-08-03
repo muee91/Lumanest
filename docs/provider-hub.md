@@ -115,3 +115,22 @@ The detail sheet includes:
 Unconfigured or failed providers remain visible only inside the detail status
 list when another provider has produced a useful signal; they never create an
 empty card or error page.
+
+
+## Production operations closure
+
+Provider endpoints and credentials are runtime-managed in the encrypted NAS
+admin console. The shared ProviderFactsService reads a fresh immutable runtime
+snapshot for every cache miss, so changing a provider endpoint or token does not
+require rebuilding Flutter. The console exposes only masked secrets, health,
+latency, signal count, cache statistics and sanitized trace IDs.
+
+Sentinel-2 may be augmented by a configured Raster Gateway that returns bounded
+NDVI/NDSI/NDWI or surface-change observations. CAMS, Marine and official notice
+gateways are type allow-listed. Reviewed official RSS/Atom/JSON feeds may also
+be registered with explicit geographic coverage and validity policy.
+
+Only current authoritative closure, road-closure, fire-restriction and regulation
+notices that pass the reviewed source and spatial gates are promoted into the
+existing Context V5 official-warning lane. Other Provider Hub data remains
+supplementary and cannot alter safety state.

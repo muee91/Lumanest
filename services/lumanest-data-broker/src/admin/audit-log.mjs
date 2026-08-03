@@ -44,6 +44,7 @@ const allowedOperations = new Set([
   'restart',
   'update_outbound_network',
   'test_7timer',
+  'test_provider',
 ]);
 
 const allowedFields = new Set([
@@ -97,7 +98,7 @@ const allowedResults = new Set([
   'csrf_mismatch',
 ]);
 
-const allowedDetailKeys = new Set(['product', 'traceId']);
+const allowedDetailKeys = new Set(['product', 'providerId', 'traceId']);
 
 function decodeMasterKey(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
