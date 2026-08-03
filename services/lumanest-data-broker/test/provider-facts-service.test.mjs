@@ -55,8 +55,13 @@ test('all provider adapters normalize into one failure-isolated contract', async
     }
     if (url.hostname === 'cams.test' || url.hostname === 'notices.test' || url.hostname === 'marine.test') {
       const id = url.hostname.split('.')[0];
+      const kind = id === 'cams'
+        ? 'aerosolOpticalDepth'
+        : id === 'notices'
+          ? 'closure'
+          : 'significantWaveHeight';
       return json({ signals: [{
-        kind: `${id}Signal`,
+        kind,
         title: `${id} ready`,
         summary: `${id} normalized provider signal`,
         verification: id === 'notices' ? 'authoritative' : 'model',
@@ -161,4 +166,75 @@ test('credentials stay server-side and missing providers degrade without blockin
   assert.equal(result.providers.find((item) => item.id === 'firms').status, 'unconfigured');
   assert.equal(result.providers.find((item) => item.id === 'cams').status, 'unconfigured');
   assert.equal(result.providers.find((item) => item.id === 'copernicusMarine').status, 'unconfigured');
+});
+
+
+test('dynamic provider configuration, health and Sentinel derivatives stay traceable', async () => {
+  let configuration = {
+    enabled: true,
+    enabledProviders: [...supportedProviderIds],
+    timeoutMs: 8000,
+    sentinelStacBaseUrl: 'https://stac.dynamic/v1',
+    sentinelRasterGatewayUrl: 'https://raster.dynamic/facts',
+    sentinelRasterToken: 'raster-token',
+    camsGatewayUrl: '', camsApiKey: '',
+    aeronetBaseUrl: 'https://aeronet.dynamic',
+    officialNoticeGatewayUrl: '', officialNoticeGatewayToken: '', officialNoticeSources: [],
+    overpassUrl: 'https://overpass.dynamic', wikidataEndpoint: 'https://wikidata.dynamic',
+    commonsApiUrl: 'https://commons.dynamic', gbifBaseUrl: 'https://gbif.dynamic',
+    ebirdBaseUrl: 'https://ebird.dynamic', ebirdToken: '',
+    firmsBaseUrl: 'https://firms.dynamic', firmsMapKey: '',
+    marineGatewayUrl: '', marineApiKey: '',
+    horizonsBaseUrl: 'https://horizons.dynamic', swpcBaseUrl: 'https://swpc.dynamic',
+  };
+  const service = new ProviderFactsService({
+    now: () => instant,
+    configuration: () => configuration,
+    fetcher: async (input, init = {}) => {
+      const url = new URL(input);
+      if (url.hostname === 'stac.dynamic') return json({ features: [{
+        properties: { datetime: '2026-08-02T02:00:00Z', 'eo:cloud_cover': 8 },
+        links: [{ rel: 'self', href: 'https://stac.dynamic/item' }],
+      }] });
+      if (url.hostname === 'raster.dynamic') {
+        assert.equal(init.headers.Authorization, 'Bearer raster-token');
+        return json({ observations: [{
+          metric: 'ndvi', delta: 0.123, cloudCoverage: 8,
+          spatialResolutionMeters: 10, confidence: 'high',
+          comparisonStart: '2026-07-15T00:00:00Z', comparisonEnd: '2026-08-02T00:00:00Z',
+          observedAt: '2026-08-02T02:00:00Z', expiresAt: '2026-08-04T02:00:00Z',
+          sourceUrl: 'https://raster.dynamic/observations/1',
+        }] });
+      }
+      throw new Error('offline');
+    },
+  });
+  const result = await service.facts(query('sentinel2'));
+  const signals = result.providers[0].signals;
+  assert.equal(signals[0].kind, 'vegetationIndexChange');
+  assert.match(signals[0].summary, /不代表现场已进入最佳状态/);
+  const health = service.healthSnapshot();
+  assert.equal(health.providers.find((item) => item.id === 'sentinel2').lastStatus, 'ready');
+  configuration = { ...configuration, enabledProviders: [] };
+  const disabled = await service.testProvider({ providerId: 'sentinel2', latitude: 30.25, longitude: 120.15 });
+  assert.equal(disabled.status, 'unconfigured');
+});
+
+test('only authoritative current operational notices are promoted to Context warnings', async () => {
+  const service = new ProviderFactsService({
+    now: () => instant,
+    officialNoticeGatewayUrl: 'https://notices.safe/facts',
+    fetcher: async (input) => {
+      const url = new URL(input);
+      if (url.hostname !== 'notices.safe') throw new Error('unexpected');
+      return json({ signals: [
+        { kind: 'closure', title: '景区临时关闭', summary: '官方公告确认当前关闭。', verification: 'authoritative', observedAt: instant.toISOString(), expiresAt: '2026-08-04T08:00:00Z', sourceUrl: 'https://notices.safe/closure' },
+        { kind: 'eventChange', title: '演出改期', summary: '演出时间调整。', verification: 'authoritative', observedAt: instant.toISOString(), expiresAt: '2026-08-04T08:00:00Z', sourceUrl: 'https://notices.safe/event' },
+      ] });
+    },
+  });
+  const warnings = await service.authoritativeSafetyNotices(query('officialNotices'));
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0].id, /^[a-f0-9]{12}$/);
+  assert.equal(warnings[0].title, '景区临时关闭');
 });

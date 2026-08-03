@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
 
+import { loadOfficialNoticeItems, officialNoticeSafetyKinds } from './official-notice-feed.mjs';
+import {
+  providerConfigured,
+  providerConfigurationFingerprint,
+  providerSourceDefaults,
+  publicProviderSourceCatalog,
+  validateProviderSources,
+} from './provider-runtime-config.mjs';
+
 const providerIds = Object.freeze([
   'sentinel1',
   'sentinel2',
@@ -145,10 +154,10 @@ function noData(id, category, now, sourceInfo, message = '当前范围没有可�
   return providerResult({ id, category, status: 'noData', now, ttlMs: readyTtlMs, sourceInfo, message });
 }
 
-function cacheKey(query) {
+function cacheKey(query, configurationFingerprint = '') {
   return [
     query.latitude.toFixed(2), query.longitude.toFixed(2), query.radiusKm,
-    query.locale, query.providerIds.join(','),
+    query.locale, query.providerIds.join(','), configurationFingerprint,
   ].join(':');
 }
 
@@ -284,7 +293,19 @@ async function sentinelProvider({ id, collection, query, fetcher, timeoutMs, now
   }
 }
 
-async function normalizedGatewayProvider({ id, category, url, query, fetcher, timeoutMs, now, sourceInfo }) {
+async function normalizedGatewayProvider({
+  id,
+  category,
+  url,
+  token = '',
+  query,
+  fetcher,
+  timeoutMs,
+  now,
+  sourceInfo,
+  allowedKinds = null,
+  allowedVerifications = null,
+}) {
   if (!url) return unconfigured(id, category, now);
   try {
     const endpoint = new URL(url);
@@ -293,25 +314,162 @@ async function normalizedGatewayProvider({ id, category, url, query, fetcher, ti
     endpoint.searchParams.set('radiusKm', String(query.radiusKm));
     endpoint.searchParams.set('at', query.observedAt);
     endpoint.searchParams.set('locale', query.locale);
-    const body = await fetchJson(fetcher, endpoint, { timeoutMs, headers: { 'User-Agent': 'LumaNest/1.0' } });
+    const headers = { 'User-Agent': 'LumaNest/1.0' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const body = await fetchJson(fetcher, endpoint, { timeoutMs, headers });
     const items = Array.isArray(body?.signals) ? body.signals : [];
-    const normalized = items.slice(0, 8).map((item) => signal({
-      providerId: id,
-      kind: boundedText(item?.kind, 64) ?? 'providerSignal',
-      category,
-      title: item?.title,
-      summary: item?.summary,
-      verification: ['authoritative', 'observed', 'model', 'reference', 'candidate'].includes(item?.verification)
-        ? item.verification : 'model',
-      observedAt: item?.observedAt ?? body?.observedAt ?? now,
-      expiresAt: item?.expiresAt ?? body?.expiresAt ?? new Date(now.getTime() + readyTtlMs),
-      sourceUrl: item?.sourceUrl ?? body?.sourceUrl ?? sourceInfo.url,
-    })).filter(Boolean);
+    const normalized = items.slice(0, 8).map((item) => {
+      const kind = boundedText(item?.kind, 64) ?? 'providerSignal';
+      const verification = ['authoritative', 'observed', 'model', 'reference', 'candidate'].includes(item?.verification)
+        ? item.verification : 'model';
+      if (allowedKinds != null && !allowedKinds.has(kind)) return null;
+      if (allowedVerifications != null && !allowedVerifications.has(verification)) return null;
+      return signal({
+        providerId: id,
+        kind,
+        category,
+        title: item?.title,
+        summary: item?.summary,
+        verification,
+        observedAt: item?.observedAt ?? body?.observedAt ?? now,
+        expiresAt: item?.expiresAt ?? body?.expiresAt ?? new Date(now.getTime() + readyTtlMs),
+        sourceUrl: item?.sourceUrl ?? body?.sourceUrl ?? sourceInfo.url,
+      });
+    }).filter(Boolean);
     return normalized.length === 0
       ? noData(id, category, now, sourceInfo)
       : providerResult({ id, category, status: 'ready', now, ttlMs: readyTtlMs, sourceInfo, signals: normalized });
   } catch {
     return unavailable(id, category, now);
+  }
+}
+
+async function officialNoticesProvider({ query, fetcher, timeoutMs, now, configuration }) {
+  const id = 'officialNotices';
+  const category = 'operations';
+  if (configuration.officialNoticeGatewayUrl) {
+    return normalizedGatewayProvider({
+      id,
+      category,
+      url: configuration.officialNoticeGatewayUrl,
+      token: configuration.officialNoticeGatewayToken,
+      query,
+      fetcher,
+      timeoutMs,
+      now,
+      sourceInfo: source({
+        id: 'official-notice-gateway',
+        title: 'Reviewed official notices',
+        publisher: 'Configured government and venue sources',
+        url: configuration.officialNoticeGatewayUrl,
+        license: 'Source-specific',
+        version: 'normalized gateway v1',
+      }),
+      allowedKinds: new Set(['closure', 'roadClosure', 'fireRestriction', 'regulation', 'reopening', 'eventChange']),
+      allowedVerifications: new Set(['authoritative', 'reference']),
+    });
+  }
+  const enabledSources = configuration.officialNoticeSources.filter((item) => item.enabled);
+  if (enabledSources.length === 0) return unconfigured(id, category, now, '需要在控制台配置审核公告源');
+  const sourceInfo = source({
+    id: 'official-notice-registry',
+    title: 'Reviewed official notice feeds',
+    publisher: 'Configured government and venue sources',
+    url: enabledSources[0].homepageUrl,
+    license: 'Source-specific',
+    version: 'feed registry v1',
+  });
+  try {
+    const loaded = await loadOfficialNoticeItems({
+      sources: enabledSources,
+      query,
+      fetcher,
+      timeoutMs,
+      now,
+    });
+    if (loaded.items.length === 0) {
+      return loaded.checkedSources > 0 && loaded.unavailableSources === loaded.checkedSources
+        ? unavailable(id, category, now)
+        : noData(id, category, now, sourceInfo, '当前范围没有仍有效的官方公告');
+    }
+    return providerResult({
+      id,
+      category,
+      status: 'ready',
+      now,
+      ttlMs: readyTtlMs,
+      sourceInfo,
+      signals: loaded.items.map((item) => signal({
+        providerId: id,
+        kind: item.kind,
+        category,
+        title: item.title,
+        summary: item.summary,
+        verification: item.safetyEligible || (item.authoritative && !officialNoticeSafetyKinds.has(item.kind))
+          ? 'authoritative' : 'reference',
+        observedAt: item.observedAt,
+        expiresAt: item.expiresAt,
+        sourceUrl: item.sourceUrl,
+      })),
+    });
+  } catch {
+    return unavailable(id, category, now);
+  }
+}
+
+function finiteMetadata(value, minimum, maximum) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
+async function sentinelRasterSignals({ query, fetcher, timeoutMs, now, url, token }) {
+  if (!url) return [];
+  try {
+    const endpoint = new URL(url);
+    endpoint.searchParams.set('lat', String(query.latitude));
+    endpoint.searchParams.set('lon', String(query.longitude));
+    endpoint.searchParams.set('radiusKm', String(query.radiusKm));
+    endpoint.searchParams.set('at', query.observedAt);
+    const headers = { 'User-Agent': 'LumaNest/1.0 SentinelRasterClient' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const body = await fetchJson(fetcher, endpoint, { timeoutMs, headers });
+    const observations = Array.isArray(body?.observations) ? body.observations : [];
+    const metrics = {
+      ndvi: ['vegetationIndexChange', '植被指数变化', 'NDVI'],
+      ndsi: ['snowIndexChange', '积雪指数变化', 'NDSI'],
+      ndwi: ['waterIndexChange', '水体指数变化', 'NDWI'],
+      surfaceChange: ['surfaceChange', '地表变化线索', '变化指数'],
+    };
+    return observations.slice(0, 4).flatMap((item) => {
+      const definition = metrics[item?.metric];
+      const observedAt = iso(item?.observedAt);
+      const comparisonStart = iso(item?.comparisonStart);
+      const comparisonEnd = iso(item?.comparisonEnd);
+      const sourceUrl = boundedUrl(item?.sourceUrl);
+      const delta = Number(item?.delta);
+      const cloudCoverage = Number(item?.cloudCoverage);
+      const resolution = Number(item?.spatialResolutionMeters);
+      const confidence = ['limited', 'medium', 'high'].includes(item?.confidence)
+        ? item.confidence : null;
+      if (definition == null || !observedAt || !comparisonStart || !comparisonEnd || !sourceUrl ||
+          Date.parse(comparisonEnd) <= Date.parse(comparisonStart) ||
+          !finiteMetadata(delta, -2, 2) || !finiteMetadata(cloudCoverage, 0, 100) ||
+          !finiteMetadata(resolution, 1, 1_000) || confidence == null) return [];
+      const sign = delta > 0 ? '+' : '';
+      const summary = `${comparisonStart.slice(0, 10)} 至 ${comparisonEnd.slice(0, 10)} 的 ${definition[2]} 差值为 ${sign}${delta.toFixed(3)}，云量约 ${Math.round(cloudCoverage)}%，空间分辨率 ${Math.round(resolution)} 米，置信等级 ${confidence}。这是遥感变化线索，不代表现场已进入最佳状态。`;
+      return [signal({
+        providerId: 'sentinel2',
+        kind: definition[0],
+        category: 'surface',
+        title: definition[1],
+        summary,
+        verification: confidence === 'high' ? 'observed' : 'model',
+        observedAt,
+        expiresAt: item?.expiresAt ?? new Date(now.getTime() + 24 * 60 * 60 * 1_000),
+        sourceUrl,
+      })].filter(Boolean);
+    });
+  } catch {
+    return [];
   }
 }
 
@@ -626,12 +784,18 @@ export class ProviderFactsService {
   constructor({
     fetcher = fetch,
     now = () => new Date(),
-    timeoutMs = 8_000,
+    timeoutMs = 12_000,
     cache = new Map(),
+    configuration = null,
     sentinelStacBaseUrl = configuredUrl(process.env.LUMANEST_SENTINEL_STAC_URL) || 'https://stac.dataspace.copernicus.eu/v1',
+    sentinelRasterGatewayUrl = configuredUrl(process.env.LUMANEST_SENTINEL_RASTER_GATEWAY_URL),
+    sentinelRasterToken = configuredToken(process.env.LUMANEST_SENTINEL_RASTER_TOKEN),
     camsGatewayUrl = configuredUrl(process.env.LUMANEST_CAMS_GATEWAY_URL),
+    camsApiKey = configuredToken(process.env.LUMANEST_CAMS_API_KEY),
     aeronetBaseUrl = configuredUrl(process.env.LUMANEST_AERONET_BASE_URL) || 'https://aeronet.gsfc.nasa.gov',
     officialNoticeGatewayUrl = configuredUrl(process.env.LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL),
+    officialNoticeGatewayToken = configuredToken(process.env.LUMANEST_OFFICIAL_NOTICE_GATEWAY_TOKEN),
+    officialNoticeSources = [],
     overpassUrl = configuredUrl(process.env.LUMANEST_OVERPASS_URL) || 'https://overpass-api.de/api/interpreter',
     wikidataEndpoint = configuredUrl(process.env.LUMANEST_WIKIDATA_SPARQL_URL) || 'https://query.wikidata.org/sparql',
     commonsApiUrl = configuredUrl(process.env.LUMANEST_COMMONS_API_URL) || 'https://commons.wikimedia.org/w/api.php',
@@ -641,31 +805,74 @@ export class ProviderFactsService {
     firmsBaseUrl = configuredUrl(process.env.LUMANEST_FIRMS_BASE_URL) || 'https://firms.modaps.eosdis.nasa.gov',
     firmsMapKey = configuredToken(process.env.LUMANEST_FIRMS_MAP_KEY, 128),
     marineGatewayUrl = configuredUrl(process.env.LUMANEST_COPERNICUS_MARINE_GATEWAY_URL),
+    marineApiKey = configuredToken(process.env.LUMANEST_COPERNICUS_MARINE_API_KEY),
     horizonsBaseUrl = configuredUrl(process.env.LUMANEST_JPL_HORIZONS_URL) || 'https://ssd.jpl.nasa.gov',
     swpcBaseUrl = configuredUrl(process.env.LUMANEST_SWPC_BASE_URL) || 'https://services.swpc.noaa.gov',
   } = {}) {
     this.fetcher = fetcher;
     this.now = now;
-    this.timeoutMs = timeoutMs;
+    this.defaultTimeoutMs = timeoutMs;
     this.cache = cache;
-    this.config = {
-      sentinelStacBaseUrl, camsGatewayUrl, aeronetBaseUrl, officialNoticeGatewayUrl,
-      overpassUrl, wikidataEndpoint, commonsApiUrl, gbifBaseUrl, ebirdBaseUrl,
-      ebirdToken, firmsBaseUrl, firmsMapKey, marineGatewayUrl, horizonsBaseUrl, swpcBaseUrl,
-    };
+    const fallback = validateProviderSources({
+      ...providerSourceDefaults(),
+      sentinelStacBaseUrl,
+      sentinelRasterGatewayUrl,
+      sentinelRasterToken,
+      camsGatewayUrl,
+      camsApiKey,
+      aeronetBaseUrl,
+      officialNoticeGatewayUrl,
+      officialNoticeGatewayToken,
+      officialNoticeSources,
+      overpassUrl,
+      wikidataEndpoint,
+      commonsApiUrl,
+      gbifBaseUrl,
+      ebirdBaseUrl,
+      ebirdToken,
+      firmsBaseUrl,
+      firmsMapKey,
+      marineGatewayUrl,
+      marineApiKey,
+      horizonsBaseUrl,
+      swpcBaseUrl,
+    });
+    this.configuration = typeof configuration === 'function'
+      ? () => validateProviderSources(configuration(), { base: fallback })
+      : () => fallback;
     this.inFlight = new Map();
+    this.metrics = new Map(providerIds.map((id) => [id, {
+      requestTotal: 0,
+      readyTotal: 0,
+      noDataTotal: 0,
+      unavailableTotal: 0,
+      unconfiguredTotal: 0,
+      lastStatus: 'unknown',
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      lastLatencyMs: null,
+      lastSignalCount: 0,
+      lastErrorCode: null,
+    }]));
+    this.cacheMetrics = { hits: 0, misses: 0, coalesced: 0 };
   }
 
   async facts(query) {
     const now = this.now();
-    const key = cacheKey(query);
+    const configuration = this.configuration();
+    const key = cacheKey(query, providerConfigurationFingerprint(configuration));
     const cached = readCache(this.cache, key, now);
-    if (cached != null) return { ...cached, cacheStatus: 'hit' };
+    if (cached != null) {
+      this.cacheMetrics.hits += 1;
+      return { ...cached, cacheStatus: 'hit' };
+    }
     if (this.inFlight.has(key)) {
+      this.cacheMetrics.coalesced += 1;
       const coalesced = await this.inFlight.get(key);
       return { ...structuredClone(coalesced), cacheStatus: 'coalesced' };
     }
-    const request = this.#load(query, now).then((value) => {
+    this.cacheMetrics.misses += 1;
+    const request = this.#load(query, now, configuration).then((value) => {
       writeCache(this.cache, key, value);
       return value;
     }).finally(() => this.inFlight.delete(key));
@@ -673,29 +880,63 @@ export class ProviderFactsService {
     return request;
   }
 
-  async #load(query, now) {
+  async #load(query, now, configuration) {
+    const timeoutMs = Math.min(this.defaultTimeoutMs, configuration.timeoutMs);
     const calls = {
-      sentinel1: () => sentinelProvider({ id: 'sentinel1', collection: 'sentinel-1-grd', query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, stacBaseUrl: this.config.sentinelStacBaseUrl }),
-      sentinel2: () => sentinelProvider({ id: 'sentinel2', collection: 'sentinel-2-l2a', query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, stacBaseUrl: this.config.sentinelStacBaseUrl }),
-      cams: () => normalizedGatewayProvider({ id: 'cams', category: 'atmosphere', url: this.config.camsGatewayUrl, query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, sourceInfo: source({ id: 'copernicus-cams', title: 'CAMS atmospheric composition', publisher: 'Copernicus Atmosphere Monitoring Service', url: 'https://ads.atmosphere.copernicus.eu/', license: 'Copernicus licence', version: 'configured gateway' }) }),
-      aeronet: () => aeronetProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, baseUrl: this.config.aeronetBaseUrl }),
-      officialNotices: () => normalizedGatewayProvider({ id: 'officialNotices', category: 'operations', url: this.config.officialNoticeGatewayUrl, query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, sourceInfo: source({ id: 'official-notice-gateway', title: 'Reviewed official notices', publisher: 'Configured government and venue sources', url: this.config.officialNoticeGatewayUrl || 'https://www.gov.cn/', license: 'Source-specific', version: 'normalized gateway v1' }) }),
-      osm: () => osmProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, overpassUrl: this.config.overpassUrl }),
-      wikidata: () => wikidataProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, endpoint: this.config.wikidataEndpoint }),
-      wikimediaCommons: () => commonsProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, apiUrl: this.config.commonsApiUrl }),
-      gbif: () => gbifProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, baseUrl: this.config.gbifBaseUrl }),
-      ebird: () => ebirdProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, baseUrl: this.config.ebirdBaseUrl, token: this.config.ebirdToken }),
-      firms: () => firmsProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, baseUrl: this.config.firmsBaseUrl, mapKey: this.config.firmsMapKey }),
-      copernicusMarine: () => normalizedGatewayProvider({ id: 'copernicusMarine', category: 'marine', url: this.config.marineGatewayUrl, query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, sourceInfo: source({ id: 'copernicus-marine', title: 'Copernicus Marine Toolbox gateway', publisher: 'Copernicus Marine Service', url: 'https://marine.copernicus.eu/', license: 'Copernicus licence', version: 'configured gateway' }) }),
-      jplHorizons: () => horizonsProvider({ query, fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, baseUrl: this.config.horizonsBaseUrl }),
-      noaaSwpc: () => swpcProvider({ fetcher: this.fetcher, timeoutMs: this.timeoutMs, now, baseUrl: this.config.swpcBaseUrl }),
+      sentinel1: () => sentinelProvider({ id: 'sentinel1', collection: 'sentinel-1-grd', query, fetcher: this.fetcher, timeoutMs, now, stacBaseUrl: configuration.sentinelStacBaseUrl }),
+      sentinel2: () => sentinelProvider({ id: 'sentinel2', collection: 'sentinel-2-l2a', query, fetcher: this.fetcher, timeoutMs, now, stacBaseUrl: configuration.sentinelStacBaseUrl }),
+      cams: () => normalizedGatewayProvider({
+        id: 'cams', category: 'atmosphere', url: configuration.camsGatewayUrl,
+        token: configuration.camsApiKey, query, fetcher: this.fetcher, timeoutMs, now,
+        sourceInfo: source({ id: 'copernicus-cams', title: 'CAMS atmospheric composition', publisher: 'Copernicus Atmosphere Monitoring Service', url: 'https://ads.atmosphere.copernicus.eu/', license: 'Copernicus licence', version: 'configured gateway v1' }),
+        allowedKinds: new Set(['aerosolOpticalDepth', 'dustLoad', 'blackCarbon', 'smokeTransport', 'visibilityModel']),
+        allowedVerifications: new Set(['model', 'observed']),
+      }),
+      aeronet: () => aeronetProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.aeronetBaseUrl }),
+      officialNotices: () => officialNoticesProvider({ query, fetcher: this.fetcher, timeoutMs, now, configuration }),
+      osm: () => osmProvider({ query, fetcher: this.fetcher, timeoutMs, now, overpassUrl: configuration.overpassUrl }),
+      wikidata: () => wikidataProvider({ query, fetcher: this.fetcher, timeoutMs, now, endpoint: configuration.wikidataEndpoint }),
+      wikimediaCommons: () => commonsProvider({ query, fetcher: this.fetcher, timeoutMs, now, apiUrl: configuration.commonsApiUrl }),
+      gbif: () => gbifProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.gbifBaseUrl }),
+      ebird: () => ebirdProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.ebirdBaseUrl, token: configuration.ebirdToken }),
+      firms: () => firmsProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.firmsBaseUrl, mapKey: configuration.firmsMapKey }),
+      copernicusMarine: () => normalizedGatewayProvider({
+        id: 'copernicusMarine', category: 'marine', url: configuration.marineGatewayUrl,
+        token: configuration.marineApiKey, query, fetcher: this.fetcher, timeoutMs, now,
+        sourceInfo: source({ id: 'copernicus-marine', title: 'Copernicus Marine Toolbox gateway', publisher: 'Copernicus Marine Service', url: 'https://marine.copernicus.eu/', license: 'Copernicus licence', version: 'configured gateway v1' }),
+        allowedKinds: new Set(['significantWaveHeight', 'waveDirection', 'wavePeriod', 'current', 'seaLevelAnomaly']),
+        allowedVerifications: new Set(['model', 'observed']),
+      }),
+      jplHorizons: () => horizonsProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.horizonsBaseUrl }),
+      noaaSwpc: () => swpcProvider({ fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.swpcBaseUrl }),
     };
     const providers = await Promise.all(query.providerIds.map(async (id) => {
-      try {
-        return await calls[id]();
-      } catch {
-        return unavailable(id, 'other', now);
+      const started = Date.now();
+      let result;
+      if (!configuration.enabled || !configuration.enabledProviders.includes(id)) {
+        result = unconfigured(id, 'other', now, '已在控制台关闭');
+      } else {
+        try {
+          result = await calls[id]();
+          if (id === 'sentinel2' && result.status === 'ready') {
+            const derivatives = await sentinelRasterSignals({
+              query,
+              fetcher: this.fetcher,
+              timeoutMs,
+              now,
+              url: configuration.sentinelRasterGatewayUrl,
+              token: configuration.sentinelRasterToken,
+            });
+            if (derivatives.length > 0) {
+              result = { ...result, signals: [...derivatives, ...result.signals].slice(0, 8) };
+            }
+          }
+        } catch {
+          result = unavailable(id, 'other', now);
+        }
       }
+      this.#record(id, result, Date.now() - started, now);
+      return result;
     }));
     const readyCount = providers.filter((item) => item.status === 'ready').length;
     const status = readyCount === 0 ? 'unavailable' : readyCount === providers.length ? 'ready' : 'partial';
@@ -715,6 +956,115 @@ export class ProviderFactsService {
       cacheStatus: 'miss',
       providers,
     };
+  }
+
+  #record(id, result, latencyMs, now) {
+    const metric = this.metrics.get(id);
+    metric.requestTotal += 1;
+    metric.lastStatus = result.status;
+    metric.lastLatencyMs = latencyMs;
+    metric.lastSignalCount = result.signals.length;
+    metric[`${result.status}Total`] = (metric[`${result.status}Total`] ?? 0) + 1;
+    if (result.status === 'ready' || result.status === 'noData') {
+      metric.lastSuccessAt = now.toISOString();
+      metric.lastErrorCode = null;
+    } else {
+      metric.lastFailureAt = now.toISOString();
+      metric.lastErrorCode = result.status === 'unconfigured' ? 'not_configured' : 'upstream_unavailable';
+    }
+  }
+
+  async authoritativeSafetyNotices(query) {
+    const result = await this.facts({ ...query, providerIds: ['officialNotices'] });
+    const provider = result.providers.find((item) => item.id === 'officialNotices');
+    if (provider?.status !== 'ready') return [];
+    const now = this.now();
+    return provider.signals.flatMap((item) => {
+      if (item.verification !== 'authoritative' || !officialNoticeSafetyKinds.has(item.kind) ||
+          Date.parse(item.expiresAt) <= now.getTime()) return [];
+      const id = createHash('sha256').update(`${item.id}|${item.sourceUrl}`).digest('hex').slice(0, 12);
+      const severity = item.kind === 'roadClosure' || item.kind === 'fireRestriction' ? 'warning' : 'caution';
+      const guidance = item.kind === 'roadClosure'
+        ? ['不要按原路线继续前进', '以交通或景区官方公告为准']
+        : item.kind === 'fireRestriction'
+          ? ['遵守禁火与封闭要求', '不要进入受限林区或草原']
+          : ['确认恢复开放前不要进入', '以发布机构最新公告为准'];
+      return [{
+        id,
+        observedAt: item.observedAt,
+        expiresAt: item.expiresAt,
+        severity,
+        title: item.title,
+        description: item.summary,
+        guidance,
+        source: `官方公告 · ${provider.source?.publisher ?? '审核来源'}`,
+      }];
+    }).slice(0, 4);
+  }
+
+  async testProvider({ providerId, latitude, longitude, radiusKm = 25, locale = 'zh-CN' }) {
+    if (!providerIdSet.has(providerId) || !finite(latitude, -90, 90) ||
+        !finite(longitude, -180, 180) || !finite(radiusKm, 1, maximumRadiusKm)) {
+      return { ok: false, error: 'invalid_request' };
+    }
+    const started = Date.now();
+    const now = this.now();
+    const configuration = this.configuration();
+    const result = await this.#load({
+      latitude,
+      longitude,
+      radiusKm: Math.round(radiusKm),
+      locale,
+      observedAt: now.toISOString(),
+      providerIds: [providerId],
+    }, now, configuration);
+    const provider = result.providers[0];
+    return {
+      ok: provider.status !== 'unavailable',
+      providerId,
+      status: provider.status,
+      signalCount: provider.signals.length,
+      latencyMs: Date.now() - started,
+      traceId: createHash('sha256').update(`${providerId}|${now.toISOString()}|${provider.status}`).digest('hex').slice(0, 16),
+      error: provider.status === 'unavailable' ? 'upstream_unavailable' : null,
+    };
+  }
+
+  healthSnapshot() {
+    const configuration = this.configuration();
+    const labels = new Map(publicProviderSourceCatalog().map((item) => [item.id, item.label]));
+    return {
+      provider: 'providerHub',
+      enabled: configuration.enabled,
+      checkedAt: this.now().toISOString(),
+      configurationRevision: providerConfigurationFingerprint(configuration),
+      cache: { ...this.cacheMetrics, entries: this.cache.size, inFlight: this.inFlight.size },
+      providers: providerIds.map((id) => ({
+        id,
+        label: labels.get(id) ?? id,
+        enabled: configuration.enabledProviders.includes(id),
+        configured: providerConfigured(id, configuration),
+        ...structuredClone(this.metrics.get(id)),
+      })),
+    };
+  }
+
+  clearCache() {
+    this.cache.clear();
+    this.inFlight.clear();
+  }
+
+  toPrometheus() {
+    const lines = [];
+    for (const [id, metric] of this.metrics) {
+      lines.push(`lumanest_provider_requests_total{provider="${id}"} ${metric.requestTotal}`);
+      lines.push(`lumanest_provider_ready_total{provider="${id}"} ${metric.readyTotal}`);
+      lines.push(`lumanest_provider_unavailable_total{provider="${id}"} ${metric.unavailableTotal}`);
+      lines.push(`lumanest_provider_last_latency_ms{provider="${id}"} ${metric.lastLatencyMs ?? 0}`);
+    }
+    lines.push(`lumanest_provider_cache_hits_total ${this.cacheMetrics.hits}`);
+    lines.push(`lumanest_provider_cache_misses_total ${this.cacheMetrics.misses}`);
+    return `${lines.join('\n')}\n`;
   }
 }
 

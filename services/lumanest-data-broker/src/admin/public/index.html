@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/admin-assets/styles.css">
   <link rel="stylesheet" href="/admin-assets/llm.css">
   <script src="/admin-assets/app.js" defer></script>
+  <script src="/admin-assets/providers.js" defer></script>
 </head>
 <body>
   <main class="shell">
@@ -133,6 +134,67 @@
               </div>
               <footer class="settings-actions"><button type="submit">保存搜索配置</button></footer>
             </form>
+
+            <form id="provider-sources-form" class="settings-card">
+              <header class="settings-card-head">
+                <div><p class="card-kicker">PROVIDER HUB</p><h3>环境与地区数据源</h3><p>端点与密钥由你在这里录入；密钥加密保存且读取时只返回末四位。</p></div>
+                <span class="section-index">03</span>
+              </header>
+              <div class="credential-layout">
+                <section class="settings-group">
+                  <div class="group-head"><div><h4>运行控制</h4><p>每个数据源独立失败，不阻塞今日、探索、路线或 AI。</p></div></div>
+                  <label class="switch-row"><span><strong>启用 Provider Hub</strong><small>关闭后前端不会请求补充数据</small></span><input name="enabled" type="checkbox"></label>
+                  <label>单源超时（毫秒）<input name="timeoutMs" type="number" min="2000" max="30000" value="8000" required></label>
+                  <div id="provider-enabled-list" class="fallback-list"></div>
+                </section>
+                <section class="settings-group">
+                  <div class="group-head"><div><h4>卫星与大气</h4><p>Sentinel 目录可直接使用；派生指数和 CAMS 使用受控网关。</p></div></div>
+                  <label>Sentinel STAC<input name="sentinelStacBaseUrl" type="url" maxlength="2048" required></label>
+                  <label>Sentinel Raster Gateway<input name="sentinelRasterGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>
+                  <label>Raster Token<input name="sentinelRasterToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="sentinelRasterToken"></small></label>
+                  <label>CAMS Gateway<input name="camsGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>
+                  <label>CAMS Token<input name="camsApiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="camsApiKey"></small></label>
+                  <label>AERONET Base URL<input name="aeronetBaseUrl" type="url" maxlength="2048" required></label>
+                </section>
+                <section class="settings-group">
+                  <div class="group-head"><div><h4>公告、地图与知识</h4><p>公告可接标准网关，也可录入审核过的 JSON Feed/RSS/Atom 源。</p></div></div>
+                  <label>官方公告 Gateway<input name="officialNoticeGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>
+                  <label>公告 Gateway Token<input name="officialNoticeGatewayToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="officialNoticeGatewayToken"></small></label>
+                  <label>Overpass<input name="overpassUrl" type="url" maxlength="2048" required></label>
+                  <label>Wikidata SPARQL<input name="wikidataEndpoint" type="url" maxlength="2048" required></label>
+                  <label>Commons API<input name="commonsApiUrl" type="url" maxlength="2048" required></label>
+                  <label>审核公告源（JSON 数组）<textarea name="officialNoticeSources" rows="12" spellcheck="false">[]</textarea><small>每项需包含 id、name、feedUrl、homepageUrl、format、coverage、allowedKinds；只有 authoritative=true 且 promoteToSafety=true 的当前公告可进入安全链。</small></label>
+                </section>
+                <section class="settings-group">
+                  <div class="group-head"><div><h4>生态、火情、海洋与天文</h4><p>所有凭据仅在 Broker 使用，不进入 Flutter。</p></div></div>
+                  <label>GBIF<input name="gbifBaseUrl" type="url" maxlength="2048" required></label>
+                  <label>eBird<input name="ebirdBaseUrl" type="url" maxlength="2048" required></label>
+                  <label>eBird Token<input name="ebirdToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="ebirdToken"></small></label>
+                  <label>FIRMS<input name="firmsBaseUrl" type="url" maxlength="2048" required></label>
+                  <label>FIRMS Map Key<input name="firmsMapKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="firmsMapKey"></small></label>
+                  <label>Marine Gateway<input name="marineGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>
+                  <label>Marine Token<input name="marineApiKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="marineApiKey"></small></label>
+                  <label>JPL Horizons<input name="horizonsBaseUrl" type="url" maxlength="2048" required></label>
+                  <label>NOAA SWPC<input name="swpcBaseUrl" type="url" maxlength="2048" required></label>
+                </section>
+              </div>
+              <footer class="settings-actions"><p id="provider-console-status" class="status" role="status"></p><button type="submit">保存 Provider 配置</button></footer>
+            </form>
+
+            <section class="settings-card">
+              <header class="settings-card-head">
+                <div><p class="card-kicker">PROVIDER OPERATIONS</p><h3>运行诊断</h3><p id="provider-health-summary">等待读取健康状态</p></div>
+                <button id="refresh-provider-health" type="button" class="secondary compact-button">刷新</button>
+              </header>
+              <div id="provider-health-list" class="service-status-list"></div>
+              <form id="provider-test-form" class="field-grid">
+                <label>Provider<select name="providerId"><option value="sentinel2">Sentinel-2</option><option value="cams">CAMS</option><option value="officialNotices">官方公告</option><option value="osm">OSM</option><option value="gbif">GBIF</option><option value="ebird">eBird</option><option value="firms">FIRMS</option><option value="copernicusMarine">Marine</option><option value="jplHorizons">JPL</option><option value="noaaSwpc">SWPC</option></select></label>
+                <label>纬度<input name="latitude" type="number" min="-90" max="90" step="0.000001" value="30.25" required></label>
+                <label>经度<input name="longitude" type="number" min="-180" max="180" step="0.000001" value="120.15" required></label>
+                <label>半径 km<input name="radiusKm" type="number" min="1" max="50" value="25" required></label>
+                <button type="submit">检测单个 Provider</button>
+              </form>
+            </section>
           </div>
         </section>
 

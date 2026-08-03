@@ -6,6 +6,7 @@ import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
 import { simulationPresetCatalog } from '../context/simulation.mjs';
+import { providerSourceDefaults, publicProviderSourceCatalog, safeProviderSources } from '../environment/provider-runtime-config.mjs';
 
 const maximumBodyBytes = 16 * 1024;
 const maximumImportBodyBytes = 2 * 1024 * 1024;
@@ -16,6 +17,7 @@ const staticAssets = new Map([
   ['/admin-assets/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/admin-assets/llm.css', ['llm.css', 'text/css; charset=utf-8']],
   ['/admin-assets/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/admin-assets/providers.js', ['providers.js', 'text/javascript; charset=utf-8']],
 ]);
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -154,6 +156,10 @@ function safeConfiguration(snapshot, outboundNetwork) {
       fallbackEnabled: snapshot.llmRouting?.fallbackEnabled ?? false,
     },
     discoverySearch: safeDiscoverySearchProfile(snapshot.discoverySearchProfile),
+    providers: {
+      catalog: publicProviderSourceCatalog(),
+      configuration: safeProviderSources(snapshot.providerSources ?? providerSourceDefaults()),
+    },
     settings: snapshot.settings,
     outboundNetwork,
   };
@@ -169,6 +175,8 @@ export function createAdminServer({
   listContextSources = async () => ({ ok: false, error: 'not_configured' }),
   getSevenTimerHealth = async () => ({ provider: '7timer', enabled: false, status: 'unknown', products: [] }),
   getBrokerHealth = async () => ({ status: 'unknown' }),
+  getProviderHealth = async () => ({ provider: 'providerHub', enabled: false, providers: [], cache: {} }),
+  testProvider = async () => ({ ok: false, error: 'not_configured' }),
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
   testSevenTimer = async () => ({ ok: false, error: 'not_configured' }),
   getShootingCalibration = async () => ({ ok: false, error: 'not_configured' }),
@@ -234,8 +242,24 @@ export function createAdminServer({
     if (request.method === 'GET' && url.pathname === '/admin-api/services/7timer') {
       return json(response, 200, await getSevenTimerHealth());
     }
+    if (request.method === 'GET' && url.pathname === '/admin-api/providers/health') {
+      return json(response, 200, await getProviderHealth());
+    }
+    if (request.method === 'POST' && url.pathname === '/admin-api/providers/test') {
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      const { providerId, latitude, longitude, radiusKm = 25 } = parsed.value ?? {};
+      if (typeof providerId !== 'string' || typeof latitude !== 'number' || latitude < -90 || latitude > 90 ||
+          typeof longitude !== 'number' || longitude < -180 || longitude > 180 ||
+          typeof radiusKm !== 'number' || radiusKm < 1 || radiusKm > 50) {
+        return json(response, 400, { error: 'invalid_request' });
+      }
+      const result = await testProvider({ providerId, latitude, longitude, radiusKm });
+      auditLog.record({ operation: 'test_provider', fields: ['providerId'], result: result.ok ? 'ok' : result.error, details: { providerId, traceId: result.traceId ?? null } });
+      return json(response, result.ok ? 200 : result.error === 'invalid_request' ? 400 : 503, result);
+    }
     if (request.method === 'GET' && url.pathname === '/admin-api/health') {
-      const [runtime, sevenTimer] = await Promise.all([getBrokerHealth(), getSevenTimerHealth()]);
+      const [runtime, sevenTimer, providerHub] = await Promise.all([getBrokerHealth(), getSevenTimerHealth(), getProviderHealth()]);
       const audit = safeAuditLogHealth(getAuditLogHealth());
       const auditDegraded = audit.lastWriteOk === false;
       const status = runtime.status === 'healthy'
@@ -246,7 +270,7 @@ export function createAdminServer({
         status,
         checkedAt: new Date().toISOString(),
         runtime,
-        services: { sevenTimer },
+        services: { sevenTimer, providerHub },
         audit,
       });
     }

@@ -1,0 +1,133 @@
+[
+  {
+    "id": "hangzhou-west-lake",
+    "name": "杭州西湖",
+    "latitude": 30.2431,
+    "longitude": 120.1503,
+    "scene": "lake",
+    "categories": [
+      "surface",
+      "atmosphere",
+      "operations",
+      "culture"
+    ]
+  },
+  {
+    "id": "haining-yanguan",
+    "name": "海宁盐官",
+    "latitude": 30.4477,
+    "longitude": 120.5574,
+    "scene": "village",
+    "categories": [
+      "operations",
+      "culture",
+      "marine",
+      "atmosphere"
+    ]
+  },
+  {
+    "id": "sayram-lake",
+    "name": "新疆赛里木湖",
+    "latitude": 44.6092,
+    "longitude": 81.1687,
+    "scene": "lake",
+    "categories": [
+      "surface",
+      "atmosphere",
+      "operations",
+      "outdoor"
+    ]
+  },
+  {
+    "id": "duku-highway",
+    "name": "独库公路",
+    "latitude": 43.325,
+    "longitude": 84.105,
+    "scene": "mountain",
+    "categories": [
+      "operations",
+      "outdoor",
+      "surface",
+      "fire"
+    ]
+  },
+  {
+    "id": "delingha",
+    "name": "青海德令哈",
+    "latitude": 37.3694,
+    "longitude": 97.3608,
+    "scene": "desert",
+    "categories": [
+      "atmosphere",
+      "surface",
+      "fire",
+      "astronomy",
+      "operations"
+    ]
+  },
+  {
+    "id": "everest-base-camp",
+    "name": "珠峰大本营",
+    "latitude": 28.1416,
+    "longitude": 86.8515,
+    "scene": "mountain",
+    "categories": [
+      "operations",
+      "surface",
+      "atmosphere",
+      "outdoor"
+    ]
+  },
+  {
+    "id": "gongga",
+    "name": "川西贡嘎",
+    "latitude": 29.5957,
+    "longitude": 101.878,
+    "scene": "mountain",
+    "categories": [
+      "operations",
+      "surface",
+      "atmosphere",
+      "fire"
+    ]
+  },
+  {
+    "id": "meili-snow-mountain",
+    "name": "云南梅里雪山",
+    "latitude": 28.4373,
+    "longitude": 98.6862,
+    "scene": "mountain",
+    "categories": [
+      "operations",
+      "surface",
+      "atmosphere",
+      "outdoor"
+    ]
+  },
+  {
+    "id": "pingtan",
+    "name": "福建平潭",
+    "latitude": 25.5037,
+    "longitude": 119.7902,
+    "scene": "lake",
+    "categories": [
+      "marine",
+      "operations",
+      "atmosphere",
+      "culture"
+    ]
+  },
+  {
+    "id": "ulan-buh-grassland",
+    "name": "内蒙古乌兰布统",
+    "latitude": 42.5035,
+    "longitude": 117.2994,
+    "scene": "desert",
+    "categories": [
+      "surface",
+      "fire",
+      "wildlife",
+      "operations"
+    ]
+  }
+]

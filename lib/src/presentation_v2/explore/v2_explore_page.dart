@@ -11,6 +11,7 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/environment/provider_facts.dart';
 import 'package:luma_nest/src/core/environment/provider_facts_providers.dart';
+import 'package:luma_nest/src/core/environment/provider_signal_relevance.dart';
 import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -62,6 +63,13 @@ class V2ExplorePage extends ConsumerWidget {
       snapshot: snapshot,
       brief: briefState.brief,
     );
+    final providerSignals = switch ((providerFacts, snapshot)) {
+      (final facts?, final currentSnapshot?) => selectProviderSignalsForContext(
+        facts,
+        currentSnapshot,
+      ),
+      _ => const <ProviderSignal>[],
+    };
     void openMapFor(ExploreFocus selectedFocus) {
       switch (ref.read(mapConsentControllerProvider)) {
         case MapConsentReady():
@@ -84,6 +92,7 @@ class V2ExplorePage extends ConsumerWidget {
       return _V2ExploreBrief(
         brief: briefState.brief!,
         providerFacts: providerFacts,
+        providerSignals: providerSignals,
         refreshing: briefState.status == RegionBriefLoadStatus.refreshing,
         onRefresh: () =>
             ref.read(regionBriefControllerProvider.notifier).load(manual: true),
@@ -120,6 +129,7 @@ class _V2ExploreBrief extends StatelessWidget {
   const _V2ExploreBrief({
     required this.brief,
     required this.providerFacts,
+    required this.providerSignals,
     required this.refreshing,
     required this.onRefresh,
     required this.onOpenMap,
@@ -128,6 +138,7 @@ class _V2ExploreBrief extends StatelessWidget {
 
   final RegionBrief brief;
   final ProviderFactsBundle? providerFacts;
+  final List<ProviderSignal> providerSignals;
   final bool refreshing;
   final VoidCallback onRefresh;
   final VoidCallback onOpenMap;
@@ -192,12 +203,16 @@ class _V2ExploreBrief extends StatelessWidget {
                   onOpenTheme: onOpenTheme,
                 ),
               ],
-              if (providerFacts?.hasDisplayableSignals ?? false) ...[
+              if (providerSignals.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 V2ProviderFactsSummaryCard(
                   bundle: providerFacts!,
-                  onTap: () =>
-                      showV2ProviderFactsSheet(context, providerFacts!),
+                  signals: providerSignals,
+                  onTap: () => showV2ProviderFactsSheet(
+                    context,
+                    providerFacts!,
+                    prioritizedSignals: providerSignals,
+                  ),
                 ),
               ],
               if (sections.isNotEmpty) ...[
@@ -653,6 +668,9 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
     );
     final searchArea = ref.watch(nearbySearchAreaProvider);
     final providerFacts = ref.watch(providerFactsProvider).asData?.value;
+    final providerSignals = providerFacts == null
+        ? const <ProviderSignal>[]
+        : selectProviderSignalsForContext(providerFacts, snapshot);
     final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(origin);
     final markers = _markers(places);
 
@@ -733,13 +751,16 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (providerFacts?.hasDisplayableSignals ?? false) ...[
+                    if (providerSignals.isNotEmpty) ...[
                       _V2MapControlButton(
                         key: const Key('v2-explore-provider-facts-button'),
                         icon: CupertinoIcons.layers,
                         label: '查看环境与地区数据',
-                        onTap: () =>
-                            showV2ProviderFactsSheet(context, providerFacts!),
+                        onTap: () => showV2ProviderFactsSheet(
+                          context,
+                          providerFacts!,
+                          prioritizedSignals: providerSignals,
+                        ),
                       ),
                       const SizedBox(width: 8),
                     ],
