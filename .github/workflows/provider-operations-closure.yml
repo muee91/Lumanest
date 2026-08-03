@@ -89,7 +89,7 @@ jobs:
           text = explore_page.read_text(encoding='utf-8')
           text = text.replace(
               "    final providerSignals = providerFacts == null || snapshot == null\n        ? const <ProviderSignal>[]\n        : selectProviderSignalsForContext(providerFacts, snapshot);",
-              "    final providerSignals = providerFacts == null\n        ? const <ProviderSignal>[]\n        : selectProviderSignalsForContext(providerFacts, snapshot);",
+              "    final providerSignals = switch ((providerFacts, snapshot)) {\n      (final facts?, final currentSnapshot?) =>\n        selectProviderSignalsForContext(facts, currentSnapshot),\n      _ => const <ProviderSignal>[],\n    };",
               1,
           )
           explore_page.write_text(text, encoding='utf-8')
