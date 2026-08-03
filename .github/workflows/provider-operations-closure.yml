@@ -108,7 +108,7 @@ jobs:
       - name: Test provider detail sheet
         run: flutter test test/presentation_v2/explore/v2_provider_facts_sheet_test.dart --reporter expanded
       - name: Remove one-time executor
-        run: git rm .github/workflows/provider-operations-closure.yml tools/apply_provider_operations_closure.py
+        run: git rm -f .github/workflows/provider-operations-closure.yml tools/apply_provider_operations_closure.py
       - name: Commit generated implementation
         run: |
           git config user.name 'OpenAI Codex'
