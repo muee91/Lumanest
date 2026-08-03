@@ -70,14 +70,36 @@ void main() {
         find.descendant(of: strip, matching: find.byType(ListView)),
       );
       expect(list.scrollDirection, Axis.horizontal);
-      expect(find.byKey(const Key('v2-explore-theme-water')), findsOneWidget);
+      expect(
+        find.byKey(const Key('v2-explore-theme-context')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('v2-explore-theme-viewpoint')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('v2-explore-theme-humanity')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('v2-explore-nearby-services')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: strip,
+          matching: find.byKey(const Key('v2-explore-theme-food')),
+        ),
+        findsNothing,
+      );
       expect(find.text('选择探索主题'), findsNothing);
       expect(find.text('换一个探索主题'), findsNothing);
       expect(find.text('上拉查看'), findsOneWidget);
 
       final selectedMaterial = tester.widget<Material>(
         find.descendant(
-          of: find.byKey(const Key('v2-explore-theme-viewpoint')),
+          of: find.byKey(const Key('v2-explore-theme-context')),
           matching: find.byType(Material),
         ),
       );
@@ -94,6 +116,10 @@ void main() {
 
       await tester.tap(searchButton);
       await tester.pump();
+      expect(find.text('快捷服务'), findsOneWidget);
+      expect(find.text('景点'), findsNothing);
+      expect(find.text('人文街巷'), findsNothing);
+      expect(find.text('附近餐饮'), findsOneWidget);
       tester.view.viewInsets = const FakeViewPadding(bottom: 320);
       addTearDown(tester.view.resetViewInsets);
       await tester.pump();
