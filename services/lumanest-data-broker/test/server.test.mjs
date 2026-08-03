@@ -684,7 +684,7 @@ test('assistant passes the raw question text to the model', async () => {
   assert.equal(capturedUserPayload.question, '今晚的晚霞值得专门跑一趟吗？');
 });
 
-test('assistant keeps environment facts and place data out of normal model prompts', async () => {
+test('assistant exposes only bounded Broker context without raw location fields', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
   const companionStore = new CompanionStore({ now: () => now });
   const snapshot = v5SnapshotBody();
@@ -739,10 +739,14 @@ test('assistant keeps environment facts and place data out of normal model promp
     },
   });
 
-  assert.equal(Object.hasOwn(capturedUserPayload, 'contextFacts'), false);
-  assert.equal(Object.hasOwn(capturedUserPayload, 'placeSummaries'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'contextFacts'), true);
+  assert.equal(capturedUserPayload.contextFacts, '');
+  assert.deepEqual(capturedUserPayload.placeSummaries, []);
   assert.equal(Object.hasOwn(capturedUserPayload, 'scene'), false);
   assert.equal(Object.hasOwn(capturedUserPayload, 'dayPhase'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'location'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'latitude'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'longitude'), false);
   assert.equal(typeof capturedUserPayload.templateAnswer, 'string');
 });
 

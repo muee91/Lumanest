@@ -27,10 +27,12 @@ function narrativePrompt(templateSummary = '云层正在打开，继续观察。
   };
 }
 
-function generalPrompt(question) {
+function generalPrompt(question, contextFacts = '', searchResults = '') {
   return {
     system: 'general photography assistant',
-    user: JSON.stringify({ responseMode: 'general', question, tone: 'balanced' }),
+    user: JSON.stringify({
+      responseMode: 'general', question, tone: 'balanced', contextFacts, searchResults,
+    }),
   };
 }
 
@@ -223,4 +225,41 @@ test('assistant cannot splice a place and time from different source clauses', (
   });
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'unsupported_fact_binding');
+});
+
+
+test('general assistant may use current regional facts assembled by the Broker', () => {
+  const facts = '区域身份：德令哈，位于柴达木盆地东北缘；当前环境：天气多云；区域摄影题材：荒漠地貌、城市人文';
+  const accepted = guardGroundedOutput({
+    prompt: generalPrompt('现在周围适合拍什么？', facts),
+    text: JSON.stringify({ answer: '现在德令哈为多云，可围绕荒漠地貌和城市人文观察题材；具体光线仍以现场为准。' }),
+  });
+  assert.equal(accepted.ok, true);
+
+  const invented = guardGroundedOutput({
+    prompt: generalPrompt('现在周围适合拍什么？', facts),
+    text: JSON.stringify({ answer: '现在敦煌天气晴朗，值得去鸣沙山。' }),
+  });
+  assert.equal(invented.ok, false);
+  assert.equal(invented.reason, 'unsupported_place');
+});
+
+test('contextual assistant can synthesize a bounded regional answer', () => {
+  const facts = '区域身份：盐官，钱塘江潮文化重要区域；区域摄影题材：古城建筑、潮文化；补充数据（observed）：近期光学卫星观测，目录影像已更新';
+  const result = guardGroundedOutput({
+    prompt: {
+      system: 'contextual assistant',
+      user: JSON.stringify({
+        responseMode: 'contextual',
+        questionType: 'creative',
+        templateAnswer: '先确定一个主体，再用前景和光线方向组织画面。',
+        contextFacts: facts,
+        placeSummaries: [],
+      }),
+    },
+    text: JSON.stringify({
+      answer: '可以把盐官古城建筑或潮文化作为主体，再用前景和光线方向组织画面；卫星信息只说明近期有观测更新，不代表现场景观已经变化。',
+    }),
+  });
+  assert.equal(result.ok, true);
 });
