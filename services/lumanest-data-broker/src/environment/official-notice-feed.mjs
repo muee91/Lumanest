@@ -133,28 +133,57 @@ function classify(text) {
   return null;
 }
 
+function exactUtcDate(year, month, day, hour, minute) {
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day && date.getUTCHours() === hour &&
+    date.getUTCMinutes() === minute
+    ? date
+    : null;
+}
+
+function markedDate(match, publishedAt, { endOfDay, rollForward }) {
+  const published = new Date(publishedAt);
+  const hasYear = match[1] != null;
+  let year = hasYear ? Number(match[1]) : published.getUTCFullYear();
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4] ?? (endOfDay ? 23 : 0));
+  const minute = Number(match[5] ?? (endOfDay ? 59 : 0));
+  let candidate = exactUtcDate(year, month, day, hour, minute);
+  if (candidate == null) return null;
+  if (!hasYear && rollForward && candidate.getTime() <= published.getTime()) {
+    year += 1;
+    candidate = exactUtcDate(year, month, day, hour, minute);
+  } else if (!hasYear && !rollForward) {
+    const halfYear = 183 * 24 * 60 * 60 * 1_000;
+    const difference = candidate.getTime() - published.getTime();
+    if (difference < -halfYear) candidate = exactUtcDate(year + 1, month, day, hour, minute);
+    if (difference > halfYear) candidate = exactUtcDate(year - 1, month, day, hour, minute);
+  }
+  return candidate;
+}
+
 function explicitExpiry(text, publishedAt) {
   const candidates = [];
-  for (const match of text.matchAll(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:\s*[T ]?\s*(\d{1,2})(?:[:时](\d{1,2}))?分?)?/g)) {
-    const value = Date.UTC(
-      Number(match[1]),
-      Number(match[2]) - 1,
-      Number(match[3]),
-      Number(match[4] ?? 23),
-      Number(match[5] ?? 59),
-    );
-    if (Number.isFinite(value) && value > Date.parse(publishedAt)) candidates.push(value);
-  }
-  for (const match of text.matchAll(/(?:至|截至|有效期至|until|through)\s*(\d{1,2})[-/.月](\d{1,2})日?(?:\s*(\d{1,2})(?:[:时](\d{1,2}))?分?)?/gi)) {
-    const published = new Date(publishedAt);
-    let year = published.getUTCFullYear();
-    const month = Number(match[1]);
-    const day = Number(match[2]);
-    let value = Date.UTC(year, month - 1, day, Number(match[3] ?? 23), Number(match[4] ?? 59));
-    if (value <= published.getTime()) value = Date.UTC(year + 1, month - 1, day, Number(match[3] ?? 23), Number(match[4] ?? 59));
-    if (Number.isFinite(value)) candidates.push(value);
+  const pattern = /(?:至|截至|截止至|有效期至|结束于|恢复开放(?:时间)?(?:为|：|:)?|until|through)\s*(?:(20\d{2})[-/.年])?(\d{1,2})[-/.月](\d{1,2})日?(?:\s*(\d{1,2})(?:[:时](\d{1,2}))?分?)?/gi;
+  for (const match of text.matchAll(pattern)) {
+    const candidate = markedDate(match, publishedAt, { endOfDay: true, rollForward: true });
+    if (candidate != null && candidate.getTime() > Date.parse(publishedAt)) {
+      candidates.push(candidate.getTime());
+    }
   }
   return candidates.length === 0 ? null : new Date(Math.max(...candidates)).toISOString();
+}
+
+function explicitEffectiveAt(text, publishedAt) {
+  const candidates = [];
+  const pattern = /(?:自|从|生效于|开始于|from)\s*(?:(20\d{2})[-/.年])?(\d{1,2})[-/.月](\d{1,2})日?(?:\s*(\d{1,2})(?:[:时](\d{1,2}))?分?)?(?:起|开始)?/gi;
+  for (const match of text.matchAll(pattern)) {
+    const candidate = markedDate(match, publishedAt, { endOfDay: false, rollForward: false });
+    if (candidate != null) candidates.push(candidate.getTime());
+  }
+  return candidates.length === 0 ? null : new Date(Math.min(...candidates)).toISOString();
 }
 
 function distanceKm(aLat, aLon, bLat, bLon) {
@@ -201,11 +230,14 @@ function normalizeEntry(source, entry, now) {
   if (kind == null || !source.allowedKinds.includes(kind)) return null;
   const observedAt = iso(entry.publishedAt);
   if (!observedAt || Date.parse(observedAt) > now.getTime() + 10 * 60 * 1_000) return null;
+  const effectiveAt = explicitEffectiveAt(combined, observedAt);
+  if (effectiveAt != null && Date.parse(effectiveAt) > now.getTime() + 10 * 60 * 1_000) return null;
   const explicit = explicitExpiry(combined, observedAt);
   const expiresAt = explicit ?? new Date(
     Date.parse(observedAt) + source.defaultExpiryMinutes * 60 * 1_000,
   ).toISOString();
-  if (Date.parse(expiresAt) <= now.getTime()) return null;
+  if (Date.parse(expiresAt) <= now.getTime() ||
+      (effectiveAt != null && Date.parse(expiresAt) <= Date.parse(effectiveAt))) return null;
   const safetyEligible = source.enabled && source.authoritative && source.promoteToSafety &&
     safetyKinds.has(kind) && (explicit != null || source.allowDefaultSafetyExpiry);
   const severity = kind === 'fireRestriction' || kind === 'roadClosure'
