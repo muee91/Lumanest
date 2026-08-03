@@ -1,0 +1,50 @@
+name: Python runtime locks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/lumanest-context-service/pyproject.toml'
+      - 'services/lumanest-context-service/requirements.prod.*'
+      - 'services/lumanest-discovery-service/pyproject.toml'
+      - 'services/lumanest-discovery-service/requirements.prod.*'
+      - 'services/lumanest-raster-service/pyproject.toml'
+      - 'services/lumanest-raster-service/requirements.prod.*'
+      - 'services/lumanest-terrain-service/pyproject.toml'
+      - 'services/lumanest-terrain-service/requirements.prod.*'
+      - 'tool/compile_python_runtime_locks.sh'
+      - '.github/workflows/python-runtime-locks.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/lumanest-context-service/pyproject.toml'
+      - 'services/lumanest-context-service/requirements.prod.*'
+      - 'services/lumanest-discovery-service/pyproject.toml'
+      - 'services/lumanest-discovery-service/requirements.prod.*'
+      - 'services/lumanest-raster-service/pyproject.toml'
+      - 'services/lumanest-raster-service/requirements.prod.*'
+      - 'services/lumanest-terrain-service/pyproject.toml'
+      - 'services/lumanest-terrain-service/requirements.prod.*'
+      - 'tool/compile_python_runtime_locks.sh'
+      - '.github/workflows/python-runtime-locks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          version: '0.10.9'
+          enable-cache: false
+
+      - name: Verify production dependency locks
+        run: ./tool/compile_python_runtime_locks.sh --check

@@ -75,6 +75,46 @@ test('Debian package builds use HTTPS with bounded network recovery', async () =
   assert.match(crawler, /PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000/);
 });
 
+test('production images pin base digests and hashed Python dependency locks', async () => {
+  const pythonServices = [
+    '../../lumanest-context-service',
+    '../../lumanest-discovery-service',
+    '../../lumanest-raster-service',
+    '../../lumanest-terrain-service',
+  ];
+  const pythonDigest = /ARG PYTHON_IMAGE=python:3\.12-slim@sha256:[a-f0-9]{64}\nFROM \$\{PYTHON_IMAGE\}/;
+
+  for (const service of pythonServices) {
+    const dockerfile = await readFile(new URL(`${service}/Dockerfile`, import.meta.url), 'utf8');
+    const lock = await readFile(new URL(`${service}/requirements.prod.txt`, import.meta.url), 'utf8');
+    assert.match(dockerfile, pythonDigest);
+    assert.match(dockerfile, /COPY requirements\.prod\.txt \.\//);
+    assert.match(dockerfile, /--require-hashes --only-binary=:all: -r requirements\.prod\.txt/);
+    assert.match(dockerfile, /--no-deps --no-build-isolation \./);
+    assert.match(lock, /setuptools==\d+\.\d+\.\d+ \\\n\s+--hash=sha256:/);
+    assert.match(lock, /wheel==\d+\.\d+\.\d+ \\\n\s+--hash=sha256:/);
+  }
+
+  const crawler = await readFile(
+    new URL('../../lumanest-discovery-service/Dockerfile.crawler', import.meta.url),
+    'utf8',
+  );
+  const broker = await readFile(new URL('../Dockerfile', import.meta.url), 'utf8');
+  const compose = await readFile(new URL('../compose.yaml', import.meta.url), 'utf8');
+  assert.match(crawler, pythonDigest);
+  assert.match(crawler, /--require-hashes --only-binary=:all: -r requirements\.prod\.txt/);
+  assert.match(crawler, /--no-deps --no-build-isolation \./);
+  assert.match(broker, /ARG NODE_IMAGE=node:22-alpine@sha256:[a-f0-9]{64}/);
+  assert.match(compose, /image: postgis\/postgis:17-3\.5@sha256:[a-f0-9]{64}/);
+  assert.match(compose, /image: redis:7\.4-alpine@sha256:[a-f0-9]{64}/);
+  for (const script of scripts) {
+    assert.match(
+      await readFile(script, 'utf8'),
+      /BACKUP_HELPER_IMAGE=\$\{BACKUP_HELPER_IMAGE:-redis:7\.4-alpine@sha256:[a-f0-9]{64}\}/,
+    );
+  }
+});
+
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {
   for (const script of scripts) {
     const path = fileURLToPath(script);
