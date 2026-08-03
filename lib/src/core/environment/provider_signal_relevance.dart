@@ -18,14 +18,21 @@ List<ProviderSignal> selectProviderSignalsForContext(
 
   final priorities = _categoryPriorities(snapshot);
   final ranked = [...current]..sort((a, b) {
-    final authority = _authorityRank(a.verification).compareTo(
-      _authorityRank(b.verification),
-    );
-    if (authority != 0) return authority;
+    final aAuthoritative =
+        a.verification == ProviderVerification.authoritative;
+    final bAuthoritative =
+        b.verification == ProviderVerification.authoritative;
+    if (aAuthoritative != bAuthoritative) return aAuthoritative ? -1 : 1;
+
     final relevance = (priorities[a.category] ?? 99).compareTo(
       priorities[b.category] ?? 99,
     );
     if (relevance != 0) return relevance;
+
+    final evidence = _authorityRank(a.verification).compareTo(
+      _authorityRank(b.verification),
+    );
+    if (evidence != 0) return evidence;
     return b.observedAt.compareTo(a.observedAt);
   });
 
