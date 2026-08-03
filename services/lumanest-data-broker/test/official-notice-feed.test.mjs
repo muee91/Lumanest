@@ -56,6 +56,39 @@ test('closure without explicit validity remains reference-only', async () => {
   assert.equal(result.items[0].safetyEligible, false);
 });
 
+test('an unmarked future date never becomes a safety expiry', async () => {
+  const result = await loadOfficialNoticeItems({
+    sources: [source],
+    query: { latitude: 30.25, longitude: 120.15, radiusKm: 25 },
+    now,
+    fetcher: async () => new Response(JSON.stringify({ items: [{
+      title: '活动期间景区临时关闭',
+      summary: '2026年8月10日举办活动，关闭安排另行通知。',
+      url: 'https://notice.test/items/3',
+      date_published: '2026-08-03T07:00:00Z',
+    }] }), { status: 200 }),
+  });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].expiryExplicit, false);
+  assert.equal(result.items[0].safetyEligible, false);
+});
+
+test('a future effective date is not emitted before it becomes active', async () => {
+  const futureSource = { ...source, allowDefaultSafetyExpiry: true };
+  const result = await loadOfficialNoticeItems({
+    sources: [futureSource],
+    query: { latitude: 30.25, longitude: 120.15, radiusKm: 25 },
+    now,
+    fetcher: async () => new Response(JSON.stringify({ items: [{
+      title: '景区关闭预告',
+      summary: '景区自2026年8月10日起关闭，恢复时间另行通知。',
+      url: 'https://notice.test/items/4',
+      date_published: '2026-08-03T07:00:00Z',
+    }] }), { status: 200 }),
+  });
+  assert.equal(result.items.length, 0);
+});
+
 test('out-of-coverage feeds are not requested', async () => {
   let requests = 0;
   const result = await loadOfficialNoticeItems({
