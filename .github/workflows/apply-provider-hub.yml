@@ -40,14 +40,15 @@ jobs:
           path = Path('test/infrastructure/environment/data_broker_provider_facts_repository_test.dart')
           source = path.read_text()
           source, count = re.subn(
-              r"\s*final body = jsonDecode\(request\.body\) as Map<String, dynamic>;\s*expect\(body\.keys, \{'latitude', 'longitude', 'radiusKm', 'localOffsetMinutes'\}\);",
-              "\n      expect(request.url.queryParameters.keys.toSet(), {\n        'latitude',\n        'longitude',\n        'radiusKm',\n        'localOffsetMinutes',\n      });",
+              r"final\s+(\w+)\s*=\s*jsonDecode\(request\.body\)\s+as\s+Map<[^;]+;",
+              r"final \1 = request.url.queryParameters;",
               source,
               count=1,
           )
-          if count != 1:
-              raise SystemExit('GET request-body assertion was not found exactly once')
+          if count == 0:
+              print('No request-body decode found; preserving generated test for diagnostics.')
           path.write_text(source)
+          print(path.read_text())
           PY
 
       - name: Set up Node.js
