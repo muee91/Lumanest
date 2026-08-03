@@ -1,5 +1,7 @@
 # Social signal ingestion references
 
+Reviewed against GitHub source on 2026-08-03.
+
 This note records the GitHub projects reviewed for LumaNest social-data discovery.
 It is an implementation reference, not permission to bypass platform controls.
 Social content is a lead source only and never becomes a user-facing fact without
