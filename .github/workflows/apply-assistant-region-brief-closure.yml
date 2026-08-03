@@ -1,0 +1,54 @@
+name: Apply assistant region brief closure
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.head_ref == 'agent/assistant-region-brief-closure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+
+      - name: Apply latency boundary
+        run: python3 tool/fix_assistant_context_latency.py
+
+      - name: Test Data Broker
+        working-directory: services/lumanest-data-broker
+        run: |
+          npm ci
+          npm test
+
+      - name: Remove one-shot assets
+        run: |
+          git rm -f tool/fix_assistant_context_latency.py
+          git rm -f .github/workflows/apply-assistant-region-brief-closure.yml
+
+      - name: Commit validated implementation
+        run: |
+          git config user.name 'LumaNest Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: keep deterministic assistant independent of providers'
+          git push origin HEAD:${{ github.head_ref }}
