@@ -1956,20 +1956,31 @@ export function createTokenBrokerServer({
           timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 4_000),
           signal: assistantSignal,
         });
-      const assistantContext = await buildAssistantContextEnvelope({
-        snapshot,
-        providerFactsService: activeProviderFactsService,
-        loadRegionBrief: (regionBody) => forwardRegionBrief({
-          body: regionBody,
-          serviceUrl: configuration.discoveryServiceUrl,
-          internalToken: configuration.discoveryInternalToken,
-          sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
-          fetcher,
-          timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
-        }),
-        now: assistantNow,
-        timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
-      });
+      const modelEligible = effectiveQuestionType !== 'safety' &&
+        effectiveQuestionType !== 'shootingPlan' &&
+        configuration.settings.aiEnabled &&
+        configuration.llmRouting.primaryProfileId != null;
+      const assistantContext = modelEligible
+        ? await buildAssistantContextEnvelope({
+            snapshot,
+            providerFactsService: activeProviderFactsService,
+            loadRegionBrief: (regionBody) => forwardRegionBrief({
+              body: regionBody,
+              serviceUrl: configuration.discoveryServiceUrl,
+              internalToken: configuration.discoveryInternalToken,
+              sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
+              fetcher,
+              timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
+            }),
+            now: assistantNow,
+            timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
+          })
+        : Object.freeze({
+            contextFacts: '',
+            sources: Object.freeze([]),
+            factIds: Object.freeze([]),
+            expiresAt: snapshot.expiresAt,
+          });
       const templateAnswer = effectiveQuestionType === 'general'
         ? null
         : sensitiveAssistantTemplate(body.question) ??
@@ -1978,7 +1989,7 @@ export function createTokenBrokerServer({
       let source = 'template';
       let webSources = [];
       let degraded = null;
-      if (effectiveQuestionType !== 'safety' && effectiveQuestionType !== 'shootingPlan' && configuration.settings.aiEnabled && configuration.llmRouting.primaryProfileId != null) {
+      if (modelEligible) {
         let routedError = null;
         let routedText = null;
         // Agent path (web_search via Tavily) is attempted first when: search is
