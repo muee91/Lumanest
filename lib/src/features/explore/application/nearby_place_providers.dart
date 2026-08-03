@@ -212,7 +212,8 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
   if (location == null) {
     throw const NearbyPlaceFailure(NearbyPlaceFailureKind.response);
   }
-  final category = ref.watch(nearbyCategoryProvider);
+  final intent = ref.watch(exploreIntentProvider);
+  final category = intent.category;
   final placesFuture = fetchOptionalNearbyPlaces(
     ref.watch(nearbyPlaceRepositoryProvider),
     center: location,
@@ -252,7 +253,7 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
     ref.watch(popularPlaceEvidenceRepositoryProvider),
     center: location,
     radiusMeters: area.radiusMeters,
-    focus: _discoveryFocus(category, null),
+    focus: _discoveryFocus(category, intent.regionTheme?.label),
   );
   final (places, evidence) = await (placesFuture, evidenceFuture).wait;
   final merged = NearbyCandidateRanker.mergeEvidence(
@@ -335,8 +336,14 @@ Future<List<NearbyPlace>> fetchOptionalNearbyPlaces(
   }
 }
 
-String _discoveryFocus(NearbyPlaceCategory category, String? city) {
-  final region = city?.trim().isNotEmpty == true ? city!.trim() : '当前位置';
+String _discoveryFocus(
+  NearbyPlaceCategory category,
+  String? regionalThemeLabel,
+) {
+  final theme = regionalThemeLabel?.trim();
+  if (theme != null && theme.isNotEmpty) {
+    return '当前位置及周边与$theme相关的地点、场景和拍摄线索';
+  }
   final subject = switch (category) {
     NearbyPlaceCategory.sunriseCandidate => '日出摄影地点',
     NearbyPlaceCategory.nightSkyCandidate => '夜空摄影地点',
@@ -344,7 +351,7 @@ String _discoveryFocus(NearbyPlaceCategory category, String? city) {
     NearbyPlaceCategory.humanity => '人文街巷、传统建筑和文化空间',
     _ => '公开资料提及的观景地点',
   };
-  return '$region及周边$subject';
+  return '当前位置及周边$subject';
 }
 
 Future<List<NearbyPlace>> _withDrivingTimes(

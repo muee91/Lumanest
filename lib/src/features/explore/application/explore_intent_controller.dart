@@ -1,12 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
+import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
+import 'package:luma_nest/src/features/explore/domain/region_photo_theme_focus.dart';
 
 class ExploreIntentState {
   const ExploreIntentState({
     required this.category,
     this.activeFocus,
     this.creativeIntent,
+    this.regionTheme,
     this.sceneCategory = NearbyPlaceCategory.viewpoint,
     this.followsScene = true,
   });
@@ -14,6 +17,7 @@ class ExploreIntentState {
   final NearbyPlaceCategory category;
   final ExploreFocus? activeFocus;
   final ExploreCreativeIntent? creativeIntent;
+  final RegionPhotoTheme? regionTheme;
   final NearbyPlaceCategory sceneCategory;
   final bool followsScene;
 
@@ -25,9 +29,9 @@ class ExploreIntentController extends Notifier<ExploreIntentState> {
   ExploreIntentState build() =>
       const ExploreIntentState(category: NearbyPlaceCategory.viewpoint);
 
-  /// Activates a focus explicitly requested by a Today/Inspiraton action.
-  /// A plain Explore route preserves a manual category already chosen by the
-  /// user, unless it is clearing an active temporary focus.
+  /// Activates a focus explicitly requested by a Today/Intelligence action.
+  /// A plain Explore route preserves a manual category or regional theme,
+  /// unless it is clearing an active temporary focus.
   void activate(ExploreFocus focus) {
     if (focus == ExploreFocus.photography) {
       if (!state.hasActiveIntent) return;
@@ -65,6 +69,18 @@ class ExploreIntentController extends Notifier<ExploreIntentState> {
     );
   }
 
+  /// Keeps the verified regional label while mapping it to the bounded nearby
+  /// query vocabulary. The label is later forwarded to Discovery as search
+  /// focus, so a theme such as “潮汐海塘” is not reduced to generic “水岸”.
+  void chooseRegionTheme(RegionPhotoTheme theme) {
+    state = ExploreIntentState(
+      category: focusForRegionPhotoTheme(theme).category,
+      regionTheme: theme,
+      sceneCategory: state.sceneCategory,
+      followsScene: false,
+    );
+  }
+
   /// Applies a deterministic default layer when the user has not manually
   /// selected a category and no temporary cross-page intent is active.
   void syncScene(SceneType scene) {
@@ -82,6 +98,8 @@ class ExploreIntentController extends Notifier<ExploreIntentState> {
           ? sceneCategory
           : state.category,
       activeFocus: state.activeFocus,
+      creativeIntent: state.creativeIntent,
+      regionTheme: state.regionTheme,
       sceneCategory: sceneCategory,
       followsScene: state.followsScene,
     );

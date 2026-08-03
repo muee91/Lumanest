@@ -12,6 +12,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/features/explore/application/explore_intent_catalog.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/explore_composition_engine.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
@@ -631,6 +632,10 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
     final places = ref.watch(nearbyPlacesProvider);
     _selectInitialPlace(places);
     final intent = ref.watch(exploreIntentProvider);
+    final regionThemes = selectExploreRegionThemes(
+      ref.watch(regionBriefControllerProvider).brief?.photoThemes ??
+          const <RegionPhotoTheme>[],
+    );
     final searchArea = ref.watch(nearbySearchAreaProvider);
     final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(origin);
     final markers = _markers(places);
@@ -739,8 +744,11 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                 right: 18,
                 top: MediaQuery.paddingOf(context).top + 68,
                 child: _V2IntentStrip(
-                  category: intent.category,
+                  intent: intent,
+                  regionThemes: regionThemes,
                   onSelect: _selectExploreIntent,
+                  onSelectRegionTheme: _selectRegionTheme,
+                  onOpenServices: () => unawaited(_openNearbyServices()),
                 ),
               ),
             if (searchArea.hasPendingMapArea && !_searchOpen)
@@ -872,6 +880,85 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
       _selectedSearchResult = null;
       _panelFraction = .5;
     });
+  }
+
+  void _selectRegionTheme(RegionPhotoTheme theme) {
+    _debounce?.cancel();
+    _searchGeneration += 1;
+    _searchController.clear();
+    _searchFocus.unfocus();
+    ref.read(exploreIntentProvider.notifier).chooseRegionTheme(theme);
+    ref.read(nearbySearchAreaProvider.notifier).resetRadius();
+    setState(() {
+      _searchResults = null;
+      _selectedPlace = null;
+      _selectedSearchResult = null;
+      _panelFraction = .5;
+    });
+  }
+
+  Future<void> _openNearbyServices() async {
+    final current = ref.read(exploreIntentProvider).creativeIntent;
+    final selected = await showModalBottomSheet<ExploreCreativeIntent>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: V2Palette.paper,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '附近服务',
+                style: TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                '服务地点不会与创作主题混在同一层。',
+                style: TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              for (final service in exploreNearbyServiceIntents)
+                ListTile(
+                  key: Key('v2-explore-service-${service.name}'),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: Icon(
+                    _intentIcon(service.category),
+                    color: V2Palette.moss,
+                  ),
+                  title: Text(
+                    service.label,
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  trailing: current == service
+                      ? const Icon(
+                          CupertinoIcons.check_mark_circled_solid,
+                          color: V2Palette.moss,
+                        )
+                      : const Icon(
+                          CupertinoIcons.chevron_right,
+                          color: V2Palette.mutedInk,
+                          size: 17,
+                        ),
+                  onTap: () => Navigator.of(sheetContext).pop(service),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    _selectExploreIntent(selected);
   }
 
   void _searchCurrentMapArea() {
@@ -1102,12 +1189,11 @@ class _V2SearchShortcutObject extends StatelessWidget {
   final ValueChanged<ExploreCreativeIntent> onSelect;
 
   static const _items = <(String, ExploreCreativeIntent)>[
-    ('景点', ExploreCreativeIntent.viewpoint),
-    ('美食', ExploreCreativeIntent.food),
-    ('停车场', ExploreCreativeIntent.parking),
-    ('加油站', ExploreCreativeIntent.fuel),
     ('拍摄补给', ExploreCreativeIntent.supplies),
-    ('人文街巷', ExploreCreativeIntent.humanity),
+    ('停车场', ExploreCreativeIntent.parking),
+    ('附近餐饮', ExploreCreativeIntent.food),
+    ('加油站', ExploreCreativeIntent.fuel),
+    ('附近医疗', ExploreCreativeIntent.medical),
   ];
 
   @override
@@ -1126,7 +1212,7 @@ class _V2SearchShortcutObject extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '附近候选',
+              '快捷服务',
               style: TextStyle(
                 color: V2Palette.ink,
                 fontSize: 14,
@@ -1135,7 +1221,7 @@ class _V2SearchShortcutObject extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             const Text(
-              '选择类别后查看当前位置附近结果',
+              '搜索具体地点，或直接查看当前位置附近服务',
               style: TextStyle(
                 color: V2Palette.mutedInk,
                 fontSize: 11,
@@ -1199,16 +1285,70 @@ class _V2SearchShortcutObject extends StatelessWidget {
 }
 
 class _V2IntentStrip extends StatelessWidget {
-  const _V2IntentStrip({required this.category, required this.onSelect});
+  const _V2IntentStrip({
+    required this.intent,
+    required this.regionThemes,
+    required this.onSelect,
+    required this.onSelectRegionTheme,
+    required this.onOpenServices,
+  });
 
-  final NearbyPlaceCategory category;
+  final ExploreIntentState intent;
+  final List<RegionPhotoTheme> regionThemes;
   final ValueChanged<ExploreCreativeIntent> onSelect;
+  final ValueChanged<RegionPhotoTheme> onSelectRegionTheme;
+  final VoidCallback onOpenServices;
 
   @override
   Widget build(BuildContext context) {
-    final hasListedSelection = ExploreCreativeIntent.values.any(
-      (intent) => intent.category == category,
+    final serviceSelected = isExploreNearbyServiceIntent(
+      intent.creativeIntent,
     );
+    final hasContextSelection =
+        intent.activeFocus != null ||
+        (!serviceSelected &&
+            intent.regionTheme == null &&
+            !exploreCoreIntents.any(
+              (item) => item.category == intent.category,
+            ));
+    final chips = <Widget>[
+      if (hasContextSelection)
+        _V2ThemeChip(
+          key: const Key('v2-explore-theme-context'),
+          label: _categoryTitle(intent.category),
+          category: intent.category,
+          selected: true,
+        ),
+      for (final item in exploreCoreIntents)
+        _V2ThemeChip(
+          key: Key('v2-explore-theme-${item.name}'),
+          label: item.label,
+          category: item.category,
+          selected:
+              !serviceSelected &&
+              intent.activeFocus == null &&
+              intent.regionTheme == null &&
+              intent.category == item.category,
+          onTap: () => onSelect(item),
+        ),
+      for (final theme in regionThemes)
+        _V2ThemeChip(
+          key: Key('v2-explore-region-theme-${theme.id}'),
+          label: theme.label,
+          category: categoryForExploreRegionTheme(theme),
+          selected: intent.regionTheme?.id == theme.id,
+          onTap: () => onSelectRegionTheme(theme),
+        ),
+      _V2ThemeChip(
+        key: const Key('v2-explore-nearby-services'),
+        label: '附近服务',
+        category: serviceSelected
+            ? intent.category
+            : NearbyPlaceCategory.supply,
+        selected: serviceSelected,
+        onTap: onOpenServices,
+      ),
+    ];
     return SizedBox(
       key: const Key('v2-explore-theme-strip'),
       height: 36,
@@ -1216,27 +1356,9 @@ class _V2IntentStrip extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         padding: EdgeInsets.zero,
-        itemCount:
-            ExploreCreativeIntent.values.length + (hasListedSelection ? 0 : 1),
+        itemCount: chips.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          if (!hasListedSelection && index == 0) {
-            return _V2ThemeChip(
-              label: _categoryTitle(category),
-              category: category,
-              selected: true,
-            );
-          }
-          final intent = ExploreCreativeIntent
-              .values[index - (hasListedSelection ? 0 : 1)];
-          return _V2ThemeChip(
-            key: Key('v2-explore-theme-${intent.name}'),
-            label: intent.label,
-            category: intent.category,
-            selected: category == intent.category,
-            onTap: () => onSelect(intent),
-          );
-        },
+        itemBuilder: (_, index) => chips[index],
       ),
     );
   }
