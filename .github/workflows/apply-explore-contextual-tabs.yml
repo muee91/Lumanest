@@ -1,16 +1,16 @@
 name: Apply Explore contextual tabs patch
 
 on:
-  push:
-    branches:
-      - agent/explore-contextual-tabs
+  pull_request:
+    types: [opened]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.head_commit.message == 'chore: stage explore IA patch'
+    if: github.head_ref == 'agent/explore-contextual-tabs'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
