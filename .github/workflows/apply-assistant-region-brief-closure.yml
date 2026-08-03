@@ -6,6 +6,7 @@ on:
       - main
     types:
       - opened
+      - synchronize
 
 permissions:
   contents: write
@@ -47,6 +48,7 @@ jobs:
         run: |
           python3 tool/apply_assistant_region_brief_closure.py
           python3 tool/fix_assistant_region_brief_closure.py
+          python3 tool/fix_assistant_server_tests.py
           dart format lib/src/presentation_v2/intelligence/v2_intelligence_page.dart
 
       - name: Test Data Broker
@@ -67,6 +69,7 @@ jobs:
         run: |
           git rm -f tool/apply_assistant_region_brief_closure.py
           git rm -f tool/fix_assistant_region_brief_closure.py
+          git rm -f tool/fix_assistant_server_tests.py
           git rm -f .github/workflows/apply-assistant-region-brief-closure.yml
 
       - name: Commit validated implementation
