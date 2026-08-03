@@ -200,3 +200,270 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+  provider-safety-hardening:
+    name: Apply provider safety hardening
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/provider-operations-closure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out working branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+
+      - name: Apply safety hardening
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{path}: expected one match, found {count}: {old[:100]!r}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          feed = Path('services/lumanest-data-broker/src/environment/official-notice-feed.mjs')
+          text = feed.read_text(encoding='utf-8')
+          start = text.index('function explicitExpiry(')
+          end = text.index('\nfunction distanceKm', start)
+          replacement = r'''function exactUtcDate(year, month, day, hour, minute) {
+            const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 &&
+              date.getUTCDate() === day && date.getUTCHours() === hour &&
+              date.getUTCMinutes() === minute
+              ? date
+              : null;
+          }
+
+          function markedDate(match, publishedAt, { endOfDay, rollForward }) {
+            const published = new Date(publishedAt);
+            const hasYear = match[1] != null;
+            let year = hasYear ? Number(match[1]) : published.getUTCFullYear();
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            const hour = Number(match[4] ?? (endOfDay ? 23 : 0));
+            const minute = Number(match[5] ?? (endOfDay ? 59 : 0));
+            let candidate = exactUtcDate(year, month, day, hour, minute);
+            if (candidate == null) return null;
+            if (!hasYear && rollForward && candidate.getTime() <= published.getTime()) {
+              year += 1;
+              candidate = exactUtcDate(year, month, day, hour, minute);
+            } else if (!hasYear && !rollForward) {
+              const halfYear = 183 * 24 * 60 * 60 * 1_000;
+              const difference = candidate.getTime() - published.getTime();
+              if (difference < -halfYear) candidate = exactUtcDate(year + 1, month, day, hour, minute);
+              if (difference > halfYear) candidate = exactUtcDate(year - 1, month, day, hour, minute);
+            }
+            return candidate;
+          }
+
+          function explicitExpiry(text, publishedAt) {
+            const candidates = [];
+            const pattern = /(?:至|截至|截止至|有效期至|结束于|恢复开放(?:时间)?(?:为|：|:)?|until|through)\s*(?:(20\d{2})[-/.年])?(\d{1,2})[-/.月](\d{1,2})日?(?:\s*(\d{1,2})(?:[:时](\d{1,2}))?分?)?/gi;
+            for (const match of text.matchAll(pattern)) {
+              const candidate = markedDate(match, publishedAt, { endOfDay: true, rollForward: true });
+              if (candidate != null && candidate.getTime() > Date.parse(publishedAt)) {
+                candidates.push(candidate.getTime());
+              }
+            }
+            return candidates.length === 0 ? null : new Date(Math.max(...candidates)).toISOString();
+          }
+
+          function explicitEffectiveAt(text, publishedAt) {
+            const candidates = [];
+            const pattern = /(?:自|从|生效于|开始于|from)\s*(?:(20\d{2})[-/.年])?(\d{1,2})[-/.月](\d{1,2})日?(?:\s*(\d{1,2})(?:[:时](\d{1,2}))?分?)?(?:起|开始)?/gi;
+            for (const match of text.matchAll(pattern)) {
+              const candidate = markedDate(match, publishedAt, { endOfDay: false, rollForward: false });
+              if (candidate != null) candidates.push(candidate.getTime());
+            }
+            return candidates.length === 0 ? null : new Date(Math.min(...candidates)).toISOString();
+          }
+          '''
+          replacement = '\n'.join(line[10:] if line.startswith('          ') else line for line in replacement.splitlines())
+          feed.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
+
+          replace_once(
+              feed,
+              "  const explicit = explicitExpiry(combined, observedAt);\n  const expiresAt = explicit ?? new Date(\n    Date.parse(observedAt) + source.defaultExpiryMinutes * 60 * 1_000,\n  ).toISOString();\n  if (Date.parse(expiresAt) <= now.getTime()) return null;",
+              "  const effectiveAt = explicitEffectiveAt(combined, observedAt);\n  if (effectiveAt != null && Date.parse(effectiveAt) > now.getTime() + 10 * 60 * 1_000) return null;\n  const explicit = explicitExpiry(combined, observedAt);\n  const expiresAt = explicit ?? new Date(\n    Date.parse(observedAt) + source.defaultExpiryMinutes * 60 * 1_000,\n  ).toISOString();\n  if (Date.parse(expiresAt) <= now.getTime() ||\n      (effectiveAt != null && Date.parse(expiresAt) <= Date.parse(effectiveAt))) return null;",
+          )
+
+          runtime = 'services/lumanest-data-broker/src/environment/provider-runtime-config.mjs'
+          replace_once(runtime, "  'officialNoticeGatewayUrl',\n  'overpassUrl',", "  'officialNoticeGatewayUrl',\n  'officialNoticePublicUrl',\n  'overpassUrl',")
+          replace_once(runtime, "  'officialNoticeGatewayUrl',\n  'marineGatewayUrl',", "  'officialNoticeGatewayUrl',\n  'officialNoticePublicUrl',\n  'marineGatewayUrl',")
+          replace_once(
+              runtime,
+              "    officialNoticeGatewayUrl: environmentValue(environment, 'LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL'),\n    officialNoticeGatewayToken:",
+              "    officialNoticeGatewayUrl: environmentValue(environment, 'LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL'),\n    officialNoticePublicUrl: environmentValue(environment, 'LUMANEST_OFFICIAL_NOTICE_PUBLIC_URL'),\n    officialNoticeGatewayToken:",
+          )
+          replace_once(
+              runtime,
+              "      return Boolean(configuration.officialNoticeGatewayUrl) ||\n        configuration.officialNoticeSources.some((source) => source.enabled);",
+              "      return Boolean(configuration.officialNoticeGatewayUrl && configuration.officialNoticePublicUrl) ||\n        configuration.officialNoticeSources.some((source) => source.enabled);",
+          )
+
+          facts = 'services/lumanest-data-broker/src/environment/provider-facts-service.mjs'
+          replace_once(facts, "  allowedVerifications = null,\n}) {", "  allowedVerifications = null,\n  requireSignalSourceUrl = false,\n}) {")
+          replace_once(
+              facts,
+              "        sourceUrl: item?.sourceUrl ?? body?.sourceUrl ?? sourceInfo.url,",
+              "        sourceUrl: item?.sourceUrl ?? (requireSignalSourceUrl ? null : body?.sourceUrl ?? sourceInfo.url),",
+          )
+          replace_once(
+              facts,
+              "  if (configuration.officialNoticeGatewayUrl) {\n    return normalizedGatewayProvider({",
+              "  if (configuration.officialNoticeGatewayUrl) {\n    if (!configuration.officialNoticePublicUrl) {\n      return unconfigured(id, category, now, '需要配置公告公开署名链接');\n    }\n    return normalizedGatewayProvider({",
+          )
+          replace_once(
+              facts,
+              "        url: configuration.officialNoticeGatewayUrl,\n        license: 'Source-specific',",
+              "        url: configuration.officialNoticePublicUrl,\n        license: 'Source-specific',",
+          )
+          replace_once(
+              facts,
+              "      allowedVerifications: new Set(['authoritative', 'reference']),\n    });",
+              "      allowedVerifications: new Set(['authoritative', 'reference']),\n      requireSignalSourceUrl: true,\n    });",
+          )
+          replace_once(
+              facts,
+              "    officialNoticeGatewayUrl = configuredUrl(process.env.LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL),\n    officialNoticeGatewayToken:",
+              "    officialNoticeGatewayUrl = configuredUrl(process.env.LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL),\n    officialNoticePublicUrl = configuredUrl(process.env.LUMANEST_OFFICIAL_NOTICE_PUBLIC_URL),\n    officialNoticeGatewayToken:",
+          )
+          replace_once(
+              facts,
+              "      officialNoticeGatewayUrl,\n      officialNoticeGatewayToken,",
+              "      officialNoticeGatewayUrl,\n      officialNoticePublicUrl,\n      officialNoticeGatewayToken,",
+          )
+
+          providers_js = 'services/lumanest-data-broker/src/admin/public/providers.js'
+          replace_once(providers_js, "    'officialNoticeGatewayUrl',\n    'overpassUrl',", "    'officialNoticeGatewayUrl',\n    'officialNoticePublicUrl',\n    'overpassUrl',")
+
+          index = 'services/lumanest-data-broker/src/admin/public/index.html'
+          replace_once(
+              index,
+              '<label>官方公告 Gateway<input name="officialNoticeGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>\n                  <label>公告 Gateway Token',
+              '<label>官方公告 Gateway<input name="officialNoticeGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>\n                  <label>公告公开署名链接<input name="officialNoticePublicUrl" type="url" maxlength="2048" placeholder="启用 Gateway 时必填"><small>必须是用户可打开的官方来源或公告目录，不能填写内部 Gateway 地址。</small></label>\n                  <label>公告 Gateway Token',
+          )
+
+          tests = Path('services/lumanest-data-broker/test/official-notice-feed.test.mjs')
+          text = tests.read_text(encoding='utf-8')
+          text += r'''
+
+test('an unmarked future date never becomes a safety expiry', async () => {
+  const result = await loadOfficialNoticeItems({
+    sources: [source],
+    query: { latitude: 30.25, longitude: 120.15, radiusKm: 25 },
+    now,
+    fetcher: async () => new Response(JSON.stringify({ items: [{
+      title: '活动期间景区临时关闭',
+      summary: '2026年8月10日举办活动，关闭安排另行通知。',
+      url: 'https://notice.test/items/3',
+      date_published: '2026-08-03T07:00:00Z',
+    }] }), { status: 200 }),
+  });
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].expiryExplicit, false);
+  assert.equal(result.items[0].safetyEligible, false);
+});
+
+test('a future effective date is not emitted before it becomes active', async () => {
+  const futureSource = { ...source, allowDefaultSafetyExpiry: true };
+  const result = await loadOfficialNoticeItems({
+    sources: [futureSource],
+    query: { latitude: 30.25, longitude: 120.15, radiusKm: 25 },
+    now,
+    fetcher: async () => new Response(JSON.stringify({ items: [{
+      title: '景区关闭预告',
+      summary: '景区自2026年8月10日起关闭，恢复时间另行通知。',
+      url: 'https://notice.test/items/4',
+      date_published: '2026-08-03T07:00:00Z',
+    }] }), { status: 200 }),
+  });
+  assert.equal(result.items.length, 0);
+});
+'''
+          tests.write_text(text, encoding='utf-8')
+
+          facts_tests = Path('services/lumanest-data-broker/test/provider-facts-service.test.mjs')
+          text = facts_tests.read_text(encoding='utf-8')
+          text = text.replace(
+              "    officialNoticeGatewayUrl: '', officialNoticeGatewayToken: '', officialNoticeSources: [],",
+              "    officialNoticeGatewayUrl: '', officialNoticePublicUrl: '', officialNoticeGatewayToken: '', officialNoticeSources: [],",
+          )
+          text = text.replace(
+              "    officialNoticeGatewayUrl: 'https://notices.test/facts',",
+              "    officialNoticeGatewayUrl: 'https://notices.test/facts',\n    officialNoticePublicUrl: 'https://notices.test/',",
+          )
+          text = text.replace(
+              "    officialNoticeGatewayUrl: 'https://notices.safe/facts',",
+              "    officialNoticeGatewayUrl: 'https://notices.safe/facts',\n    officialNoticePublicUrl: 'https://notices.safe/',",
+          )
+          facts_tests.write_text(text, encoding='utf-8')
+
+          runtime_tests = Path('services/lumanest-data-broker/test/provider-runtime-config.test.mjs')
+          text = runtime_tests.read_text(encoding='utf-8')
+          text += r'''
+
+test('official gateway requires a separate public attribution URL', () => {
+  const withoutPublic = validateProviderSources({
+    officialNoticeGatewayUrl: 'https://internal-gateway.example/facts',
+    officialNoticePublicUrl: '',
+  });
+  assert.equal(providerConfigured('officialNotices', withoutPublic), false);
+  const configured = validateProviderSources({
+    officialNoticeGatewayUrl: 'https://internal-gateway.example/facts',
+    officialNoticePublicUrl: 'https://authority.example/notices',
+  });
+  assert.equal(providerConfigured('officialNotices', configured), true);
+});
+'''
+          runtime_tests.write_text(text, encoding='utf-8')
+
+          runbook = Path('docs/provider-operations-runbook.md')
+          text = runbook.read_text(encoding='utf-8')
+          text = text.replace(
+              '- 修改 Provider 配置不要求重新构建 App。',
+              '- 修改 Provider 配置不要求重新构建 App。\n- 官方公告 Gateway 还必须配置独立的公开署名链接；内部 Gateway 地址不会返回给 App。',
+          )
+          runbook.write_text(text, encoding='utf-8')
+
+          hub = Path('docs/provider-hub.md')
+          text = hub.read_text(encoding='utf-8')
+          text = text.replace(
+              'LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL\n',
+              'LUMANEST_OFFICIAL_NOTICE_GATEWAY_URL\nLUMANEST_OFFICIAL_NOTICE_PUBLIC_URL\n',
+          )
+          hub.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Test Data Broker after hardening
+        working-directory: services/lumanest-data-broker
+        run: npm ci && npm test
+
+      - name: Restore trusted CI and remove temporary workflow
+        run: |
+          git checkout origin/main -- .github/workflows/flutter-ci.yml
+          git rm -f .github/workflows/provider-safety-hardening.yml
+
+      - name: Commit and push hardening
+        run: |
+          git config user.name 'OpenAI Codex'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: harden official notice validity and attribution'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
