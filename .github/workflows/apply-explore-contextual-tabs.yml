@@ -1,0 +1,30 @@
+name: Apply Explore contextual tabs patch
+
+on:
+  push:
+    branches:
+      - agent/explore-contextual-tabs
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: stage explore IA patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/explore-contextual-tabs
+          fetch-depth: 0
+      - name: Apply deterministic source patch
+        run: python3 tool/apply_explore_contextual_tabs.py
+      - name: Validate patch shape
+        run: git diff --check
+      - name: Commit patched source
+        run: |
+          git config user.name "LumaNest Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: separate explore discovery and nearby services"
+          git push origin HEAD:agent/explore-contextual-tabs
