@@ -47,9 +47,35 @@ jobs:
               'if content.count(old) < 1:\n        raise RuntimeError',
               1,
           )
+          source = source.replace(
+              'updated, count = re.subn(pattern, replacement, content, count=1, flags=re.S)',
+              'updated, count = re.subn(pattern, lambda _match: replacement, content, count=1, flags=re.S)',
+              1,
+          )
           path.write_text(source, encoding='utf-8')
           PY
           python tools/apply_provider_operations_closure.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          audit = Path('services/lumanest-data-broker/src/admin/audit-log.mjs')
+          text = audit.read_text(encoding='utf-8')
+          text = text.replace("  'test_7timer',\n]);", "  'test_7timer',\n  'test_provider',\n]);", 1)
+          text = text.replace(
+              "const allowedDetailKeys = new Set(['product', 'traceId']);",
+              "const allowedDetailKeys = new Set(['product', 'providerId', 'traceId']);",
+              1,
+          )
+          audit.write_text(text, encoding='utf-8')
+
+          fixture = Path('services/lumanest-data-broker/test/fixtures/provider-acceptance-locations.json')
+          locations = json.loads(fixture.read_text(encoding='utf-8'))
+          for location in locations:
+              if location['id'] == 'delingha' and 'operations' not in location['categories']:
+                  location['categories'].append('operations')
+          fixture.write_text(json.dumps(locations, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
       - name: Format Dart sources
         run: dart format lib/src/core/environment/provider_signal_relevance.dart lib/src/presentation_v2/explore/v2_provider_facts_sheet.dart lib/src/presentation_v2/explore/v2_explore_page.dart test/core/environment/provider_signal_relevance_test.dart
       - name: Test Data Broker
