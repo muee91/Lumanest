@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/environment/provider_facts.dart';
+import 'package:luma_nest/src/core/environment/provider_facts_providers.dart';
 import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
@@ -25,6 +27,7 @@ import 'package:luma_nest/src/features/explore/presentation/amap_marker_icon_fac
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
+import 'package:luma_nest/src/presentation_v2/explore/v2_provider_facts_sheet.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 import 'package:x_amap_base/x_amap_base.dart';
@@ -54,6 +57,7 @@ class V2ExplorePage extends ConsumerWidget {
     }
     final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
     final briefState = ref.watch(regionBriefControllerProvider);
+    final providerFacts = ref.watch(providerFactsProvider).asData?.value;
     final composition = const ExploreCompositionEngine().compose(
       snapshot: snapshot,
       brief: briefState.brief,
@@ -79,6 +83,7 @@ class V2ExplorePage extends ConsumerWidget {
     if (composition.showsBriefFirst && briefState.brief != null) {
       return _V2ExploreBrief(
         brief: briefState.brief!,
+        providerFacts: providerFacts,
         refreshing: briefState.status == RegionBriefLoadStatus.refreshing,
         onRefresh: () =>
             ref.read(regionBriefControllerProvider.notifier).load(manual: true),
@@ -114,6 +119,7 @@ class V2ExplorePage extends ConsumerWidget {
 class _V2ExploreBrief extends StatelessWidget {
   const _V2ExploreBrief({
     required this.brief,
+    required this.providerFacts,
     required this.refreshing,
     required this.onRefresh,
     required this.onOpenMap,
@@ -121,6 +127,7 @@ class _V2ExploreBrief extends StatelessWidget {
   });
 
   final RegionBrief brief;
+  final ProviderFactsBundle? providerFacts;
   final bool refreshing;
   final VoidCallback onRefresh;
   final VoidCallback onOpenMap;
@@ -183,6 +190,14 @@ class _V2ExploreBrief extends StatelessWidget {
                 _V2BriefThemeCard(
                   themes: brief.photoThemes,
                   onOpenTheme: onOpenTheme,
+                ),
+              ],
+              if (providerFacts?.hasDisplayableSignals ?? false) ...[
+                const SizedBox(height: 14),
+                V2ProviderFactsSummaryCard(
+                  bundle: providerFacts!,
+                  onTap: () =>
+                      showV2ProviderFactsSheet(context, providerFacts!),
                 ),
               ],
               if (sections.isNotEmpty) ...[
@@ -637,6 +652,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
           const <RegionPhotoTheme>[],
     );
     final searchArea = ref.watch(nearbySearchAreaProvider);
+    final providerFacts = ref.watch(providerFactsProvider).asData?.value;
     final mapCenter = ChinaCoordinateConverter.wgs84ToGcj02(origin);
     final markers = _markers(places);
 
@@ -714,11 +730,26 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
               Positioned(
                 right: 18,
                 top: MediaQuery.paddingOf(context).top + 12,
-                child: _V2MapControlButton(
-                  key: const Key('v2-explore-search-button'),
-                  icon: CupertinoIcons.search,
-                  label: '选择地点或搜索',
-                  onTap: _openSearch,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (providerFacts?.hasDisplayableSignals ?? false) ...[
+                      _V2MapControlButton(
+                        key: const Key('v2-explore-provider-facts-button'),
+                        icon: CupertinoIcons.layers,
+                        label: '查看环境与地区数据',
+                        onTap: () =>
+                            showV2ProviderFactsSheet(context, providerFacts!),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    _V2MapControlButton(
+                      key: const Key('v2-explore-search-button'),
+                      icon: CupertinoIcons.search,
+                      label: '选择地点或搜索',
+                      onTap: _openSearch,
+                    ),
+                  ],
                 ),
               ),
             if (!_searchOpen)
@@ -1301,9 +1332,7 @@ class _V2IntentStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final serviceSelected = isExploreNearbyServiceIntent(
-      intent.creativeIntent,
-    );
+    final serviceSelected = isExploreNearbyServiceIntent(intent.creativeIntent);
     final hasContextSelection =
         intent.activeFocus != null ||
         (!serviceSelected &&

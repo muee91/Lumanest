@@ -31,9 +31,10 @@ normal source admission and corroboration.
   and account/session risks.
 - License: Apache-2.0, but platform terms and account authorization remain
   separate constraints.
-- Decision: do not run a shared LumaNest account. Support user-submitted links
-  first; an optional isolated connector may use a dedicated, explicitly
-  authorized session and must never enter the authoritative evidence tier.
+- Decision: do not run a shared LumaNest account and do not ship the MCP or
+  any login-state browser collector. Support only user-submitted public links,
+  text or screenshots; each submission is a one-time weak signal that requires
+  independent verification.
 
 ### dataabc/weiboSpider
 
@@ -75,7 +76,6 @@ normal source admission and corroboration.
 Reviewed account/feed registry
         |-- RSS/Atom/RSSHub provider
         |-- official API provider
-        |-- optional isolated browser-session provider
         |-- user-submitted public link provider
                          |
                          v
@@ -110,7 +110,7 @@ Minimum normalized fields:
 - bounded `title` and `text_excerpt`
 - `place_names`, `region_hints`, optional public coordinates
 - engagement snapshot as untrusted metadata, never a popularity claim
-- `auth_mode`: public, official_oauth, user_session, or rss_proxy
+- `auth_mode`: public, official_oauth, user_submission, or rss_proxy
 - source license/terms policy and collection status
 
 ## Admission rules
@@ -120,8 +120,8 @@ Minimum normalized fields:
    safety, route conditions or event time by itself.
 3. Government, venue and organizer accounts can receive a higher source-policy
    tier, but account identity must be reviewed first.
-4. Browser sessions are isolated per connector, encrypted at rest and disabled
-   by default; no shared consumer account.
+4. Consumer-platform browser sessions, persisted cookies, shared accounts and
+   background login automation are prohibited.
 5. A provider failure never blocks Explore; it only removes that signal source.
 6. Store excerpts and canonical links, not bulk media downloads or comments.
 
@@ -131,5 +131,5 @@ Minimum normalized fields:
 2. Weibo reviewed-account incremental provider with public/official interfaces.
 3. Bilibili reviewed-UP feed adapter.
 4. User-submitted Xiaohongshu/Douyin link resolver.
-5. Optional user-authorized browser connector only after policy and operations
-   review; never use it for background regional crawling.
+5. User-submitted Xiaohongshu/Douyin text, screenshot or public link parser;
+   never expand into background crawling or account monitoring.

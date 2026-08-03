@@ -88,6 +88,10 @@ import {
   SiteEnvironmentService,
   validSiteEnvironmentQuery,
 } from './environment/site-environment-service.mjs';
+import {
+  ProviderFactsService,
+  validProviderFactsQuery,
+} from './environment/provider-facts-service.mjs';
 import { OpenMeteoNightSkyForecast } from './environment/open-meteo-night-sky.mjs';
 import { SkyBrightnessCalibrationStore } from './environment/sky-brightness-calibration.mjs';
 import { SkyWindowService, validSkyWindowQuery } from './environment/sky-window-service.mjs';
@@ -1177,6 +1181,7 @@ export function createTokenBrokerServer({
   terrainServiceToken = '',
   terrainHorizonDatasetRevision = '',
   siteEnvironmentService = null,
+  providerFactsService = null,
   openMeteoForecastBaseUrl = 'https://api.open-meteo.com',
   skyBrightnessCalibrationPath = '',
   skyWindowService = null,
@@ -1241,6 +1246,11 @@ export function createTokenBrokerServer({
     fetcher,
     now,
     timeoutMs: Math.min(configurationSource.snapshot().settings.upstreamTimeoutMs, 8_000),
+  });
+  const activeProviderFactsService = providerFactsService ?? new ProviderFactsService({
+    fetcher,
+    now,
+    timeoutMs: Math.min(configurationSource.snapshot().settings.upstreamTimeoutMs, 12_000),
   });
   const activeOpenMeteoForecast = new OpenMeteoNightSkyForecast({
     baseUrl: openMeteoForecastBaseUrl,
@@ -1474,6 +1484,16 @@ export function createTokenBrokerServer({
         return;
       }
       writeJson(response, 200, await activeSiteEnvironmentService.facts(query));
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/environment/provider-facts') {
+      const query = validProviderFactsQuery(requestUrl.searchParams, now());
+      if (query == null) {
+        writeJson(response, 400, { error: 'invalid_provider_facts_query' });
+        return;
+      }
+      writeJson(response, 200, await activeProviderFactsService.facts(query));
       return;
     }
 
