@@ -107,17 +107,48 @@ jobs:
         run: flutter test test/core/environment/provider_signal_relevance_test.dart --reporter expanded
       - name: Test provider detail sheet
         run: flutter test test/presentation_v2/explore/v2_provider_facts_sheet_test.dart --reporter expanded
+      - name: Normalize generated text
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roots = [
+              Path('services/lumanest-data-broker/src'),
+              Path('services/lumanest-data-broker/test'),
+              Path('lib'),
+              Path('test'),
+              Path('docs'),
+          ]
+          suffixes = {'.mjs', '.js', '.html', '.css', '.dart', '.md', '.json'}
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob('*'):
+                  if not path.is_file() or path.suffix not in suffixes:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  had_newline = text.endswith('\n')
+                  normalized = '\n'.join(line.rstrip() for line in text.splitlines())
+                  if had_newline:
+                      normalized += '\n'
+                  if normalized != text:
+                      path.write_text(normalized, encoding='utf-8')
+          PY
       - name: Remove one-time executor
         run: git rm -f .github/workflows/provider-operations-closure.yml tools/apply_provider_operations_closure.py
+      - name: Validate generated diff
+        run: |
+          git add -A
+          git diff --cached --check
+          git status --short
       - name: Commit generated implementation
         run: |
           git config user.name 'OpenAI Codex'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
           if git diff --cached --quiet; then
             echo 'No generated changes'
             exit 0
           fi
           git commit -m 'feat: complete provider operations closure'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - name: Push generated implementation
+        run: git push origin HEAD:${{ github.event.pull_request.head.ref }}
