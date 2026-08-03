@@ -697,7 +697,7 @@ class _AssistantStage extends StatelessWidget {
         Expanded(
           child: Text(
             selectedNote == null
-                ? '已带入当前环境 · ${snapshot.shootingSessions.length} 条拍摄机会'
+                ? '当前环境已同步 · 区域简报与数据源按可用性加入'
                 : '已带入「${selectedNote!.label}」和当前环境',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -772,7 +772,7 @@ class _AssistantStage extends StatelessWidget {
         const SizedBox(height: 9),
         Text(
           selectedNote == null
-              ? '栖光会结合你此刻的环境、天气与拍摄机会回答。'
+              ? '栖光会结合当前环境、区域简报、路线与可用数据源回答。'
               : '灵感来自当前环境；继续问，我会把它变成可执行的拍摄思路。',
           style: const TextStyle(
             color: V2Palette.mutedInk,

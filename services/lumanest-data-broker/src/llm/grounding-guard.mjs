@@ -219,7 +219,8 @@ function guardAssistant(user, candidate) {
   if (contextFacts.length > 0) corpusParts.push(contextFacts);
   if (searchResults.length > 0) corpusParts.push(searchResults);
   const corpus = corpusParts.join(' ');
-  if (!answer || [...answer].length > 80 || /[\r\n]/.test(answer) || /https?:\/\//i.test(answer)) {
+  const maximumLength = user.responseMode === 'contextual' ? 160 : 80;
+  if (!answer || [...answer].length > maximumLength || /[\r\n]/.test(answer) || /https?:\/\//i.test(answer)) {
     return { ok: false, reason: 'invalid_shape' };
   }
 
@@ -308,9 +309,13 @@ function guardNarrative(user, candidate) {
 
 function guardGeneralAssistant(user, candidate) {
   const answer = compact(candidate.answer);
+  const contextFacts = compact(
+    typeof user.contextFacts === 'string' ? user.contextFacts : '',
+  );
   const searchResults = compact(
     typeof user.searchResults === 'string' ? user.searchResults : '',
   );
+  const corpus = [contextFacts, searchResults].filter(Boolean).join(' ');
   if (!answer || [...answer].length > 200 || /[\r\n]/.test(answer) || /https?:\/\//i.test(answer)) {
     return { ok: false, reason: 'invalid_shape' };
   }
@@ -323,14 +328,16 @@ function guardGeneralAssistant(user, candidate) {
     return { ok: false, reason: 'unsupported_safety_claim' };
   }
   const liveClaim = /(?:当前|现在|今晚|明天|此刻).{0,16}(?:天气|气温|风|云|日出|日落|开放|封闭|适合去|可以去|值得去)/u;
-  if (liveClaim.test(answer) && searchResults.length === 0) {
+  if (liveClaim.test(answer) && corpus.length === 0) {
     return { ok: false, reason: 'unsupported_live_claim' };
   }
-  if (hasUnsupportedPlace(answer, searchResults)) {
+  if (liveClaim.test(answer) && !answerNumbersGrounded(answer, corpus)) {
+    return { ok: false, reason: 'unsupported_number' };
+  }
+  if (hasUnsupportedPlace(answer, corpus)) {
     return { ok: false, reason: 'unsupported_place' };
   }
-  if (searchResults.length > 0 &&
-      !placeNumberBindingsGrounded(answer, searchResults)) {
+  if (corpus.length > 0 && !placeNumberBindingsGrounded(answer, corpus)) {
     return { ok: false, reason: 'unsupported_fact_binding' };
   }
   return { ok: true };

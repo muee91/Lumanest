@@ -684,7 +684,7 @@ test('assistant passes the raw question text to the model', async () => {
   assert.equal(capturedUserPayload.question, '今晚的晚霞值得专门跑一趟吗？');
 });
 
-test('assistant keeps environment facts and place data out of normal model prompts', async () => {
+test('assistant exposes only bounded Broker context without raw location fields', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
   const companionStore = new CompanionStore({ now: () => now });
   const snapshot = v5SnapshotBody();
@@ -739,10 +739,14 @@ test('assistant keeps environment facts and place data out of normal model promp
     },
   });
 
-  assert.equal(Object.hasOwn(capturedUserPayload, 'contextFacts'), false);
-  assert.equal(Object.hasOwn(capturedUserPayload, 'placeSummaries'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'contextFacts'), true);
+  assert.equal(capturedUserPayload.contextFacts, '');
+  assert.deepEqual(capturedUserPayload.placeSummaries, []);
   assert.equal(Object.hasOwn(capturedUserPayload, 'scene'), false);
   assert.equal(Object.hasOwn(capturedUserPayload, 'dayPhase'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'location'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'latitude'), false);
+  assert.equal(Object.hasOwn(capturedUserPayload, 'longitude'), false);
   assert.equal(typeof capturedUserPayload.templateAnswer, 'string');
 });
 
@@ -2362,4 +2366,55 @@ test('narrative endpoint rejects extra fields and unknown model labels', async (
       }) } }],
     }), { status: 200 }),
   });
+});
+
+
+test('deterministic safety assistant performs no Region Brief or Provider requests', async () => {
+  const now = new Date('2026-07-20T00:00:00Z');
+  const companionStore = new CompanionStore({ now: () => now });
+  const snapshot = v5SnapshotBody();
+  snapshot.generatedAt = now.toISOString();
+  snapshot.expiresAt = '2026-07-20T01:00:00Z';
+  snapshot.assistantContextBinding = {
+    locale: 'zh-CN',
+    region: { latitude: 30.275, longitude: 120.175, radiusMeters: 5000 },
+    sceneProfile: {
+      physicalScene: 'urban', facets: [], settlement: 'urbanDistrict',
+      remoteness: 'unknown', altitude: 'unknown', poiDensity: 'unknown',
+      mobility: 'stationary', routeStage: 'none',
+    },
+  };
+  companionStore.rememberSnapshot(snapshot);
+
+  let upstreamCalls = 0;
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/assistant`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer test-service-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        snapshotId: snapshot.contextId,
+        surface: 'inspiration',
+        questionType: 'safety',
+        question: '现在安全吗？',
+        eventIds: [],
+        tone: 'balanced',
+      }),
+    });
+    assert.equal(response.status, 200);
+    const events = await readSseEvents(response);
+    const done = events.find((event) => event.event === 'done');
+    assert.equal(done.data.source, 'template');
+  }, {
+    companionStore,
+    now: () => now,
+    fetcher: async () => {
+      upstreamCalls += 1;
+      return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } });
+    },
+  });
+
+  assert.equal(upstreamCalls, 0);
 });
