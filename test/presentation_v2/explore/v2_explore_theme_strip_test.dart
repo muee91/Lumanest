@@ -72,7 +72,7 @@ void main() {
       expect(list.scrollDirection, Axis.horizontal);
       expect(
         find.byKey(const Key('v2-explore-theme-context')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('v2-explore-theme-viewpoint')),
@@ -99,19 +99,19 @@ void main() {
 
       final selectedMaterial = tester.widget<Material>(
         find.descendant(
-          of: find.byKey(const Key('v2-explore-theme-context')),
+          of: find.byKey(const Key('v2-explore-theme-viewpoint')),
           matching: find.byType(Material),
         ),
       );
       expect(selectedMaterial.color, V2Palette.mossSoft);
       expect(selectedMaterial.color, isNot(V2Palette.night));
 
-      await tester.tap(find.byKey(const Key('v2-explore-theme-viewpoint')));
+      await tester.tap(find.byKey(const Key('v2-explore-theme-humanity')));
       await tester.pump();
 
       expect(
         container.read(exploreIntentProvider).category,
-        NearbyPlaceCategory.viewpoint,
+        NearbyPlaceCategory.humanity,
       );
 
       await tester.tap(searchButton);
