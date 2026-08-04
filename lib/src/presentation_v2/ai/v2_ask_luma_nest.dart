@@ -383,7 +383,6 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
   );
 
   Widget _inputRow() {
-    final canSend = _inputController.text.trim().isNotEmpty;
     return Container(
       key: const Key('v2-ai-composer'),
       padding: EdgeInsets.fromLTRB(
@@ -410,7 +409,6 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
                 controller: _inputController,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _submitText(),
-                onChanged: (_) => setState(() {}),
                 minLines: 1,
                 maxLines: 4,
                 style: const TextStyle(
@@ -440,20 +438,24 @@ class _AskLumaNestSheetState extends ConsumerState<_AskLumaNestSheet> {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            key: const Key('v2-ai-send'),
-            tooltip: '发送',
-            onPressed: canSend ? _submitText : null,
-            style: IconButton.styleFrom(
-              minimumSize: const Size.square(46),
-              maximumSize: const Size.square(46),
-              padding: EdgeInsets.zero,
-              backgroundColor: V2Palette.moss,
-              foregroundColor: V2Palette.paper,
-              disabledBackgroundColor: V2Palette.canvas,
-              disabledForegroundColor: V2Palette.line,
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _inputController,
+            builder: (context, value, child) => IconButton(
+              key: const Key('v2-ai-send'),
+              tooltip: '发送',
+              onPressed: value.text.trim().isNotEmpty ? _submitText : null,
+              style: IconButton.styleFrom(
+                minimumSize: const Size.square(46),
+                maximumSize: const Size.square(46),
+                padding: EdgeInsets.zero,
+                backgroundColor: V2Palette.moss,
+                foregroundColor: V2Palette.paper,
+                disabledBackgroundColor: V2Palette.canvas,
+                disabledForegroundColor: V2Palette.line,
+              ),
+              icon: child!,
             ),
-            icon: const Icon(CupertinoIcons.arrow_up, size: 20),
+            child: const Icon(CupertinoIcons.arrow_up, size: 20),
           ),
         ],
       ),

@@ -1890,8 +1890,20 @@ class _V2ExploreResultObject extends ConsumerWidget {
             onSearchArea: onSearchMapArea,
           );
         }
-        return Column(
-          children: [
+        // The result panel can be deliberately collapsed almost to its handle
+        // while the bottom navigation remains visible. Keep every header and
+        // result in one scrollable viewport; a Column with an inner Expanded
+        // list had no remaining height in that state and painted Flutter's
+        // yellow/black overflow stripe above the dock.
+        return _V2ResultList<NearbyPlace>(
+          items: items,
+          title: (item) => item.name,
+          detail: (item) => candidateMode
+              ? '候选 · ${_candidateDetail(item)}'
+              : _placeDetail(item),
+          onTap: onPlace,
+          rankedCandidates: candidateMode,
+          header: [
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 2, 18, 8),
               child: _ExploreDiscoveryLead(
@@ -1955,17 +1967,6 @@ class _V2ExploreResultObject extends ConsumerWidget {
                   ],
                 ),
               ),
-            Expanded(
-              child: _V2ResultList<NearbyPlace>(
-                items: items,
-                title: (item) => item.name,
-                detail: (item) => candidateMode
-                    ? '候选 · ${_candidateDetail(item)}'
-                    : _placeDetail(item),
-                onTap: onPlace,
-                rankedCandidates: candidateMode,
-              ),
-            ),
           ],
         );
       },
@@ -2159,6 +2160,7 @@ class _V2ResultList<T> extends StatelessWidget {
     required this.title,
     required this.detail,
     required this.onTap,
+    this.header = const [],
     this.rankedCandidates = false,
     this.emptyLabel = '这个范围暂无线索',
   });
@@ -2166,64 +2168,103 @@ class _V2ResultList<T> extends StatelessWidget {
   final String Function(T) title;
   final String Function(T) detail;
   final ValueChanged<T> onTap;
+  final List<Widget> header;
   final bool rankedCandidates;
   final String emptyLabel;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return Center(child: Text(emptyLabel));
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 22),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return InkWell(
-          onTap: () => onTap(item),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            child: Row(
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 22),
+      children: [
+        ...header,
+        if (items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+            child: Center(child: Text(emptyLabel)),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+            child: Column(
               children: [
-                if (rankedCandidates)
-                  _V2CandidateRankBadge(rank: index + 1)
-                else
-                  const Icon(
-                    CupertinoIcons.location_solid,
-                    color: V2Palette.moss,
+                for (var index = 0; index < items.length; index += 1) ...[
+                  if (index > 0) const Divider(height: 1),
+                  _V2ResultListItem<T>(
+                    item: items[index],
+                    index: index,
+                    title: title,
+                    detail: detail,
+                    onTap: onTap,
+                    rankedCandidates: rankedCandidates,
                   ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title(item),
-                        style: const TextStyle(
-                          color: V2Palette.ink,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        detail(item),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: V2Palette.mutedInk,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(CupertinoIcons.chevron_right, size: 16),
+                ],
               ],
             ),
           ),
-        );
-      },
+      ],
     );
   }
+}
+
+class _V2ResultListItem<T> extends StatelessWidget {
+  const _V2ResultListItem({
+    required this.item,
+    required this.index,
+    required this.title,
+    required this.detail,
+    required this.onTap,
+    required this.rankedCandidates,
+  });
+
+  final T item;
+  final int index;
+  final String Function(T) title;
+  final String Function(T) detail;
+  final ValueChanged<T> onTap;
+  final bool rankedCandidates;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: () => onTap(item),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      child: Row(
+        children: [
+          if (rankedCandidates)
+            _V2CandidateRankBadge(rank: index + 1)
+          else
+            const Icon(CupertinoIcons.location_solid, color: V2Palette.moss),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title(item),
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  detail(item),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(CupertinoIcons.chevron_right, size: 16),
+        ],
+      ),
+    ),
+  );
 }
 
 class _V2CandidateRankBadge extends StatelessWidget {

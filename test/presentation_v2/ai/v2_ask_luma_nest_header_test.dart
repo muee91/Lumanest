@@ -82,6 +82,19 @@ void main() {
     expect(find.byIcon(CupertinoIcons.mic_fill), findsNothing);
     expect(find.byKey(const Key('v2-ai-send')), findsOneWidget);
 
+    final input = find.byType(TextField);
+    expect(tester.widget<TextField>(input).onChanged, isNull);
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('v2-ai-send'))).onPressed,
+      isNull,
+    );
+    await tester.enterText(input, '现在适合拍什么？');
+    await tester.pump();
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('v2-ai-send'))).onPressed,
+      isNotNull,
+    );
+
     await tester.tap(find.text('附近适合拍什么？'));
     await tester.pump();
 

@@ -34,6 +34,24 @@ void main() {
     expect(find.byKey(const Key('v2-intelligence-assistant-stage')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-composer')), findsOne);
     expect(find.byKey(const Key('v2-intelligence-input')), findsOne);
+
+    final input = find.byKey(const Key('v2-intelligence-input'));
+    expect(tester.widget<TextField>(input).onChanged, isNull);
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('v2-intelligence-send')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(input, '海宁现在适合拍什么？');
+    await tester.pump();
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('v2-intelligence-send')))
+          .onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('interprets an inspiration in place without another sheet', (

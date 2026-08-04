@@ -108,18 +108,33 @@ float rainStreakField(vec2 uv, float time, float intensity, float flowRadians) {
   vec2 streakUv = vec2(dot(uv, along), dot(uv, flow));
   // Animate along the flow direction (rain falls with the wind).
   streakUv.y -= time * (0.9 + intensity * 2.2);
-  // Frequency rises with intensity; vertical stretching gives streak shape.
+  // Frequency rises with intensity. Do not threshold a full grid cell here:
+  // that turns each random cell into a large rectangular band on Impeller.
+  // Instead, form narrow anti-aliased lanes and use continuous noise only to
+  // vary their opacity along the flow direction.
   float freq = 18.0 + intensity * 26.0;
-  float stretch = 5.5 + intensity * 3.0;
-  vec2 cell = vec2(streakUv.x * freq, streakUv.y * freq / stretch);
-  // Noise modulates per-streak opacity so the field does not look like stripes.
-  float n = fieldNoise(floor(cell));
-  float streak = smoothstep(0.45, 0.72, n);
-  // Secondary thinner layer for parallax depth.
-  vec2 cellB = vec2(streakUv.x * freq * 1.7, streakUv.y * freq * 1.7 / stretch);
-  float nB = fieldNoise(floor(cellB) + 7.3);
-  float streakB = smoothstep(0.55, 0.82, nB) * 0.55;
-  return (streak + streakB) * intensity;
+  float lane = streakUv.x * freq + sin(streakUv.y * 1.15) * 0.13;
+  float laneId = floor(lane);
+  float distanceToLane = abs(fract(lane) - 0.5);
+  float streak = 1.0 - smoothstep(0.055, 0.19, distanceToLane);
+  float opacity = smoothstep(
+    0.28,
+    0.72,
+    fieldNoise(vec2(laneId + 17.3, streakUv.y * 2.1))
+  );
+
+  // A quieter, thinner layer keeps depth without producing a second set of
+  // repeated rectangular blocks.
+  float laneB = streakUv.x * freq * 1.58 + sin(streakUv.y * 1.7 + 2.4) * 0.16;
+  float laneIdB = floor(laneB);
+  float distanceToLaneB = abs(fract(laneB) - 0.5);
+  float streakB = 1.0 - smoothstep(0.04, 0.135, distanceToLaneB);
+  float opacityB = smoothstep(
+    0.38,
+    0.76,
+    fieldNoise(vec2(laneIdB + 43.7, streakUv.y * 2.8))
+  );
+  return (streak * opacity + streakB * opacityB * 0.32) * intensity;
 }
 
 void main() {

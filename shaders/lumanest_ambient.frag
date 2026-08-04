@@ -68,11 +68,18 @@ float rainStreakField(vec2 uv, float time, float intensity, float flowRadians) {
   vec2 streakUv = vec2(dot(uv, along), dot(uv, flow));
   streakUv.y -= time * (0.8 + intensity * 1.8);
   float freq = 16.0 + intensity * 22.0;
-  float stretch = 5.0 + intensity * 2.5;
-  vec2 cell = vec2(streakUv.x * freq, streakUv.y * freq / stretch);
-  float n = noise(floor(cell));
-  float streak = smoothstep(0.46, 0.72, n);
-  return streak * intensity;
+  // Keep the V1 fallback continuous too. A threshold over floor(cell) was
+  // rendered as repeated rectangular bands in strong rain on some GPUs.
+  float lane = streakUv.x * freq + sin(streakUv.y * 1.1) * 0.12;
+  float laneId = floor(lane);
+  float distanceToLane = abs(fract(lane) - 0.5);
+  float streak = 1.0 - smoothstep(0.06, 0.20, distanceToLane);
+  float opacity = smoothstep(
+    0.30,
+    0.73,
+    noise(vec2(laneId + 19.1, streakUv.y * 2.0))
+  );
+  return streak * opacity * intensity;
 }
 
 void main() {

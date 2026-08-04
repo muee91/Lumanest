@@ -108,7 +108,6 @@ class _IntelligenceWorkspaceState
   void initState() {
     super.initState();
     _conversation = AssistantConversationState(id: _newConversationId());
-    _inputFocus.addListener(_handleInputFocus);
   }
 
   @override
@@ -128,16 +127,10 @@ class _IntelligenceWorkspaceState
   void dispose() {
     _generation += 1;
     _cancelToken?.cancel('intelligence_surface_disposed');
-    _inputFocus
-      ..removeListener(_handleInputFocus)
-      ..dispose();
+    _inputFocus.dispose();
     _inputController.dispose();
     _conversationScroll.dispose();
     super.dispose();
-  }
-
-  void _handleInputFocus() {
-    if (mounted) setState(() {});
   }
 
   @override
@@ -184,7 +177,6 @@ class _IntelligenceWorkspaceState
                 scrollController: _conversationScroll,
                 bottomSafe: bottomSafe,
                 onSubmit: _submitText,
-                onInputChanged: () => setState(() {}),
                 onSelectNote: _selectNote,
                 onSaveSelectedNote: _selectedNote == null
                     ? null
@@ -637,7 +629,6 @@ class _AssistantStage extends StatelessWidget {
     required this.scrollController,
     required this.bottomSafe,
     required this.onSubmit,
-    required this.onInputChanged,
     required this.onSelectNote,
     required this.onSaveSelectedNote,
     required this.onOpenSelectedNote,
@@ -659,7 +650,6 @@ class _AssistantStage extends StatelessWidget {
   final ScrollController scrollController;
   final double bottomSafe;
   final VoidCallback onSubmit;
-  final VoidCallback onInputChanged;
   final ValueChanged<InspirationNote> onSelectNote;
   final VoidCallback? onSaveSelectedNote;
   final VoidCallback? onOpenSelectedNote;
@@ -1126,7 +1116,6 @@ class _AssistantStage extends StatelessWidget {
   );
 
   Widget _composer() {
-    final canSend = inputController.text.trim().isNotEmpty;
     return Container(
       key: const Key('v2-intelligence-composer'),
       padding: EdgeInsets.fromLTRB(16, 8, 16, 10 + bottomSafe),
@@ -1164,7 +1153,6 @@ class _AssistantStage extends StatelessWidget {
                 controller: inputController,
                 focusNode: inputFocus,
                 textInputAction: TextInputAction.send,
-                onChanged: (_) => onInputChanged(),
                 onSubmitted: (_) => onSubmit(),
                 minLines: 1,
                 maxLines: 3,
@@ -1185,20 +1173,24 @@ class _AssistantStage extends StatelessWidget {
                 ),
               ),
             ),
-            IconButton(
-              key: const Key('v2-intelligence-send'),
-              tooltip: '发送',
-              onPressed: canSend ? onSubmit : null,
-              style: IconButton.styleFrom(
-                minimumSize: const Size.square(42),
-                maximumSize: const Size.square(42),
-                padding: EdgeInsets.zero,
-                backgroundColor: V2Palette.moss,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: V2Palette.paper,
-                disabledForegroundColor: V2Palette.line,
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: inputController,
+              builder: (context, value, child) => IconButton(
+                key: const Key('v2-intelligence-send'),
+                tooltip: '发送',
+                onPressed: value.text.trim().isNotEmpty ? onSubmit : null,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(42),
+                  maximumSize: const Size.square(42),
+                  padding: EdgeInsets.zero,
+                  backgroundColor: V2Palette.moss,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: V2Palette.paper,
+                  disabledForegroundColor: V2Palette.line,
+                ),
+                icon: child!,
               ),
-              icon: const Icon(CupertinoIcons.arrow_up, size: 18),
+              child: const Icon(CupertinoIcons.arrow_up, size: 18),
             ),
           ],
         ),
