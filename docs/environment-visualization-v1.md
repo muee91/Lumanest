@@ -16,3 +16,7 @@ Today 保持一个主机会对象，环境信息改为场景动态排序的专�
 ## 视觉系统
 
 首批环境图标采用统一 24×24 圆角线性 SVG，并由 Flutter 主题色动态着色。环境卡使用低饱和语义渐变，颜色只辅助区分信息类型，不承担证据等级。
+
+## 发布门槛
+
+正式 CI 必须覆盖 Flutter 全量测试、Data Broker、Discovery、Raster、Terrain 服务测试以及 Android Debug APK 构建与上传。分层云量增强不可用时，Today 必须继续使用 Context 总云量并保持可交互。
