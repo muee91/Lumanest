@@ -44,7 +44,10 @@ void main() {
     expect(find.byKey(const Key('v2-timeline-chart-cloud')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byKey(const Key('v2-timeline-focus-wind')));
+    final windFocus = find.byKey(const Key('v2-timeline-focus-wind'));
+    await tester.ensureVisible(windFocus);
+    await tester.pumpAndSettle();
+    await tester.tap(windFocus);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('v2-timeline-chart-wind')), findsOneWidget);
     expect(tester.takeException(), isNull);
