@@ -26,7 +26,9 @@ jobs:
           channel: stable
           cache: true
       - name: Apply environment visualization V1
-        run: python3 tools/apply_environment_visualization_v1.py
+        run: |
+          python3 tools/apply_environment_visualization_v1.py
+          python3 tools/fix_environment_visualization_v1.py
       - name: Format changed Dart files
         run: dart format lib/src/features/today/application/environment_visualization.dart lib/src/presentation_v2/environment lib/src/presentation_v2/today/v2_today_page.dart test/features/today/environment_visualization_test.dart test/presentation_v2/environment/v2_cloud_detail_sheet_test.dart
       - name: Resolve dependencies
@@ -43,6 +45,7 @@ jobs:
       - name: Remove one-shot assets
         run: |
           rm -f tools/apply_environment_visualization_v1.py
+          rm -f tools/fix_environment_visualization_v1.py
           rm -f .github/workflows/apply-environment-visualization-v1.yml
           rm -f .github/workflows/inspect-environment-visualization.yml
       - name: Commit validated implementation
