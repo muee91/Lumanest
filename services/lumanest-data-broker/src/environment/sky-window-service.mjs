@@ -271,6 +271,28 @@ function evaluatePoint({ timestamp, query, horizon, nightSkyBackground, weather,
   };
 }
 
+function timelineSample(point) {
+  const atmosphere = point.atmosphere ?? {};
+  return {
+    validAt: point.observedAt,
+    conditionBand: point.conditionBand,
+    sunAltitudeDegrees: point.geometry?.sun?.altitudeDegrees ?? null,
+    astronomicalNight: point.geometry?.astronomicalNight ?? null,
+    totalCloudCoverPercent: atmosphere.totalCloudCoverPercent ?? null,
+    lowCloudCoverPercent: atmosphere.lowCloudCoverPercent ?? null,
+    middleCloudCoverPercent: atmosphere.middleCloudCoverPercent ?? null,
+    highCloudCoverPercent: atmosphere.highCloudCoverPercent ?? null,
+    visibilityMeters: atmosphere.visibilityMeters ?? null,
+    precipitationProbabilityPercent: atmosphere.precipitationProbabilityPercent ?? null,
+    precipitationMm: atmosphere.precipitationMm ?? null,
+    relativeHumidityPercent: atmosphere.relativeHumidityPercent ?? null,
+    windSpeedKmh: atmosphere.windSpeedKmh ?? null,
+    windGustKmh: atmosphere.windGustKmh ?? null,
+    weatherAgreement: point.auxiliary?.weatherAgreement ?? 'unavailable',
+    limitations: point.limitations,
+  };
+}
+
 function pointQuality(point) {
   let value = conditionOrder[point.conditionBand] * 100;
   value -= (point.atmosphere?.totalCloudCoverPercent ?? 100) * 0.35;
@@ -410,6 +432,7 @@ export class SkyWindowService {
       generatedAt: instant.toISOString(),
       expiresAt: new Date(instant.getTime() + 15 * 60 * 1_000).toISOString(),
       current: points[0],
+      samples: points.map(timelineSample),
       windows,
       bestWindowId,
       confidence: confidence({
