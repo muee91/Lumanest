@@ -158,6 +158,24 @@ if old_expectations not in test:
     raise SystemExit('theme strip expectation anchor not found')
 test = test.replace(old_expectations, new_expectations, 1)
 
+old_selected_material = """      final selectedMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('v2-explore-theme-viewpoint')),
+          matching: find.byType(Material),
+        ),
+      );
+"""
+new_selected_material = """      final selectedMaterial = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('v2-explore-theme-water')),
+          matching: find.byType(Material),
+        ),
+      );
+"""
+if old_selected_material not in test:
+    raise SystemExit('selected tab material anchor not found')
+test = test.replace(old_selected_material, new_selected_material, 1)
+
 old_humanity_tap = """      await tester.tap(find.byKey(const Key('v2-explore-theme-humanity')));
       await tester.pump();
 
