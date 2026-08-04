@@ -112,11 +112,17 @@ test('clear public weather and dark terrain-aware sky create bounded windows', a
   assert.equal(result.contractVersion, 1);
   assert.equal(result.stepMinutes, 15);
   assert.ok(result.current.moon);
+  assert.equal(result.samples.length, 25);
+  assert.equal(result.samples[0].validAt, result.current.observedAt);
+  assert.equal(result.samples.at(-1).validAt, result.endAt);
+  assert.equal(result.samples[0].totalCloudCoverPercent, 5);
+  assert.equal(result.samples[0].weatherAgreement, 'unavailable');
   assert.ok(result.windows.length >= 1);
   assert.ok(result.bestWindowId);
   assert.equal(result.confidence.criticalSourcesReady, true);
   assert.equal(result.confidence.missingSources.includes('seven_timer_auxiliary'), true);
   assert.equal(Object.hasOwn(result, 'successProbability'), false);
+  assert.equal(Object.hasOwn(result.samples[0], 'successProbability'), false);
 });
 
 test('precipitation blocks windows without creating a probability', async () => {
@@ -129,5 +135,8 @@ test('precipitation blocks windows without creating a probability', async () => 
   });
   assert.equal(result.windows.length, 0);
   assert.equal(result.current.conditionBand, 'unavailable');
+  assert.equal(result.samples[0].precipitationProbabilityPercent, 80);
+  assert.equal(result.samples[0].precipitationMm, 0.4);
   assert.ok(result.current.limitations.includes('precipitation_likely'));
+  assert.ok(result.samples[0].limitations.includes('precipitation_likely'));
 });
