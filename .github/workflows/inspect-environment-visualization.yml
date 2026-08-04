@@ -1,0 +1,28 @@
+name: Inspect environment visualization chain
+
+on:
+  push:
+    branches:
+      - agent/environment-visualization-v1
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Locate cloud and remote context contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== cloudCoverPercent references ==='
+          grep -RIn --exclude-dir=.git --exclude='*.lock' 'cloudCoverPercent' lib services test || true
+          echo '=== cloud cover JSON keys ==='
+          grep -RInE --exclude-dir=.git --exclude='*.lock' 'cloud[_A-Za-z-]*(cover|Cover)|cloudcover|cloud_cover' lib services test || true
+          echo '=== RemoteContext implementations ==='
+          grep -RInE --exclude-dir=.git 'RemoteContextRepository|fetchSnapshot\(' lib services test || true
+          echo '=== weather model files ==='
+          find lib services test -type f \( -iname '*weather*' -o -iname '*context*repository*' -o -iname '*forecast*' \) | sort
