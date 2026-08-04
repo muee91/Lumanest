@@ -32,9 +32,15 @@ void main() {
 
     expect(find.text('摄影环境工作台'), findsOneWidget);
     expect(find.byKey(const Key('v2-environment-summary')), findsOneWidget);
-    expect(find.byKey(const Key('v2-window-sample-chart')), findsOneWidget);
     expect(find.byKey(const Key('v2-workbench-fact-cloud')), findsOneWidget);
     expect(tester.takeException(), isNull);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('v2-window-sample-chart')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.byKey(const Key('v2-window-sample-chart')), findsOneWidget);
 
     await tester.tap(find.text('阵风'));
     await tester.pumpAndSettle();
@@ -71,7 +77,14 @@ void main() {
     expect(find.text('最近有效事实、候选窗口峰值与摄影影响'), findsOneWidget);
     expect(find.byKey(const Key('v2-workbench-fact-temperature')), findsOneWidget);
     expect(find.byKey(const Key('v2-workbench-fact-cloud')), findsNothing);
-    expect(find.text('候选窗口采样不足，暂不绘制变化图'), findsOneWidget);
+
+    final emptyTrend = find.text('候选窗口采样不足，暂不绘制变化图');
+    await tester.scrollUntilVisible(
+      emptyTrend,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(emptyTrend, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
