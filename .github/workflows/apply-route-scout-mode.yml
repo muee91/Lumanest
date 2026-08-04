@@ -1,0 +1,87 @@
+name: Apply route scout mode
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.head_ref == 'agent/route-scout-mode'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Apply route scout implementation
+        run: |
+          python3 tool/apply_route_scout_mode.py
+          python3 tool/fix_route_scout_mode.py
+          dart format \
+            lib/src/presentation_v2/route/v2_route_page.dart \
+            lib/src/features/route/application/route_navigation_launcher.dart \
+            lib/src/features/route/application/route_scout_providers.dart \
+            lib/src/features/route/domain/route_scout_plan.dart \
+            test/features/route/route_scout_plan_test.dart
+
+      - name: Test Data Broker
+        working-directory: services/lumanest-data-broker
+        run: |
+          npm ci
+          npm test
+
+      - name: Analyze Flutter
+        run: |
+          flutter pub get
+          flutter analyze
+
+      - name: Test route scout mode
+        run: flutter test test/features/route/route_scout_plan_test.dart
+
+      - name: Run full Flutter tests
+        run: flutter test
+
+      - name: Remove one-shot assets
+        run: |
+          git rm -f tool/apply_route_scout_mode.py
+          git rm -f tool/fix_route_scout_mode.py
+          git rm -f .github/workflows/apply-route-scout-mode.yml
+
+      - name: Commit validated implementation
+        run: |
+          git config user.name 'LumaNest Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'feat: complete route scout mode'
+          git push origin HEAD:${{ github.head_ref }}
