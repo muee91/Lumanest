@@ -9,8 +9,8 @@ const exploreCoreIntents = <ExploreCreativeIntent>[
   ExploreCreativeIntent.humanity,
 ];
 
-/// Utility POIs are intentionally grouped behind one “附近服务” affordance.
-/// They remain one tap away without competing with creative discovery themes.
+/// Utility POIs remain a separate semantic group, but every item is exposed
+/// directly in Explore's single horizontally scrollable tab strip.
 const exploreNearbyServiceIntents = <ExploreCreativeIntent>[
   ExploreCreativeIntent.supplies,
   ExploreCreativeIntent.parking,
