@@ -1972,6 +1972,21 @@ export function createTokenBrokerServer({
               fetcher,
               timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
             }),
+            loadRouteWeather: (routeBody) => routeWeatherForecast({
+              body: routeBody,
+              now: () => assistantNow,
+              fetchWeather: (coordinate) => authoritativeWeather({
+                coordinate,
+                apiHost: configuration.qweatherApiHost,
+                privateKey: configuration.privateKey,
+                keyId: configuration.keyId,
+                projectId: configuration.projectId,
+                cache: weatherCache,
+                fetcher,
+                now,
+                timeoutMs: configuration.settings.upstreamTimeoutMs,
+              }),
+            }),
             now: assistantNow,
             timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
           })
