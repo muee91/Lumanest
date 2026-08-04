@@ -21,11 +21,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== cloudCoverPercent references ==='
-          grep -RIn --exclude-dir=.git --exclude='*.lock' 'cloudCoverPercent' lib services test || true
-          echo '=== cloud cover JSON keys ==='
-          grep -RInE --exclude-dir=.git --exclude='*.lock' 'cloud[_A-Za-z-]*(cover|Cover)|cloudcover|cloud_cover' lib services test || true
-          echo '=== RemoteContext implementations ==='
-          grep -RInE --exclude-dir=.git 'RemoteContextRepository|fetchSnapshot\(' lib services test || true
-          echo '=== weather model files ==='
-          find lib services test -type f \( -iname '*weather*' -o -iname '*context*repository*' -o -iname '*forecast*' \) | sort
+          echo '=== server integration references ==='
+          grep -nE 'OpenMeteoNightSkyForecast|forwardContextSnapshot|authoritativeWeather|nightSky' services/lumanest-data-broker/src/server.mjs || true
+          echo '=== context response models ==='
+          grep -nE 'class Weather|class Context|weather:' services/lumanest-context-service/app/models.py | head -80 || true
+          echo '=== context evaluate response construction ==='
+          grep -RInE 'WeatherState|environment=.*weather|cloud_cover_percent|cloudCoverPercent' services/lumanest-context-service/app | head -160 || true
+          echo '=== Dart context parsing and validation ==='
+          sed -n '430,505p' lib/src/infrastructure/context/data_broker_context_repository.dart
+          sed -n '1090,1150p' lib/src/infrastructure/context/data_broker_context_repository.dart
+          echo '=== cache contract ==='
+          sed -n '85,215p' lib/src/core/context/persistent_context_cache.dart
