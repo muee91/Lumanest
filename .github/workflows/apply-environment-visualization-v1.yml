@@ -1,0 +1,58 @@
+name: Apply environment visualization V1
+
+on:
+  push:
+    branches:
+      - agent/environment-visualization-v1
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/environment-visualization-v1
+          fetch-depth: 0
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Apply environment visualization V1
+        run: python3 tools/apply_environment_visualization_v1.py
+      - name: Format changed Dart files
+        run: dart format lib/src/features/today/application/environment_visualization.dart lib/src/presentation_v2/environment lib/src/presentation_v2/today/v2_today_page.dart test/features/today/environment_visualization_test.dart test/presentation_v2/environment/v2_cloud_detail_sheet_test.dart
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Analyze Flutter
+        run: flutter analyze
+      - name: Test environment visualization
+        run: |
+          flutter test test/features/today/environment_visualization_test.dart
+          flutter test test/presentation_v2/environment/v2_cloud_detail_sheet_test.dart
+          flutter test test/presentation_v2/today/v2_today_safety_test.dart
+      - name: Run full Flutter test suite
+        run: flutter test
+      - name: Remove one-shot assets
+        run: |
+          rm -f tools/apply_environment_visualization_v1.py
+          rm -f .github/workflows/apply-environment-visualization-v1.yml
+          rm -f .github/workflows/inspect-environment-visualization.yml
+      - name: Commit validated implementation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit"
+            exit 0
+          fi
+          git commit -m "feat: add professional environment visualization"
+          git push origin HEAD:agent/environment-visualization-v1
