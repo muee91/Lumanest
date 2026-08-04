@@ -227,11 +227,11 @@ jobs:
         uses: actions/github-script@v7
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
-          DATA_BROKER_RESULT: ${{ needs.data-broker.result }}
-          DISCOVERY_RESULT: ${{ needs.discovery-service.result }}
-          RASTER_RESULT: ${{ needs.raster-service.result }}
-          TERRAIN_RESULT: ${{ needs.terrain-service.result }}
-          ANDROID_RESULT: ${{ needs.android-debug.result }}
+          DATA_BROKER_RESULT: ${{ needs['data-broker'].result }}
+          DISCOVERY_RESULT: ${{ needs['discovery-service'].result }}
+          RASTER_RESULT: ${{ needs['raster-service'].result }}
+          TERRAIN_RESULT: ${{ needs['terrain-service'].result }}
+          ANDROID_RESULT: ${{ needs['android-debug'].result }}
         with:
           script: |
             const results = {
