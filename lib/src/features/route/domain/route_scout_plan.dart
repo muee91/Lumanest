@@ -63,7 +63,8 @@ class RouteScoutPlan {
   final RouteScoutCoverage coverage;
   final List<RouteScoutNode> nodes;
 
-  List<RouteScoutNode> get primaryNodes => nodes.take(3).toList(growable: false);
+  List<RouteScoutNode> get primaryNodes =>
+      nodes.take(3).toList(growable: false);
 
   int get criticalCount => nodes
       .where((node) => node.priority == RouteScoutPriority.critical)
@@ -72,9 +73,8 @@ class RouteScoutPlan {
   int get highCount =>
       nodes.where((node) => node.priority == RouteScoutPriority.high).length;
 
-  int get photographyCount => nodes
-      .where((node) => node.kind == RouteScoutNodeKind.photography)
-      .length;
+  int get photographyCount =>
+      nodes.where((node) => node.kind == RouteScoutNodeKind.photography).length;
 
   int get supportCount => nodes
       .where(
@@ -98,10 +98,8 @@ class RouteScoutPlan {
   }
 
   RouteScoutNode? nextAfter(double progress) {
-    final floor = (progress - .03).clamp(0.0, 1.0);
-    return nodes
-        .where((node) => node.routeProgress >= floor)
-        .firstOrNull;
+    final floor = (progress - .03).clamp(0.0, 1.0).toDouble();
+    return nodes.where((node) => node.routeProgress >= floor).firstOrNull;
   }
 
   static double progressForJourney({
@@ -111,7 +109,7 @@ class RouteScoutPlan {
   }) {
     if (durationSeconds <= 0) return 0;
     final elapsed = now.toUtc().difference(startedAt.toUtc()).inSeconds;
-    return (elapsed / durationSeconds).clamp(0.0, 1.0);
+    return (elapsed / durationSeconds).clamp(0.0, 1.0).toDouble();
   }
 }
 
@@ -152,9 +150,9 @@ class RouteScoutPlanBuilder {
     _appendSupport(nodes, supportStops, now, route.durationSeconds);
 
     nodes.sort((first, second) {
-      final priority = _priorityRank(first.priority).compareTo(
-        _priorityRank(second.priority),
-      );
+      final priority = _priorityRank(
+        first.priority,
+      ).compareTo(_priorityRank(second.priority));
       if (priority != 0) return priority;
       final progress = first.routeProgress.compareTo(second.routeProgress);
       if (progress != 0) return progress;
@@ -280,7 +278,8 @@ class RouteScoutPlanBuilder {
       if (!session.endsAt.isAfter(now) || session.startsAt.isAfter(routeEnd)) {
         continue;
       }
-      final primary = session.phases
+      final primary =
+          session.phases
               .where((phase) => phase.kind == session.primaryPhase)
               .firstOrNull ??
           session.phases.firstOrNull;
@@ -288,7 +287,7 @@ class RouteScoutPlanBuilder {
       final seconds = targetAt.difference(now).inSeconds;
       final progress = durationSeconds <= 0
           ? 0.0
-          : (seconds / durationSeconds).clamp(0.0, 1.0);
+          : (seconds / durationSeconds).clamp(0.0, 1.0).toDouble();
       nodes.add(
         RouteScoutNode(
           id: 'photo-${session.id}',
@@ -316,7 +315,7 @@ class RouteScoutPlanBuilder {
       if (!seen.add(stop.place.id)) continue;
       final kind = _supportKind(stop.place.category);
       if (kind == null) continue;
-      final progress = stop.routeProgress.clamp(0.0, 1.0);
+      final progress = stop.routeProgress.clamp(0.0, 1.0).toDouble();
       nodes.add(
         RouteScoutNode(
           id: 'support-${stop.place.id}',
@@ -394,7 +393,6 @@ class RouteScoutPlanBuilder {
     _ => '沿途',
   };
 
-  static String _distance(int meters) => meters >= 1000
-      ? '${(meters / 1000).toStringAsFixed(1)}km'
-      : '${meters}m';
+  static String _distance(int meters) =>
+      meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)}km' : '${meters}m';
 }

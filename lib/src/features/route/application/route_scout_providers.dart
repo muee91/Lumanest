@@ -53,10 +53,7 @@ final routeScoutPlanProvider = FutureProvider.autoDispose
         corridor,
       );
       final supportFuture = _loadSupportStops(ref, request.route, corridor);
-      final (weather, supportStops) = await (
-        weatherFuture,
-        supportFuture,
-      ).wait;
+      final (weather, supportStops) = await (weatherFuture, supportFuture).wait;
       return RouteScoutPlanBuilder.build(
         routeId: corridor.routeId,
         route: request.route,
@@ -102,10 +99,7 @@ Future<List<RouteSupportStop>> _loadSupportStops(
         .firstOrNull;
     if (place == null) continue;
     fresh.add(
-      RouteSupportStop(
-        place: place,
-        routeProgress: query.sample.progress,
-      ),
+      RouteSupportStop(place: place, routeProgress: query.sample.progress),
     );
   }
   if (fresh.isNotEmpty) {

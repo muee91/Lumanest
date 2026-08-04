@@ -30,7 +30,8 @@ class RouteNavigationLauncher {
         ? 'walk'
         : 'car';
     final fallback = Uri.https('uri.amap.com', '/navigation', {
-      'to': '${point.longitude.toStringAsFixed(6)},'
+      'to':
+          '${point.longitude.toStringAsFixed(6)},'
           '${point.latitude.toStringAsFixed(6)},${destination.name}',
       'mode': webMode,
       'policy': '1',

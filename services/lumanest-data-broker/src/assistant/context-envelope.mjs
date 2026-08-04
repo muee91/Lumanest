@@ -1,3 +1,9 @@
+import {
+  coarseRouteCorridor,
+  routeWeatherFacts,
+  validRouteCorridorBinding,
+} from './route-scout-context.mjs';
+
 const regionBriefSections = Object.freeze([
   'identity', 'orientation', 'photoThemes', 'happeningNow', 'places',
   'localTaste', 'etiquette', 'practical',
@@ -101,6 +107,7 @@ export function createAssistantContextBinding({ coordinate, locale = 'zh-CN', ro
       longitude: rounded((longitudeCell + 0.5) * 0.05),
       radiusMeters: mobility === 'driving' ? 20_000 : 5_000,
     }),
+    routeCorridor: coarseRouteCorridor(route),
     sceneProfile: Object.freeze({
       physicalScene: scene,
       facets: Object.freeze([]),
@@ -118,7 +125,8 @@ function validBinding(value) {
   return object(value) && object(value.region) && object(value.sceneProfile) &&
     finite(value.region.latitude, -90, 90) && finite(value.region.longitude, -180, 180) &&
     Number.isInteger(value.region.radiusMeters) && value.region.radiusMeters >= 100 &&
-    value.region.radiusMeters <= 50_000 && typeof value.locale === 'string';
+    value.region.radiusMeters <= 50_000 && typeof value.locale === 'string' &&
+    validRouteCorridorBinding(value.routeCorridor);
 }
 
 function selectedProviderIds(binding, snapshot) {
@@ -284,6 +292,7 @@ export async function buildAssistantContextEnvelope({
   snapshot,
   providerFactsService,
   loadRegionBrief,
+  loadRouteWeather,
   now = new Date(),
   timeoutMs = 2_000,
 }) {
@@ -317,14 +326,22 @@ export async function buildAssistantContextEnvelope({
         requestedSections: regionBriefSections,
       }))
     : null;
-  const [providerBundle, regionResult] = await Promise.all([
+  const routeTask = typeof loadRouteWeather === 'function' && binding.routeCorridor != null
+    ? Promise.resolve().then(() => loadRouteWeather({
+        routeId: binding.routeCorridor.routeId,
+        samples: binding.routeCorridor.samples,
+      }))
+    : null;
+  const [providerBundle, regionResult, routeResult] = await Promise.all([
     settleWithin(providerTask, timeoutMs),
     settleWithin(regionTask, timeoutMs),
+    settleWithin(routeTask, timeoutMs),
   ]);
   const baseLines = snapshotFactLines(snapshot, now);
   const region = briefFacts(regionResult, now);
   const providers = providerFacts(providerBundle, now);
-  const contextFacts = [...baseLines, ...region.lines, ...providers.lines]
+  const route = routeWeatherFacts(routeResult, now);
+  const contextFacts = [...baseLines, ...route.lines, ...region.lines, ...providers.lines]
     .map((line) => boundedText(line, 420))
     .filter(Boolean)
     .join('；');
@@ -332,9 +349,11 @@ export async function buildAssistantContextEnvelope({
   return Object.freeze({
     contextFacts: boundedFacts,
     sources: Object.freeze(uniqueSources([...region.sources, ...providers.sources])),
-    factIds: Object.freeze([...new Set([...region.factIds, ...providers.factIds])].slice(0, 12)),
+    factIds: Object.freeze([
+      ...new Set([...route.factIds, ...region.factIds, ...providers.factIds]),
+    ].slice(0, 12)),
     expiresAt: earliestExpiry(
-      [snapshot.expiresAt, region.expiresAt, providers.expiresAt],
+      [snapshot.expiresAt, route.expiresAt, region.expiresAt, providers.expiresAt],
       snapshot.expiresAt,
       now,
     ),
