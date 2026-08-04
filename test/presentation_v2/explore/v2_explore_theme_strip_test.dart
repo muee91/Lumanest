@@ -134,36 +134,36 @@ void main() {
         find.byKey(const Key('v2-explore-theme-humanity')),
         findsOneWidget,
       );
+      expect(find.byKey(const Key('v2-explore-nearby-services')), findsNothing);
+      await tester.drag(strip, const Offset(-700, 0));
+      await tester.pumpAndSettle();
       expect(
-        find.byKey(const Key('v2-explore-nearby-services')),
+        find.byKey(const Key('v2-explore-theme-supplies')),
         findsOneWidget,
       );
-      expect(
-        find.descendant(
-          of: strip,
-          matching: find.byKey(const Key('v2-explore-theme-food')),
-        ),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('v2-explore-theme-parking')), findsOneWidget);
+      expect(find.byKey(const Key('v2-explore-theme-food')), findsOneWidget);
+      expect(find.byKey(const Key('v2-explore-theme-fuel')), findsOneWidget);
+      expect(find.byKey(const Key('v2-explore-theme-medical')), findsOneWidget);
       expect(find.text('选择探索主题'), findsNothing);
       expect(find.text('换一个探索主题'), findsNothing);
       expect(find.text('上拉查看'), findsOneWidget);
 
       final selectedMaterial = tester.widget<Material>(
         find.descendant(
-          of: find.byKey(const Key('v2-explore-theme-viewpoint')),
+          of: find.byKey(const Key('v2-explore-theme-water')),
           matching: find.byType(Material),
         ),
       );
       expect(selectedMaterial.color, V2Palette.mossSoft);
       expect(selectedMaterial.color, isNot(V2Palette.night));
 
-      await tester.tap(find.byKey(const Key('v2-explore-theme-humanity')));
+      await tester.tap(find.byKey(const Key('v2-explore-theme-food')));
       await tester.pump();
 
       expect(
         container.read(exploreIntentProvider).category,
-        NearbyPlaceCategory.humanity,
+        NearbyPlaceCategory.food,
       );
 
       await tester.tap(searchButton);
