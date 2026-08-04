@@ -173,6 +173,13 @@ class _ProfileSettingsPanel extends StatelessWidget {
                 ),
                 _panelEntry(
                   context,
+                  icon: CupertinoIcons.cloud,
+                  title: '摄影环境工作台',
+                  detail: '当前事实、候选窗口采样与摄影解读',
+                  route: '/environment',
+                ),
+                _panelEntry(
+                  context,
                   icon: CupertinoIcons.info,
                   title: '关于栖光',
                   detail: '版本与产品说明',
@@ -189,6 +196,14 @@ class _ProfileSettingsPanel extends StatelessWidget {
                     title: '动态背景实验室',
                     detail: '仅开发调试可见',
                     route: '/ambient-debug',
+                  ),
+                if (kDebugMode)
+                  _panelEntry(
+                    context,
+                    icon: CupertinoIcons.rectangle_3_offgrid,
+                    title: '环境验收实验室',
+                    detail: '场景、屏宽与字体缩放检查',
+                    route: '/environment-lab',
                   ),
               ],
             ),
@@ -380,6 +395,13 @@ class V2ProfileSettingsPage extends StatelessWidget {
           detail: '动态、高对比、匿名反馈和本地活动清理',
           onTap: () => context.push('/profile/privacy'),
         ),
+        const SizedBox(height: 12),
+        _V2SettingsEntry(
+          icon: CupertinoIcons.cloud,
+          title: '摄影环境工作台',
+          detail: '当前事实、候选窗口采样与摄影解读',
+          onTap: () => context.push('/environment'),
+        ),
         if (kDebugMode) ...[
           const SizedBox(height: 12),
           _V2SettingsEntry(
@@ -387,6 +409,13 @@ class V2ProfileSettingsPage extends StatelessWidget {
             title: '动态背景实验室',
             detail: '仅开发调试可见',
             onTap: () => context.push('/ambient-debug'),
+          ),
+          const SizedBox(height: 12),
+          _V2SettingsEntry(
+            icon: CupertinoIcons.rectangle_3_offgrid,
+            title: '环境验收实验室',
+            detail: '场景、屏宽与字体缩放检查',
+            onTap: () => context.push('/environment-lab'),
           ),
         ],
       ],
