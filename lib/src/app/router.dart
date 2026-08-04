@@ -7,6 +7,7 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
+import 'package:luma_nest/src/presentation_v2/environment/v2_environment_workbench_page.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
@@ -129,6 +130,14 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
+        path: '/environment',
+        pageBuilder: (context, state) => _v2DetailPage(
+          state,
+          child: V2EnvironmentWorkbenchPage(initialSnapshot: initialContext),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
         path: '/sky-opportunity/:event/:dayOffset',
         pageBuilder: (context, state) {
           final eventType = switch (state.pathParameters['event']) {
@@ -237,13 +246,20 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         pageBuilder: (context, state) =>
             _v2DetailPage(state, child: const V2ProfilePrivacyPage()),
       ),
-      if (kDebugMode)
+      if (kDebugMode) ...[
         GoRoute(
           parentNavigatorKey: rootNavigatorKey,
           path: '/ambient-debug',
           pageBuilder: (context, state) =>
               _v2DetailPage(state, child: const AmbientDebugPage()),
         ),
+        GoRoute(
+          parentNavigatorKey: rootNavigatorKey,
+          path: '/environment-lab',
+          pageBuilder: (context, state) =>
+              _v2DetailPage(state, child: const V2EnvironmentLabPage()),
+        ),
+      ],
     ],
   );
 }
