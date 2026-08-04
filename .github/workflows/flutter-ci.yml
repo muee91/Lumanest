@@ -8,6 +8,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      upload_apk:
+        description: Upload the debug APK for temporary manual download
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -107,14 +113,14 @@ jobs:
           cat discovery-test.log
           exit "$status"
 
-      - name: Upload discovery service test log
-        if: always()
+      - name: Upload failed discovery test log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: discovery-test-log-${{ github.sha }}
           path: services/lumanest-discovery-service/discovery-test.log
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 2
 
   raster-service:
     name: Test raster service
@@ -193,10 +199,11 @@ jobs:
       - name: Build debug APK
         run: flutter build apk --debug
 
-      - name: Upload debug APK
+      - name: Upload debug APK for manual runs only
+        if: github.event_name == 'workflow_dispatch' && inputs.upload_apk
         uses: actions/upload-artifact@v4
         with:
           name: lumanest-debug-apk-${{ github.sha }}
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 2
