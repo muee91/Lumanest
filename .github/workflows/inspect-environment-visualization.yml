@@ -17,18 +17,16 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Locate cloud and remote context contracts
+      - name: Locate environment visualization anchors
         shell: bash
         run: |
           set -euo pipefail
-          echo '=== server integration references ==='
-          grep -nE 'OpenMeteoNightSkyForecast|forwardContextSnapshot|authoritativeWeather|nightSky' services/lumanest-data-broker/src/server.mjs || true
-          echo '=== context response models ==='
-          grep -nE 'class Weather|class Context|weather:' services/lumanest-context-service/app/models.py | head -80 || true
-          echo '=== context evaluate response construction ==='
-          grep -RInE 'WeatherState|environment=.*weather|cloud_cover_percent|cloudCoverPercent' services/lumanest-context-service/app | head -160 || true
-          echo '=== Dart context parsing and validation ==='
-          sed -n '430,505p' lib/src/infrastructure/context/data_broker_context_repository.dart
-          sed -n '1090,1150p' lib/src/infrastructure/context/data_broker_context_repository.dart
-          echo '=== cache contract ==='
-          sed -n '85,215p' lib/src/core/context/persistent_context_cache.dart
+          echo '=== sky-window client usage ==='
+          grep -RInE --exclude-dir=.git 'SkyWindowForecast|skyWindowForecast|sky_window' lib test | head -240 || true
+          echo '=== sky-window providers and repositories ==='
+          find lib test -type f \( -iname '*sky*window*' -o -iname '*environment*provider*' \) | sort
+          echo '=== Today tests ==='
+          find test/presentation_v2/today -type f -maxdepth 2 -print -exec sed -n '1,120p' {} \;
+          echo '=== server context route anchors ==='
+          sed -n '1260,1325p' services/lumanest-data-broker/src/server.mjs
+          sed -n '2150,2215p' services/lumanest-data-broker/src/server.mjs
