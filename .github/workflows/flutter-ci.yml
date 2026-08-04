@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: flutter-ci-${{ github.workflow }}-${{ github.ref }}
@@ -207,3 +208,67 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 2
+
+  verification-status:
+    name: Publish combined verification status
+    if: always()
+    needs:
+      - quality
+      - data-broker
+      - discovery-service
+      - raster-service
+      - terrain-service
+      - android-debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Publish auditable commit status
+        uses: actions/github-script@v7
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          DATA_BROKER_RESULT: ${{ needs.data-broker.result }}
+          DISCOVERY_RESULT: ${{ needs.discovery-service.result }}
+          RASTER_RESULT: ${{ needs.raster-service.result }}
+          TERRAIN_RESULT: ${{ needs.terrain-service.result }}
+          ANDROID_RESULT: ${{ needs.android-debug.result }}
+        with:
+          script: |
+            const results = {
+              flutter: process.env.QUALITY_RESULT,
+              dataBroker: process.env.DATA_BROKER_RESULT,
+              discovery: process.env.DISCOVERY_RESULT,
+              raster: process.env.RASTER_RESULT,
+              terrain: process.env.TERRAIN_RESULT,
+              android: process.env.ANDROID_RESULT,
+            };
+            const failed = Object.entries(results)
+              .filter(([, result]) => result !== 'success')
+              .map(([name, result]) => `${name}:${result}`);
+            const state = failed.length === 0 ? 'success' : 'failure';
+            const description = state === 'success'
+              ? 'Flutter, services and Android debug build passed'
+              : `Verification failed: ${failed.join(', ')}`.slice(0, 140);
+            const targetUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state,
+              context: 'LumaNest / verification',
+              description,
+              target_url: targetUrl,
+            });
+
+            await core.summary
+              .addHeading('LumaNest verification')
+              .addTable([
+                [{ data: 'Gate', header: true }, { data: 'Result', header: true }],
+                ...Object.entries(results).map(([name, result]) => [name, result]),
+              ])
+              .write();
+
+            if (state === 'failure') {
+              core.setFailed(description);
+            }
