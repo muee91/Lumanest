@@ -1,0 +1,52 @@
+name: Apply scrollable Explore tabs
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/restore-scrollable-explore-tabs'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Apply tab restoration
+        run: python3 tools/apply_restore_scrollable_explore_tabs.py
+
+      - name: Format changed Dart files
+        run: dart format lib/src/presentation_v2/explore/v2_explore_page.dart lib/src/features/explore/application/explore_intent_catalog.dart test/presentation_v2/explore/v2_explore_theme_strip_test.dart
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter
+        run: flutter analyze
+
+      - name: Test Explore tabs
+        run: flutter test test/presentation_v2/explore/v2_explore_theme_strip_test.dart test/features/explore/explore_intent_catalog_test.dart
+
+      - name: Remove one-shot assets
+        run: git rm -f tools/apply_restore_scrollable_explore_tabs.py .github/workflows/apply_restore_scrollable_explore_tabs.yml
+
+      - name: Commit validated implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/src/presentation_v2/explore/v2_explore_page.dart lib/src/features/explore/application/explore_intent_catalog.dart test/presentation_v2/explore/v2_explore_theme_strip_test.dart
+          git commit -m 'fix: restore scrollable Explore service tabs'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
