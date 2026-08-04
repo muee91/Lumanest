@@ -9,6 +9,8 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_controller.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/environment/sky_window_forecast.dart';
+import 'package:luma_nest/src/core/environment/sky_window_providers.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_payload.dart';
@@ -21,6 +23,10 @@ import 'package:luma_nest/src/features/explore/application/region_brief_provider
 import 'package:luma_nest/src/features/explore/application/region_discovery_highlight.dart';
 import 'package:luma_nest/src/presentation_v2/entry/entry_action_dispatcher.dart';
 import 'package:luma_nest/src/presentation_v2/entry/entry_card_registry.dart';
+import 'package:luma_nest/src/features/today/application/environment_visualization.dart';
+import 'package:luma_nest/src/presentation_v2/environment/v2_cloud_detail_sheet.dart';
+import 'package:luma_nest/src/presentation_v2/environment/v2_environment_gradients.dart';
+import 'package:luma_nest/src/presentation_v2/environment/v2_environment_icon.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
@@ -62,8 +68,25 @@ class V2TodayPage extends ConsumerWidget {
           final briefState = initialSnapshot == null
               ? ref.watch(regionBriefControllerProvider)
               : const RegionBriefState.idle();
+          final skyWindowForecast = switch (value.location) {
+            final point? =>
+              ref
+                  .watch(
+                    skyWindowForecastProvider(
+                      SkyWindowRequest(
+                        point: point,
+                        startAt: value.observedAt,
+                        hours: 24,
+                      ),
+                    ),
+                  )
+                  .asData
+                  ?.value,
+            null => null,
+          };
           return _V2TodayContent(
             snapshot: value,
+            skyWindowForecast: skyWindowForecast,
             composition: ref.watch(todaySurfaceCompositionProvider(value)),
             location: _V2TodayContent._todayLocationDisplay(
               ref
@@ -99,6 +122,7 @@ class V2TodayPage extends ConsumerWidget {
 class _V2TodayContent extends StatefulWidget {
   const _V2TodayContent({
     required this.snapshot,
+    required this.skyWindowForecast,
     required this.composition,
     required this.location,
     required this.regionalHighlight,
@@ -106,6 +130,7 @@ class _V2TodayContent extends StatefulWidget {
   });
 
   final ContextSnapshot snapshot;
+  final SkyWindowForecast? skyWindowForecast;
   final SurfaceComposition composition;
   final EnvironmentLocationDisplay location;
   final RegionDiscoveryHighlight? regionalHighlight;
@@ -212,7 +237,11 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                       snapshot: snapshot,
                     ),
                   ),
-                  _V2CurrentConditions(snapshot: snapshot, now: now),
+                  _V2CurrentConditions(
+                    snapshot: snapshot,
+                    now: now,
+                    skyWindowForecast: widget.skyWindowForecast,
+                  ),
                   _V2OpportunityRail(
                     sessions: snapshot.shootingSessions,
                     primaryId: sessionId,
@@ -249,15 +278,24 @@ class _V2TodayContentState extends State<_V2TodayContent> {
 }
 
 class _V2CurrentConditions extends StatelessWidget {
-  const _V2CurrentConditions({required this.snapshot, required this.now});
+  const _V2CurrentConditions({
+    required this.snapshot,
+    required this.now,
+    required this.skyWindowForecast,
+  });
 
   final ContextSnapshot snapshot;
   final DateTime now;
+  final SkyWindowForecast? skyWindowForecast;
 
   @override
   Widget build(BuildContext context) {
-    final facts = _facts();
-    if (facts.isEmpty) return const SizedBox.shrink();
+    final visualization = EnvironmentVisualization.fromSnapshot(
+      snapshot,
+      skyWindow: skyWindowForecast,
+      now: now,
+    );
+    if (visualization.cards.isEmpty) return const SizedBox.shrink();
     final current =
         snapshot.dataFreshness == ContextDataFreshness.fresh &&
         !snapshot.isStale;
@@ -292,7 +330,7 @@ class _V2CurrentConditions extends StatelessWidget {
           const SizedBox(height: 8),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 520 ? 4 : 2;
+              final columns = constraints.maxWidth >= 620 ? 3 : 2;
               const gap = 8.0;
               final width =
                   (constraints.maxWidth - gap * (columns - 1)) / columns;
@@ -300,10 +338,20 @@ class _V2CurrentConditions extends StatelessWidget {
                 spacing: gap,
                 runSpacing: gap,
                 children: [
-                  for (final fact in facts.take(4))
+                  for (final fact in visualization.cards)
                     SizedBox(
                       width: width,
-                      child: _V2ConditionFact(fact: fact),
+                      child: _V2ConditionFact(
+                        fact: fact,
+                        onTap:
+                            fact.type == EnvironmentMetricType.cloud &&
+                                visualization.cloud != null
+                            ? () => showV2CloudDetailSheet(
+                                context,
+                                visualization.cloud!,
+                              )
+                            : null,
+                      ),
                     ),
                 ],
               );
@@ -314,183 +362,135 @@ class _V2CurrentConditions extends StatelessWidget {
     );
   }
 
-  List<_V2ConditionData> _facts() {
-    final facts = <_V2ConditionData>[];
-    final weather = _weatherLabel(snapshot.weather);
-    final temperature = snapshot.temperatureCelsius;
-    if (weather != null) {
-      facts.add(
-        _V2ConditionData(
-          icon: _weatherIcon(snapshot.weather),
-          label: '天气',
-          value: temperature == null
-              ? weather
-              : '$weather · ${temperature.round()}°',
-        ),
-      );
-    } else if (temperature != null) {
-      facts.add(
-        _V2ConditionData(
-          icon: CupertinoIcons.thermometer,
-          label: '温度',
-          value: '${temperature.round()}°',
-        ),
-      );
-    }
-    if (snapshot.windSpeedMetersPerSecond case final wind?) {
-      facts.add(
-        _V2ConditionData(
-          icon: CupertinoIcons.wind,
-          label: '风',
-          value: '${wind.toStringAsFixed(1)} m/s',
-        ),
-      );
-    }
-    if (snapshot.visibilityKilometers case final visibility?) {
-      facts.add(
-        _V2ConditionData(
-          icon: CupertinoIcons.eye,
-          label: '能见度',
-          value: _distance(visibility),
-        ),
-      );
-    }
-    final air = snapshot.airQualityCategory?.trim();
-    if (!snapshot.airQualityStale && air != null && air.isNotEmpty) {
-      facts.add(
-        _V2ConditionData(
-          icon: CupertinoIcons.leaf_arrow_circlepath,
-          label: '空气',
-          value: air,
-        ),
-      );
-    }
-    if (snapshot.precipitationMillimeters case final precipitation?) {
-      facts.add(
-        _V2ConditionData(
-          icon: CupertinoIcons.drop,
-          label: '降水',
-          value: '${precipitation.toStringAsFixed(1)} mm',
-        ),
-      );
-    }
-    final nextLight = _nextLightEvent();
-    if (nextLight != null) facts.add(nextLight);
-    return facts;
-  }
-
-  _V2ConditionData? _nextLightEvent() {
-    final sunset = snapshot.sunset;
-    if (sunset != null && sunset.isAfter(now)) {
-      return _V2ConditionData(
-        icon: CupertinoIcons.sunset,
-        label: '日落',
-        value: _time(sunset),
-      );
-    }
-    final sunrise = snapshot.sunrise;
-    if (sunrise != null && sunrise.isAfter(now)) {
-      return _V2ConditionData(
-        icon: CupertinoIcons.sunrise,
-        label: '日出',
-        value: _time(sunrise),
-      );
-    }
-    return null;
-  }
-
-  static String _distance(double value) {
-    final text = value == value.roundToDouble()
-        ? value.round().toString()
-        : value.toStringAsFixed(1);
-    return '$text km';
-  }
-
   static String _time(DateTime value) =>
       '${value.toLocal().hour.toString().padLeft(2, '0')}:'
       '${value.toLocal().minute.toString().padLeft(2, '0')}';
-
-  static String? _weatherLabel(WeatherType value) => switch (value) {
-    WeatherType.clear => '晴',
-    WeatherType.cloudy => '多云',
-    WeatherType.rain => '雨',
-    WeatherType.snow => '雪',
-    WeatherType.dust => '扬尘',
-    WeatherType.unknown => null,
-  };
-
-  static IconData _weatherIcon(WeatherType value) => switch (value) {
-    WeatherType.clear => CupertinoIcons.sun_max,
-    WeatherType.cloudy => CupertinoIcons.cloud,
-    WeatherType.rain => CupertinoIcons.cloud_rain,
-    WeatherType.snow => CupertinoIcons.snow,
-    WeatherType.dust => CupertinoIcons.wind,
-    WeatherType.unknown => CupertinoIcons.question_circle,
-  };
 }
 
-class _V2ConditionData {
-  const _V2ConditionData({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+class _V2ConditionFact extends StatefulWidget {
+  const _V2ConditionFact({required this.fact, this.onTap});
 
-  final IconData icon;
-  final String label;
-  final String value;
-}
-
-class _V2ConditionFact extends StatelessWidget {
-  const _V2ConditionFact({required this.fact});
-  final _V2ConditionData fact;
+  final EnvironmentMetricCard fact;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: '${fact.label}：${fact.value}',
-    child: Container(
-      constraints: const BoxConstraints(minHeight: 64),
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      decoration: BoxDecoration(
-        color: V2Palette.paper.withValues(alpha: .78),
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: V2Palette.line.withValues(alpha: .72)),
-      ),
-      child: Row(
-        children: [
-          Icon(fact.icon, color: V2Palette.moss, size: 18),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+  State<_V2ConditionFact> createState() => _V2ConditionFactState();
+}
+
+class _V2ConditionFactState extends State<_V2ConditionFact> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final fact = widget.fact;
+    final onTap = widget.onTap;
+    return Semantics(
+      button: onTap != null,
+      label: '${fact.label}：${fact.value}。${fact.summary}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onTapDown: onTap == null
+            ? null
+            : (_) => setState(() => _pressed = true),
+        onTapCancel: onTap == null
+            ? null
+            : () => setState(() => _pressed = false),
+        onTapUp: onTap == null ? null : (_) => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? .97 : 1,
+          duration: const Duration(milliseconds: 140),
+          child: Container(
+            key: Key('v2-condition-${fact.type.name}'),
+            constraints: const BoxConstraints(minHeight: 84),
+            padding: const EdgeInsets.fromLTRB(12, 12, 11, 11),
+            decoration: BoxDecoration(
+              gradient: V2EnvironmentGradients.forMetric(fact.type),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: V2Palette.line.withValues(alpha: .75)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .045),
+                  blurRadius: 13,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  fact.label,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .62),
+                    shape: BoxShape.circle,
+                  ),
+                  child: V2EnvironmentIcon(
+                    type: fact.type,
+                    color: V2EnvironmentGradients.iconColor(fact.type),
+                    size: 19,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  fact.value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              fact.label,
+                              style: const TextStyle(
+                                color: V2Palette.mutedInk,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (onTap != null)
+                            const Icon(
+                              CupertinoIcons.chevron_right,
+                              color: V2Palette.mutedInk,
+                              size: 12,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        fact.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: V2Palette.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        fact.summary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: V2Palette.mutedInk,
+                          fontSize: 9.5,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _V2RegionalDiscoveryCard extends StatelessWidget {
