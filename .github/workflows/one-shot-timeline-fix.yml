@@ -1,0 +1,44 @@
+name: One-shot timeline fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-timeline-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact null-safety patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('lib/src/presentation_v2/environment/v2_environment_timeline_page.dart')
+          text = page.read_text()
+          old = "'时间线包含 ${timeline.samples.length} 个受限采样，置信等级 ${_confidenceLabel(confidence!.band)}。'"
+          new = "'时间线包含 ${timeline!.samples.length} 个受限采样，置信等级 ${_confidenceLabel(confidence!.band)}。'"
+          if text.count(old) != 1:
+              raise SystemExit('expected timeline null-safety target exactly once')
+          page.write_text(text.replace(old, new))
+
+          workflow = Path('.github/workflows/one-shot-timeline-fix.yml')
+          workflow.unlink()
+          PY
+
+      - name: Commit patch and remove one-shot workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/src/presentation_v2/environment/v2_environment_timeline_page.dart .github/workflows/one-shot-timeline-fix.yml
+          git commit -m "fix: promote timeline before sample count"
+          git push
