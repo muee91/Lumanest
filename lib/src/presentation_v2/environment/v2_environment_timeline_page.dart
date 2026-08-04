@@ -782,7 +782,7 @@ class _DataQualityCard extends StatelessWidget {
           Text(
             timeline == null
                 ? '连续时间线不可用时，Today 主机会、安全预警和当前环境事实继续独立工作。'
-                : '时间线包含 ${timeline.samples.length} 个受限采样，置信等级 ${_confidenceLabel(confidence!.band)}。',
+                : '时间线包含 ${timeline!.samples.length} 个受限采样，置信等级 ${_confidenceLabel(confidence!.band)}。',
             style: const TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 11,
