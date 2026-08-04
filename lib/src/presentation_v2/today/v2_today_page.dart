@@ -24,7 +24,6 @@ import 'package:luma_nest/src/features/explore/application/region_discovery_high
 import 'package:luma_nest/src/presentation_v2/entry/entry_action_dispatcher.dart';
 import 'package:luma_nest/src/presentation_v2/entry/entry_card_registry.dart';
 import 'package:luma_nest/src/features/today/application/environment_visualization.dart';
-import 'package:luma_nest/src/presentation_v2/environment/v2_cloud_detail_sheet.dart';
 import 'package:luma_nest/src/presentation_v2/environment/v2_environment_gradients.dart';
 import 'package:luma_nest/src/presentation_v2/environment/v2_environment_icon.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
@@ -343,14 +342,9 @@ class _V2CurrentConditions extends StatelessWidget {
                       width: width,
                       child: _V2ConditionFact(
                         fact: fact,
-                        onTap:
-                            fact.type == EnvironmentMetricType.cloud &&
-                                visualization.cloud != null
-                            ? () => showV2CloudDetailSheet(
-                                context,
-                                visualization.cloud!,
-                              )
-                            : null,
+                        onTap: () => context.push(
+                          '/environment?focus=${_focusFor(fact.type)}',
+                        ),
                       ),
                     ),
                 ],
@@ -365,6 +359,16 @@ class _V2CurrentConditions extends StatelessWidget {
   static String _time(DateTime value) =>
       '${value.toLocal().hour.toString().padLeft(2, '0')}:'
       '${value.toLocal().minute.toString().padLeft(2, '0')}';
+
+  static String _focusFor(EnvironmentMetricType type) => switch (type) {
+    EnvironmentMetricType.cloud => 'cloud',
+    EnvironmentMetricType.precipitation => 'precipitation',
+    EnvironmentMetricType.wind => 'wind',
+    EnvironmentMetricType.visibility => 'visibility',
+    EnvironmentMetricType.light ||
+    EnvironmentMetricType.temperature ||
+    EnvironmentMetricType.air => 'overview',
+  };
 }
 
 class _V2ConditionFact extends StatefulWidget {
