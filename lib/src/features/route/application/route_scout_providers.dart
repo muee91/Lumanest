@@ -87,26 +87,48 @@ Future<List<RouteSupportStop>> _loadSupportStops(
 
   final repository = ref.watch(nearbyPlaceRepositoryProvider);
   final fresh = <RouteSupportStop>[];
-  for (final query in queries) {
-    final places = await fetchOptionalNearbyPlaces(
-      repository,
-      center: query.sample.point,
-      category: query.category,
-      radiusMeters: query.radiusMeters,
+  for (var index = 0; index < queries.length; index += 2) {
+    final batch = queries.skip(index).take(2);
+    final results = await Future.wait(
+      batch.map((query) => _findSupportStop(repository, query)),
     );
-    final place = places
-        .where((candidate) => candidate.category == query.category)
-        .firstOrNull;
-    if (place == null) continue;
-    fresh.add(
-      RouteSupportStop(place: place, routeProgress: query.sample.progress),
-    );
+    fresh.addAll(results.whereType<RouteSupportStop>());
   }
-  if (fresh.isNotEmpty) {
+  if (fresh.isEmpty) return cached;
+
+  final seen = <String>{};
+  final merged = <RouteSupportStop>[
+    ...fresh.where((stop) => seen.add(stop.place.id)),
+    ...cached.where((stop) => seen.add(stop.place.id)),
+  ];
+  // Only replace a populated route cache after every requested service type
+  // produced a fresh candidate. A partial network response may enrich the
+  // current view, but it must not erase a still-valid fuel or medical fallback.
+  if (fresh.length == queries.length || cached.isEmpty) {
     await cache.write(route, fresh);
-    return List.unmodifiable(fresh);
   }
-  return cached;
+  return List.unmodifiable(merged.take(12));
+}
+
+Future<RouteSupportStop?> _findSupportStop(
+  NearbyPlaceRepository repository,
+  _SupportQuery query,
+) async {
+  final places = await fetchOptionalNearbyPlaces(
+    repository,
+    center: query.sample.point,
+    category: query.category,
+    radiusMeters: query.radiusMeters,
+  );
+  final place = places
+      .where((candidate) => candidate.category == query.category)
+      .firstOrNull;
+  return place == null
+      ? null
+      : RouteSupportStop(
+          place: place,
+          routeProgress: query.sample.progress,
+        );
 }
 
 List<_SupportQuery> _supportQueries(
