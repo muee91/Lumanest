@@ -43,12 +43,34 @@ jobs:
           PY
       - name: Apply ecology provider integration
         run: python3 .github/scripts/ecology_provider_patch.py
+      - name: Explicitly enable eBird in adapter coverage test
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('services/lumanest-data-broker/test/provider-facts-service.test.mjs')
+          text = path.read_text(encoding='utf-8')
+          old = """  const service = new ProviderFactsService({
+    fetcher,
+    now: () => instant,
+    sentinelStacBaseUrl: 'https://stac.test/v1',
+"""
+          new = """  const service = new ProviderFactsService({
+    fetcher,
+    now: () => instant,
+    configuration: () => ({ enabledProviders: [...supportedProviderIds] }),
+    sentinelStacBaseUrl: 'https://stac.test/v1',
+"""
+          if text.count(old) != 1:
+              raise SystemExit(f'adapter coverage anchor mismatch: {text.count(old)}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
       - name: Install data broker dependencies
         working-directory: services/lumanest-data-broker
         run: npm ci
-      - name: Test ecology provider integration
+      - name: Test full data broker suite
         working-directory: services/lumanest-data-broker
-        run: node --test test/provider-runtime-config.test.mjs test/provider-facts-service.test.mjs
+        run: npm test
       - name: Commit ecology provider integration
         run: |
           rm .github/scripts/ecology_provider_patch.py
