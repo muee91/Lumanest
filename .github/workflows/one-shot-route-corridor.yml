@@ -32,8 +32,15 @@ jobs:
           marker = "          python3 <<'PY'\n"
           start = source.index(marker) + len(marker)
           end = source.rindex('\n          PY')
-          lines = source[start:end].splitlines()
-          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
+          source_lines = source[start:end].splitlines()
+          lines = []
+          in_literal = False
+          for line in source_lines:
+              normalized = line if in_literal else (line[10:] if line.startswith('          ') else line)
+              lines.append(normalized)
+              if line.count("'''") % 2 == 1:
+                  in_literal = not in_literal
+          script = '\n'.join(lines)
           exec(compile(script, '<route-corridor-patch>', 'exec'))
           PY
       - name: Test data broker
