@@ -19,6 +19,7 @@ async function withAdmin(run, {
   sevenTimer = null,
   getBrokerHealth = async () => ({ status: 'unknown' }),
   providerHub = null,
+  observability = null,
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
@@ -56,6 +57,11 @@ async function withAdmin(run, {
     testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
     getBrokerHealth,
     getProviderHealth: async () => providerHub?.health ?? ({ provider: 'providerHub', enabled: true, providers: [], cache: {} }),
+    getOperationalObservability: async () => observability ?? ({
+      contractVersion: 1, checkedAt: '2026-08-05T04:00:00Z',
+      privacy: { preciseCoordinatesStored: false, promptsStored: false, rawFactsStored: false },
+      regionBrief: {}, assistantContext: {}, providers: {},
+    }),
     testProvider: async (query) => providerHub?.test?.(query) ?? ({ ok: false, error: 'not_configured' }),
     getAuditLogHealth,
     clearCache: async () => operations.push('clear'),
@@ -588,6 +594,34 @@ test('provider configuration is masked and diagnostics never audit coordinates',
     providerHub: {
       health: { provider: 'providerHub', enabled: true, providers: [], cache: {} },
       test: () => ({ ok: true, providerId: 'osm', status: 'ready', signalCount: 1, latencyMs: 5, traceId: 'provider-trace', error: null }),
+    },
+  });
+});
+test('operational observability is authenticated and excludes raw private context', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    assert.equal((await fetch(`${baseUrl}/admin-api/observability`)).status, 401);
+    const credentials = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/observability`, {
+      headers: { Cookie: credentials.cookie },
+    });
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    const value = JSON.parse(text);
+    assert.equal(value.contractVersion, 1);
+    assert.equal(value.privacy.preciseCoordinatesStored, false);
+    assert.doesNotMatch(text, /30\.267|120\.153|用户问题|原始事实内容/);
+  }, {
+    observability: {
+      contractVersion: 1,
+      checkedAt: '2026-08-05T04:00:00Z',
+      privacy: {
+        preciseCoordinatesStored: false,
+        promptsStored: false,
+        rawFactsStored: false,
+      },
+      regionBrief: { requests: 2 },
+      assistantContext: { builds: 1 },
+      providers: { total: 14 },
     },
   });
 });

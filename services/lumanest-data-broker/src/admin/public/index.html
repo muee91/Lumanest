@@ -7,8 +7,10 @@
   <title>栖光 · 管理台</title>
   <link rel="stylesheet" href="/admin-assets/styles.css">
   <link rel="stylesheet" href="/admin-assets/llm.css">
+  <link rel="stylesheet" href="/admin-assets/observability.css">
   <script src="/admin-assets/app.js" defer></script>
   <script src="/admin-assets/providers.js" defer></script>
+  <script src="/admin-assets/observability.js" defer></script>
 </head>
 <body>
   <main class="shell">
@@ -46,6 +48,7 @@
         <button class="nav-item" data-page="llm">模型服务</button>
         <button class="nav-item" data-page="runtime">运行设置</button>
         <p class="sidebar-label data-label">数据与质量</p>
+        <button class="nav-item" data-page="observability">数据可观测</button>
         <button class="nav-item" data-page="calibration">反馈校准</button>
         <p id="developer-tools-label" class="sidebar-label developer-label" hidden>开发工具</p>
         <button id="simulation-nav" class="nav-item" data-page="simulation" hidden>场景实验室</button>
@@ -351,6 +354,29 @@
           </div>
           <div class="audit simulation-sessions"><div class="audit-head"><div><p class="card-kicker">PAIRED DEBUG APPS</p><h3>在线测试会话</h3></div><button id="refresh-simulations" type="button" class="secondary compact-button">刷新会话</button></div><ol id="simulation-session-list" class="simulation-session-list"></ol></div>
         </section>
+
+<section class="page" data-panel="observability" hidden>
+  <div class="observability-hero">
+    <div><p class="card-kicker">OPERATIONAL OBSERVABILITY</p><h3>数据覆盖与 AI 上下文</h3><p>确认探索请求是否真正产生可用资料、AI 是否获得成立事实，以及已启用 Provider 的真实运行覆盖。这里只显示固定枚举聚合，不保存用户问题、精确坐标或原始事实文本。</p></div>
+    <div class="content-actions"><p id="observability-status" class="status" role="status" aria-live="polite"></p><button id="refresh-observability" type="button" class="secondary compact-button">刷新指标</button></div>
+  </div>
+  <div class="observability-summary">
+    <article><span>区域简报可用率</span><strong id="observability-brief-rate">—</strong><small id="observability-brief-detail">等待请求样本</small></article>
+    <article><span>主动扩展新增价值</span><strong id="observability-expansion-rate">—</strong><small id="observability-expansion-detail">等待主动扩展样本</small></article>
+    <article><span>AI 上下文可用率</span><strong id="observability-context-rate">—</strong><small id="observability-context-detail">等待 AI 请求样本</small></article>
+    <article><span>Provider 最近可用</span><strong id="observability-provider-rate">—</strong><small id="observability-provider-detail">等待 Provider 状态</small></article>
+  </div>
+  <div class="observability-grid">
+    <div class="observability-stack">
+      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">REGION BRIEF COVERAGE</p><h3>区域资料命中</h3><p>按固定八类输出统计请求与实际命中，不按地区或精确位置分组。</p></div><span id="observability-updated" class="panel-note">等待同步</span></div><div id="observability-section-list"></div></section>
+      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">PROVIDER COVERAGE</p><h3>数据源运行覆盖</h3><p>展示启用、配置、请求和最近状态，不返回任何密钥。</p></div></div><div id="observability-provider-list" class="service-status-list"></div></section>
+    </div>
+    <div class="observability-stack">
+      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">AI CONTEXT ENVELOPE</p><h3>上下文组成</h3><p id="observability-context-sources">等待 AI 上下文样本</p></div></div><div id="observability-context-components" class="observability-components"></div><p class="observability-note">候选证据被排除；缺失数据不会推断；官方安全与管制继续走独立安全链，不进入普通生成式回答。</p></section>
+      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">PRIVACY BOUNDARY</p><h3>统计边界</h3></div><span class="posture-badge">BOUNDED</span></div><p id="observability-privacy" class="observability-note">等待服务端隐私声明。</p></section>
+    </div>
+  </div>
+</section>
 
         <section class="page" data-panel="calibration" hidden>
           <div class="calibration-head">

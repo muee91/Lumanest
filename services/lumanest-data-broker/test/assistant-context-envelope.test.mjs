@@ -91,10 +91,12 @@ test('assistant envelope combines Region Brief and current Provider evidence', a
       };
     },
   };
+  let observedCoverage = null;
   const envelope = await buildAssistantContextEnvelope({
     snapshot: snapshot(binding),
     providerFactsService,
     now,
+    observe: (coverage) => { observedCoverage = coverage; },
     loadRegionBrief: async (request) => {
       assert.equal(request.snapshotId, 'ctx_1234567890abcdef12345678');
       assert.equal(request.region.latitude, binding.region.latitude);
@@ -128,6 +130,13 @@ test('assistant envelope combines Region Brief and current Provider evidence', a
   assert.equal(envelope.expiresAt, '2026-08-03T12:30:00.000Z');
   assert.ok(envelope.factIds.includes('insight.region'));
   assert.ok(envelope.sources.some((item) => item.publisher === '地方文旅部门'));
+  assert.equal(envelope.coverage.status, 'ready');
+  assert.equal(envelope.coverage.components.regionBrief.status, 'ready');
+  assert.equal(envelope.coverage.components.providers.status, 'ready');
+  assert.equal(envelope.coverage.verifiedEvidence, true);
+  assert.ok(envelope.coverage.limits.includes('safety_chain_separate'));
+  assert.deepEqual(observedCoverage, envelope.coverage);
+  assert.doesNotMatch(JSON.stringify(envelope.coverage), /测试山地|30\.267|120\.153/);
 });
 
 test('assistant sources are HTTPS-only, deduplicated and bounded', () => {

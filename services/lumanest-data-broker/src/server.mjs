@@ -71,6 +71,7 @@ import {
 import { SkyOpportunityMetrics } from './infrastructure/metrics/sky_opportunity_metrics.mjs';
 import { SevenTimerMetrics } from './infrastructure/metrics/seven_timer_metrics.mjs';
 import { BrokerHealthMonitor } from './infrastructure/metrics/broker_health_monitor.mjs';
+import { OperationalObservability } from './infrastructure/metrics/operational_observability.mjs';
 import {
   MemorySevenTimerDiagnosticsStore,
   RedisSevenTimerDiagnosticsStore,
@@ -1219,6 +1220,7 @@ export function createTokenBrokerServer({
   requestRateLimiter = new MemoryRequestRateLimiter(),
   simulationRegistry = null,
   companionStore = null,
+  operationalObservability = null,
   now = () => new Date(),
   fetcher = fetch,
 }) {
@@ -1278,6 +1280,8 @@ export function createTokenBrokerServer({
     now,
     timeoutMs: Math.min(configurationSource.snapshot().settings.upstreamTimeoutMs, 8_000),
   });
+  const activeOperationalObservability = operationalObservability ??
+    new OperationalObservability({ now });
   const activeProviderFactsService = providerFactsService ?? new ProviderFactsService({
     fetcher,
     now,
@@ -1542,7 +1546,7 @@ export function createTokenBrokerServer({
     }
 
     if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
-      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}${activeProviderFactsService.toPrometheus()}`);
+      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}${activeProviderFactsService.toPrometheus()}${activeOperationalObservability.toPrometheus()}`);
       return;
     }
 
@@ -1989,6 +1993,7 @@ export function createTokenBrokerServer({
             }),
             now: assistantNow,
             timeoutMs: Math.min(configuration.settings.upstreamTimeoutMs, 2_000),
+            observe: (coverage) => activeOperationalObservability.recordAssistantContext(coverage),
           })
         : Object.freeze({
             contextFacts: '',
@@ -2342,6 +2347,7 @@ export function createTokenBrokerServer({
         writeJson(response, 409, { error: 'invalid_or_expired_snapshot' });
         return;
       }
+      const regionBriefStartedAt = Date.now();
       const result = await forwardRegionBrief({
         body,
         serviceUrl: configuration.discoveryServiceUrl,
@@ -2351,11 +2357,21 @@ export function createTokenBrokerServer({
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });
       if (!result.ok) {
+        activeOperationalObservability.recordRegionBrief({
+          activationType: body.activationType, requestedSections: body.requestedSections,
+          status: 'failed', latencyMs: Date.now() - regionBriefStartedAt,
+        });
         writeJson(response, result.error === 'not_configured' ? 503 : 502, {
           error: result.error === 'not_configured' ? 'discovery_unconfigured' : 'upstream_unavailable',
         });
         return;
       }
+      activeOperationalObservability.recordRegionBrief({
+        activationType: body.activationType, requestedSections: body.requestedSections,
+        status: result.body?.status ?? (result.status === 202 ? 'pending' : 'failed'),
+        body: result.body, latencyMs: Date.now() - regionBriefStartedAt,
+        cacheStatus: result.body?.cacheStatus ?? null,
+      });
       writeJson(response, result.status, result.body);
       return;
     }
@@ -2436,6 +2452,7 @@ export async function createBrokerServices(environment = process.env, {
   });
   const runtimeConfig = new RuntimeConfigService({ defaults, store: configStore });
   await runtimeConfig.initialize();
+  const operationalObservability = new OperationalObservability();
   const providerFactsService = new ProviderFactsService({
     configuration: () => runtimeConfig.snapshot().providerSources,
     timeoutMs: Math.min(runtimeConfig.snapshot().settings.upstreamTimeoutMs, 12_000),
@@ -2506,6 +2523,7 @@ export async function createBrokerServices(environment = process.env, {
     requestRateLimiter,
     simulationRegistry,
     providerFactsService,
+    operationalObservability,
   });
   const adminServer = createAdminServer({
     authService,
@@ -2514,6 +2532,9 @@ export async function createBrokerServices(environment = process.env, {
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),
     getBrokerHealth: () => brokerHealthMonitor.snapshot(),
     getProviderHealth: () => providerFactsService.healthSnapshot(),
+    getOperationalObservability: () => operationalObservability.snapshot({
+      providerHealth: providerFactsService.healthSnapshot(),
+    }),
     testProvider: (query) => providerFactsService.testProvider(query),
     getAuditLogHealth: () => auditLog.status(),
     testSevenTimer: (query) => sevenTimerService.testProduct(query),

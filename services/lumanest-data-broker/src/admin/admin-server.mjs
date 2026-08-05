@@ -18,6 +18,8 @@ const staticAssets = new Map([
   ['/admin-assets/llm.css', ['llm.css', 'text/css; charset=utf-8']],
   ['/admin-assets/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/admin-assets/providers.js', ['providers.js', 'text/javascript; charset=utf-8']],
+  ['/admin-assets/observability.js', ['observability.js', 'text/javascript; charset=utf-8']],
+  ['/admin-assets/observability.css', ['observability.css', 'text/css; charset=utf-8']],
 ]);
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
@@ -176,6 +178,10 @@ export function createAdminServer({
   getSevenTimerHealth = async () => ({ provider: '7timer', enabled: false, status: 'unknown', products: [] }),
   getBrokerHealth = async () => ({ status: 'unknown' }),
   getProviderHealth = async () => ({ provider: 'providerHub', enabled: false, providers: [], cache: {} }),
+  getOperationalObservability = async () => ({
+    contractVersion: 1, checkedAt: new Date().toISOString(),
+    privacy: {}, regionBrief: {}, assistantContext: {}, providers: {},
+  }),
   testProvider = async () => ({ ok: false, error: 'not_configured' }),
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
   testSevenTimer = async () => ({ ok: false, error: 'not_configured' }),
@@ -244,6 +250,9 @@ export function createAdminServer({
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/providers/health') {
       return json(response, 200, await getProviderHealth());
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/observability') {
+      return json(response, 200, await getOperationalObservability());
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/providers/test') {
       const parsed = await body(request);

@@ -237,7 +237,7 @@ function briefFacts(result, now) {
 
 function providerFacts(bundle, now) {
   if (!object(bundle) || !currentGenerated(bundle, now)) {
-    return { lines: [], sources: [], factIds: [], expiresAt: null };
+    return { lines: [], sources: [], factIds: [], expiresAt: null, officialBoundary: false };
   }
   const lines = [];
   const sources = [];
@@ -269,7 +269,10 @@ function providerFacts(bundle, now) {
   if (hasOfficialOperationalNotice) {
     lines.unshift('运营状态：当前存在独立官方公告；具体安全与管制内容只以安全卡和官方来源为准。');
   }
-  return { lines: lines.slice(0, 8), sources, factIds, expiresAt: bundle.expiresAt };
+  return {
+    lines: lines.slice(0, 8), sources, factIds, expiresAt: bundle.expiresAt,
+    officialBoundary: hasOfficialOperationalNotice,
+  };
 }
 
 function uniqueSources(values) {
@@ -295,13 +298,31 @@ export async function buildAssistantContextEnvelope({
   loadRouteWeather,
   now = new Date(),
   timeoutMs = 2_000,
+  observe = null,
 }) {
+  const emptyCoverage = Object.freeze({
+    contractVersion: 1, status: 'empty', verifiedEvidence: false,
+    factCount: 0, factIdCount: 0, sourceCount: 0, characterCount: 0,
+    components: Object.freeze({
+      snapshot: Object.freeze({ status: 'unavailable', factCount: 0 }),
+      route: Object.freeze({ status: 'notApplicable', factCount: 0 }),
+      regionBrief: Object.freeze({ status: 'unavailable', factCount: 0 }),
+      providers: Object.freeze({ status: 'unavailable', factCount: 0 }),
+    }),
+    limits: Object.freeze([
+      'precise_location_excluded', 'candidate_evidence_excluded',
+      'missing_data_not_inferred', 'safety_chain_separate',
+    ]),
+  });
   const empty = Object.freeze({
     contextFacts: '', sources: Object.freeze([]), factIds: Object.freeze([]),
-    expiresAt: snapshot?.expiresAt ?? now.toISOString(),
+    expiresAt: snapshot?.expiresAt ?? now.toISOString(), coverage: emptyCoverage,
   });
   const binding = snapshot?.assistantContextBinding;
   if (!validBinding(binding) || typeof snapshot?.contextId !== 'string' || !validDate(snapshot.expiresAt)) {
+    if (typeof observe === 'function') {
+      try { observe(emptyCoverage); } catch {}
+    }
     return empty;
   }
   const providerIds = selectedProviderIds(binding, snapshot);
@@ -346,17 +367,47 @@ export async function buildAssistantContextEnvelope({
     .filter(Boolean)
     .join('；');
   const boundedFacts = [...contextFacts].slice(0, 3_600).join('');
+  const sources = uniqueSources([...region.sources, ...providers.sources]);
+  const factIds = [...new Set([...route.factIds, ...region.factIds, ...providers.factIds])].slice(0, 12);
+  const componentStatus = (lines, unavailable = 'unavailable') =>
+    lines.length > 0 ? 'ready' : unavailable;
+  const coverage = Object.freeze({
+    contractVersion: 1,
+    status: boundedFacts.length > 0 ? 'ready' : 'empty',
+    verifiedEvidence: factIds.length > 0,
+    factCount: baseLines.length + route.lines.length + region.lines.length + providers.lines.length,
+    factIdCount: factIds.length,
+    sourceCount: sources.length,
+    characterCount: boundedFacts.length,
+    components: Object.freeze({
+      snapshot: Object.freeze({ status: componentStatus(baseLines, 'empty'), factCount: baseLines.length }),
+      route: Object.freeze({
+        status: binding.routeCorridor == null ? 'notApplicable' : componentStatus(route.lines),
+        factCount: route.lines.length,
+      }),
+      regionBrief: Object.freeze({ status: componentStatus(region.lines), factCount: region.lines.length }),
+      providers: Object.freeze({ status: componentStatus(providers.lines), factCount: providers.lines.length }),
+    }),
+    limits: Object.freeze([
+      'precise_location_excluded',
+      'candidate_evidence_excluded',
+      'missing_data_not_inferred',
+      ...(providers.officialBoundary ? ['safety_chain_separate'] : []),
+    ]),
+  });
+  if (typeof observe === 'function') {
+    try { observe(coverage); } catch {}
+  }
   return Object.freeze({
     contextFacts: boundedFacts,
-    sources: Object.freeze(uniqueSources([...region.sources, ...providers.sources])),
-    factIds: Object.freeze([
-      ...new Set([...route.factIds, ...region.factIds, ...providers.factIds]),
-    ].slice(0, 12)),
+    sources: Object.freeze(sources),
+    factIds: Object.freeze(factIds),
     expiresAt: earliestExpiry(
       [snapshot.expiresAt, route.expiresAt, region.expiresAt, providers.expiresAt],
       snapshot.expiresAt,
       now,
     ),
+    coverage,
   });
 }
 
