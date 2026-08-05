@@ -1,0 +1,73 @@
+name: One-shot ecology productization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/scripts/ecology_productization_patch.py
+      - .github/workflows/one-shot-ecology-productization.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-ecology-productization
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply ecology productization
+        run: python3 .github/scripts/ecology_productization_patch.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+
+      - name: Install data broker dependencies
+        working-directory: services/lumanest-data-broker
+        run: npm ci
+
+      - name: Test data broker
+        working-directory: services/lumanest-data-broker
+        run: npm test
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Test ecology presentation
+        run: flutter test test/presentation_v2/explore/v2_provider_facts_sheet_test.dart --reporter expanded
+
+      - name: Commit completed ecology productization
+        run: |
+          rm .github/scripts/ecology_productization_patch.py
+          rm .github/workflows/one-shot-ecology-productization.yml
+          git config user.name "muee91"
+          git config user.email "55554607+muee91@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: productize ecology context and validation"
+          git push origin HEAD:main
