@@ -19,6 +19,7 @@ const providerIds = Object.freeze([
   'wikidata',
   'wikimediaCommons',
   'gbif',
+  'inaturalist',
   'ebird',
   'firms',
   'copernicusMarine',
@@ -26,6 +27,7 @@ const providerIds = Object.freeze([
   'noaaSwpc',
 ]);
 const providerIdSet = new Set(providerIds);
+const defaultProviderIds = Object.freeze(providerIds.filter((id) => id !== 'ebird'));
 const defaultRadiusKm = 25;
 const maximumRadiusKm = 50;
 const cacheLimit = 256;
@@ -226,7 +228,7 @@ export function validProviderFactsQuery(searchParams, now = new Date()) {
     return null;
   }
   const selected = includeRaw == null || includeRaw.trim().length === 0
-    ? [...providerIds]
+    ? [...defaultProviderIds]
     : [...new Set(includeRaw.split(',').map((item) => item.trim()).filter(Boolean))];
   if (selected.length === 0 || selected.length > providerIds.length || selected.some((id) => !providerIdSet.has(id))) {
     return null;
@@ -674,6 +676,81 @@ async function gbifProvider({ query, fetcher, timeoutMs, now, baseUrl }) {
   }
 }
 
+
+async function inaturalistProvider({ query, fetcher, timeoutMs, now, baseUrl }) {
+  const id = 'inaturalist';
+  const category = 'wildlife';
+  const sourceInfo = source({
+    id: 'inaturalist-observations-api',
+    title: 'iNaturalist Observations API',
+    publisher: 'iNaturalist community',
+    url: 'https://www.inaturalist.org/pages/api+reference',
+    license: 'Observation-specific licences; aggregate metadata only',
+    version: 'v1',
+  });
+  const box = pointBox(query.latitude, query.longitude, Math.min(query.radiusKm, 50));
+  const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1_000);
+  const url = new URL('/v1/observations', baseUrl);
+  const parameters = {
+    taxon_id: 3,
+    quality_grade: 'research',
+    captive: 'false',
+    geo: 'true',
+    d1: dateOnly(start),
+    nelat: box.north.toFixed(5),
+    nelng: box.east.toFixed(5),
+    swlat: box.south.toFixed(5),
+    swlng: box.west.toFixed(5),
+    per_page: 30,
+    order_by: 'observed_on',
+    order: 'desc',
+  };
+  Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+  try {
+    const body = await fetchJson(fetcher, url, {
+      timeoutMs,
+      headers: { 'User-Agent': 'LumaNest/1.0 ecology-context' },
+    });
+    const total = Number(body?.total_results);
+    const observations = Array.isArray(body?.results) ? body.results : [];
+    if (!Number.isInteger(total) || total <= 0 || observations.length === 0) {
+      return noData(id, category, now, sourceInfo, '近九十日没有可用的研究级公开鸟类观察摘要');
+    }
+    const taxa = new Set(observations.map((item) => Number(item?.taxon?.id)).filter(Number.isInteger));
+    const latest = observations
+      .map((item) => iso(item?.time_observed_at ?? item?.observed_on))
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? now.toISOString();
+    return providerResult({
+      id,
+      category,
+      status: 'ready',
+      now,
+      ttlMs: readyTtlMs,
+      sourceInfo,
+      signals: [signal({
+        providerId: id,
+        kind: 'recentCommunityBirdSummary',
+        category,
+        title: '近期公开社区观察',
+        summary: `近九十日当前粗略范围有 ${total.toLocaleString('en-US')} 条研究级公开鸟类观察；最近返回样本涉及 ${taxa.size} 个分类单元。社区记录不代表动物当前仍在现场，也不用于推算出现概率或生成精确物种导航。`,
+        verification: 'candidate',
+        observedAt: latest,
+        expiresAt: new Date(now.getTime() + 6 * 60 * 60 * 1_000),
+        sourceUrl: sourceInfo.url,
+        attributes: {
+          observationCount: Math.min(total, 1_000),
+          sampledTaxaCount: Math.min(taxa.size, 1_000),
+          lookbackDays: 90,
+        },
+      })],
+    });
+  } catch {
+    return unavailable(id, category, now);
+  }
+}
+
 async function ebirdProvider({ query, fetcher, timeoutMs, now, baseUrl, token }) {
   const id = 'ebird';
   const category = 'wildlife';
@@ -819,6 +896,7 @@ export class ProviderFactsService {
     wikidataEndpoint = configuredUrl(process.env.LUMANEST_WIKIDATA_SPARQL_URL) || 'https://query.wikidata.org/sparql',
     commonsApiUrl = configuredUrl(process.env.LUMANEST_COMMONS_API_URL) || 'https://commons.wikimedia.org/w/api.php',
     gbifBaseUrl = configuredUrl(process.env.LUMANEST_GBIF_BASE_URL) || 'https://api.gbif.org',
+    inaturalistBaseUrl = configuredUrl(process.env.LUMANEST_INATURALIST_BASE_URL) || 'https://api.inaturalist.org',
     ebirdBaseUrl = configuredUrl(process.env.LUMANEST_EBIRD_BASE_URL) || 'https://api.ebird.org',
     ebirdToken = configuredToken(process.env.LUMANEST_EBIRD_API_TOKEN),
     firmsBaseUrl = configuredUrl(process.env.LUMANEST_FIRMS_BASE_URL) || 'https://firms.modaps.eosdis.nasa.gov',
@@ -847,6 +925,7 @@ export class ProviderFactsService {
       wikidataEndpoint,
       commonsApiUrl,
       gbifBaseUrl,
+      inaturalistBaseUrl,
       ebirdBaseUrl,
       ebirdToken,
       firmsBaseUrl,
@@ -917,6 +996,7 @@ export class ProviderFactsService {
       wikidata: () => wikidataProvider({ query, fetcher: this.fetcher, timeoutMs, now, endpoint: configuration.wikidataEndpoint }),
       wikimediaCommons: () => commonsProvider({ query, fetcher: this.fetcher, timeoutMs, now, apiUrl: configuration.commonsApiUrl }),
       gbif: () => gbifProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.gbifBaseUrl }),
+      inaturalist: () => inaturalistProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.inaturalistBaseUrl }),
       ebird: () => ebirdProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.ebirdBaseUrl, token: configuration.ebirdToken }),
       firms: () => firmsProvider({ query, fetcher: this.fetcher, timeoutMs, now, baseUrl: configuration.firmsBaseUrl, mapKey: configuration.firmsMapKey }),
       copernicusMarine: () => normalizedGatewayProvider({

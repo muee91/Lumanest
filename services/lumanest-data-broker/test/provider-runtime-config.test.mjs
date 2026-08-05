@@ -18,7 +18,16 @@ test('provider defaults are production-safe and secrets are masked', () => {
   assert.equal(safe.ebirdToken.configured, true);
   assert.equal(safe.ebirdToken.lastFour, '1234');
   assert.equal(JSON.stringify(safe).includes('ebird-secret'), false);
-  assert.equal(providerConfigured('ebird', configuration), true);
+  assert.equal(configuration.enabledProviders.includes('inaturalist'), true);
+  assert.equal(configuration.enabledProviders.includes('ebird'), false);
+  assert.equal(providerConfigured('inaturalist', configuration), true);
+  assert.equal(providerConfigured('ebird', configuration), false);
+
+  const explicitlyEnabled = validateProviderSources({
+    ...configuration,
+    enabledProviders: [...configuration.enabledProviders, 'ebird'],
+  });
+  assert.equal(providerConfigured('ebird', explicitlyEnabled), true);
 });
 
 test('official notice sources require HTTPS, coverage and authority before safety promotion', () => {

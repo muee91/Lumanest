@@ -10,6 +10,7 @@ export const supportedProviderSourceIds = Object.freeze([
   'wikidata',
   'wikimediaCommons',
   'gbif',
+  'inaturalist',
   'ebird',
   'firms',
   'copernicusMarine',
@@ -36,6 +37,7 @@ const urlFields = Object.freeze([
   'wikidataEndpoint',
   'commonsApiUrl',
   'gbifBaseUrl',
+  'inaturalistBaseUrl',
   'ebirdBaseUrl',
   'firmsBaseUrl',
   'marineGatewayUrl',
@@ -73,7 +75,7 @@ function environmentValue(environment, name, fallback = '') {
 export function providerSourceDefaults(environment = {}) {
   return {
     enabled: true,
-    enabledProviders: [...supportedProviderSourceIds],
+    enabledProviders: supportedProviderSourceIds.filter((id) => id !== 'ebird'),
     timeoutMs: 8_000,
     sentinelStacBaseUrl: environmentValue(
       environment,
@@ -108,6 +110,11 @@ export function providerSourceDefaults(environment = {}) {
       'https://commons.wikimedia.org/w/api.php',
     ),
     gbifBaseUrl: environmentValue(environment, 'LUMANEST_GBIF_BASE_URL', 'https://api.gbif.org'),
+    inaturalistBaseUrl: environmentValue(
+      environment,
+      'LUMANEST_INATURALIST_BASE_URL',
+      'https://api.inaturalist.org',
+    ),
     ebirdBaseUrl: environmentValue(environment, 'LUMANEST_EBIRD_BASE_URL', 'https://api.ebird.org'),
     ebirdToken: environmentValue(environment, 'LUMANEST_EBIRD_API_TOKEN'),
     firmsBaseUrl: environmentValue(
@@ -354,6 +361,8 @@ function switchProvider(id, configuration) {
       return Boolean(configuration.commonsApiUrl);
     case 'gbif':
       return Boolean(configuration.gbifBaseUrl);
+    case 'inaturalist':
+      return Boolean(configuration.inaturalistBaseUrl);
     case 'ebird':
       return Boolean(configuration.ebirdBaseUrl && configuration.ebirdToken);
     case 'firms':
@@ -380,7 +389,8 @@ export function publicProviderSourceCatalog() {
     wikidata: 'Wikidata',
     wikimediaCommons: 'Wikimedia Commons',
     gbif: 'GBIF',
-    ebird: 'eBird',
+    inaturalist: 'iNaturalist',
+    ebird: 'eBird（可选）',
     firms: 'NASA FIRMS',
     copernicusMarine: 'Copernicus Marine',
     jplHorizons: 'JPL Horizons',

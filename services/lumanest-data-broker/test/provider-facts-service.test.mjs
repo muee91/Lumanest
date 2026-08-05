@@ -35,6 +35,13 @@ function query(include = supportedProviderIds.join(',')) {
   return validProviderFactsQuery(params, instant);
 }
 
+test('default provider query keeps eBird optional and includes iNaturalist', () => {
+  const params = new URLSearchParams({ lat: '30.25', lon: '120.15' });
+  const parsed = validProviderFactsQuery(params, instant);
+  assert.equal(parsed.providerIds.includes('inaturalist'), true);
+  assert.equal(parsed.providerIds.includes('ebird'), false);
+});
+
 test('provider query is bounded and rejects unknown sources', () => {
   assert.equal(validProviderFactsQuery(new URLSearchParams({ lat: '91', lon: '120' }), instant), null);
   assert.equal(validProviderFactsQuery(new URLSearchParams({ lat: '30', lon: '120', include: 'unknown' }), instant), null);
@@ -95,6 +102,19 @@ test('all provider adapters normalize into one failure-isolated contract', async
       return json({ query: { pages: [{ title: 'File:Example.jpg' }] } });
     }
     if (url.hostname === 'gbif.test') return json({ count: 421 });
+    if (url.hostname === 'inaturalist.test') {
+      assert.equal(url.searchParams.get('taxon_id'), '3');
+      assert.equal(url.searchParams.get('quality_grade'), 'research');
+      assert.equal(url.searchParams.get('captive'), 'false');
+      assert.equal(url.searchParams.get('d1'), '2026-05-05');
+      return json({
+        total_results: 48,
+        results: [
+          { taxon: { id: 101 }, observed_on: '2026-08-02', user: { login: 'private' }, geojson: { coordinates: [120.1, 30.2] } },
+          { taxon: { id: 102 }, time_observed_at: '2026-08-03T06:30:00Z', photos: [{ url: 'https://example.invalid/photo.jpg' }] },
+        ],
+      });
+    }
     if (url.hostname === 'ebird.test') return json([
       { sciName: 'Ardea alba', obsDt: '2026-08-03 07:00' },
       { sciName: 'Passer montanus', obsDt: '2026-08-03 06:00' },
@@ -113,6 +133,7 @@ test('all provider adapters normalize into one failure-isolated contract', async
   const service = new ProviderFactsService({
     fetcher,
     now: () => instant,
+    configuration: () => ({ enabledProviders: [...supportedProviderIds] }),
     sentinelStacBaseUrl: 'https://stac.test/v1',
     camsGatewayUrl: 'https://cams.test/facts',
     aeronetBaseUrl: 'https://aeronet.test',
@@ -121,6 +142,7 @@ test('all provider adapters normalize into one failure-isolated contract', async
     wikidataEndpoint: 'https://wikidata.test/sparql',
     commonsApiUrl: 'https://commons.test/w/api.php',
     gbifBaseUrl: 'https://gbif.test',
+    inaturalistBaseUrl: 'https://inaturalist.test',
     ebirdBaseUrl: 'https://ebird.test',
     ebirdToken: 'ebird-token',
     firmsBaseUrl: 'https://firms.test',
@@ -152,6 +174,7 @@ test('credentials stay server-side and missing providers degrade without blockin
     wikidataEndpoint: 'https://wikidata.test/sparql',
     commonsApiUrl: 'https://commons.test/w/api.php',
     gbifBaseUrl: 'https://gbif.test',
+    inaturalistBaseUrl: 'https://inaturalist.test',
     ebirdBaseUrl: 'https://ebird.test',
     ebirdToken: '',
     firmsBaseUrl: 'https://firms.test',
@@ -182,6 +205,7 @@ test('dynamic provider configuration, health and Sentinel derivatives stay trace
     officialNoticeGatewayUrl: '', officialNoticeGatewayToken: '', officialNoticeSources: [],
     overpassUrl: 'https://overpass.dynamic', wikidataEndpoint: 'https://wikidata.dynamic',
     commonsApiUrl: 'https://commons.dynamic', gbifBaseUrl: 'https://gbif.dynamic',
+    inaturalistBaseUrl: 'https://inaturalist.dynamic',
     ebirdBaseUrl: 'https://ebird.dynamic', ebirdToken: '',
     firmsBaseUrl: 'https://firms.dynamic', firmsMapKey: '',
     marineGatewayUrl: '', marineApiKey: '',
@@ -237,4 +261,47 @@ test('only authoritative current operational notices are promoted to Context war
   assert.equal(warnings.length, 1);
   assert.match(warnings[0].id, /^[a-f0-9]{12}$/);
   assert.equal(warnings[0].title, '景区临时关闭');
+});
+
+
+test('iNaturalist exposes bounded aggregate evidence without raw observation data', async () => {
+  let requestedUrl;
+  const service = new ProviderFactsService({
+    now: () => instant,
+    inaturalistBaseUrl: 'https://inaturalist.privacy',
+    fetcher: async (input) => {
+      requestedUrl = new URL(input);
+      return json({
+        total_results: 2750,
+        results: [
+          {
+            id: 999,
+            taxon: { id: 3, name: 'Aves' },
+            observed_on: '2026-08-02',
+            user: { login: 'observer-name' },
+            geojson: { coordinates: [120.12345, 30.23456] },
+            photos: [{ url: 'https://example.invalid/private-media.jpg' }],
+            description: 'raw observer note',
+          },
+        ],
+      });
+    },
+  });
+  const result = await service.facts(query('inaturalist'));
+  const provider = result.providers[0];
+  const serialized = JSON.stringify(provider);
+  assert.equal(provider.status, 'ready');
+  assert.equal(provider.signals[0].verification, 'candidate');
+  assert.deepEqual(provider.signals[0].attributes, {
+    observationCount: 1000,
+    sampledTaxaCount: 1,
+    lookbackDays: 90,
+  });
+  assert.equal(serialized.includes('observer-name'), false);
+  assert.equal(serialized.includes('120.12345'), false);
+  assert.equal(serialized.includes('private-media'), false);
+  assert.equal(serialized.includes('raw observer note'), false);
+  assert.equal(provider.signals[0].sourceUrl.includes('lat='), false);
+  assert.equal(requestedUrl.searchParams.get('taxon_id'), '3');
+  assert.equal(requestedUrl.searchParams.get('quality_grade'), 'research');
 });
