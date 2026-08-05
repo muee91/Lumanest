@@ -58,6 +58,18 @@ void main() {
     await tester.pump();
     expect(expanded, isTrue);
 
+    await tester.tap(find.byKey(const Key('v2-region-brief-sources')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('v2-region-brief-sources-sheet')),
+      findsOneWidget,
+    );
+    expect(find.text('区域资料依据'), findsOneWidget);
+    expect(find.text('当地文化部门'), findsOneWidget);
+    expect(find.text('S · 权威来源'), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭'));
+    await tester.pumpAndSettle();
+
     await tester.scrollUntilVisible(
       find.text('出发前确认'),
       300,
