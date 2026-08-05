@@ -12,7 +12,8 @@ test('admin observability surface is external-scripted and privacy explicit', as
   assert.match(html, /data-panel="observability"/);
   assert.match(html, /\/admin-assets\/observability\.js/);
   assert.match(html, /不保存用户问题、精确坐标或原始事实文本/);
-  assert.match(script, /admin-api\/observability/);
+  assert.match(script, /fetch\(`\/admin-api\/\$\{path\}`\)/);
+  assert.match(script, /api\('observability'\)/);
   assert.doesNotMatch(script, /innerHTML\s*=/);
   assert.match(css, /observability-summary/);
 });
