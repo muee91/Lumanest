@@ -54,10 +54,10 @@ jobs:
 
           route_path = Path('services/lumanest-data-broker/src/assistant/route-scout-context.mjs')
           route = route_path.read_text(encoding='utf-8')
-          anchor = "  if (body.coverage === 'partial') lines.push('路线沿途天气只覆盖部分采样点；缺失路段不得按晴好或安全处理。');"
-          replacement = "  if (body.samples.some((sample) => sample?.thunder === true)) lines.push('雷暴等安全风险只以安全卡和官方预警为准。');\n" + anchor
+          anchor = "      lines.push(`路线${routeProgressLabel(sample.progress)}（预计 ${new Date(sample.expectedAt).toISOString()}）：${parts.join('，')}${sample.stale === true ? '；该点使用过期缓存，仅作低置信参考' : ''}。`);"
+          replacement = "      lines.push(`路线${routeProgressLabel(sample.progress)}（预计 ${new Date(sample.expectedAt).toISOString()}）：${parts.join('，')}${sample.stale === true ? '；该点使用过期缓存，仅作低置信参考' : ''}${sample.thunder === true ? '；雷暴等安全风险只以安全卡和官方预警为准' : ''}。`);"
           if route.count(anchor) != 1:
-              raise SystemExit('route safety compatibility anchor mismatch')
+              raise SystemExit('route inline safety anchor mismatch')
           route_path.write_text(route.replace(anchor, replacement), encoding='utf-8')
           PY
       - name: Test data broker
