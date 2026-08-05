@@ -13,3 +13,7 @@ AI context is resolved server-side from the remembered Context snapshot, Region 
 ## Admin surface
 
 `GET /admin-api/observability` is authenticated and LAN-only. The Data Observability page reports rates and counts only. Prometheus output includes bounded Region Brief and assistant-context counters.
+
+## Verification scope
+
+CI validates the bounded aggregator, context-envelope coverage contract, authenticated admin endpoint, external-scripted dashboard, the full Broker suite, Flutter analysis and tests, and the Android debug build.
