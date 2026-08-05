@@ -29,6 +29,7 @@ import 'package:luma_nest/src/features/library/application/user_library_controll
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_provider_facts_sheet.dart';
+import 'package:luma_nest/src/presentation_v2/explore/v2_region_brief_expansion.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 import 'package:x_amap_base/x_amap_base.dart';
@@ -91,6 +92,7 @@ class V2ExplorePage extends ConsumerWidget {
     if (composition.showsBriefFirst && briefState.brief != null) {
       return _V2ExploreBrief(
         brief: briefState.brief!,
+        state: briefState,
         providerFacts: providerFacts,
         providerSignals: providerSignals,
         refreshing: briefState.status == RegionBriefLoadStatus.refreshing,
@@ -128,6 +130,7 @@ class V2ExplorePage extends ConsumerWidget {
 class _V2ExploreBrief extends StatelessWidget {
   const _V2ExploreBrief({
     required this.brief,
+    required this.state,
     required this.providerFacts,
     required this.providerSignals,
     required this.refreshing,
@@ -137,6 +140,7 @@ class _V2ExploreBrief extends StatelessWidget {
   });
 
   final RegionBrief brief;
+  final RegionBriefState state;
   final ProviderFactsBundle? providerFacts;
   final List<ProviderSignal> providerSignals;
   final bool refreshing;
@@ -185,9 +189,12 @@ class _V2ExploreBrief extends StatelessWidget {
               ),
               if (refreshing) ...[
                 const SizedBox(height: 4),
-                const Text(
-                  '正在更新区域资料',
-                  style: TextStyle(color: V2Palette.mutedInk, fontSize: 12),
+                Text(
+                  state.isExpanding ? '正在扩展区域资料' : '正在更新区域资料',
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 12,
+                  ),
                 ),
               ],
               const SizedBox(height: 18),
@@ -203,6 +210,12 @@ class _V2ExploreBrief extends StatelessWidget {
                   onOpenTheme: onOpenTheme,
                 ),
               ],
+              const SizedBox(height: 14),
+              V2RegionBriefExpansionCard(
+                brief: brief,
+                state: state,
+                onExpand: onRefresh,
+              ),
               if (providerSignals.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 V2ProviderFactsSummaryCard(
@@ -217,16 +230,7 @@ class _V2ExploreBrief extends StatelessWidget {
               ],
               if (sections.isNotEmpty) ...[
                 const SizedBox(height: 22),
-                const Text(
-                  '值得了解',
-                  style: TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...sections.map((item) => _V2BriefInsightCard(insight: item)),
+                V2RegionBriefInsightSections(insights: sections),
               ],
               const SizedBox(height: 18),
               V2Pressable(
@@ -426,34 +430,6 @@ class _V2BriefThemeAction extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _V2BriefInsightCard extends StatelessWidget {
-  const _V2BriefInsightCard({required this.insight});
-
-  final RegionInsight insight;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 9),
-    child: _V2BriefCard(
-      eyebrow: _label(insight.type),
-      title: insight.title,
-      detail: insight.summary,
-    ),
-  );
-
-  static String _label(RegionInsightType type) => switch (type) {
-    RegionInsightType.event ||
-    RegionInsightType.performance ||
-    RegionInsightType.market => '正在发生',
-    RegionInsightType.localFood || RegionInsightType.specialty => '地方味道',
-    RegionInsightType.etiquette || RegionInsightType.culturalPractice => '人文礼仪',
-    RegionInsightType.openingStatus ||
-    RegionInsightType.regulation ||
-    RegionInsightType.supply => '实用信息',
-    _ => '区域线索',
-  };
 }
 
 class _V2ExploreMap extends ConsumerStatefulWidget {
