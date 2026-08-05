@@ -106,12 +106,21 @@ function source({ id, title, publisher, url, license, version }) {
   };
 }
 
-function signal({ providerId, kind, category, title, summary, verification, observedAt, expiresAt, sourceUrl }) {
+function boundedAttributes(value) {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const entries = Object.entries(value).filter(([key, item]) =>
+    /^[a-z][a-zA-Z0-9]{0,31}$/.test(key) && Number.isInteger(item) && item >= 0 && item <= 1_000,
+  ).slice(0, 16);
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+function signal({ providerId, kind, category, title, summary, verification, observedAt, expiresAt, sourceUrl, attributes = null }) {
   const safeTitle = boundedText(title, 120);
   const safeSummary = boundedText(summary, 360);
   const safeObservedAt = iso(observedAt);
   const safeExpiresAt = iso(expiresAt);
   const safeSourceUrl = boundedUrl(sourceUrl);
+  const safeAttributes = boundedAttributes(attributes);
   if (!safeTitle || !safeSummary || !safeObservedAt || !safeExpiresAt || !safeSourceUrl ||
       Date.parse(safeExpiresAt) <= Date.parse(safeObservedAt)) return null;
   return {
@@ -124,6 +133,7 @@ function signal({ providerId, kind, category, title, summary, verification, obse
     observedAt: safeObservedAt,
     expiresAt: safeExpiresAt,
     sourceUrl: safeSourceUrl,
+    ...(safeAttributes == null ? {} : { attributes: safeAttributes }),
   };
 }
 
@@ -537,7 +547,7 @@ async function osmProvider({ query, fetcher, timeoutMs, now, overpassUrl }) {
     url: 'https://www.openstreetmap.org/copyright', license: 'ODbL-1.0', version: 'Overpass QL',
   });
   const radius = Math.min(50_000, query.radiusKm * 1_000);
-  const q = `[out:json][timeout:12];(nwr(around:${radius},${query.latitude},${query.longitude})["tourism"="viewpoint"];nwr(around:${radius},${query.latitude},${query.longitude})["highway"="path"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="shelter"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="drinking_water"];nwr(around:${radius},${query.latitude},${query.longitude})["historic"];);out tags center qt 100;`;
+  const q = `[out:json][timeout:12];(nwr(around:${radius},${query.latitude},${query.longitude})["tourism"="viewpoint"];nwr(around:${radius},${query.latitude},${query.longitude})["highway"="path"];nwr(around:${radius},${query.latitude},${query.longitude})["highway"="rest_area"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="shelter"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="drinking_water"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="parking"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="fuel"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="toilets"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"~"^(restaurant|cafe|fast_food)$"];nwr(around:${radius},${query.latitude},${query.longitude})["historic"];);out tags center qt 160;`;
   try {
     const body = await fetchJson(fetcher, overpassUrl, {
       timeoutMs,
@@ -547,20 +557,29 @@ async function osmProvider({ query, fetcher, timeoutMs, now, overpassUrl }) {
     });
     const elements = Array.isArray(body?.elements) ? body.elements : [];
     if (elements.length === 0) return noData(id, category, now, sourceInfo);
-    const counts = { viewpoint: 0, path: 0, shelter: 0, water: 0, historic: 0 };
+    const counts = {
+      viewpoint: 0, path: 0, shelter: 0, water: 0, historic: 0,
+      parking: 0, fuel: 0, toilets: 0, food: 0, restArea: 0,
+    };
     for (const item of elements) {
       const tags = item?.tags ?? {};
       if (tags.tourism === 'viewpoint') counts.viewpoint += 1;
       if (tags.highway === 'path') counts.path += 1;
+      if (tags.highway === 'rest_area') counts.restArea += 1;
       if (tags.amenity === 'shelter') counts.shelter += 1;
       if (tags.amenity === 'drinking_water') counts.water += 1;
+      if (tags.amenity === 'parking') counts.parking += 1;
+      if (tags.amenity === 'fuel') counts.fuel += 1;
+      if (tags.amenity === 'toilets') counts.toilets += 1;
+      if (['restaurant', 'cafe', 'fast_food'].includes(tags.amenity)) counts.food += 1;
       if (tags.historic != null) counts.historic += 1;
     }
-    const summary = `公开地图标注：观景点 ${counts.viewpoint}、步道 ${counts.path}、避雨/庇护设施 ${counts.shelter}、饮水点 ${counts.water}、历史对象 ${counts.historic}。标注不代表当前开放或现场安全。`;
+    const summary = `公开地图标注：观景点 ${counts.viewpoint}、步道 ${counts.path}、停车 ${counts.parking}、加油 ${counts.fuel}、餐饮 ${counts.food}、饮水 ${counts.water}、厕所 ${counts.toilets}、庇护设施 ${counts.shelter}、休息区 ${counts.restArea}、历史对象 ${counts.historic}。标注不代表当前开放、营业或现场安全。`;
     return providerResult({
       id, category, status: 'ready', now, ttlMs: referenceTtlMs, sourceInfo,
       signals: [signal({ providerId: id, kind: 'outdoorMapInventory', category, title: '户外地图语义', summary,
-        verification: 'reference', observedAt: now, expiresAt: new Date(now.getTime() + referenceTtlMs), sourceUrl: sourceInfo.url })],
+        verification: 'reference', observedAt: now, expiresAt: new Date(now.getTime() + referenceTtlMs),
+        sourceUrl: sourceInfo.url, attributes: counts })],
     });
   } catch {
     return unavailable(id, category, now);

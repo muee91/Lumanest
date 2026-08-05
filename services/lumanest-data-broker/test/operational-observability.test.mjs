@@ -62,3 +62,22 @@ test('operational observability aggregates only bounded coverage metadata', () =
   assert.doesNotMatch(JSON.stringify(value), /A region|30\.2|120\.1|where should I go/i);
   assert.match(metrics.toPrometheus(), /lumanest_assistant_context_ready_total 1/);
 });
+
+
+test('aggregates route corridor coverage without route identity or geometry', () => {
+  const metrics = new OperationalObservability({ now: () => new Date('2026-08-05T06:00:00Z') });
+  metrics.recordRouteCorridor({
+    coverage: 'full', requestedSegments: 2, availableSegments: 2,
+    segments: [
+      { facilities: { status: 'reference', parking: 1, fuel: 1 }, photography: { status: 'reference' }, restrictions: { status: 'present' }, evidence: { status: 'verified' } },
+      { facilities: { status: 'empty' }, photography: { status: 'noReference' }, restrictions: { status: 'noneObserved' }, evidence: { status: 'unavailable' } },
+    ],
+    routeId: 'must-not-be-stored',
+  });
+  const snapshot = metrics.snapshot();
+  assert.equal(snapshot.routeCorridor.usableRate, 1);
+  assert.equal(snapshot.routeCorridor.segmentCoverageRate, 1);
+  assert.equal(snapshot.routeCorridor.authoritativeRestrictions, 1);
+  assert.doesNotMatch(JSON.stringify(snapshot), /must-not-be-stored|latitude|longitude/);
+  assert.match(metrics.toPrometheus(), /lumanest_route_corridor_requests_total 1/);
+});

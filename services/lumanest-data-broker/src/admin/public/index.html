@@ -364,11 +364,13 @@
     <article><span>区域简报可用率</span><strong id="observability-brief-rate">—</strong><small id="observability-brief-detail">等待请求样本</small></article>
     <article><span>主动扩展新增价值</span><strong id="observability-expansion-rate">—</strong><small id="observability-expansion-detail">等待主动扩展样本</small></article>
     <article><span>AI 上下文可用率</span><strong id="observability-context-rate">—</strong><small id="observability-context-detail">等待 AI 请求样本</small></article>
+    <article><span>路线情报可用率</span><strong id="observability-route-rate">—</strong><small id="observability-route-detail">等待路线探路样本</small></article>
     <article><span>Provider 最近可用</span><strong id="observability-provider-rate">—</strong><small id="observability-provider-detail">等待 Provider 状态</small></article>
   </div>
   <div class="observability-grid">
     <div class="observability-stack">
       <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">REGION BRIEF COVERAGE</p><h3>区域资料命中</h3><p>按固定八类输出统计请求与实际命中，不按地区或精确位置分组。</p></div><span id="observability-updated" class="panel-note">等待同步</span></div><div id="observability-section-list"></div></section>
+      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">ROUTE CORRIDOR</p><h3>沿途探路覆盖</h3><p>只统计固定类别、段覆盖与官方管制证据，不保存路线 ID、精确几何或地点名称。</p></div></div><div id="observability-route-list" class="observability-components"></div></section>
       <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">PROVIDER COVERAGE</p><h3>数据源运行覆盖</h3><p>展示启用、配置、请求和最近状态，不返回任何密钥。</p></div></div><div id="observability-provider-list" class="service-status-list"></div></section>
     </div>
     <div class="observability-stack">

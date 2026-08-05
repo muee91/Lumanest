@@ -1,13 +1,11 @@
+import { buildRouteCorridorIntelligence } from './route-corridor-intelligence.mjs';
+
 const maximumRouteWeatherSamples = 5;
 const maximumForecastDeltaMilliseconds = 90 * 60 * 1_000;
 const maximumForecastHorizonMilliseconds = 24 * 60 * 60 * 1_000;
 const allowedRouteWeatherKeys = new Set(['routeId', 'samples']);
 const allowedRouteWeatherSampleKeys = new Set([
-  'latitude',
-  'longitude',
-  'system',
-  'expectedAt',
-  'progress',
+  'latitude', 'longitude', 'system', 'expectedAt', 'progress',
 ]);
 
 function exactKeys(value, allowed) {
@@ -59,7 +57,7 @@ function closestHourlyForecast(hourly, expectedAt) {
 }
 
 function sanitizedSample(sample, weather) {
-  if (!weather.ok) return null;
+  if (!weather?.ok) return null;
   const expectedAt = new Date(sample.expectedAt);
   const forecast = closestHourlyForecast(weather.body?.forecast?.hourly, expectedAt);
   if (forecast == null || typeof forecast.condition !== 'string' ||
@@ -72,9 +70,7 @@ function sanitizedSample(sample, weather) {
     expectedAt: expectedAt.toISOString(),
     forecastAt: forecastAt.toISOString(),
     condition: forecast.condition,
-    cloudCoverPercent: typeof forecast.cloudCoverPercent === 'number'
-      ? forecast.cloudCoverPercent
-      : null,
+    cloudCoverPercent: typeof forecast.cloudCoverPercent === 'number' ? forecast.cloudCoverPercent : null,
     windSpeedMps: forecast.windSpeedMps,
     precipitationMm: forecast.precipitationMm,
     visibilityKm: typeof forecast.visibilityKm === 'number' ? forecast.visibilityKm : null,
@@ -86,18 +82,28 @@ function sanitizedSample(sample, weather) {
 export async function routeWeatherForecast({
   body,
   fetchWeather,
+  fetchCorridorFacts = null,
+  observe = null,
   now = () => new Date(),
 }) {
   const generatedAt = now();
   const results = await Promise.all(body.samples.map(async (sample) => {
-    const weather = await fetchWeather({
-      latitude: sample.latitude,
-      longitude: sample.longitude,
-    });
-    return sanitizedSample(sample, weather);
+    const [weather, corridor] = await Promise.all([
+      Promise.resolve().then(() => fetchWeather({ latitude: sample.latitude, longitude: sample.longitude })).catch(() => null),
+      typeof fetchCorridorFacts === 'function'
+        ? Promise.resolve().then(() => fetchCorridorFacts(sample)).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    return { weather: sanitizedSample(sample, weather), corridor };
   }));
-  const samples = results.filter((sample) => sample != null);
+  const samples = results.map((item) => item.weather).filter((sample) => sample != null);
   if (samples.length === 0) return { ok: false, error: 'upstream_unavailable' };
+  const corridor = buildRouteCorridorIntelligence({
+    body,
+    providerResults: results.map((item) => item.corridor),
+    generatedAt,
+  });
+  if (typeof observe === 'function') observe(corridor);
   return {
     ok: true,
     body: {
@@ -108,6 +114,7 @@ export async function routeWeatherForecast({
       requestedSamples: body.samples.length,
       availableSamples: samples.length,
       samples,
+      corridor,
     },
   };
 }

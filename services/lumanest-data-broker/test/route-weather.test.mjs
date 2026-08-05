@@ -93,3 +93,32 @@ test('route weather reports partial coverage and fails when no forecast matches'
   });
   assert.deepEqual(unavailable, { ok: false, error: 'upstream_unavailable' });
 });
+
+
+test('adds bounded corridor references and official restriction evidence', async () => {
+  const now = new Date('2026-07-18T02:00:00Z');
+  const body = {
+    routeId: 'route-corridor',
+    samples: [
+      { latitude: 30, longitude: 120, system: 'wgs84', expectedAt: '2026-07-18T02:30:00Z', progress: 0 },
+      { latitude: 30.5, longitude: 120.5, system: 'wgs84', expectedAt: '2026-07-18T03:30:00Z', progress: 1 },
+    ],
+  };
+  const observed = [];
+  const result = await routeWeatherForecast({
+    body,
+    now: () => now,
+    fetchWeather: async () => ({ ok: true, body: { forecast: { hourly: [{ at: '2026-07-18T03:00:00Z', condition: 'clear', windSpeedMps: 2, precipitationMm: 0 }] } } }),
+    fetchCorridorFacts: async (sample) => ({ providers: [
+      { id: 'osm', status: 'ready', source: { id: 'osm', title: 'OSM', publisher: 'OSM', url: 'https://www.openstreetmap.org/copyright' }, signals: [{ id: `map-${sample.progress}`, kind: 'outdoorMapInventory', verification: 'reference', attributes: { parking: 1, water: 1, viewpoint: 1 } }] },
+      { id: 'officialNotices', status: sample.progress === 0 ? 'ready' : 'noData', source: { id: 'official', title: 'Official', publisher: 'Authority', url: 'https://example.gov' }, signals: sample.progress === 0 ? [{ id: 'notice', kind: 'roadClosure', verification: 'authoritative' }] : [] },
+    ] }),
+    observe: (corridor) => observed.push(corridor),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.body.corridor.coverage, 'full');
+  assert.equal(result.body.corridor.segments[0].restrictions.status, 'present');
+  assert.equal(result.body.corridor.segments[1].restrictions.status, 'noneObserved');
+  assert.equal(observed.length, 1);
+  assert.doesNotMatch(JSON.stringify(result.body.corridor), /latitude|longitude/);
+});

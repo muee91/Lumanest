@@ -1597,6 +1597,15 @@ export function createTokenBrokerServer({
       const result = await routeWeatherForecast({
         body,
         now: () => requestedAt,
+        observe: (corridor) => activeOperationalObservability.recordRouteCorridor(corridor),
+        fetchCorridorFacts: (sample) => providerFactsService.facts({
+          latitude: sample.latitude,
+          longitude: sample.longitude,
+          radiusKm: 8,
+          locale: 'zh-CN',
+          observedAt: requestedAt.toISOString(),
+          providerIds: ['osm', 'officialNotices'],
+        }),
         fetchWeather: (coordinate) => authoritativeWeather({
           coordinate,
           apiHost: configuration.qweatherApiHost,
@@ -1979,6 +1988,15 @@ export function createTokenBrokerServer({
             loadRouteWeather: (routeBody) => routeWeatherForecast({
               body: routeBody,
               now: () => assistantNow,
+              observe: (corridor) => activeOperationalObservability.recordRouteCorridor(corridor),
+              fetchCorridorFacts: (sample) => providerFactsService.facts({
+                latitude: sample.latitude,
+                longitude: sample.longitude,
+                radiusKm: 8,
+                locale: 'zh-CN',
+                observedAt: assistantNow.toISOString(),
+                providerIds: ['osm', 'officialNotices'],
+              }),
               fetchWeather: (coordinate) => authoritativeWeather({
                 coordinate,
                 apiHost: configuration.qweatherApiHost,

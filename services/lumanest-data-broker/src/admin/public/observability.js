@@ -67,6 +67,29 @@
     }
   }
 
+  function renderRoute(route) {
+    const root = $('#observability-route-list');
+    if (!root) return;
+    root.replaceChildren();
+    const rows = [
+      ['采样段覆盖', percent(route.segmentCoverageRate), `${number(route.supplyReferenceSegments)} 段有补给参考 · ${number(route.parkingReferenceSegments)} 段有停车参考`],
+      ['官方管制证据', number(route.authoritativeRestrictions), `存在 ${number(route.restrictionsPresent)} 段 · 未检出 ${number(route.restrictionsNoneObserved)} 段 · 不可用 ${number(route.restrictionsUnavailable)} 段`],
+      ['摄影语义参考', number(route.photographyReferenceSegments), '公开地图观景点与历史对象只作检索参考，不是已验证机位'],
+    ];
+    for (const [labelText, valueText, detailText] of rows) {
+      const row = document.createElement('article');
+      row.className = 'observability-component';
+      const label = document.createElement('strong');
+      label.textContent = labelText;
+      const value = document.createElement('b');
+      value.textContent = valueText;
+      const detail = document.createElement('small');
+      detail.textContent = detailText;
+      row.append(label, value, detail);
+      root.append(row);
+    }
+  }
+
   function renderProviders(providers) {
     const root = $('#observability-provider-list');
     if (!root) return;
@@ -98,6 +121,7 @@
   function render(value) {
     const region = value.regionBrief ?? {};
     const context = value.assistantContext ?? {};
+    const route = value.routeCorridor ?? {};
     const providers = value.providers ?? {};
     text('observability-updated', `同步于 ${new Date(value.checkedAt).toLocaleString('zh-CN', { hour12: false })}`);
     text('observability-brief-rate', percent(region.usableRate));
@@ -106,6 +130,8 @@
     text('observability-expansion-detail', `${number(region.manualRequests)} 次主动扩展 · 平均 ${number(region.averageLatencyMs)} ms`);
     text('observability-context-rate', percent(context.readyRate));
     text('observability-context-detail', `${number(context.ready)}/${number(context.builds)} 次 AI 上下文包含成立事实`);
+    text('observability-route-rate', percent(route.usableRate));
+    text('observability-route-detail', `${number(route.ready + route.partial)}/${number(route.requests)} 次路线情报形成可用覆盖`);
     text('observability-provider-rate', `${number(providers.recentlyReady)}/${number(providers.total)}`);
     text('observability-provider-detail', `${number(providers.configured)} 已配置 · 缓存命中 ${percent(providers.cacheHitRate)}`);
     text('observability-context-sources', `来源支撑 ${percent(context.sourceBackedRate)} · 已核验证据 ${percent(context.verifiedEvidenceRate)} · 平均 ${number(context.averageFactCount)} 条事实`);
@@ -113,6 +139,7 @@
       ? '只保存固定枚举聚合；不保存精确坐标、用户问题或原始事实文本。进程重启后计数清零。'
       : '隐私边界状态异常，请检查服务端实现。');
     renderSections(region.sections);
+    renderRoute(route);
     renderComponents(context.components);
     renderProviders(providers);
   }

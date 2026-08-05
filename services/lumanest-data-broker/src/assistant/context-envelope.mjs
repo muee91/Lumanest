@@ -1,6 +1,6 @@
 import {
   coarseRouteCorridor,
-  routeWeatherFacts,
+  routeCorridorFacts,
   validRouteCorridorBinding,
 } from './route-scout-context.mjs';
 
@@ -361,13 +361,13 @@ export async function buildAssistantContextEnvelope({
   const baseLines = snapshotFactLines(snapshot, now);
   const region = briefFacts(regionResult, now);
   const providers = providerFacts(providerBundle, now);
-  const route = routeWeatherFacts(routeResult, now);
+  const route = routeCorridorFacts(routeResult, now);
   const contextFacts = [...baseLines, ...route.lines, ...region.lines, ...providers.lines]
     .map((line) => boundedText(line, 420))
     .filter(Boolean)
     .join('；');
   const boundedFacts = [...contextFacts].slice(0, 3_600).join('');
-  const sources = uniqueSources([...region.sources, ...providers.sources]);
+  const sources = uniqueSources([...route.sources, ...region.sources, ...providers.sources]);
   const factIds = [...new Set([...route.factIds, ...region.factIds, ...providers.factIds])].slice(0, 12);
   const componentStatus = (lines, unavailable = 'unavailable') =>
     lines.length > 0 ? 'ready' : unavailable;
@@ -382,8 +382,17 @@ export async function buildAssistantContextEnvelope({
     components: Object.freeze({
       snapshot: Object.freeze({ status: componentStatus(baseLines, 'empty'), factCount: baseLines.length }),
       route: Object.freeze({
-        status: binding.routeCorridor == null ? 'notApplicable' : componentStatus(route.lines),
+        status: binding.routeCorridor == null ? 'notApplicable' : route.coverage.status,
         factCount: route.lines.length,
+        requestedSegments: route.coverage.requestedSegments,
+        availableSegments: route.coverage.availableSegments,
+        environmentTransitions: route.coverage.environmentTransitions,
+        parkingStatus: route.coverage.parkingStatus,
+        supplyStatus: route.coverage.supplyStatus,
+        restrictionStatus: route.coverage.restrictionStatus,
+        photographyStatus: route.coverage.photographyStatus,
+        evidenceStatus: route.coverage.evidenceStatus,
+        authoritativeRestrictionCount: route.coverage.authoritativeRestrictionCount,
       }),
       regionBrief: Object.freeze({ status: componentStatus(region.lines), factCount: region.lines.length }),
       providers: Object.freeze({ status: componentStatus(providers.lines), factCount: providers.lines.length }),

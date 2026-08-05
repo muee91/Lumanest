@@ -86,6 +86,23 @@ export class OperationalObservability {
       ]),
       sourceQuality: fixedCounter(['s', 'a', 'b', 'c']),
     };
+    this.routeCorridor = {
+      requests: 0,
+      ready: 0,
+      partial: 0,
+      unavailable: 0,
+      requestedSegments: 0,
+      availableSegments: 0,
+      parkingReference: 0,
+      supplyReference: 0,
+      photographyReference: 0,
+      restrictionsPresent: 0,
+      restrictionsNoneObserved: 0,
+      restrictionsUnavailable: 0,
+      authoritativeRestrictions: 0,
+      verifiedEvidence: 0,
+      referenceEvidence: 0,
+    };
     this.assistant = {
       builds: 0,
       ready: 0,
@@ -186,6 +203,33 @@ export class OperationalObservability {
     }
   }
 
+  recordRouteCorridor(corridor) {
+    if (!object(corridor)) return;
+    const metrics = this.routeCorridor;
+    metrics.requests += 1;
+    const status = ['full', 'partial', 'unavailable'].includes(corridor.coverage)
+      ? corridor.coverage : 'unavailable';
+    if (status === 'full') metrics.ready += 1;
+    else if (status === 'partial') metrics.partial += 1;
+    else metrics.unavailable += 1;
+    metrics.requestedSegments += nonNegative(corridor.requestedSegments);
+    metrics.availableSegments += nonNegative(corridor.availableSegments);
+    for (const segment of Array.isArray(corridor.segments) ? corridor.segments : []) {
+      if (segment?.facilities?.status === 'reference' && nonNegative(segment.facilities.parking) > 0) metrics.parkingReference += 1;
+      const supply = ['fuel', 'food', 'water', 'toilets', 'shelter', 'restArea']
+        .reduce((total, key) => total + nonNegative(segment?.facilities?.[key]), 0);
+      if (segment?.facilities?.status === 'reference' && supply > 0) metrics.supplyReference += 1;
+      if (segment?.photography?.status === 'reference') metrics.photographyReference += 1;
+      if (segment?.restrictions?.status === 'present') {
+        metrics.restrictionsPresent += 1;
+        metrics.authoritativeRestrictions += 1;
+      } else if (segment?.restrictions?.status === 'noneObserved') metrics.restrictionsNoneObserved += 1;
+      else metrics.restrictionsUnavailable += 1;
+      if (segment?.evidence?.status === 'verified') metrics.verifiedEvidence += 1;
+      else if (segment?.evidence?.status === 'reference') metrics.referenceEvidence += 1;
+    }
+  }
+
   snapshot({ providerHealth = null } = {}) {
     const region = this.regionBrief;
     const assistant = this.assistant;
@@ -225,6 +269,23 @@ export class OperationalObservability {
           hit: region.sectionsHit[id],
           hitRate: ratio(region.sectionsHit[id], region.sectionsRequested[id]),
         }))),
+      }),
+      routeCorridor: Object.freeze({
+        requests: this.routeCorridor.requests,
+        ready: this.routeCorridor.ready,
+        partial: this.routeCorridor.partial,
+        unavailable: this.routeCorridor.unavailable,
+        usableRate: ratio(this.routeCorridor.ready + this.routeCorridor.partial, this.routeCorridor.requests),
+        segmentCoverageRate: ratio(this.routeCorridor.availableSegments, this.routeCorridor.requestedSegments),
+        parkingReferenceSegments: this.routeCorridor.parkingReference,
+        supplyReferenceSegments: this.routeCorridor.supplyReference,
+        photographyReferenceSegments: this.routeCorridor.photographyReference,
+        restrictionsPresent: this.routeCorridor.restrictionsPresent,
+        restrictionsNoneObserved: this.routeCorridor.restrictionsNoneObserved,
+        restrictionsUnavailable: this.routeCorridor.restrictionsUnavailable,
+        authoritativeRestrictions: this.routeCorridor.authoritativeRestrictions,
+        verifiedEvidenceSegments: this.routeCorridor.verifiedEvidence,
+        referenceEvidenceSegments: this.routeCorridor.referenceEvidence,
       }),
       assistantContext: Object.freeze({
         builds: assistant.builds,
@@ -275,7 +336,15 @@ export class OperationalObservability {
   toPrometheus() {
     const region = this.regionBrief;
     const assistant = this.assistant;
+    const route = this.routeCorridor;
     const lines = [
+      `lumanest_route_corridor_requests_total ${route.requests}`,
+      `lumanest_route_corridor_ready_total ${route.ready}`,
+      `lumanest_route_corridor_partial_total ${route.partial}`,
+      `lumanest_route_corridor_unavailable_total ${route.unavailable}`,
+      `lumanest_route_corridor_requested_segments_total ${route.requestedSegments}`,
+      `lumanest_route_corridor_available_segments_total ${route.availableSegments}`,
+      `lumanest_route_corridor_authoritative_restrictions_total ${route.authoritativeRestrictions}`,
       `lumanest_region_brief_requests_total ${region.requests}`,
       `lumanest_region_brief_usable_total ${region.usable}`,
       `lumanest_region_brief_manual_requests_total ${region.manualRequests}`,
