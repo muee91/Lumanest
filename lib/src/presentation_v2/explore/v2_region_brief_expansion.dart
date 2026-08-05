@@ -4,6 +4,7 @@ import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
 import 'package:luma_nest/src/features/explore/domain/exploration_scene_profile.dart';
 import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
+import 'package:luma_nest/src/presentation_v2/explore/v2_region_brief_sources_sheet.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 
 class V2RegionBriefExpansionCard extends StatelessWidget {
@@ -155,6 +156,24 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
               ),
             ),
           ),
+          if (brief.sources.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('v2-region-brief-sources'),
+                onPressed: () =>
+                    showV2RegionBriefSourcesSheet(context, brief.sources),
+                icon: const Icon(CupertinoIcons.doc_text_search, size: 16),
+                label: const Text('查看资料依据'),
+                style: TextButton.styleFrom(
+                  foregroundColor: V2Palette.moss,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           const Text(
             '只在你主动触发时扩大检索范围；候选、单一来源与冲突信息会明确标记，不会伪装成已确认事实。',
