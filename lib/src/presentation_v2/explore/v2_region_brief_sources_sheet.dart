@@ -96,7 +96,7 @@ Future<void> showV2RegionBriefSourcesSheet(
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                         itemCount: ordered.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (_, _) =>
                             const SizedBox(height: 10),
                         itemBuilder: (context, index) =>
                             _RegionBriefSourceCard(source: ordered[index]),
