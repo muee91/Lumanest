@@ -65,17 +65,17 @@ abstract final class RegionBriefRequestPolicy {
     };
   }
 
-  /// A foreground lightweight refresh must never replace a richer manual brief
-  /// for the same region. Location changes are allowed to replace it normally.
+  /// Pending or unavailable refreshes never erase a usable brief for the same
+  /// region. A lightweight foreground refresh also cannot downgrade a richer
+  /// manual result. Location changes are allowed to replace it normally.
   static bool shouldKeepPrevious({
     required RegionBrief? previous,
     required RegionBrief incoming,
     required bool manual,
   }) {
-    if (manual || previous == null || previous.regionId != incoming.regionId) {
-      return false;
-    }
+    if (previous == null || previous.regionId != incoming.regionId) return false;
     if (previous.hasUsableFacts && !incoming.hasUsableFacts) return true;
+    if (manual) return false;
     final previousRank = _completenessRank(previous.completeness);
     final incomingRank = _completenessRank(incoming.completeness);
     if (previousRank != incomingRank) return previousRank > incomingRank;
