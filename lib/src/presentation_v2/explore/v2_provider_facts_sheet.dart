@@ -38,7 +38,7 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
     if (signals.isEmpty) return const SizedBox.shrink();
     return V2Pressable(
       key: const Key('v2-provider-facts-summary'),
-      semanticLabel: '查看环境与地区数据',
+      semanticLabel: '查看环境与地区线索',
       onTap: onTap,
       color: V2Palette.skySoft,
       child: Padding(
@@ -52,7 +52,7 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '环境与地区数据',
+                    '环境与地区线索',
                     style: TextStyle(
                       color: V2Palette.ink,
                       fontSize: 15,
@@ -72,7 +72,7 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
               (signal) => Padding(
                 padding: const EdgeInsets.only(bottom: 5),
                 child: Text(
-                  '• ${signal.title}：${signal.summary}',
+                  '• ${_displaySignalTitle(signal)}：${_displaySignalSummary(signal)}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -134,7 +134,7 @@ class _V2ProviderFactsSheet extends StatelessWidget {
                 children: [
                   const Expanded(
                     child: Text(
-                      '环境与地区数据',
+                      '环境与地区线索',
                       style: TextStyle(
                         color: V2Palette.ink,
                         fontSize: 22,
@@ -228,7 +228,7 @@ class _SignalCard extends StatelessWidget {
             const SizedBox(width: 7),
             Expanded(
               child: Text(
-                signal.title,
+                _displaySignalTitle(signal),
                 style: const TextStyle(
                   color: V2Palette.ink,
                   fontWeight: FontWeight.w900,
@@ -248,7 +248,7 @@ class _SignalCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          signal.summary,
+          _displaySignalSummary(signal),
           style: const TextStyle(
             color: V2Palette.mutedInk,
             height: 1.45,
@@ -325,6 +325,25 @@ class _ProviderStateRow extends StatelessWidget {
   );
 }
 
+bool _isEcologySignal(ProviderSignal signal) => const {
+  'historicalOccurrenceInventory',
+  'recentCommunityBirdSummary',
+}.contains(signal.kind);
+
+String _displaySignalTitle(ProviderSignal signal) => switch (signal.kind) {
+  'historicalOccurrenceInventory' => '历史生态记录',
+  'recentCommunityBirdSummary' => '近期自然观察',
+  _ => signal.title,
+};
+
+String _displaySignalSummary(ProviderSignal signal) {
+  if (!_isEcologySignal(signal)) return signal.summary;
+  if (signal.kind == 'recentCommunityBirdSummary') {
+    return '${signal.summary} 适合作为自然题材与环境理解参考。';
+  }
+  return '${signal.summary} 适合作为季节与区域题材参考。';
+}
+
 String _time(DateTime value) {
   final local = value.toLocal();
   String two(int value) => value.toString().padLeft(2, '0');
@@ -383,8 +402,9 @@ String _providerLabel(String id) => switch (id) {
   'osm' => 'OpenStreetMap',
   'wikidata' => 'Wikidata',
   'wikimediaCommons' => 'Wikimedia Commons',
-  'gbif' => 'GBIF 生态记录',
-  'ebird' => 'eBird 近期观测',
+  'gbif' => 'GBIF 历史生态记录',
+  'inaturalist' => 'iNaturalist 近期观察',
+  'ebird' => 'eBird 近期观测（可选）',
   'firms' => 'NASA FIRMS 热异常',
   'copernicusMarine' => 'Copernicus Marine',
   'jplHorizons' => 'JPL Horizons',

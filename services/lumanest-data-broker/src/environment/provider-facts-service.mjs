@@ -1158,11 +1158,15 @@ export class ProviderFactsService {
     for (const [id, metric] of this.metrics) {
       lines.push(`lumanest_provider_requests_total{provider="${id}"} ${metric.requestTotal}`);
       lines.push(`lumanest_provider_ready_total{provider="${id}"} ${metric.readyTotal}`);
+      lines.push(`lumanest_provider_no_data_total{provider="${id}"} ${metric.noDataTotal}`);
       lines.push(`lumanest_provider_unavailable_total{provider="${id}"} ${metric.unavailableTotal}`);
+      lines.push(`lumanest_provider_unconfigured_total{provider="${id}"} ${metric.unconfiguredTotal}`);
       lines.push(`lumanest_provider_last_latency_ms{provider="${id}"} ${metric.lastLatencyMs ?? 0}`);
+      lines.push(`lumanest_provider_last_signal_count{provider="${id}"} ${metric.lastSignalCount}`);
     }
     lines.push(`lumanest_provider_cache_hits_total ${this.cacheMetrics.hits}`);
     lines.push(`lumanest_provider_cache_misses_total ${this.cacheMetrics.misses}`);
+    lines.push(`lumanest_provider_cache_coalesced_total ${this.cacheMetrics.coalesced}`);
     return `${lines.join('\n')}\n`;
   }
 }

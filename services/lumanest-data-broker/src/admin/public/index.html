@@ -170,9 +170,10 @@
                 </section>
                 <section class="settings-group">
                   <div class="group-head"><div><h4>生态、火情、海洋与天文</h4><p>所有凭据仅在 Broker 使用，不进入 Flutter。</p></div></div>
-                  <label>GBIF<input name="gbifBaseUrl" type="url" maxlength="2048" required></label>
-                  <label>eBird<input name="ebirdBaseUrl" type="url" maxlength="2048" required></label>
-                  <label>eBird Token<input name="ebirdToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="ebirdToken"></small></label>
+                  <label>GBIF 历史生态记录<input name="gbifBaseUrl" type="url" maxlength="2048" required><small>默认启用，用于多年公开物种记录的区域基线。</small></label>
+                  <label>iNaturalist 近期自然观察<input name="inaturalistBaseUrl" type="url" maxlength="2048" required><small>默认启用，只输出近九十日研究级鸟类观察的聚合信号。</small></label>
+                  <label>eBird（可选）<input name="ebirdBaseUrl" type="url" maxlength="2048" required><small>默认关闭；只有显式启用并配置 Token 后才参与增强。</small></label>
+                  <label>eBird Token（可选）<input name="ebirdToken" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="ebirdToken"></small><small>缺失不会影响默认 Provider Hub 健康度。</small></label>
                   <label>FIRMS<input name="firmsBaseUrl" type="url" maxlength="2048" required></label>
                   <label>FIRMS Map Key<input name="firmsMapKey" type="password" autocomplete="new-password" placeholder="留空表示不修改"><small data-provider-mask="firmsMapKey"></small></label>
                   <label>Marine Gateway<input name="marineGatewayUrl" type="url" maxlength="2048" placeholder="可留空"></label>

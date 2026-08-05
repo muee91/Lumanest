@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/server.mjs",
     "test": "node --test",
+    "validate:ecology": "node scripts/validate-ecology-providers.mjs",
     "build:sky-calibration": "node scripts/build-sky-brightness-calibration.mjs"
   },
   "engines": {

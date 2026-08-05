@@ -53,6 +53,38 @@ void main() {
     );
     expect(find.text('Copernicus'), findsOneWidget);
   });
+
+
+  testWidgets('ecology signals use photography-oriented wording without reserving another module', (
+    tester,
+  ) async {
+    final bundle = ProviderFactsBundle.fromJson(
+      _body(providers: [_ecologyProvider()]),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: V2ProviderFactsSummaryCard(
+              bundle: bundle,
+              onTap: () => showV2ProviderFactsSheet(context, bundle),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('近期自然观察'), findsOneWidget);
+    expect(find.textContaining('自然题材与环境理解参考'), findsOneWidget);
+    expect(find.textContaining('近期公开社区观察'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('v2-provider-facts-summary')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('iNaturalist 近期观察'), findsOneWidget);
+    expect(find.textContaining('不代表动物当前仍在现场'), findsNWidgets(2));
+    expect(find.byKey(const Key('v2-provider-state-inaturalist')), findsOneWidget);
+  });
 }
 
 Map<String, Object?> _body({required List<Object?> providers}) => {
@@ -105,6 +137,40 @@ Map<String, Object?> _readyProvider() {
             .toIso8601String(),
         'expiresAt': now.add(const Duration(hours: 1)).toIso8601String(),
         'sourceUrl': 'https://dataspace.copernicus.eu/',
+      },
+    ],
+    'message': null,
+  };
+}
+
+
+Map<String, Object?> _ecologyProvider() {
+  final now = DateTime.now().toUtc();
+  return {
+    'id': 'inaturalist',
+    'category': 'wildlife',
+    'status': 'ready',
+    'observedAt': now.subtract(const Duration(days: 1)).toIso8601String(),
+    'expiresAt': now.add(const Duration(hours: 4)).toIso8601String(),
+    'source': {
+      'id': 'inaturalist-observations-api',
+      'title': 'iNaturalist Observations API',
+      'publisher': 'iNaturalist community',
+      'url': 'https://www.inaturalist.org/pages/api+reference',
+      'license': 'Observation-specific licences; aggregate metadata only',
+      'version': 'v1',
+    },
+    'signals': [
+      {
+        'id': 'signal_222222222222222222222222',
+        'kind': 'recentCommunityBirdSummary',
+        'category': 'wildlife',
+        'title': '近期公开社区观察',
+        'summary': '近九十日当前粗略范围有 48 条研究级公开鸟类观察；社区记录不代表动物当前仍在现场。',
+        'verification': 'candidate',
+        'observedAt': now.subtract(const Duration(days: 1)).toIso8601String(),
+        'expiresAt': now.add(const Duration(hours: 4)).toIso8601String(),
+        'sourceUrl': 'https://www.inaturalist.org/pages/api+reference',
       },
     ],
     'message': null,

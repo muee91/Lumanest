@@ -66,6 +66,7 @@
     'wikidataEndpoint',
     'commonsApiUrl',
     'gbifBaseUrl',
+    'inaturalistBaseUrl',
     'ebirdBaseUrl',
     'firmsBaseUrl',
     'marineGatewayUrl',
@@ -144,7 +145,15 @@
         const success = item.lastSuccessAt
           ? new Date(item.lastSuccessAt).toLocaleString('zh-CN', { hour12: false })
           : '尚无成功记录';
-        detail.textContent = `${success} · 最近 ${latency} · 信号 ${item.lastSignalCount ?? 0}`;
+        const runs = item.requestTotal ?? 0;
+        const ready = item.readyTotal ?? 0;
+        const noData = item.noDataTotal ?? 0;
+        const unavailable = item.unavailableTotal ?? 0;
+        const unconfigured = item.unconfiguredTotal ?? 0;
+        const outcomes = runs === 0
+          ? '尚未运行'
+          : `运行 ${runs} · 就绪 ${ready} · 无数据 ${noData} · 不可用 ${unavailable} · 未配置 ${unconfigured}`;
+        detail.textContent = `${success} · 最近 ${latency} · ${outcomes} · 信号 ${item.lastSignalCount ?? 0}`;
         copy.append(title, detail);
         identity.append(mark, copy);
         const state = document.createElement('span');
