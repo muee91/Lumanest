@@ -28,6 +28,19 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: services/lumanest-data-broker/package-lock.json
+      - name: Disambiguate repeated test fixture
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('services/lumanest-data-broker/test/provider-facts-service.test.mjs')
+          text = path.read_text(encoding='utf-8')
+          old = "    gbifBaseUrl: 'https://gbif.test',\n    ebirdBaseUrl:"
+          new = "    gbifBaseUrl: 'https://gbif.test',\n    inaturalistBaseUrl: 'https://inaturalist.test',\n    ebirdBaseUrl:"
+          if text.count(old) != 2:
+              raise SystemExit(f'expected two repeated GBIF fixtures, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
       - name: Apply ecology provider integration
         run: python3 .github/scripts/ecology_provider_patch.py
       - name: Install data broker dependencies
