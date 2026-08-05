@@ -14,15 +14,28 @@ import 'package:luma_nest/src/features/explore/infrastructure/drift_region_brief
 enum RegionBriefLoadStatus { idle, loading, refreshing, ready, degraded, error }
 
 class RegionBriefState {
-  const RegionBriefState({required this.status, this.brief, this.errorCode});
+  const RegionBriefState({
+    required this.status,
+    this.brief,
+    this.errorCode,
+    this.manualExpansion = false,
+    this.lastExpandedAt,
+  });
 
   const RegionBriefState.idle() : this(status: RegionBriefLoadStatus.idle);
 
   final RegionBriefLoadStatus status;
   final RegionBrief? brief;
   final String? errorCode;
+  final bool manualExpansion;
+  final DateTime? lastExpandedAt;
 
   bool get hasUsableBrief => brief?.hasUsableFacts == true;
+
+  bool get isExpanding =>
+      manualExpansion &&
+      (status == RegionBriefLoadStatus.loading ||
+          status == RegionBriefLoadStatus.refreshing);
 }
 
 final regionBriefRepositoryProvider = Provider<RegionBriefRepository>((ref) {
@@ -48,6 +61,22 @@ final regionBriefCacheProvider = Provider<RegionBriefLocalCache>((ref) {
 
 class RegionBriefController extends Notifier<RegionBriefState> {
   static const _maximumAutomaticRetries = 4;
+  static const _automaticSections = <String>[
+    'identity',
+    'orientation',
+    'photoThemes',
+    'practical',
+  ];
+  static const _expandedSections = <String>[
+    'identity',
+    'orientation',
+    'photoThemes',
+    'happeningNow',
+    'places',
+    'localTaste',
+    'etiquette',
+    'practical',
+  ];
 
   int _generation = 0;
   int _automaticRetries = 0;
@@ -71,11 +100,14 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     if (manual) _automaticRetries = 0;
     final generation = ++_generation;
     var previous = state.brief;
+    final previousExpandedAt = state.lastExpandedAt;
     state = RegionBriefState(
       status: previous == null
           ? RegionBriefLoadStatus.loading
           : RegionBriefLoadStatus.refreshing,
       brief: previous,
+      manualExpansion: manual,
+      lastExpandedAt: previousExpandedAt,
     );
     try {
       final snapshot = await ref.read(environmentSnapshotProvider.future);
@@ -89,6 +121,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
                 : RegionBriefLoadStatus.ready,
             brief: previous,
             errorCode: 'location_unavailable',
+            lastExpandedAt: previousExpandedAt,
           );
         }
         return;
@@ -101,6 +134,8 @@ class RegionBriefController extends Notifier<RegionBriefState> {
           state = RegionBriefState(
             status: RegionBriefLoadStatus.refreshing,
             brief: cached,
+            manualExpansion: manual,
+            lastExpandedAt: previousExpandedAt,
           );
         }
       }
@@ -114,18 +149,11 @@ class RegionBriefController extends Notifier<RegionBriefState> {
                   : 'foreground_opportunistic',
               locale: 'zh-CN',
               center: location,
-              radiusMeters: _radiusFor(profile),
+              radiusMeters: _radiusFor(profile, expanded: manual),
               sceneProfile: profile,
-              requestedSections: const [
-                'identity',
-                'orientation',
-                'photoThemes',
-                'happeningNow',
-                'places',
-                'localTaste',
-                'etiquette',
-                'practical',
-              ],
+              requestedSections: manual
+                  ? _expandedSections
+                  : _automaticSections,
             ),
           );
       if (generation != _generation || !ref.mounted) return;
@@ -140,8 +168,11 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             ? RegionBriefLoadStatus.degraded
             : RegionBriefLoadStatus.ready,
         brief: brief,
+        lastExpandedAt: manual && brief.hasUsableFacts
+            ? DateTime.now().toUtc()
+            : previousExpandedAt,
       );
-      _scheduleRetryIfNeeded(brief);
+      _scheduleRetryIfNeeded(brief, manual: manual);
     } on RegionBriefFailure catch (error) {
       if (generation != _generation || !ref.mounted) return;
       state = RegionBriefState(
@@ -150,6 +181,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             : RegionBriefLoadStatus.degraded,
         brief: previous,
         errorCode: error.code,
+        lastExpandedAt: previousExpandedAt,
       );
     } on Object {
       if (generation != _generation || !ref.mounted) return;
@@ -159,11 +191,12 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             : RegionBriefLoadStatus.degraded,
         brief: previous,
         errorCode: 'unavailable',
+        lastExpandedAt: previousExpandedAt,
       );
     }
   }
 
-  void _scheduleRetryIfNeeded(RegionBrief brief) {
+  void _scheduleRetryIfNeeded(RegionBrief brief, {required bool manual}) {
     if ((brief.status != RegionBriefStatus.pending &&
             brief.status != RegionBriefStatus.unavailable) ||
         brief.refresh.retryAfter == null ||
@@ -179,19 +212,30 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     _retryTimer = Timer(delay, () {
       if (!ref.mounted) return;
       _automaticRetries += 1;
-      unawaited(load());
+      unawaited(load(manual: manual));
     });
   }
 
-  static int _radiusFor(ExplorationSceneProfile profile) =>
-      switch (profile.mobility) {
-        _
-            when profile.remoteness == RemotenessLevel.remote ||
-                profile.remoteness == RemotenessLevel.extreme =>
-          50000,
-        _ when profile.mobility.name == 'driving' => 20000,
-        _ => 5000,
-      };
+  static int _radiusFor(
+    ExplorationSceneProfile profile, {
+    required bool expanded,
+  }) {
+    if (profile.remoteness == RemotenessLevel.remote ||
+        profile.remoteness == RemotenessLevel.extreme) {
+      return 50000;
+    }
+    if (profile.mobility.name == 'driving') {
+      return expanded ? 35000 : 20000;
+    }
+    if (!expanded) return 5000;
+    return switch (profile.settlement) {
+      SettlementType.historicTown ||
+      SettlementType.historicDistrict ||
+      SettlementType.village => 15000,
+      SettlementType.scenicArea => 20000,
+      _ => 12000,
+    };
+  }
 }
 
 final regionBriefControllerProvider =
