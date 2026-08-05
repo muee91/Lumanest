@@ -1,0 +1,84 @@
+name: One-shot targeted region verification
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/scripts/region_brief_verification_patch.py
+      - .github/workflows/one-shot-region-brief-verification.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-region-brief-verification
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/lumanest-discovery-service/pyproject.toml
+      - name: Apply targeted region verification
+        run: |
+          python3 .github/scripts/region_brief_verification_patch.py
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('services/lumanest-discovery-service/tests/test_region_brief_request_modes.py')
+          text = path.read_text(encoding='utf-8')
+          bad = '''\n\ndef test_ai_verification_activation_is_scoped_and_deduped():\n    payload = _brief_payload(\n        activation="ai_verification",\n        sections=["happeningNow", "practical"],\n    )\n    request = RegionBriefRequest.model_validate(payload)\n    missions = DiscoveryStore._brief_missions(request)\n\n    assert request.activation_type == "ai_verification"\n    assert missions == ["humanityEvents", "openingAndClosure"]\n    assert request.dedupe_payload()["activationType"] == "ai_verification"\n'''
+          good = '''\n\ndef test_ai_verification_activation_is_scoped():\n    request = _request(\n        activation_type="ai_verification",\n        radius_meters=15_000,\n        sections=["happeningNow", "practical"],\n    )\n\n    assert request.activation_type == "ai_verification"\n    assert DiscoveryStore._brief_missions(request) == [\n        "humanityEvents",\n        "openingAndClosure",\n    ]\n'''
+          if text.count(bad) != 1:
+              raise SystemExit('discovery verification test fix anchor mismatch')
+          path.write_text(text.replace(bad, good), encoding='utf-8')
+
+          path = Path('services/lumanest-discovery-service/tests/test_worker.py')
+          text = path.read_text(encoding='utf-8')
+          bad = '''\n\ndef test_ai_verification_queries_prioritize_official_and_independent_sources():\n    job = _job(activation_type="ai_verification")\n    queries = BrokerClient._queries(job)\n\n    assert len(queries) == 3\n    assert any("官方" in query for query in queries)\n    assert any("独立来源" in query for query in queries)\n    assert any("管制" in query for query in queries)\n'''
+          good = '''\n\ndef test_ai_verification_queries_prioritize_official_and_independent_sources():\n    base = job()\n    verification_job = RefreshJob(\n        base.fingerprint,\n        base.region,\n        base.expires_at,\n        base.attempt,\n        "ai_verification",\n        base.dedupe_key,\n    )\n    queries = BrokerClient._queries(verification_job)\n\n    assert len(queries) == 3\n    assert any("官方" in query for query in queries)\n    assert any("独立来源" in query for query in queries)\n    assert any("管制" in query for query in queries)\n'''
+          if text.count(bad) != 1:
+              raise SystemExit('worker verification test fix anchor mismatch')
+          path.write_text(text.replace(bad, good), encoding='utf-8')
+          PY
+      - name: Install discovery dependencies
+        working-directory: services/lumanest-discovery-service
+        run: pip install -e '.[test]'
+      - name: Test discovery verification
+        working-directory: services/lumanest-discovery-service
+        run: pytest -q --tb=short tests/test_region_brief_request_modes.py tests/test_worker.py
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+      - name: Analyze Flutter
+        run: flutter analyze
+      - name: Test Flutter verification
+        run: |
+          flutter test test/features/explore/region_brief_request_policy_test.dart
+          flutter test test/presentation_v2/explore/v2_region_brief_expansion_test.dart
+      - name: Commit targeted region verification
+        run: |
+          rm .github/scripts/region_brief_verification_patch.py
+          rm .github/workflows/one-shot-region-brief-verification.yml
+          git config user.name "muee91"
+          git config user.email "55554607+muee91@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add targeted region verification"
+          git push origin HEAD:main
