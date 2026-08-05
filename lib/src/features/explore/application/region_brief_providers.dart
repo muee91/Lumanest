@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
 import 'package:luma_nest/src/features/explore/application/exploration_scene_profile_resolver.dart';
-import 'package:luma_nest/src/features/explore/domain/exploration_scene_profile.dart';
+import 'package:luma_nest/src/features/explore/application/region_brief_request_policy.dart';
 import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
 import 'package:luma_nest/src/features/explore/domain/region_brief_repository.dart';
 import 'package:luma_nest/src/features/explore/infrastructure/data_broker_region_brief_repository.dart';
@@ -61,22 +61,6 @@ final regionBriefCacheProvider = Provider<RegionBriefLocalCache>((ref) {
 
 class RegionBriefController extends Notifier<RegionBriefState> {
   static const _maximumAutomaticRetries = 4;
-  static const _automaticSections = <String>[
-    'identity',
-    'orientation',
-    'photoThemes',
-    'practical',
-  ];
-  static const _expandedSections = <String>[
-    'identity',
-    'orientation',
-    'photoThemes',
-    'happeningNow',
-    'places',
-    'localTaste',
-    'etiquette',
-    'practical',
-  ];
 
   int _generation = 0;
   int _automaticRetries = 0;
@@ -139,40 +123,43 @@ class RegionBriefController extends Notifier<RegionBriefState> {
           );
         }
       }
-      final brief = await ref
+      final plan = RegionBriefRequestPolicy.plan(profile, manual: manual);
+      final incoming = await ref
           .read(regionBriefRepositoryProvider)
           .fetch(
             RegionBriefRequest(
               snapshotId: snapshot.id,
-              activationType: manual
-                  ? 'user_manual'
-                  : 'foreground_opportunistic',
+              activationType: plan.activationType,
               locale: 'zh-CN',
               center: location,
-              radiusMeters: _radiusFor(profile, expanded: manual),
+              radiusMeters: plan.radiusMeters,
               sceneProfile: profile,
-              requestedSections: manual
-                  ? _expandedSections
-                  : _automaticSections,
+              requestedSections: plan.requestedSections,
             ),
           );
       if (generation != _generation || !ref.mounted) return;
-      if (brief.hasUsableFacts) {
-        await ref.read(regionBriefCacheProvider).write(cacheKey, brief);
+      final keepPrevious = RegionBriefRequestPolicy.shouldKeepPrevious(
+        previous: previous,
+        incoming: incoming,
+        manual: manual,
+      );
+      final accepted = keepPrevious ? previous! : incoming;
+      if (!keepPrevious && incoming.hasUsableFacts) {
+        await ref.read(regionBriefCacheProvider).write(cacheKey, incoming);
         if (generation != _generation || !ref.mounted) return;
       }
       state = RegionBriefState(
         status:
-            brief.status == RegionBriefStatus.pending ||
-                brief.status == RegionBriefStatus.unavailable
+            incoming.status == RegionBriefStatus.pending ||
+                incoming.status == RegionBriefStatus.unavailable
             ? RegionBriefLoadStatus.degraded
             : RegionBriefLoadStatus.ready,
-        brief: brief,
-        lastExpandedAt: manual && brief.hasUsableFacts
+        brief: accepted,
+        lastExpandedAt: manual && incoming.hasUsableFacts
             ? DateTime.now().toUtc()
             : previousExpandedAt,
       );
-      _scheduleRetryIfNeeded(brief, manual: manual);
+      _scheduleRetryIfNeeded(incoming, manual: manual);
     } on RegionBriefFailure catch (error) {
       if (generation != _generation || !ref.mounted) return;
       state = RegionBriefState(
@@ -214,27 +201,6 @@ class RegionBriefController extends Notifier<RegionBriefState> {
       _automaticRetries += 1;
       unawaited(load(manual: manual));
     });
-  }
-
-  static int _radiusFor(
-    ExplorationSceneProfile profile, {
-    required bool expanded,
-  }) {
-    if (profile.remoteness == RemotenessLevel.remote ||
-        profile.remoteness == RemotenessLevel.extreme) {
-      return 50000;
-    }
-    if (profile.mobility.name == 'driving') {
-      return expanded ? 35000 : 20000;
-    }
-    if (!expanded) return 5000;
-    return switch (profile.settlement) {
-      SettlementType.historicTown ||
-      SettlementType.historicDistrict ||
-      SettlementType.village => 15000,
-      SettlementType.scenicArea => 20000,
-      _ => 12000,
-    };
   }
 }
 
