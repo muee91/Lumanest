@@ -1,0 +1,897 @@
+name: One-shot route corridor intelligence
+
+on:
+  push:
+    paths:
+      - .github/workflows/one-shot-route-corridor.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+      - name: Apply route corridor intelligence
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def write(path, content):
+              target = Path(path)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(content, encoding='utf-8')
+
+          def replace_once(path, old, new):
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one anchor, found {count}: {old[:80]!r}')
+              target.write_text(text.replace(old, new), encoding='utf-8')
+
+          write('services/lumanest-data-broker/src/context/route-corridor-intelligence.mjs', r'''const facilityKeys = Object.freeze([
+  'parking', 'fuel', 'food', 'water', 'toilets', 'shelter', 'restArea',
+]);
+const restrictionKinds = new Set([
+  'closure', 'roadClosure', 'fireRestriction', 'regulation', 'eventChange',
+]);
+
+function object(value) {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function count(value) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 1_000
+    ? value : 0;
+}
+
+function responsive(provider) {
+  return provider != null && ['ready', 'noData'].includes(provider.status);
+}
+
+function source(provider) {
+  const value = provider?.source;
+  if (!object(value) || typeof value.id !== 'string' || typeof value.title !== 'string' ||
+      typeof value.publisher !== 'string' || typeof value.url !== 'string') return null;
+  return {
+    id: value.id,
+    title: value.title,
+    publisher: value.publisher,
+    url: value.url,
+    license: typeof value.license === 'string' ? value.license : null,
+    version: typeof value.version === 'string' ? value.version : null,
+  };
+}
+
+export function buildRouteCorridorIntelligence({ body, providerResults, generatedAt }) {
+  const bundles = Array.isArray(providerResults) ? providerResults : [];
+  const segments = [];
+  const sourceMap = new Map();
+  let availableSegments = 0;
+
+  for (let index = 0; index < body.samples.length; index += 1) {
+    const sample = body.samples[index];
+    const bundle = object(bundles[index]) ? bundles[index] : null;
+    const providers = Array.isArray(bundle?.providers) ? bundle.providers : [];
+    const osm = providers.find((item) => item?.id === 'osm');
+    const official = providers.find((item) => item?.id === 'officialNotices');
+    for (const provider of [osm, official]) {
+      const item = source(provider);
+      if (item != null && responsive(provider)) sourceMap.set(item.id, item);
+    }
+
+    const mapSignal = osm?.status === 'ready'
+      ? osm.signals?.find((item) => item?.kind === 'outdoorMapInventory' && item.verification === 'reference')
+      : null;
+    const attributes = object(mapSignal?.attributes) ? mapSignal.attributes : {};
+    const facilities = Object.fromEntries(facilityKeys.map((key) => [key, count(attributes[key])]));
+    const mapResponsive = responsive(osm);
+    const officialResponsive = responsive(official);
+    if (mapResponsive || officialResponsive) availableSegments += 1;
+
+    const restrictions = official?.status === 'ready'
+      ? (official.signals ?? []).filter((item) =>
+          item?.verification === 'authoritative' && restrictionKinds.has(item.kind))
+      : [];
+    const restrictionFactIds = restrictions
+      .map((item) => typeof item.id === 'string' ? item.id : null)
+      .filter(Boolean)
+      .slice(0, 4);
+    const evidenceFactIds = [
+      ...(typeof mapSignal?.id === 'string' ? [mapSignal.id] : []),
+      ...restrictionFactIds,
+    ].slice(0, 5);
+    segments.push({
+      progress: Number(sample.progress.toFixed(4)),
+      expectedAt: new Date(sample.expectedAt).toISOString(),
+      facilities: {
+        status: mapSignal != null ? 'reference' : mapResponsive ? 'empty' : 'unavailable',
+        ...facilities,
+      },
+      photography: {
+        status: mapSignal == null ? (mapResponsive ? 'noReference' : 'unavailable')
+          : count(attributes.viewpoint) + count(attributes.historic) > 0 ? 'reference' : 'noReference',
+        viewpointCount: count(attributes.viewpoint),
+        heritageCount: count(attributes.historic),
+      },
+      restrictions: {
+        status: restrictions.length > 0 ? 'present' : officialResponsive ? 'noneObserved' : 'unavailable',
+        kinds: [...new Set(restrictions.map((item) => item.kind))].slice(0, 4),
+        authoritative: restrictions.length > 0,
+        factIds: restrictionFactIds,
+      },
+      evidence: {
+        status: restrictions.length > 0 ? 'verified' : mapSignal != null ? 'reference' : 'unavailable',
+        factIds: evidenceFactIds,
+      },
+    });
+  }
+
+  return {
+    contractVersion: 1,
+    generatedAt: generatedAt.toISOString(),
+    coverage: availableSegments === 0 ? 'unavailable'
+      : availableSegments === body.samples.length ? 'full' : 'partial',
+    requestedSegments: body.samples.length,
+    availableSegments,
+    sources: [...sourceMap.values()].slice(0, 4),
+    segments,
+    limitations: [
+      'public_map_inventory_is_reference_only',
+      'absence_of_official_notice_is_not_safety_confirmation',
+      'precise_route_geometry_excluded',
+    ],
+  };
+}
+''')
+
+          write('services/lumanest-data-broker/src/context/route-weather.mjs', r'''import { buildRouteCorridorIntelligence } from './route-corridor-intelligence.mjs';
+
+const maximumRouteWeatherSamples = 5;
+const maximumForecastDeltaMilliseconds = 90 * 60 * 1_000;
+const maximumForecastHorizonMilliseconds = 24 * 60 * 60 * 1_000;
+const allowedRouteWeatherKeys = new Set(['routeId', 'samples']);
+const allowedRouteWeatherSampleKeys = new Set([
+  'latitude', 'longitude', 'system', 'expectedAt', 'progress',
+]);
+
+function exactKeys(value, allowed) {
+  return value != null && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).every((key) => allowed.has(key));
+}
+
+function validFinite(value, minimum, maximum) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
+export function validRouteWeatherRequest(body, observedAt = new Date()) {
+  if (!exactKeys(body, allowedRouteWeatherKeys) ||
+      typeof body.routeId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(body.routeId) ||
+      !Array.isArray(body.samples) || body.samples.length < 2 ||
+      body.samples.length > maximumRouteWeatherSamples) return false;
+  const now = observedAt.getTime();
+  if (!Number.isFinite(now)) return false;
+  let previousProgress = -1;
+  for (const sample of body.samples) {
+    if (!exactKeys(sample, allowedRouteWeatherSampleKeys) || sample.system !== 'wgs84' ||
+        !validFinite(sample.latitude, -90, 90) ||
+        !validFinite(sample.longitude, -180, 180) ||
+        !validFinite(sample.progress, 0, 1) || sample.progress <= previousProgress ||
+        typeof sample.expectedAt !== 'string') return false;
+    const expectedAt = new Date(sample.expectedAt).getTime();
+    if (!Number.isFinite(expectedAt) || expectedAt < now - 15 * 60 * 1_000 ||
+        expectedAt > now + maximumForecastHorizonMilliseconds) return false;
+    previousProgress = sample.progress;
+  }
+  return true;
+}
+
+function closestHourlyForecast(hourly, expectedAt) {
+  if (!Array.isArray(hourly)) return null;
+  let closest = null;
+  let closestDelta = Number.POSITIVE_INFINITY;
+  for (const forecast of hourly) {
+    if (forecast == null || typeof forecast !== 'object') continue;
+    const forecastAt = new Date(forecast.at).getTime();
+    if (!Number.isFinite(forecastAt)) continue;
+    const delta = Math.abs(forecastAt - expectedAt.getTime());
+    if (delta < closestDelta) {
+      closest = forecast;
+      closestDelta = delta;
+    }
+  }
+  return closestDelta <= maximumForecastDeltaMilliseconds ? closest : null;
+}
+
+function sanitizedSample(sample, weather) {
+  if (!weather?.ok) return null;
+  const expectedAt = new Date(sample.expectedAt);
+  const forecast = closestHourlyForecast(weather.body?.forecast?.hourly, expectedAt);
+  if (forecast == null || typeof forecast.condition !== 'string' ||
+      typeof forecast.windSpeedMps !== 'number' ||
+      typeof forecast.precipitationMm !== 'number') return null;
+  const forecastAt = new Date(forecast.at);
+  if (!Number.isFinite(forecastAt.getTime())) return null;
+  return {
+    progress: sample.progress,
+    expectedAt: expectedAt.toISOString(),
+    forecastAt: forecastAt.toISOString(),
+    condition: forecast.condition,
+    cloudCoverPercent: typeof forecast.cloudCoverPercent === 'number' ? forecast.cloudCoverPercent : null,
+    windSpeedMps: forecast.windSpeedMps,
+    precipitationMm: forecast.precipitationMm,
+    visibilityKm: typeof forecast.visibilityKm === 'number' ? forecast.visibilityKm : null,
+    thunder: forecast.thunder === true,
+    stale: weather.cache === 'stale',
+  };
+}
+
+export async function routeWeatherForecast({
+  body,
+  fetchWeather,
+  fetchCorridorFacts = null,
+  observe = null,
+  now = () => new Date(),
+}) {
+  const generatedAt = now();
+  const results = await Promise.all(body.samples.map(async (sample) => {
+    const [weather, corridor] = await Promise.all([
+      Promise.resolve().then(() => fetchWeather({ latitude: sample.latitude, longitude: sample.longitude })).catch(() => null),
+      typeof fetchCorridorFacts === 'function'
+        ? Promise.resolve().then(() => fetchCorridorFacts(sample)).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    return { weather: sanitizedSample(sample, weather), corridor };
+  }));
+  const samples = results.map((item) => item.weather).filter((sample) => sample != null);
+  if (samples.length === 0) return { ok: false, error: 'upstream_unavailable' };
+  const corridor = buildRouteCorridorIntelligence({
+    body,
+    providerResults: results.map((item) => item.corridor),
+    generatedAt,
+  });
+  if (typeof observe === 'function') observe(corridor);
+  return {
+    ok: true,
+    body: {
+      routeId: body.routeId,
+      generatedAt: generatedAt.toISOString(),
+      source: 'QWeather',
+      coverage: samples.length === body.samples.length ? 'full' : 'partial',
+      requestedSamples: body.samples.length,
+      availableSamples: samples.length,
+      samples,
+      corridor,
+    },
+  };
+}
+''')
+
+          provider = 'services/lumanest-data-broker/src/environment/provider-facts-service.mjs'
+          replace_once(provider, r'''function signal({ providerId, kind, category, title, summary, verification, observedAt, expiresAt, sourceUrl }) {
+  const safeTitle = boundedText(title, 120);
+  const safeSummary = boundedText(summary, 360);
+  const safeObservedAt = iso(observedAt);
+  const safeExpiresAt = iso(expiresAt);
+  const safeSourceUrl = boundedUrl(sourceUrl);
+  if (!safeTitle || !safeSummary || !safeObservedAt || !safeExpiresAt || !safeSourceUrl ||
+      Date.parse(safeExpiresAt) <= Date.parse(safeObservedAt)) return null;
+  return {
+    id: stableId(providerId, kind, safeObservedAt, safeTitle),
+    kind,
+    category,
+    title: safeTitle,
+    summary: safeSummary,
+    verification,
+    observedAt: safeObservedAt,
+    expiresAt: safeExpiresAt,
+    sourceUrl: safeSourceUrl,
+  };
+}''', r'''function boundedAttributes(value) {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const entries = Object.entries(value).filter(([key, item]) =>
+    /^[a-z][a-zA-Z0-9]{0,31}$/.test(key) && Number.isInteger(item) && item >= 0 && item <= 1_000,
+  ).slice(0, 16);
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+function signal({ providerId, kind, category, title, summary, verification, observedAt, expiresAt, sourceUrl, attributes = null }) {
+  const safeTitle = boundedText(title, 120);
+  const safeSummary = boundedText(summary, 360);
+  const safeObservedAt = iso(observedAt);
+  const safeExpiresAt = iso(expiresAt);
+  const safeSourceUrl = boundedUrl(sourceUrl);
+  const safeAttributes = boundedAttributes(attributes);
+  if (!safeTitle || !safeSummary || !safeObservedAt || !safeExpiresAt || !safeSourceUrl ||
+      Date.parse(safeExpiresAt) <= Date.parse(safeObservedAt)) return null;
+  return {
+    id: stableId(providerId, kind, safeObservedAt, safeTitle),
+    kind,
+    category,
+    title: safeTitle,
+    summary: safeSummary,
+    verification,
+    observedAt: safeObservedAt,
+    expiresAt: safeExpiresAt,
+    sourceUrl: safeSourceUrl,
+    ...(safeAttributes == null ? {} : { attributes: safeAttributes }),
+  };
+}''')
+
+          replace_once(provider, r'''async function osmProvider({ query, fetcher, timeoutMs, now, overpassUrl }) {
+  const id = 'osm';
+  const category = 'outdoor';
+  const sourceInfo = source({
+    id: 'openstreetmap-overpass', title: 'OpenStreetMap Overpass API', publisher: 'OpenStreetMap contributors',
+    url: 'https://www.openstreetmap.org/copyright', license: 'ODbL-1.0', version: 'Overpass QL',
+  });
+  const radius = Math.min(50_000, query.radiusKm * 1_000);
+  const q = `[out:json][timeout:12];(nwr(around:${radius},${query.latitude},${query.longitude})["tourism"="viewpoint"];nwr(around:${radius},${query.latitude},${query.longitude})["highway"="path"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="shelter"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="drinking_water"];nwr(around:${radius},${query.latitude},${query.longitude})["historic"];);out tags center qt 100;`;
+  try {
+    const body = await fetchJson(fetcher, overpassUrl, {
+      timeoutMs,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'User-Agent': 'LumaNest/1.0' },
+      body: new URLSearchParams({ data: q }).toString(),
+    });
+    const elements = Array.isArray(body?.elements) ? body.elements : [];
+    if (elements.length === 0) return noData(id, category, now, sourceInfo);
+    const counts = { viewpoint: 0, path: 0, shelter: 0, water: 0, historic: 0 };
+    for (const item of elements) {
+      const tags = item?.tags ?? {};
+      if (tags.tourism === 'viewpoint') counts.viewpoint += 1;
+      if (tags.highway === 'path') counts.path += 1;
+      if (tags.amenity === 'shelter') counts.shelter += 1;
+      if (tags.amenity === 'drinking_water') counts.water += 1;
+      if (tags.historic != null) counts.historic += 1;
+    }
+    const summary = `公开地图标注：观景点 ${counts.viewpoint}、步道 ${counts.path}、避雨/庇护设施 ${counts.shelter}、饮水点 ${counts.water}、历史对象 ${counts.historic}。标注不代表当前开放或现场安全。`;
+    return providerResult({
+      id, category, status: 'ready', now, ttlMs: referenceTtlMs, sourceInfo,
+      signals: [signal({ providerId: id, kind: 'outdoorMapInventory', category, title: '户外地图语义', summary,
+        verification: 'reference', observedAt: now, expiresAt: new Date(now.getTime() + referenceTtlMs), sourceUrl: sourceInfo.url })],
+    });
+  } catch {
+    return unavailable(id, category, now);
+  }
+}''', r'''async function osmProvider({ query, fetcher, timeoutMs, now, overpassUrl }) {
+  const id = 'osm';
+  const category = 'outdoor';
+  const sourceInfo = source({
+    id: 'openstreetmap-overpass', title: 'OpenStreetMap Overpass API', publisher: 'OpenStreetMap contributors',
+    url: 'https://www.openstreetmap.org/copyright', license: 'ODbL-1.0', version: 'Overpass QL',
+  });
+  const radius = Math.min(50_000, query.radiusKm * 1_000);
+  const q = `[out:json][timeout:12];(nwr(around:${radius},${query.latitude},${query.longitude})["tourism"="viewpoint"];nwr(around:${radius},${query.latitude},${query.longitude})["highway"="path"];nwr(around:${radius},${query.latitude},${query.longitude})["highway"="rest_area"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="shelter"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="drinking_water"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="parking"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="fuel"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"="toilets"];nwr(around:${radius},${query.latitude},${query.longitude})["amenity"~"^(restaurant|cafe|fast_food)$"];nwr(around:${radius},${query.latitude},${query.longitude})["historic"];);out tags center qt 160;`;
+  try {
+    const body = await fetchJson(fetcher, overpassUrl, {
+      timeoutMs,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'User-Agent': 'LumaNest/1.0' },
+      body: new URLSearchParams({ data: q }).toString(),
+    });
+    const elements = Array.isArray(body?.elements) ? body.elements : [];
+    if (elements.length === 0) return noData(id, category, now, sourceInfo);
+    const counts = {
+      viewpoint: 0, path: 0, shelter: 0, water: 0, historic: 0,
+      parking: 0, fuel: 0, toilets: 0, food: 0, restArea: 0,
+    };
+    for (const item of elements) {
+      const tags = item?.tags ?? {};
+      if (tags.tourism === 'viewpoint') counts.viewpoint += 1;
+      if (tags.highway === 'path') counts.path += 1;
+      if (tags.highway === 'rest_area') counts.restArea += 1;
+      if (tags.amenity === 'shelter') counts.shelter += 1;
+      if (tags.amenity === 'drinking_water') counts.water += 1;
+      if (tags.amenity === 'parking') counts.parking += 1;
+      if (tags.amenity === 'fuel') counts.fuel += 1;
+      if (tags.amenity === 'toilets') counts.toilets += 1;
+      if (['restaurant', 'cafe', 'fast_food'].includes(tags.amenity)) counts.food += 1;
+      if (tags.historic != null) counts.historic += 1;
+    }
+    const summary = `公开地图标注：观景点 ${counts.viewpoint}、步道 ${counts.path}、停车 ${counts.parking}、加油 ${counts.fuel}、餐饮 ${counts.food}、饮水 ${counts.water}、厕所 ${counts.toilets}、庇护设施 ${counts.shelter}、休息区 ${counts.restArea}、历史对象 ${counts.historic}。标注不代表当前开放、营业或现场安全。`;
+    return providerResult({
+      id, category, status: 'ready', now, ttlMs: referenceTtlMs, sourceInfo,
+      signals: [signal({ providerId: id, kind: 'outdoorMapInventory', category, title: '户外地图语义', summary,
+        verification: 'reference', observedAt: now, expiresAt: new Date(now.getTime() + referenceTtlMs),
+        sourceUrl: sourceInfo.url, attributes: counts })],
+    });
+  } catch {
+    return unavailable(id, category, now);
+  }
+}''')
+
+          write('services/lumanest-data-broker/src/assistant/route-scout-context.mjs', r'''const ROUTE_ID_PATTERN = /^[a-zA-Z0-9._:-]{1,96}$/;
+const facilityLabels = Object.freeze({
+  parking: '停车标注', fuel: '加油标注', food: '餐饮标注', water: '饮水标注',
+  toilets: '厕所标注', shelter: '庇护设施', restArea: '休息区',
+});
+
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function bounded(value, min, max) {
+  return finiteNumber(value) && value >= min && value <= max;
+}
+
+function coarseCellCenter(value) {
+  const cell = Math.floor(value / 0.05);
+  return Number(((cell + 0.5) * 0.05).toFixed(4));
+}
+
+function validExpectedAt(value) {
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.valueOf());
+}
+
+export function coarseRouteCorridor(route) {
+  if (route == null || typeof route !== 'object' || Array.isArray(route)) return null;
+  if (typeof route.routeId !== 'string' || !ROUTE_ID_PATTERN.test(route.routeId) ||
+      !Array.isArray(route.corridorSamples) || route.corridorSamples.length < 2 ||
+      route.corridorSamples.length > 5) return null;
+  const samples = [];
+  let previousProgress = -1;
+  for (const sample of route.corridorSamples) {
+    if (sample == null || typeof sample !== 'object' || Array.isArray(sample) ||
+        !bounded(sample.latitude, -90, 90) || !bounded(sample.longitude, -180, 180) ||
+        !bounded(sample.progress, 0, 1) || sample.progress <= previousProgress ||
+        !validExpectedAt(sample.expectedAt)) return null;
+    previousProgress = sample.progress;
+    samples.push({
+      latitude: coarseCellCenter(sample.latitude),
+      longitude: coarseCellCenter(sample.longitude),
+      system: 'wgs84',
+      expectedAt: new Date(sample.expectedAt).toISOString(),
+      progress: Number(sample.progress.toFixed(4)),
+    });
+  }
+  return { routeId: route.routeId, samples };
+}
+
+export function validRouteCorridorBinding(value) {
+  return value == null || (typeof value === 'object' && ROUTE_ID_PATTERN.test(value.routeId) &&
+    Array.isArray(value.samples) && value.samples.length >= 2 && value.samples.length <= 5 &&
+    value.samples.every((sample) => sample?.system === 'wgs84' &&
+      bounded(sample.latitude, -90, 90) && bounded(sample.longitude, -180, 180) &&
+      bounded(sample.progress, 0, 1) && validExpectedAt(sample.expectedAt)));
+}
+
+function routeProgressLabel(progress) {
+  if (progress < .18) return '出发后不久';
+  if (progress < .45) return '前段';
+  if (progress < .72) return '中段';
+  if (progress < .92) return '后段';
+  return '接近目的地';
+}
+
+function normalisedCondition(value) {
+  return typeof value === 'string' && ['clear', 'cloudy', 'rain', 'snow', 'dust', 'unknown'].includes(value)
+    ? value : null;
+}
+
+function sourceRows(corridor) {
+  if (!Array.isArray(corridor?.sources)) return [];
+  return corridor.sources.filter((item) => item != null && typeof item.id === 'string' &&
+    typeof item.title === 'string' && typeof item.publisher === 'string' && typeof item.url === 'string').slice(0, 4);
+}
+
+export function routeCorridorFacts(result, now = new Date()) {
+  const empty = {
+    lines: [], factIds: [], sources: [], expiresAt: null,
+    coverage: {
+      status: 'unavailable', requestedSegments: 0, availableSegments: 0,
+      environmentTransitions: 0, parkingStatus: 'unavailable', supplyStatus: 'unavailable',
+      restrictionStatus: 'unavailable', photographyStatus: 'unavailable',
+      evidenceStatus: 'unavailable', authoritativeRestrictionCount: 0,
+    },
+  };
+  if (result == null || typeof result !== 'object' || result.ok !== true ||
+      result.body == null || typeof result.body !== 'object') return empty;
+  const body = result.body;
+  if (typeof body.generatedAt !== 'string' || !Array.isArray(body.samples) ||
+      !['full', 'partial'].includes(body.coverage)) return empty;
+  const generatedAt = new Date(body.generatedAt);
+  if (Number.isNaN(generatedAt.valueOf()) || now.valueOf() - generatedAt.valueOf() > 2 * 60 * 60 * 1_000) return empty;
+
+  const lines = [];
+  const factIds = [];
+  let previousCondition = null;
+  let environmentTransitions = 0;
+  for (let index = 0; index < body.samples.length; index += 1) {
+    const sample = body.samples[index];
+    if (sample == null || typeof sample !== 'object' || !bounded(sample.progress, 0, 1) ||
+        !validExpectedAt(sample.expectedAt)) continue;
+    const parts = [];
+    const condition = normalisedCondition(sample.condition);
+    if (condition != null) parts.push(`天气 ${condition}`);
+    if (previousCondition != null && condition != null && previousCondition !== condition) environmentTransitions += 1;
+    if (condition != null) previousCondition = condition;
+    if (bounded(sample.windSpeedMps, 0, 150)) parts.push(`风速 ${sample.windSpeedMps.toFixed(1)}m/s`);
+    if (bounded(sample.visibilityKm, 0, 500)) parts.push(`能见度 ${sample.visibilityKm.toFixed(0)}km`);
+    if (bounded(sample.precipitationMm, 0, 2_000) && sample.precipitationMm > 0) parts.push(`降水 ${sample.precipitationMm.toFixed(1)}mm`);
+    if (sample.thunder === true) parts.push('雷暴信号');
+    if (parts.length > 0) {
+      lines.push(`路线${routeProgressLabel(sample.progress)}（预计 ${new Date(sample.expectedAt).toISOString()}）：${parts.join('，')}${sample.stale === true ? '；该点使用过期缓存，仅作低置信参考' : ''}。`);
+      factIds.push(`route.weather.${index}`);
+    }
+  }
+  if (body.coverage === 'partial') lines.push('路线沿途天气只覆盖部分采样点；缺失路段不得按晴好或安全处理。');
+
+  const corridor = body.corridor;
+  const segments = Array.isArray(corridor?.segments) ? corridor.segments : [];
+  const totals = Object.fromEntries(Object.keys(facilityLabels).map((key) => [key, 0]));
+  let photographyReferences = 0;
+  let authoritativeRestrictionCount = 0;
+  let officialResponsive = false;
+  let referenceEvidence = false;
+  for (const segment of segments) {
+    if (segment?.facilities?.status === 'reference') {
+      referenceEvidence = true;
+      for (const key of Object.keys(totals)) {
+        if (Number.isInteger(segment.facilities[key]) && segment.facilities[key] >= 0) totals[key] += segment.facilities[key];
+      }
+    }
+    if (segment?.photography?.status === 'reference') {
+      photographyReferences += (segment.photography.viewpointCount ?? 0) + (segment.photography.heritageCount ?? 0);
+    }
+    if (segment?.restrictions?.status === 'present') {
+      officialResponsive = true;
+      authoritativeRestrictionCount += 1;
+      for (const id of segment.restrictions.factIds ?? []) if (typeof id === 'string') factIds.push(id);
+    } else if (segment?.restrictions?.status === 'noneObserved') {
+      officialResponsive = true;
+    }
+  }
+  const facilityParts = Object.entries(totals).filter(([, value]) => value > 0)
+    .map(([key, value]) => `${facilityLabels[key]} ${value}`);
+  if (facilityParts.length > 0) {
+    lines.push(`沿途公开地图参考：${facilityParts.join('、')}。这些标注不代表营业、开放或一定可进入，客户端高德结果仍作为具体补给与停车候选。`);
+    factIds.push('route.corridor.facilities');
+  }
+  if (photographyReferences > 0) {
+    lines.push(`沿途公开地图存在 ${photographyReferences} 条观景点或历史对象参考；这不是已验证机位，也不代表当前适合拍摄。`);
+    factIds.push('route.corridor.photography');
+  }
+  if (authoritativeRestrictionCount > 0) {
+    lines.push(`沿途 ${authoritativeRestrictionCount} 个采样段存在仍有效的官方关闭、道路管制或限制证据；具体内容只以安全卡与官方来源为准。`);
+  } else if (officialResponsive) {
+    lines.push('沿途采样范围未检出仍有效的官方管制公告；这不是道路安全或开放确认，出发前仍需查看官方来源。');
+  }
+
+  const requestedSegments = Number.isInteger(corridor?.requestedSegments) ? corridor.requestedSegments : 0;
+  const availableSegments = Number.isInteger(corridor?.availableSegments) ? corridor.availableSegments : 0;
+  const parkingStatus = totals.parking > 0 ? 'reference' : availableSegments > 0 ? 'noReference' : 'unavailable';
+  const supplyTotal = totals.fuel + totals.food + totals.water + totals.toilets + totals.shelter + totals.restArea;
+  const supplyStatus = supplyTotal > 0 ? 'reference' : availableSegments > 0 ? 'noReference' : 'unavailable';
+  const photographyStatus = photographyReferences > 0 ? 'reference' : availableSegments > 0 ? 'noReference' : 'unavailable';
+  const restrictionStatus = authoritativeRestrictionCount > 0 ? 'present' : officialResponsive ? 'noneObserved' : 'unavailable';
+  const status = lines.length === 0 ? 'unavailable'
+    : body.coverage === 'full' && corridor?.coverage === 'full' ? 'ready' : 'partial';
+  return {
+    lines,
+    factIds: [...new Set(factIds)].slice(0, 12),
+    sources: sourceRows(corridor),
+    expiresAt: new Date(generatedAt.valueOf() + 2 * 60 * 60 * 1_000),
+    coverage: {
+      status,
+      requestedSegments,
+      availableSegments,
+      environmentTransitions,
+      parkingStatus,
+      supplyStatus,
+      restrictionStatus,
+      photographyStatus,
+      evidenceStatus: authoritativeRestrictionCount > 0 ? 'verified' : referenceEvidence ? 'reference' : 'unavailable',
+      authoritativeRestrictionCount,
+    },
+  };
+}
+
+export const routeWeatherFacts = routeCorridorFacts;
+''')
+
+          envelope = 'services/lumanest-data-broker/src/assistant/context-envelope.mjs'
+          replace_once(envelope, "  routeWeatherFacts,", "  routeCorridorFacts,")
+          replace_once(envelope, "  const route = routeWeatherFacts(routeResult, now);", "  const route = routeCorridorFacts(routeResult, now);")
+          replace_once(envelope,
+            "  const sources = uniqueSources([...region.sources, ...providers.sources]);",
+            "  const sources = uniqueSources([...route.sources, ...region.sources, ...providers.sources]);")
+          replace_once(envelope, r'''      route: Object.freeze({
+        status: binding.routeCorridor == null ? 'notApplicable' : componentStatus(route.lines),
+        factCount: route.lines.length,
+      }),''', r'''      route: Object.freeze({
+        status: binding.routeCorridor == null ? 'notApplicable' : route.coverage.status,
+        factCount: route.lines.length,
+        requestedSegments: route.coverage.requestedSegments,
+        availableSegments: route.coverage.availableSegments,
+        environmentTransitions: route.coverage.environmentTransitions,
+        parkingStatus: route.coverage.parkingStatus,
+        supplyStatus: route.coverage.supplyStatus,
+        restrictionStatus: route.coverage.restrictionStatus,
+        photographyStatus: route.coverage.photographyStatus,
+        evidenceStatus: route.coverage.evidenceStatus,
+        authoritativeRestrictionCount: route.coverage.authoritativeRestrictionCount,
+      }),''')
+
+          server = 'services/lumanest-data-broker/src/server.mjs'
+          replace_once(server, r'''      const result = await routeWeatherForecast({
+        body,
+        now: () => requestedAt,
+        fetchWeather: (coordinate) => authoritativeWeather({''', r'''      const result = await routeWeatherForecast({
+        body,
+        now: () => requestedAt,
+        observe: (corridor) => operationalObservability.recordRouteCorridor(corridor),
+        fetchCorridorFacts: (sample) => providerFactsService.facts({
+          latitude: sample.latitude,
+          longitude: sample.longitude,
+          radiusKm: 8,
+          locale: 'zh-CN',
+          observedAt: requestedAt.toISOString(),
+          providerIds: ['osm', 'officialNotices'],
+        }),
+        fetchWeather: (coordinate) => authoritativeWeather({''')
+          replace_once(server, r'''            loadRouteWeather: (routeBody) => routeWeatherForecast({
+              body: routeBody,
+              now: () => assistantNow,
+              fetchWeather: (coordinate) => authoritativeWeather({''', r'''            loadRouteWeather: (routeBody) => routeWeatherForecast({
+              body: routeBody,
+              now: () => assistantNow,
+              observe: (corridor) => operationalObservability.recordRouteCorridor(corridor),
+              fetchCorridorFacts: (sample) => providerFactsService.facts({
+                latitude: sample.latitude,
+                longitude: sample.longitude,
+                radiusKm: 8,
+                locale: 'zh-CN',
+                observedAt: assistantNow.toISOString(),
+                providerIds: ['osm', 'officialNotices'],
+              }),
+              fetchWeather: (coordinate) => authoritativeWeather({''')
+
+          observability = 'services/lumanest-data-broker/src/infrastructure/metrics/operational_observability.mjs'
+          replace_once(observability, r'''    this.assistant = {''', r'''    this.routeCorridor = {
+      requests: 0,
+      ready: 0,
+      partial: 0,
+      unavailable: 0,
+      requestedSegments: 0,
+      availableSegments: 0,
+      parkingReference: 0,
+      supplyReference: 0,
+      photographyReference: 0,
+      restrictionsPresent: 0,
+      restrictionsNoneObserved: 0,
+      restrictionsUnavailable: 0,
+      authoritativeRestrictions: 0,
+      verifiedEvidence: 0,
+      referenceEvidence: 0,
+    };
+    this.assistant = {''')
+          replace_once(observability, r'''  snapshot({ providerHealth = null } = {}) {''', r'''  recordRouteCorridor(corridor) {
+    if (!object(corridor)) return;
+    const metrics = this.routeCorridor;
+    metrics.requests += 1;
+    const status = ['full', 'partial', 'unavailable'].includes(corridor.coverage)
+      ? corridor.coverage : 'unavailable';
+    if (status === 'full') metrics.ready += 1;
+    else if (status === 'partial') metrics.partial += 1;
+    else metrics.unavailable += 1;
+    metrics.requestedSegments += nonNegative(corridor.requestedSegments);
+    metrics.availableSegments += nonNegative(corridor.availableSegments);
+    for (const segment of Array.isArray(corridor.segments) ? corridor.segments : []) {
+      if (segment?.facilities?.status === 'reference' && nonNegative(segment.facilities.parking) > 0) metrics.parkingReference += 1;
+      const supply = ['fuel', 'food', 'water', 'toilets', 'shelter', 'restArea']
+        .reduce((total, key) => total + nonNegative(segment?.facilities?.[key]), 0);
+      if (segment?.facilities?.status === 'reference' && supply > 0) metrics.supplyReference += 1;
+      if (segment?.photography?.status === 'reference') metrics.photographyReference += 1;
+      if (segment?.restrictions?.status === 'present') {
+        metrics.restrictionsPresent += 1;
+        metrics.authoritativeRestrictions += 1;
+      } else if (segment?.restrictions?.status === 'noneObserved') metrics.restrictionsNoneObserved += 1;
+      else metrics.restrictionsUnavailable += 1;
+      if (segment?.evidence?.status === 'verified') metrics.verifiedEvidence += 1;
+      else if (segment?.evidence?.status === 'reference') metrics.referenceEvidence += 1;
+    }
+  }
+
+  snapshot({ providerHealth = null } = {}) {''')
+          replace_once(observability, r'''      assistantContext: Object.freeze({''', r'''      routeCorridor: Object.freeze({
+        requests: this.routeCorridor.requests,
+        ready: this.routeCorridor.ready,
+        partial: this.routeCorridor.partial,
+        unavailable: this.routeCorridor.unavailable,
+        usableRate: ratio(this.routeCorridor.ready + this.routeCorridor.partial, this.routeCorridor.requests),
+        segmentCoverageRate: ratio(this.routeCorridor.availableSegments, this.routeCorridor.requestedSegments),
+        parkingReferenceSegments: this.routeCorridor.parkingReference,
+        supplyReferenceSegments: this.routeCorridor.supplyReference,
+        photographyReferenceSegments: this.routeCorridor.photographyReference,
+        restrictionsPresent: this.routeCorridor.restrictionsPresent,
+        restrictionsNoneObserved: this.routeCorridor.restrictionsNoneObserved,
+        restrictionsUnavailable: this.routeCorridor.restrictionsUnavailable,
+        authoritativeRestrictions: this.routeCorridor.authoritativeRestrictions,
+        verifiedEvidenceSegments: this.routeCorridor.verifiedEvidence,
+        referenceEvidenceSegments: this.routeCorridor.referenceEvidence,
+      }),
+      assistantContext: Object.freeze({''')
+          replace_once(observability, r'''    const lines = [
+      `lumanest_region_brief_requests_total ${region.requests}`,''', r'''    const route = this.routeCorridor;
+    const lines = [
+      `lumanest_route_corridor_requests_total ${route.requests}`,
+      `lumanest_route_corridor_ready_total ${route.ready}`,
+      `lumanest_route_corridor_partial_total ${route.partial}`,
+      `lumanest_route_corridor_unavailable_total ${route.unavailable}`,
+      `lumanest_route_corridor_requested_segments_total ${route.requestedSegments}`,
+      `lumanest_route_corridor_available_segments_total ${route.availableSegments}`,
+      `lumanest_route_corridor_authoritative_restrictions_total ${route.authoritativeRestrictions}`,
+      `lumanest_region_brief_requests_total ${region.requests}`,''')
+
+          admin_js = 'services/lumanest-data-broker/src/admin/public/observability.js'
+          replace_once(admin_js, r'''  function renderProviders(providers) {''', r'''  function renderRoute(route) {
+    const root = $('#observability-route-list');
+    if (!root) return;
+    root.replaceChildren();
+    const rows = [
+      ['采样段覆盖', percent(route.segmentCoverageRate), `${number(route.supplyReferenceSegments)} 段有补给参考 · ${number(route.parkingReferenceSegments)} 段有停车参考`],
+      ['官方管制证据', number(route.authoritativeRestrictions), `存在 ${number(route.restrictionsPresent)} 段 · 未检出 ${number(route.restrictionsNoneObserved)} 段 · 不可用 ${number(route.restrictionsUnavailable)} 段`],
+      ['摄影语义参考', number(route.photographyReferenceSegments), '公开地图观景点与历史对象只作检索参考，不是已验证机位'],
+    ];
+    for (const [labelText, valueText, detailText] of rows) {
+      const row = document.createElement('article');
+      row.className = 'observability-component';
+      const label = document.createElement('strong');
+      label.textContent = labelText;
+      const value = document.createElement('b');
+      value.textContent = valueText;
+      const detail = document.createElement('small');
+      detail.textContent = detailText;
+      row.append(label, value, detail);
+      root.append(row);
+    }
+  }
+
+  function renderProviders(providers) {''')
+          replace_once(admin_js, r'''    const context = value.assistantContext ?? {};
+    const providers = value.providers ?? {};''', r'''    const context = value.assistantContext ?? {};
+    const route = value.routeCorridor ?? {};
+    const providers = value.providers ?? {};''')
+          replace_once(admin_js, r'''    text('observability-provider-rate', `${number(providers.recentlyReady)}/${number(providers.total)}`);''', r'''    text('observability-route-rate', percent(route.usableRate));
+    text('observability-route-detail', `${number(route.ready + route.partial)}/${number(route.requests)} 次路线情报形成可用覆盖`);
+    text('observability-provider-rate', `${number(providers.recentlyReady)}/${number(providers.total)}`);''')
+          replace_once(admin_js, r'''    renderSections(region.sections);
+    renderComponents(context.components);''', r'''    renderSections(region.sections);
+    renderRoute(route);
+    renderComponents(context.components);''')
+
+          admin_html = 'services/lumanest-data-broker/src/admin/public/index.html'
+          replace_once(admin_html, r'''    <article><span>Provider 最近可用</span><strong id="observability-provider-rate">—</strong><small id="observability-provider-detail">等待 Provider 状态</small></article>''', r'''    <article><span>路线情报可用率</span><strong id="observability-route-rate">—</strong><small id="observability-route-detail">等待路线探路样本</small></article>
+    <article><span>Provider 最近可用</span><strong id="observability-provider-rate">—</strong><small id="observability-provider-detail">等待 Provider 状态</small></article>''')
+          replace_once(admin_html, r'''      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">PROVIDER COVERAGE</p><h3>数据源运行覆盖</h3><p>展示启用、配置、请求和最近状态，不返回任何密钥。</p></div></div><div id="observability-provider-list" class="service-status-list"></div></section>''', r'''      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">ROUTE CORRIDOR</p><h3>沿途探路覆盖</h3><p>只统计固定类别、段覆盖与官方管制证据，不保存路线 ID、精确几何或地点名称。</p></div></div><div id="observability-route-list" class="observability-components"></div></section>
+      <section class="panel-card"><div class="panel-head"><div><p class="card-kicker">PROVIDER COVERAGE</p><h3>数据源运行覆盖</h3><p>展示启用、配置、请求和最近状态，不返回任何密钥。</p></div></div><div id="observability-provider-list" class="service-status-list"></div></section>''')
+
+          write('services/lumanest-data-broker/test/route-corridor-intelligence.test.mjs', r'''import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { buildRouteCorridorIntelligence } from '../src/context/route-corridor-intelligence.mjs';
+
+test('builds bounded route corridor evidence without coordinates or raw notice text', () => {
+  const body = {
+    samples: [
+      { progress: 0, expectedAt: '2026-08-05T06:00:00Z' },
+      { progress: 1, expectedAt: '2026-08-05T07:00:00Z' },
+    ],
+  };
+  const result = buildRouteCorridorIntelligence({
+    body,
+    generatedAt: new Date('2026-08-05T05:55:00Z'),
+    providerResults: [
+      {
+        providers: [
+          {
+            id: 'osm', status: 'ready',
+            source: { id: 'osm', title: 'OSM', publisher: 'OSM contributors', url: 'https://www.openstreetmap.org/copyright' },
+            signals: [{ id: 'map-1', kind: 'outdoorMapInventory', verification: 'reference', attributes: { parking: 2, fuel: 1, viewpoint: 3 } }],
+          },
+          {
+            id: 'officialNotices', status: 'ready',
+            source: { id: 'official', title: 'Official', publisher: 'Authority', url: 'https://example.gov/notices' },
+            signals: [{ id: 'notice-1', kind: 'roadClosure', verification: 'authoritative', title: 'secret raw title', summary: 'secret raw detail' }],
+          },
+        ],
+      },
+      { providers: [{ id: 'osm', status: 'noData', signals: [] }, { id: 'officialNotices', status: 'noData', signals: [] }] },
+    ],
+  });
+  assert.equal(result.coverage, 'full');
+  assert.equal(result.segments[0].facilities.parking, 2);
+  assert.equal(result.segments[0].restrictions.status, 'present');
+  assert.equal(result.segments[1].restrictions.status, 'noneObserved');
+  const serialized = JSON.stringify(result);
+  assert.doesNotMatch(serialized, /latitude|longitude|secret raw|routeId/);
+  assert.match(serialized, /notice-1/);
+});
+''')
+
+          route_weather_test = Path('services/lumanest-data-broker/test/route-weather.test.mjs')
+          route_weather_test.write_text(route_weather_test.read_text(encoding='utf-8') + r'''
+
+test('adds bounded corridor references and official restriction evidence', async () => {
+  const now = new Date('2026-07-18T02:00:00Z');
+  const body = {
+    routeId: 'route-corridor',
+    samples: [
+      { latitude: 30, longitude: 120, system: 'wgs84', expectedAt: '2026-07-18T02:30:00Z', progress: 0 },
+      { latitude: 30.5, longitude: 120.5, system: 'wgs84', expectedAt: '2026-07-18T03:30:00Z', progress: 1 },
+    ],
+  };
+  const observed = [];
+  const result = await routeWeatherForecast({
+    body,
+    now: () => now,
+    fetchWeather: async () => ({ ok: true, body: { forecast: { hourly: [{ at: '2026-07-18T03:00:00Z', condition: 'clear', windSpeedMps: 2, precipitationMm: 0 }] } } }),
+    fetchCorridorFacts: async (sample) => ({ providers: [
+      { id: 'osm', status: 'ready', source: { id: 'osm', title: 'OSM', publisher: 'OSM', url: 'https://www.openstreetmap.org/copyright' }, signals: [{ id: `map-${sample.progress}`, kind: 'outdoorMapInventory', verification: 'reference', attributes: { parking: 1, water: 1, viewpoint: 1 } }] },
+      { id: 'officialNotices', status: sample.progress === 0 ? 'ready' : 'noData', source: { id: 'official', title: 'Official', publisher: 'Authority', url: 'https://example.gov' }, signals: sample.progress === 0 ? [{ id: 'notice', kind: 'roadClosure', verification: 'authoritative' }] : [] },
+    ] }),
+    observe: (corridor) => observed.push(corridor),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.body.corridor.coverage, 'full');
+  assert.equal(result.body.corridor.segments[0].restrictions.status, 'present');
+  assert.equal(result.body.corridor.segments[1].restrictions.status, 'noneObserved');
+  assert.equal(observed.length, 1);
+  assert.doesNotMatch(JSON.stringify(result.body.corridor), /latitude|longitude/);
+});
+''', encoding='utf-8')
+
+          observability_test = Path('services/lumanest-data-broker/test/operational-observability.test.mjs')
+          observability_test.write_text(observability_test.read_text(encoding='utf-8') + r'''
+
+test('aggregates route corridor coverage without route identity or geometry', () => {
+  const metrics = new OperationalObservability({ now: () => new Date('2026-08-05T06:00:00Z') });
+  metrics.recordRouteCorridor({
+    coverage: 'full', requestedSegments: 2, availableSegments: 2,
+    segments: [
+      { facilities: { status: 'reference', parking: 1, fuel: 1 }, photography: { status: 'reference' }, restrictions: { status: 'present' }, evidence: { status: 'verified' } },
+      { facilities: { status: 'empty' }, photography: { status: 'noReference' }, restrictions: { status: 'noneObserved' }, evidence: { status: 'unavailable' } },
+    ],
+    routeId: 'must-not-be-stored',
+  });
+  const snapshot = metrics.snapshot();
+  assert.equal(snapshot.routeCorridor.usableRate, 1);
+  assert.equal(snapshot.routeCorridor.segmentCoverageRate, 1);
+  assert.equal(snapshot.routeCorridor.authoritativeRestrictions, 1);
+  assert.doesNotMatch(JSON.stringify(snapshot), /must-not-be-stored|latitude|longitude/);
+  assert.match(metrics.toPrometheus(), /lumanest_route_corridor_requests_total 1/);
+});
+''', encoding='utf-8')
+
+          static_test = Path('services/lumanest-data-broker/test/admin-observability-static.test.mjs')
+          static_test.write_text(static_test.read_text(encoding='utf-8').replace(
+            "  assert.match(script, /admin-api\\/observability/);",
+            "  assert.match(script, /api\\('observability'\\)/);\n  assert.match(html, /observability-route-list/);\n  assert.match(script, /renderRoute/);",
+          ), encoding='utf-8')
+          PY
+      - name: Test data broker
+        working-directory: services/lumanest-data-broker
+        run: |
+          npm ci
+          npm test
+      - name: Commit route corridor intelligence
+        shell: bash
+        run: |
+          rm .github/workflows/one-shot-route-corridor.yml
+          git config user.name "muee91"
+          git config user.email "55554607+muee91@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add route corridor intelligence"
+          git push origin HEAD:main
