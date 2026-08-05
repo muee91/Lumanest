@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
+import 'package:luma_nest/src/features/explore/application/region_brief_request_policy.dart';
 import 'package:luma_nest/src/features/explore/domain/exploration_scene_profile.dart';
 import 'package:luma_nest/src/features/explore/domain/region_brief.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_region_brief_sources_sheet.dart';
@@ -13,11 +14,13 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
     required this.brief,
     required this.state,
     required this.onExpand,
+    required this.onVerify,
   });
 
   final RegionBrief brief;
   final RegionBriefState state;
   final VoidCallback onExpand;
+  final VoidCallback onVerify;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +39,10 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
         )
         .length;
     final lastExpandedAt = state.lastExpandedAt;
+    final lastVerifiedAt = state.lastVerifiedAt;
+    final verificationTargets =
+        RegionBriefRequestPolicy.verificationTargetCount(brief);
+    final showVerification = verificationTargets > 0;
 
     return Container(
       key: const Key('v2-region-brief-expansion'),
@@ -70,7 +77,11 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      state.isExpanding ? '正在扩展探索' : '扩展探索',
+                      state.isVerifying
+                          ? '正在核验重点信息'
+                          : state.isExpanding
+                          ? '正在扩展探索'
+                          : '扩展探索',
                       style: const TextStyle(
                         color: V2Palette.ink,
                         fontSize: 17,
@@ -79,7 +90,9 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      _scenePromise(brief.profile),
+                      state.isVerifying
+                          ? '仅核对候选、冲突和时效性单一来源，不重写已经成立的事实。'
+                          : _scenePromise(brief.profile),
                       style: const TextStyle(
                         color: V2Palette.mutedInk,
                         fontSize: 13,
@@ -91,13 +104,15 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
               ),
             ],
           ),
-          if (state.isExpanding) ...[
+          if (state.isExpanding || state.isVerifying) ...[
             const SizedBox(height: 14),
             const LinearProgressIndicator(minHeight: 3),
             const SizedBox(height: 8),
             Text(
               brief.refresh.refreshingMissions.isEmpty
-                  ? '正在检索审核来源并核对区域事实。'
+                  ? state.isVerifying
+                        ? '正在检索官方或独立来源，核对弱证据。'
+                        : '正在检索审核来源并核对区域事实。'
                   : '正在处理：${brief.refresh.refreshingMissions.join('、')}',
               style: const TextStyle(
                 color: V2Palette.mutedInk,
@@ -117,11 +132,15 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                 _BriefMetricChip(label: '$strongSources 个高等级来源'),
               if (verifiedInsights > 0)
                 _BriefMetricChip(label: '$verifiedInsights 条已核验'),
+              if (verificationTargets > 0)
+                _BriefMetricChip(label: '$verificationTargets 条待核验'),
               if (lastExpandedAt != null)
                 _BriefMetricChip(label: '上次扩展 ${_time(lastExpandedAt)}'),
+              if (lastVerifiedAt != null)
+                _BriefMetricChip(label: '上次核验 ${_time(lastVerifiedAt)}'),
             ],
           ),
-          if (state.errorCode != null && !state.isExpanding) ...[
+          if (state.errorCode != null && !state.isBusy) ...[
             const SizedBox(height: 12),
             Text(
               _errorCopy(state.errorCode!),
@@ -137,14 +156,14 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               key: const Key('v2-expand-region-brief'),
-              onPressed: state.isExpanding ? null : onExpand,
+              onPressed: state.isBusy ? null : onExpand,
               icon: Icon(
-                state.isExpanding
+                state.isBusy
                     ? CupertinoIcons.arrow_2_circlepath
                     : CupertinoIcons.search,
                 size: 17,
               ),
-              label: Text(state.isExpanding ? '正在核对资料' : '主动扩展区域资料'),
+              label: Text(state.isBusy ? '正在核对资料' : '主动扩展区域资料'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: V2Palette.moss,
                 side: const BorderSide(color: V2Palette.moss),
@@ -156,6 +175,29 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
               ),
             ),
           ),
+          if (showVerification) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                key: const Key('v2-verify-region-brief'),
+                onPressed: state.isBusy ? null : onVerify,
+                icon: const Icon(CupertinoIcons.check_mark_circled, size: 17),
+                label: Text(
+                  state.isVerifying ? '正在核验区域信息' : '核验候选与冲突信息',
+                ),
+                style: FilledButton.styleFrom(
+                  foregroundColor: V2Palette.moss,
+                  backgroundColor: V2Palette.mossSoft,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+          ],
           if (brief.sources.isNotEmpty) ...[
             const SizedBox(height: 4),
             Align(
@@ -176,7 +218,7 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
           ],
           const SizedBox(height: 8),
           const Text(
-            '只在你主动触发时扩大检索范围；候选、单一来源与冲突信息会明确标记，不会伪装成已确认事实。',
+            '扩展会扩大资料范围；核验只针对弱证据。只有新增来源或证据等级真实改善时才替换现有简报。',
             style: TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 11,

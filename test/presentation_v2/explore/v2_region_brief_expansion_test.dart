@@ -15,6 +15,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final brief = _brief();
     var expanded = false;
+    var verified = false;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -36,6 +37,7 @@ void main() {
                       lastExpandedAt: DateTime.utc(2026, 8, 5, 3, 20),
                     ),
                     onExpand: () => expanded = true,
+                    onVerify: () => verified = true,
                   ),
                   const SizedBox(height: 18),
                   V2RegionBriefInsightSections(insights: brief.insights),
@@ -57,6 +59,10 @@ void main() {
     await tester.tap(find.byKey(const Key('v2-expand-region-brief')));
     await tester.pump();
     expect(expanded, isTrue);
+
+    await tester.tap(find.byKey(const Key('v2-verify-region-brief')));
+    await tester.pump();
+    expect(verified, isTrue);
 
     await tester.tap(find.byKey(const Key('v2-region-brief-sources')));
     await tester.pumpAndSettle();
@@ -86,6 +92,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+
+  testWidgets('verification action stays hidden for strong evidence', (tester) async {
+    final brief = _brief(strongOnly: true);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: V2RegionBriefExpansionCard(
+            brief: brief,
+            state: RegionBriefState(
+              status: RegionBriefLoadStatus.ready,
+              brief: brief,
+            ),
+            onExpand: () {},
+            onVerify: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('v2-verify-region-brief')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('expansion progress exposes active missions and disables action', (
     tester,
   ) async {
@@ -104,6 +134,7 @@ void main() {
               manualExpansion: true,
             ),
             onExpand: () {},
+            onVerify: () {},
           ),
         ),
       ),
@@ -120,7 +151,7 @@ void main() {
   });
 }
 
-RegionBrief _brief({List<String> missions = const []}) {
+RegionBrief _brief({List<String> missions = const [], bool strongOnly = false}) {
   final now = DateTime.utc(2026, 8, 5, 3);
   final profile = ExplorationSceneProfile(
     physicalScene: PrimaryScene.urban,
@@ -156,7 +187,18 @@ RegionBrief _brief({List<String> missions = const []}) {
       version: '2026-08-05',
     ),
   ];
-  final insights = [
+  final insights = strongOnly
+      ? [
+          _insight(
+            now: now,
+            id: 'photo',
+            type: RegionInsightType.photographyTheme,
+            title: '街巷与传统建筑',
+            verification: InsightVerificationState.corroborated,
+            evidenceIds: const ['source-official', 'source-local'],
+          ),
+        ]
+      : [
     _insight(
       now: now,
       id: 'photo',

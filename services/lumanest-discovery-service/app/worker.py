@@ -289,6 +289,18 @@ class BrokerClient:
         # Reverse-geocoded names are search hints only; product facts still
         # require reviewed evidence during extraction and admission.
         area = job.region.focus.strip() or f"{job.region.latitude:.3f},{job.region.longitude:.3f}"
+        if job.activation_type == 'ai_verification':
+            if not job.region.locale.startswith("zh"):
+                return (
+                    f"{area} {job.region.mission_type} official notice",
+                    f"{area} {job.region.mission_type} independent verification",
+                    f"{area} photography access restriction",
+                )
+            return (
+                f"{area} {job.region.mission_type} 官方 公告",
+                f"{area} {job.region.mission_type} 独立来源 核实",
+                f"{area} 摄影 开放 管制",
+            )
         if not job.region.locale.startswith("zh"):
             return (
                 f"{area} {job.region.mission_type} recent",

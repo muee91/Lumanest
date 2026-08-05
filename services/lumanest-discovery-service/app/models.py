@@ -185,7 +185,7 @@ class ExplorationSceneProfile(StrictModel):
 class RegionBriefRequest(StrictModel):
     contract_version: Literal[2] = Field(alias="contractVersion")
     snapshot_id: str = Field(alias="snapshotId", pattern=r"^ctx_[a-f0-9]{24}$")
-    activation_type: Literal["user_manual", "foreground_opportunistic"] = Field(alias="activationType")
+    activation_type: Literal["user_manual", "foreground_opportunistic", "ai_verification"] = Field(alias="activationType")
     locale: str = Field(min_length=2, max_length=16, pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$")
     region: DiscoveryRegion
     scene_profile: ExplorationSceneProfile = Field(alias="sceneProfile")

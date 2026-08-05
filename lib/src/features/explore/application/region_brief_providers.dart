@@ -19,7 +19,9 @@ class RegionBriefState {
     this.brief,
     this.errorCode,
     this.manualExpansion = false,
+    this.verification = false,
     this.lastExpandedAt,
+    this.lastVerifiedAt,
   });
 
   const RegionBriefState.idle() : this(status: RegionBriefLoadStatus.idle);
@@ -28,14 +30,19 @@ class RegionBriefState {
   final RegionBrief? brief;
   final String? errorCode;
   final bool manualExpansion;
+  final bool verification;
   final DateTime? lastExpandedAt;
+  final DateTime? lastVerifiedAt;
 
   bool get hasUsableBrief => brief?.hasUsableFacts == true;
 
-  bool get isExpanding =>
-      manualExpansion &&
-      (status == RegionBriefLoadStatus.loading ||
-          status == RegionBriefLoadStatus.refreshing);
+  bool get isBusy =>
+      status == RegionBriefLoadStatus.loading ||
+      status == RegionBriefLoadStatus.refreshing;
+
+  bool get isExpanding => manualExpansion && isBusy;
+
+  bool get isVerifying => verification && isBusy;
 }
 
 final regionBriefRepositoryProvider = Provider<RegionBriefRepository>((ref) {
@@ -79,19 +86,25 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     return const RegionBriefState.idle();
   }
 
-  Future<void> load({bool manual = false}) async {
+  Future<void> load({bool manual = false, bool verification = false}) async {
     _retryTimer?.cancel();
-    if (manual) _automaticRetries = 0;
-    final generation = ++_generation;
+    if (manual || verification) _automaticRetries = 0;
     var previous = state.brief;
+    if (verification && !RegionBriefRequestPolicy.needsVerification(previous)) {
+      return;
+    }
+    final generation = ++_generation;
     final previousExpandedAt = state.lastExpandedAt;
+    final previousVerifiedAt = state.lastVerifiedAt;
     state = RegionBriefState(
       status: previous == null
           ? RegionBriefLoadStatus.loading
           : RegionBriefLoadStatus.refreshing,
       brief: previous,
       manualExpansion: manual,
+      verification: verification,
       lastExpandedAt: previousExpandedAt,
+      lastVerifiedAt: previousVerifiedAt,
     );
     try {
       final snapshot = await ref.read(environmentSnapshotProvider.future);
@@ -106,6 +119,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             brief: previous,
             errorCode: 'location_unavailable',
             lastExpandedAt: previousExpandedAt,
+            lastVerifiedAt: previousVerifiedAt,
           );
         }
         return;
@@ -119,11 +133,15 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             status: RegionBriefLoadStatus.refreshing,
             brief: cached,
             manualExpansion: manual,
+            verification: verification,
             lastExpandedAt: previousExpandedAt,
+            lastVerifiedAt: previousVerifiedAt,
           );
         }
       }
-      final plan = RegionBriefRequestPolicy.plan(profile, manual: manual);
+      final plan = verification
+          ? RegionBriefRequestPolicy.verificationPlan(profile, previous!)
+          : RegionBriefRequestPolicy.plan(profile, manual: manual);
       final incoming = await ref
           .read(regionBriefRepositoryProvider)
           .fetch(
@@ -142,6 +160,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
         previous: previous,
         incoming: incoming,
         manual: manual,
+        verification: verification,
       );
       final accepted = keepPrevious ? previous! : incoming;
       if (!keepPrevious && incoming.hasUsableFacts) {
@@ -155,11 +174,19 @@ class RegionBriefController extends Notifier<RegionBriefState> {
             ? RegionBriefLoadStatus.degraded
             : RegionBriefLoadStatus.ready,
         brief: accepted,
-        lastExpandedAt: manual && incoming.hasUsableFacts
+        lastExpandedAt: manual && !keepPrevious && incoming.hasUsableFacts
             ? DateTime.now().toUtc()
             : previousExpandedAt,
+        lastVerifiedAt:
+            verification && !keepPrevious && incoming.hasUsableFacts
+            ? DateTime.now().toUtc()
+            : previousVerifiedAt,
       );
-      _scheduleRetryIfNeeded(incoming, manual: manual);
+      _scheduleRetryIfNeeded(
+        incoming,
+        manual: manual,
+        verification: verification,
+      );
     } on RegionBriefFailure catch (error) {
       if (generation != _generation || !ref.mounted) return;
       state = RegionBriefState(
@@ -169,6 +196,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
         brief: previous,
         errorCode: error.code,
         lastExpandedAt: previousExpandedAt,
+        lastVerifiedAt: previousVerifiedAt,
       );
     } on Object {
       if (generation != _generation || !ref.mounted) return;
@@ -179,11 +207,16 @@ class RegionBriefController extends Notifier<RegionBriefState> {
         brief: previous,
         errorCode: 'unavailable',
         lastExpandedAt: previousExpandedAt,
+        lastVerifiedAt: previousVerifiedAt,
       );
     }
   }
 
-  void _scheduleRetryIfNeeded(RegionBrief brief, {required bool manual}) {
+  void _scheduleRetryIfNeeded(
+    RegionBrief brief, {
+    required bool manual,
+    required bool verification,
+  }) {
     if ((brief.status != RegionBriefStatus.pending &&
             brief.status != RegionBriefStatus.unavailable) ||
         brief.refresh.retryAfter == null ||
@@ -199,7 +232,7 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     _retryTimer = Timer(delay, () {
       if (!ref.mounted) return;
       _automaticRetries += 1;
-      unawaited(load(manual: manual));
+      unawaited(load(manual: manual, verification: verification));
     });
   }
 }

@@ -439,3 +439,22 @@ async def test_crawler_is_a_bounded_cached_evidence_fallback_not_a_candidate_sou
     untouched = await enrich_evidence_with_crawl(redis, [source()], crawler)
     assert crawler.calls == []
     assert untouched == [source()]
+
+
+
+def test_ai_verification_queries_prioritize_official_and_independent_sources():
+    base = job()
+    verification_job = RefreshJob(
+        base.fingerprint,
+        base.region,
+        base.expires_at,
+        base.attempt,
+        "ai_verification",
+        base.dedupe_key,
+    )
+    queries = BrokerClient._queries(verification_job)
+
+    assert len(queries) == 3
+    assert any("官方" in query for query in queries)
+    assert any("独立来源" in query for query in queries)
+    assert any("管制" in query for query in queries)

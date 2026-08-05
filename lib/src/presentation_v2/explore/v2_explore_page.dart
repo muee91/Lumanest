@@ -98,6 +98,9 @@ class V2ExplorePage extends ConsumerWidget {
         refreshing: briefState.status == RegionBriefLoadStatus.refreshing,
         onRefresh: () =>
             ref.read(regionBriefControllerProvider.notifier).load(manual: true),
+        onVerify: () => ref
+            .read(regionBriefControllerProvider.notifier)
+            .load(verification: true),
         onOpenMap: () => openMapFor(focus),
         onOpenTheme: (theme) => openMapFor(focusForRegionPhotoTheme(theme)),
       );
@@ -135,6 +138,7 @@ class _V2ExploreBrief extends StatelessWidget {
     required this.providerSignals,
     required this.refreshing,
     required this.onRefresh,
+    required this.onVerify,
     required this.onOpenMap,
     required this.onOpenTheme,
   });
@@ -145,6 +149,7 @@ class _V2ExploreBrief extends StatelessWidget {
   final List<ProviderSignal> providerSignals;
   final bool refreshing;
   final VoidCallback onRefresh;
+  final VoidCallback onVerify;
   final VoidCallback onOpenMap;
   final ValueChanged<RegionPhotoTheme> onOpenTheme;
 
@@ -190,7 +195,11 @@ class _V2ExploreBrief extends StatelessWidget {
               if (refreshing) ...[
                 const SizedBox(height: 4),
                 Text(
-                  state.isExpanding ? '正在扩展区域资料' : '正在更新区域资料',
+                  state.isVerifying
+                      ? '正在核验候选与冲突信息'
+                      : state.isExpanding
+                      ? '正在扩展区域资料'
+                      : '正在更新区域资料',
                   style: const TextStyle(
                     color: V2Palette.mutedInk,
                     fontSize: 12,
@@ -215,6 +224,7 @@ class _V2ExploreBrief extends StatelessWidget {
                 brief: brief,
                 state: state,
                 onExpand: onRefresh,
+                onVerify: onVerify,
               ),
               if (providerSignals.isNotEmpty) ...[
                 const SizedBox(height: 14),

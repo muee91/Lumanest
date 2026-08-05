@@ -93,3 +93,18 @@ def test_activation_and_radius_reach_each_discovery_job() -> None:
     assert job_request.region.radius_meters == 35_000
     assert job_request.mission_type == "humanityEvents"
     assert job_request.source_policies[0].quality_tier == "A"
+
+
+
+def test_ai_verification_activation_is_scoped():
+    request = _request(
+        activation_type="ai_verification",
+        radius_meters=15_000,
+        sections=["happeningNow", "practical"],
+    )
+
+    assert request.activation_type == "ai_verification"
+    assert DiscoveryStore._brief_missions(request) == [
+        "humanityEvents",
+        "openingAndClosure",
+    ]

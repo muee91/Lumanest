@@ -106,6 +106,88 @@ void main() {
     );
   });
 
+
+  test('verification targets only weak evidence sections and stays bounded', () {
+    final brief = _brief(
+      regionId: 'hangzhou',
+      insights: [
+        _insight(type: RegionInsightType.event, verification: InsightVerificationState.candidate, timeSensitive: true),
+        _insight(type: RegionInsightType.regulation, verification: InsightVerificationState.conflicting, timeSensitive: true),
+        _insight(type: RegionInsightType.localFood, verification: InsightVerificationState.singleSource),
+        _insight(type: RegionInsightType.architecture, verification: InsightVerificationState.corroborated),
+      ],
+    );
+
+    expect(RegionBriefRequestPolicy.needsVerification(brief), isTrue);
+    expect(RegionBriefRequestPolicy.verificationTargetCount(brief), 2);
+    expect(
+      RegionBriefRequestPolicy.verificationSections(brief),
+      const ['practical', 'happeningNow'],
+    );
+    final plan = RegionBriefRequestPolicy.verificationPlan(
+      _profile(settlement: SettlementType.historicTown),
+      brief,
+    );
+    expect(plan.activationType, 'ai_verification');
+    expect(plan.radiusMeters, 15000);
+    expect(plan.requestedSections, const ['practical', 'happeningNow']);
+  });
+
+  test('verification adopts a real evidence improvement', () {
+    final previous = _brief(
+      regionId: 'hangzhou',
+      insights: [
+        _insight(type: RegionInsightType.regulation, verification: InsightVerificationState.conflicting, timeSensitive: true),
+      ],
+      sourceCount: 2,
+    );
+    final incoming = _brief(
+      regionId: 'hangzhou',
+      insights: [
+        _insight(type: RegionInsightType.regulation, verification: InsightVerificationState.corroborated, timeSensitive: true),
+      ],
+      sourceCount: 2,
+    );
+
+    expect(
+      RegionBriefRequestPolicy.shouldKeepPrevious(
+        previous: previous,
+        incoming: incoming,
+        manual: false,
+        verification: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('verification cannot improve by deleting weak facts or sources', () {
+    final previous = _brief(
+      regionId: 'hangzhou',
+      insights: [
+        _insight(type: RegionInsightType.event, verification: InsightVerificationState.candidate, timeSensitive: true),
+        _insight(type: RegionInsightType.regulation, verification: InsightVerificationState.conflicting, timeSensitive: true),
+      ],
+      sourceCount: 2,
+    );
+    final incoming = _brief(
+      regionId: 'hangzhou',
+      insights: [
+        _insight(type: RegionInsightType.event, verification: InsightVerificationState.corroborated, timeSensitive: true),
+      ],
+      sourceCount: 1,
+    );
+
+    expect(
+      RegionBriefRequestPolicy.shouldKeepPrevious(
+        previous: previous,
+        incoming: incoming,
+        manual: false,
+        verification: true,
+      ),
+      isTrue,
+    );
+  });
+
   test('a different region replaces the previous brief normally', () {
     expect(
       RegionBriefRequestPolicy.shouldKeepPrevious(
@@ -138,6 +220,8 @@ RegionBrief _brief({
   RegionBriefStatus status = RegionBriefStatus.ready,
   RegionBriefCompleteness completeness = RegionBriefCompleteness.actionable,
   bool usable = true,
+  List<RegionInsight> insights = const [],
+  int sourceCount = 0,
 }) {
   final now = DateTime.utc(2026, 8, 5, 3);
   return RegionBrief(
@@ -156,13 +240,49 @@ RegionBrief _brief({
         ? FactBoundText(summary: '方向信息', factIds: const ['fact-1'])
         : null,
     photoThemes: const [],
-    insights: const [],
-    sources: const [],
+    insights: insights,
+    sources: List.generate(
+      sourceCount,
+      (index) => InsightEvidence(
+        id: 'source-$index',
+        sourcePolicyId: 'policy-$index',
+        publisher: 'Publisher $index',
+        title: 'Source $index',
+        url: Uri.parse('https://example.org/$index'),
+        observedAt: now,
+        qualityTier: index == 0 ? InsightQualityTier.a : InsightQualityTier.b,
+        license: 'reviewed',
+        version: '1',
+      ),
+    ),
     refresh: RegionBriefRefresh(
       refreshingMissions: const [],
       retryAfter: status == RegionBriefStatus.pending
           ? const Duration(seconds: 10)
           : null,
     ),
+  );
+}
+
+
+RegionInsight _insight({
+  required RegionInsightType type,
+  required InsightVerificationState verification,
+  bool timeSensitive = false,
+}) {
+  final now = DateTime.utc(2026, 8, 5, 3);
+  return RegionInsight(
+    id: '${type.name}-${verification.name}',
+    regionId: 'hangzhou',
+    type: type,
+    title: type.name,
+    summary: '事实摘要',
+    verification: verification,
+    factIds: const ['fact'],
+    evidenceIds: const ['source-0'],
+    observedAt: now,
+    expiresAt: now.add(const Duration(hours: 6)),
+    timeSensitive: timeSensitive,
+    actionability: InsightActionability.detail,
   );
 }
