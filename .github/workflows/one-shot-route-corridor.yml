@@ -25,6 +25,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import subprocess
+          from pathlib import Path
           source = subprocess.check_output([
               'git', 'show',
               '16248e5e3d45bd66d654c37894ef9a99381ff711:.github/workflows/one-shot-route-corridor.yml',
@@ -42,6 +43,22 @@ jobs:
                   in_literal = not in_literal
           script = '\n'.join(lines)
           exec(compile(script, '<route-corridor-patch>', 'exec'))
+
+          server_path = Path('services/lumanest-data-broker/src/server.mjs')
+          server = server_path.read_text(encoding='utf-8')
+          server = server.replace(
+              'operationalObservability.recordRouteCorridor',
+              'activeOperationalObservability.recordRouteCorridor',
+          )
+          server_path.write_text(server, encoding='utf-8')
+
+          route_path = Path('services/lumanest-data-broker/src/assistant/route-scout-context.mjs')
+          route = route_path.read_text(encoding='utf-8')
+          anchor = "  if (body.coverage === 'partial') lines.push('路线沿途天气只覆盖部分采样点；缺失路段不得按晴好或安全处理。');"
+          replacement = "  if (body.samples.some((sample) => sample?.thunder === true)) lines.push('雷暴等安全风险只以安全卡和官方预警为准。');\n" + anchor
+          if route.count(anchor) != 1:
+              raise SystemExit('route safety compatibility anchor mismatch')
+          route_path.write_text(route.replace(anchor, replacement), encoding='utf-8')
           PY
       - name: Test data broker
         working-directory: services/lumanest-data-broker
