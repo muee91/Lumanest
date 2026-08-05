@@ -90,7 +90,12 @@ class RouteScoutPlan {
       .length;
 
   String get headline {
-    if (criticalCount > 0) return '沿途有需要优先确认的天气风险';
+    if (criticalCount > 0) {
+      if (nodes.any((node) => node.id.startsWith('restriction-'))) {
+        return '沿途有需要优先确认的官方管制';
+      }
+      return '沿途有需要优先确认的天气风险';
+    }
     if (highCount > 0) return '路线可用，先看 $highCount 条重点';
     if (photographyCount > 0) return '路线与拍摄时间窗口有重合';
     if (supportCount > 0) return '沿途信息已经整理好';
@@ -144,6 +149,7 @@ class RouteScoutPlanBuilder {
     }
 
     if (weather != null) {
+      _appendCorridorRestrictions(nodes, weather);
       _appendWeather(nodes, weather);
     }
     _appendPhotography(nodes, snapshot, now, routeEnd, route.durationSeconds);
@@ -159,10 +165,14 @@ class RouteScoutPlanBuilder {
       return first.expectedAt.compareTo(second.expectedAt);
     });
 
+    final corridorComplete =
+        weather?.corridor == null ||
+        weather!.corridor!.coverage == RouteCorridorCoverage.full;
     final coverage = weather == null
         ? RouteScoutCoverage.localOnly
         : weather.coverage == RouteWeatherCoverage.full &&
-              !weather.hasStaleSamples
+              !weather.hasStaleSamples &&
+              corridorComplete
         ? RouteScoutCoverage.full
         : RouteScoutCoverage.partial;
     return RouteScoutPlan(
@@ -172,6 +182,53 @@ class RouteScoutPlanBuilder {
       nodes: nodes.take(12),
     );
   }
+
+  static void _appendCorridorRestrictions(
+    List<RouteScoutNode> nodes,
+    RouteWeatherReport weather,
+  ) {
+    final corridor = weather.corridor;
+    if (corridor == null) return;
+    for (var index = 0; index < corridor.segments.length; index += 1) {
+      final segment = corridor.segments[index];
+      final restrictions = segment.restrictions;
+      if (restrictions.status != RouteRestrictionStatus.present ||
+          !restrictions.authoritative ||
+          restrictions.kinds.isEmpty) {
+        continue;
+      }
+      final kind = restrictions.kinds.first;
+      final critical = const {
+        'closure',
+        'roadClosure',
+        'fireRestriction',
+      }.contains(kind);
+      final label = _segmentLabel(segment.progress);
+      nodes.add(
+        RouteScoutNode(
+          id: 'restriction-$index-$kind',
+          kind: RouteScoutNodeKind.safety,
+          priority: critical
+              ? RouteScoutPriority.critical
+              : RouteScoutPriority.high,
+          title: _restrictionTitle(label, kind),
+          detail:
+              '服务端在该路线采样段检出仍有效的官方关闭、管制或限制证据；'
+              '这里只显示证据状态，不替代官方原文和地图导航。',
+          routeProgress: segment.progress,
+          expectedAt: segment.expectedAt,
+          source: corridor.officialSourceLabel,
+        ),
+      );
+    }
+  }
+
+  static String _restrictionTitle(String label, String kind) => switch (kind) {
+    'closure' || 'roadClosure' => '$label存在官方道路关闭信息',
+    'fireRestriction' => '$label存在官方防火限制',
+    'eventChange' => '$label存在官方活动变更',
+    _ => '$label存在官方通行限制',
+  };
 
   static void _appendWeather(
     List<RouteScoutNode> nodes,

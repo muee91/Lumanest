@@ -76,11 +76,7 @@ class DataBrokerRouteWeatherRepository implements RouteWeatherRepository {
     'shelter',
     'restArea',
   };
-  static const _photographyKeys = {
-    'status',
-    'viewpointCount',
-    'heritageCount',
-  };
+  static const _photographyKeys = {'status', 'viewpointCount', 'heritageCount'};
   static const _restrictionKeys = {
     'status',
     'kinds',
@@ -228,15 +224,24 @@ class DataBrokerRouteWeatherRepository implements RouteWeatherRepository {
   RouteCorridorIntelligence? _parseCorridor(Object? raw) {
     if (raw == null) return null;
     final value = _map(raw, _corridorKeys, 'route corridor');
-    final generatedAt = DateTime.tryParse(value['generatedAt'] as String? ?? '');
+    final generatedAt = DateTime.tryParse(
+      value['generatedAt'] as String? ?? '',
+    );
     final coverage = switch (value['coverage']) {
       'full' => RouteCorridorCoverage.full,
       'partial' => RouteCorridorCoverage.partial,
       'unavailable' => RouteCorridorCoverage.unavailable,
       _ => null,
     };
-    final requested = _count(value['requestedSegments'], minimum: 2, maximum: 5);
-    final available = _count(value['availableSegments'], maximum: requested ?? 0);
+    final requested = _count(
+      value['requestedSegments'],
+      minimum: 2,
+      maximum: 5,
+    );
+    final available = _count(
+      value['availableSegments'],
+      maximum: requested ?? 0,
+    );
     final rawSources = value['sources'];
     final rawSegments = value['segments'];
     final rawLimitations = value['limitations'];
@@ -293,8 +298,12 @@ class DataBrokerRouteWeatherRepository implements RouteWeatherRepository {
     final publisher = _text(value['publisher'], 160);
     final url = _text(value['url'], 500);
     final uri = url == null ? null : Uri.tryParse(url);
-    final license = value['license'] == null ? null : _text(value['license'], 80);
-    final version = value['version'] == null ? null : _text(value['version'], 120);
+    final license = value['license'] == null
+        ? null
+        : _text(value['license'], 80);
+    final version = value['version'] == null
+        ? null
+        : _text(value['version'], 120);
     if (id == null ||
         title == null ||
         publisher == null ||
@@ -392,7 +401,11 @@ class DataBrokerRouteWeatherRepository implements RouteWeatherRepository {
       'unavailable' => RouteRestrictionStatus.unavailable,
       _ => null,
     };
-    final kinds = _strings(value['kinds'], maximum: 4, allowed: _restrictionKinds);
+    final kinds = _strings(
+      value['kinds'],
+      maximum: 4,
+      allowed: _restrictionKinds,
+    );
     final factIds = _strings(value['factIds'], maximum: 4);
     final authoritative = value['authoritative'];
     if (status == null ||
@@ -428,11 +441,7 @@ class DataBrokerRouteWeatherRepository implements RouteWeatherRepository {
     return RouteCorridorEvidence(status: status, factIds: factIds);
   }
 
-  Map<String, Object?> _map(
-    Object? raw,
-    Set<String> keys,
-    String label,
-  ) {
+  Map<String, Object?> _map(Object? raw, Set<String> keys, String label) {
     if (raw is! Map) throw FormatException('Invalid $label');
     final value = Map<String, Object?>.from(raw);
     if (value.keys.any((key) => !keys.contains(key))) {

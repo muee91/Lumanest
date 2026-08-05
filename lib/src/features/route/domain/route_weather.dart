@@ -6,12 +6,7 @@ enum RouteWeatherCoverage { full, partial }
 
 enum RouteCorridorCoverage { full, partial, unavailable }
 
-enum RouteCorridorReferenceStatus {
-  reference,
-  empty,
-  noReference,
-  unavailable,
-}
+enum RouteCorridorReferenceStatus { reference, empty, noReference, unavailable }
 
 enum RouteRestrictionStatus { present, noneObserved, unavailable }
 
