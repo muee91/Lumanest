@@ -58,6 +58,16 @@ jobs:
           if text.count(bad) != 1:
               raise SystemExit('worker verification test fix anchor mismatch')
           path.write_text(text.replace(bad, good), encoding='utf-8')
+
+          path = Path('lib/src/presentation_v2/explore/v2_region_brief_expansion.dart')
+          text = path.read_text(encoding='utf-8')
+          old = 'CupertinoIcons.check_mark_seal'
+          if text.count(old) != 1:
+              raise SystemExit('verification icon anchor mismatch')
+          path.write_text(
+              text.replace(old, 'CupertinoIcons.check_mark_circled'),
+              encoding='utf-8',
+          )
           PY
       - name: Install discovery dependencies
         working-directory: services/lumanest-discovery-service
