@@ -1,9 +1,7 @@
-name: Artifact Retention
+name: Artifact Purge
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 3 * * *'
   push:
     branches:
       - main
@@ -15,41 +13,32 @@ permissions:
   contents: read
 
 concurrency:
-  group: artifact-retention
+  group: artifact-purge
   cancel-in-progress: true
 
 jobs:
-  cleanup:
-    name: Remove obsolete workflow artifacts
+  purge:
+    name: Remove all workflow artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Delete obsolete artifacts
+      - name: Delete all artifacts
         uses: actions/github-script@v7
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const purgeAll = context.eventName === 'push';
-            const maxAgeHours = 48;
-            const cutoff = Date.now() - maxAgeHours * 60 * 60 * 1000;
 
             const artifacts = await github.paginate(
               github.rest.actions.listArtifactsForRepo,
               { owner, repo, per_page: 100 },
             );
 
-            const obsolete = artifacts.filter((artifact) => {
-              if (purgeAll || artifact.expired) return true;
-              const createdAt = Date.parse(artifact.created_at);
-              return Number.isFinite(createdAt) && createdAt < cutoff;
-            });
-
             let deleted = 0;
             let releasedBytes = 0;
 
-            for (const artifact of obsolete) {
+            for (const artifact of artifacts) {
               try {
                 await github.rest.actions.deleteArtifact({
                   owner,
@@ -65,15 +54,13 @@ jobs:
 
             const releasedMiB = (releasedBytes / 1024 / 1024).toFixed(1);
             core.notice(
-              `Artifact cleanup deleted ${deleted} item(s), releasing approximately ${releasedMiB} MiB.`,
+              `Artifact purge deleted ${deleted} item(s), releasing approximately ${releasedMiB} MiB.`,
             );
             await core.summary
-              .addHeading('Artifact retention')
+              .addHeading('Artifact purge')
               .addTable([
-                [{ data: 'Mode', header: true }, purgeAll ? 'Initial purge' : 'Rolling cleanup'],
                 [{ data: 'Artifacts scanned', header: true }, String(artifacts.length)],
                 [{ data: 'Artifacts deleted', header: true }, String(deleted)],
                 [{ data: 'Approx. released', header: true }, `${releasedMiB} MiB`],
-                [{ data: 'Rolling retention', header: true }, `${maxAgeHours} hours`],
               ])
               .write();
