@@ -95,4 +95,4 @@ jobs:
           git commit -m 'fix: surface key points in assistant answers'
           git push origin HEAD:main
 
-# retry: assistant key point grouping corrected
+# retry: assistant point row lint corrected
