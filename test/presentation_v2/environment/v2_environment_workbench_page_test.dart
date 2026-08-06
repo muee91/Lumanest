@@ -7,7 +7,9 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/presentation_v2/environment/v2_environment_workbench_page.dart';
 
 void main() {
-  testWidgets('workbench survives compact width and enlarged text', (tester) async {
+  testWidgets('workbench survives compact width and enlarged text', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(320, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -33,6 +35,9 @@ void main() {
     expect(find.text('摄影环境工作台'), findsOneWidget);
     expect(find.byKey(const Key('v2-environment-summary')), findsOneWidget);
     expect(find.byKey(const Key('v2-workbench-fact-cloud')), findsOneWidget);
+    expect(find.text('先看结论，再决定是否值得出发'), findsOneWidget);
+    expect(find.textContaining('值得重点关注'), findsOneWidget);
+    expect(find.text('太阳高度'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.scrollUntilVisible(
@@ -74,19 +79,43 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('最近有效事实、候选窗口峰值与摄影影响'), findsOneWidget);
-    expect(find.byKey(const Key('v2-workbench-fact-temperature')), findsOneWidget);
+    expect(find.text('以下结论基于最近一次有效数据'), findsOneWidget);
+    expect(
+      find.byKey(const Key('v2-workbench-fact-temperature')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('v2-workbench-fact-cloud')), findsNothing);
 
-    final emptyTrend = find.text('候选窗口采样不足，暂不绘制变化图');
-    await tester.scrollUntilVisible(
-      emptyTrend,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(emptyTrend, findsOneWidget);
+    expect(find.text('未来窗口对比'), findsNothing);
+    expect(find.text('候选窗口采样不足，暂不绘制变化图'), findsNothing);
+    expect(find.byKey(const Key('v2-window-sample-chart')), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'conditional window gives a direct next action and its main limits',
+    (tester) async {
+      final snapshot = _snapshot();
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: V2EnvironmentWorkbenchPage(
+              initialSnapshot: snapshot,
+              initialForecast: _conditionalForecast(snapshot),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('前后再确认一次'), findsOneWidget);
+      expect(find.textContaining('云量偏多、能见度偏低'), findsOneWidget);
+      expect(find.text('候选时段'), findsOneWidget);
+      expect(find.text('重点时刻'), findsOneWidget);
+      expect(find.textContaining('存在需要现场确认的候选窗口'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 ContextSnapshot _snapshot() {
@@ -140,9 +169,7 @@ SkyWindowForecast _forecast(ContextSnapshot snapshot) {
         startAt: assessments[index].observedAt.subtract(
           const Duration(minutes: 30),
         ),
-        endAt: assessments[index].observedAt.add(
-          const Duration(minutes: 30),
-        ),
+        endAt: assessments[index].observedAt.add(const Duration(minutes: 30)),
         peakAt: assessments[index].observedAt,
         conditionBand: index == 1
             ? SkyWindowConditionBand.favorable
@@ -165,6 +192,55 @@ SkyWindowForecast _forecast(ContextSnapshot snapshot) {
     current: assessments.first,
     windows: windows,
     bestWindowId: windows.first.id,
+    confidence: const SkyWindowConfidence(
+      band: SkyWindowConfidenceBand.medium,
+      criticalSourcesReady: true,
+      missingSources: ['seven_timer_auxiliary'],
+      conflicts: [],
+    ),
+    calibration: const SkyBrightnessCalibration(
+      status: 'unconfigured',
+      sampleCount: 0,
+      sqmMedian: null,
+      limitingMagnitudeMedian: null,
+      distanceKm: null,
+      limitation: null,
+    ),
+  );
+}
+
+SkyWindowForecast _conditionalForecast(ContextSnapshot snapshot) {
+  final now = snapshot.observedAt;
+  final current = _assessment(now, cloud: 58, visibilityKm: 18, gustKmh: 22);
+  final peak = _assessment(
+    now.add(const Duration(hours: 2)),
+    cloud: 86,
+    visibilityKm: 4,
+    gustKmh: 45,
+  );
+  final window = SkyWindowCandidate(
+    id: 'conditional-window',
+    startAt: peak.observedAt.subtract(const Duration(minutes: 30)),
+    endAt: peak.observedAt.add(const Duration(minutes: 30)),
+    peakAt: peak.observedAt,
+    conditionBand: SkyWindowConditionBand.conditional,
+    sampleCount: 4,
+    favorableSamples: 0,
+    conditionalSamples: 4,
+    peakAssessment: peak,
+    primaryReasons: const [],
+  );
+  return SkyWindowForecast(
+    algorithmVersion: 'sky-window-forecast.1',
+    requestedCoordinate: snapshot.location!,
+    requestedStartAt: now,
+    endAt: now.add(const Duration(hours: 6)),
+    stepMinutes: 15,
+    generatedAt: now,
+    expiresAt: now.add(const Duration(minutes: 15)),
+    current: current,
+    windows: [window],
+    bestWindowId: window.id,
     confidence: const SkyWindowConfidence(
       band: SkyWindowConfidenceBand.medium,
       criticalSourcesReady: true,

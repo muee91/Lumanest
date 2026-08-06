@@ -197,7 +197,7 @@ class EnvironmentVisualization {
                 snapshot.dataFreshness == ContextDataFreshness.stale,
             sourceLabel: usableSky == null
                 ? 'Context 当前天气'
-                : 'Open-Meteo 分层云量 · 7Timer 辅助校验',
+                : '公开天气分层云量 · 7Timer 仅作交叉核对',
             weatherAgreement: usableSky?.current.weatherAgreement,
             scene: snapshot.primaryScene,
             dayPhase: snapshot.dayPhase,
@@ -228,7 +228,7 @@ class EnvironmentVisualization {
       add(
         EnvironmentMetricCard(
           type: EnvironmentMetricType.light,
-          label: '光线',
+          label: snapshot.solarElevationDegrees == null ? '光线时间' : '太阳高度',
           value: lightValue.$1,
           summary: lightValue.$2,
           priority: _priority(snapshot, EnvironmentMetricType.light),
@@ -385,7 +385,8 @@ class EnvironmentVisualization {
           : sunrise != null && sunrise.isAfter(now)
           ? '日出 ${_time(sunrise)}'
           : _phaseLabel(snapshot.dayPhase);
-      return ('${elevation.toStringAsFixed(1)}°', event);
+      final position = elevation >= 0 ? '地平线上方' : '地平线下方';
+      return ('${elevation.toStringAsFixed(1)}°', '$position · $event');
     }
     if (sunset != null && sunset.isAfter(now)) {
       return (_time(sunset), '下一次日落');

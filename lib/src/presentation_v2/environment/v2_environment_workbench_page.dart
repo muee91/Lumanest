@@ -48,10 +48,8 @@ class V2EnvironmentWorkbenchPage extends ConsumerWidget {
         ? ref.watch(environmentSnapshotProvider)
         : AsyncData(initialSnapshot!);
     return snapshot.when(
-      loading: () => _surface(
-        context,
-        const V2LoadingObject(label: '正在整理摄影环境'),
-      ),
+      loading: () =>
+          _surface(context, const V2LoadingObject(label: '正在整理摄影环境')),
       error: (_, _) => _surface(
         context,
         V2EmptyObject(
@@ -65,22 +63,24 @@ class V2EnvironmentWorkbenchPage extends ConsumerWidget {
         ),
       ),
       data: (value) {
-        final forecast = initialForecast ?? switch (value.location) {
-          final point? =>
-            ref
-                .watch(
-                  skyWindowForecastProvider(
-                    SkyWindowRequest(
-                      point: point,
-                      startAt: value.observedAt,
-                      hours: 24,
-                    ),
-                  ),
-                )
-                .asData
-                ?.value,
-          null => null,
-        };
+        final forecast =
+            initialForecast ??
+            switch (value.location) {
+              final point? =>
+                ref
+                    .watch(
+                      skyWindowForecastProvider(
+                        SkyWindowRequest(
+                          point: point,
+                          startAt: value.observedAt,
+                          hours: 24,
+                        ),
+                      ),
+                    )
+                    .asData
+                    ?.value,
+              null => null,
+            };
         final body = _EnvironmentWorkbenchBody(
           snapshot: value,
           forecast: forecast,
@@ -121,8 +121,7 @@ class _EnvironmentWorkbenchBody extends StatefulWidget {
       _EnvironmentWorkbenchBodyState();
 }
 
-class _EnvironmentWorkbenchBodyState
-    extends State<_EnvironmentWorkbenchBody> {
+class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
   _TrendMetric _selectedMetric = _TrendMetric.cloud;
 
   @override
@@ -135,18 +134,18 @@ class _EnvironmentWorkbenchBodyState
       now: snapshot.observedAt,
     );
     final samples = _forecastSamples(forecast);
+    final availableMetrics = _availableTrendMetrics(samples);
+    final selectedMetric =
+        availableMetrics.isEmpty || availableMetrics.contains(_selectedMetric)
+        ? _selectedMetric
+        : availableMetrics.first;
     final current =
         snapshot.dataFreshness == ContextDataFreshness.fresh &&
         !snapshot.isStale;
 
     final content = ListView(
       key: const Key('v2-environment-workbench'),
-      padding: EdgeInsets.fromLTRB(
-        22,
-        widget.showBackButton ? 12 : 18,
-        22,
-        34,
-      ),
+      padding: EdgeInsets.fromLTRB(22, widget.showBackButton ? 12 : 18, 22, 34),
       children: [
         if (widget.showBackButton) ...[
           Align(
@@ -167,9 +166,7 @@ class _EnvironmentWorkbenchBodyState
         ),
         const SizedBox(height: 10),
         Text(
-          current
-              ? '当前事实、候选窗口峰值与摄影影响'
-              : '最近有效事实、候选窗口峰值与摄影影响',
+          current ? '先看结论，再决定是否值得出发' : '以下结论基于最近一次有效数据',
           style: const TextStyle(
             color: V2Palette.mutedInk,
             fontSize: 13,
@@ -183,23 +180,23 @@ class _EnvironmentWorkbenchBodyState
           visualization: visualization,
         ),
         const SizedBox(height: 18),
-        _sectionTitle('当前环境事实', '没有数据的项目不会占位'),
+        _sectionTitle('当前环境事实', '只展示当前有可靠数据的项目'),
         const SizedBox(height: 10),
         _FactGrid(cards: visualization.cards),
+        if (availableMetrics.isNotEmpty) ...[
+          const SizedBox(height: 22),
+          _sectionTitle('未来窗口对比', '只比较当前与候选窗口峰值；缺少可靠采样的指标不会显示'),
+          const SizedBox(height: 10),
+          _TrendMetricSelector(
+            metrics: availableMetrics,
+            selected: selectedMetric,
+            onChanged: (value) => setState(() => _selectedMetric = value),
+          ),
+          const SizedBox(height: 10),
+          _WindowSampleChart(metric: selectedMetric, samples: samples),
+        ],
         const SizedBox(height: 22),
-        _sectionTitle('未来窗口采样', '只展示当前与候选窗口峰值，不补齐中间时段'),
-        const SizedBox(height: 10),
-        _TrendMetricSelector(
-          selected: _selectedMetric,
-          onChanged: (value) => setState(() => _selectedMetric = value),
-        ),
-        const SizedBox(height: 10),
-        _WindowSampleChart(
-          metric: _selectedMetric,
-          samples: samples,
-        ),
-        const SizedBox(height: 22),
-        _sectionTitle('摄影解读', '条件语言，不把环境值改写成成功概率'),
+        _sectionTitle('为什么这样判断', '只解释事实影响，不把环境条件改写成成功概率'),
         const SizedBox(height: 10),
         for (final fact in visualization.cards) ...[
           _MetricExplanation(
@@ -267,14 +264,8 @@ class _EnvironmentSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final best = forecast?.bestWindow;
-    final headline = switch (best?.conditionBand) {
-      SkyWindowConditionBand.favorable => '存在条件较完整的候选窗口',
-      SkyWindowConditionBand.conditional => '存在需要现场确认的候选窗口',
-      _ => visualization.cards.isEmpty ? '环境事实不足' : '先看当前环境事实',
-    };
-    final detail = best == null
-        ? '当前没有形成可解释的候选窗口；这不等同于一定不值得拍摄。'
-        : '${_timeRange(best.startAt, best.endAt)}，峰值采样 ${_time(best.peakAt)}。';
+    final headline = _summaryHeadline(best, visualization.cards.isEmpty);
+    final detail = _summaryDetail(best);
     return Container(
       key: const Key('v2-environment-summary'),
       padding: const EdgeInsets.all(20),
@@ -311,6 +302,7 @@ class _EnvironmentSummary extends StatelessWidget {
           const SizedBox(height: 22),
           Text(
             headline,
+            key: const Key('v2-environment-summary-headline'),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 24,
@@ -328,10 +320,117 @@ class _EnvironmentSummary extends StatelessWidget {
               height: 1.45,
             ),
           ),
+          if (best != null) ...[
+            const SizedBox(height: 17),
+            Divider(color: Colors.white.withValues(alpha: .14), height: 1),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _SummaryDatum(
+                    label: '候选时段',
+                    value: _timeRange(best.startAt, best.endAt),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _SummaryDatum(
+                    label: '重点时刻',
+                    value: _time(best.peakAt),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
+}
+
+class _SummaryDatum extends StatelessWidget {
+  const _SummaryDatum({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white54,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          height: 1.25,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    ],
+  );
+}
+
+String _summaryHeadline(SkyWindowCandidate? best, bool factsEmpty) {
+  if (best == null) {
+    return factsEmpty ? '暂时没有足够数据判断' : '先看当前环境，再决定是否出发';
+  }
+  return switch (best.conditionBand) {
+    SkyWindowConditionBand.favorable => '${_time(best.peakAt)} 前后值得重点关注',
+    SkyWindowConditionBand.conditional => '${_time(best.peakAt)} 前后再确认一次',
+    _ => '暂时没有足够数据判断',
+  };
+}
+
+String _summaryDetail(SkyWindowCandidate? best) {
+  if (best == null) {
+    return '当前没有形成可解释的候选时段；页面只保留有依据的环境事实。';
+  }
+  final range = _timeRange(best.startAt, best.endAt);
+  if (best.conditionBand == SkyWindowConditionBand.favorable) {
+    return '候选时段 $range。当前条件相对完整，但出发前仍应刷新一次。';
+  }
+  final cautions = _windowCautions(best.peakAssessment);
+  final reason = cautions.isEmpty ? '关键条件仍不稳定' : cautions.join('、');
+  return '$reason。候选时段 $range，先不要只凭这次结果直接出发。';
+}
+
+List<String> _windowCautions(SkyWindowAssessment assessment) {
+  final atmosphere = assessment.atmosphere;
+  final cautions = <String>[];
+  final lowCloud = atmosphere.lowCloudCoverPercent;
+  final totalCloud = atmosphere.totalCloudCoverPercent;
+  final visibility = atmosphere.visibilityMeters;
+  final precipitation = atmosphere.precipitationProbabilityPercent;
+  final gust = atmosphere.windGustKmh;
+
+  if (lowCloud != null && lowCloud >= 65) {
+    cautions.add('低云可能遮挡地平线');
+  } else if (totalCloud != null && totalCloud >= 75) {
+    cautions.add('云量偏多');
+  }
+  if (visibility != null && visibility < 8000) {
+    cautions.add('能见度偏低');
+  }
+  if (precipitation != null && precipitation >= 40) {
+    cautions.add('降水可能性较高');
+  }
+  if (gust != null && gust >= 36) {
+    cautions.add('阵风较强');
+  }
+  return List.unmodifiable(cautions.take(2));
 }
 
 class _FactGrid extends StatelessWidget {
@@ -354,7 +453,10 @@ class _FactGrid extends StatelessWidget {
           runSpacing: gap,
           children: [
             for (final card in cards)
-              SizedBox(width: width, child: _FactCard(card: card)),
+              SizedBox(
+                width: width,
+                child: _FactCard(card: card),
+              ),
           ],
         );
       },
@@ -457,15 +559,21 @@ extension on _TrendMetric {
       value.atmosphere.precipitationProbabilityPercent,
     _TrendMetric.wind =>
       value.atmosphere.windGustKmh ?? value.atmosphere.windSpeedKmh,
-    _TrendMetric.visibility => value.atmosphere.visibilityMeters == null
-        ? null
-        : value.atmosphere.visibilityMeters! / 1000,
+    _TrendMetric.visibility =>
+      value.atmosphere.visibilityMeters == null
+          ? null
+          : value.atmosphere.visibilityMeters! / 1000,
   };
 }
 
 class _TrendMetricSelector extends StatelessWidget {
-  const _TrendMetricSelector({required this.selected, required this.onChanged});
+  const _TrendMetricSelector({
+    required this.metrics,
+    required this.selected,
+    required this.onChanged,
+  });
 
+  final List<_TrendMetric> metrics;
   final _TrendMetric selected;
   final ValueChanged<_TrendMetric> onChanged;
 
@@ -474,7 +582,7 @@ class _TrendMetricSelector extends StatelessWidget {
     scrollDirection: Axis.horizontal,
     child: Row(
       children: [
-        for (final metric in _TrendMetric.values)
+        for (final metric in metrics)
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
@@ -507,9 +615,7 @@ List<_ForecastSample> _forecastSamples(SkyWindowForecast? forecast) {
     _ForecastSample(assessment: forecast.current, label: '当前'),
     for (final window in forecast.windows)
       _ForecastSample(assessment: window.peakAssessment, label: '窗口'),
-  ]..sort(
-      (a, b) => a.assessment.observedAt.compareTo(b.assessment.observedAt),
-    );
+  ]..sort((a, b) => a.assessment.observedAt.compareTo(b.assessment.observedAt));
   final seen = <int>{};
   return List.unmodifiable(
     samples.where(
@@ -517,6 +623,17 @@ List<_ForecastSample> _forecastSamples(SkyWindowForecast? forecast) {
     ),
   );
 }
+
+List<_TrendMetric> _availableTrendMetrics(List<_ForecastSample> samples) =>
+    List.unmodifiable(
+      _TrendMetric.values.where(
+        (metric) =>
+            samples
+                .where((sample) => metric.read(sample.assessment) != null)
+                .length >=
+            2,
+      ),
+    );
 
 class _WindowSampleChart extends StatelessWidget {
   const _WindowSampleChart({required this.metric, required this.samples});
@@ -529,9 +646,7 @@ class _WindowSampleChart extends StatelessWidget {
     final available = samples
         .where((sample) => metric.read(sample.assessment) != null)
         .toList(growable: false);
-    if (available.length < 2) {
-      return const _EmptyPanel(label: '候选窗口采样不足，暂不绘制变化图');
-    }
+    if (available.length < 2) return const SizedBox.shrink();
     return Container(
       key: const Key('v2-window-sample-chart'),
       padding: const EdgeInsets.fromLTRB(14, 17, 14, 12),
@@ -574,7 +689,7 @@ class _WindowSampleChart extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            '采样点之间没有被解释为连续趋势；现场条件可能在窗口之间变化。',
+            '只对比当前与候选窗口峰值，不代表中间时段连续变化。',
             style: TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 10,
@@ -598,8 +713,13 @@ class _SampleChartPainter extends CustomPainter {
     const left = 36.0;
     const right = 8.0;
     const top = 12.0;
-    const bottom = 34.0;
-    final plot = Rect.fromLTRB(left, top, size.width - right, size.height - bottom);
+    const bottom = 44.0;
+    final plot = Rect.fromLTRB(
+      left,
+      top,
+      size.width - right,
+      size.height - bottom,
+    );
     final values = samples
         .map((sample) => metric.read(sample.assessment)!)
         .toList(growable: false);
@@ -646,8 +766,15 @@ class _SampleChartPainter extends CustomPainter {
       );
       _text(
         canvas,
+        samples[index].label,
+        Offset(x - 12, baseline + 5),
+        8,
+        V2Palette.mutedInk,
+      );
+      _text(
+        canvas,
         _time(samples[index].assessment.observedAt),
-        Offset(x - 16, baseline + 8),
+        Offset(x - 16, baseline + 17),
         9,
         V2Palette.mutedInk,
       );
@@ -774,15 +901,9 @@ List<String> _notes(
       if (snapshot.primaryScene == SceneType.mountain)
         '山地还要结合低云判断，能见度高不代表山峰一定无遮挡。',
     ],
-    EnvironmentMetricType.light => [
-      '太阳高度与日出日落时间只描述几何关系，现场受云层、地形和朝向共同影响。',
-    ],
-    EnvironmentMetricType.temperature => [
-      '温度用于判断体感、结露和电池状态，不直接决定画面质量。',
-    ],
-    EnvironmentMetricType.air => [
-      '空气质量会影响远景通透度与健康暴露；污染类别不等同于能见度实测。',
-    ],
+    EnvironmentMetricType.light => ['太阳高度与日出日落时间只描述几何关系，现场受云层、地形和朝向共同影响。'],
+    EnvironmentMetricType.temperature => ['温度用于判断体感、结露和电池状态，不直接决定画面质量。'],
+    EnvironmentMetricType.air => ['空气质量会影响远景通透度与健康暴露；污染类别不等同于能见度实测。'],
   };
 }
 
@@ -795,6 +916,9 @@ class _ProvenanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final confidence = forecast?.confidence;
+    final current =
+        !snapshot.isStale &&
+        snapshot.dataFreshness != ContextDataFreshness.stale;
     return Container(
       key: const Key('v2-environment-provenance'),
       padding: const EdgeInsets.all(18),
@@ -807,7 +931,7 @@ class _ProvenanceCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            '数据依据与限制',
+            '这份判断有多可靠',
             style: TextStyle(
               color: V2Palette.ink,
               fontSize: 15,
@@ -816,8 +940,7 @@ class _ProvenanceCard extends StatelessWidget {
           ),
           const SizedBox(height: 9),
           Text(
-            '当前事实更新于 ${_dateTime(snapshot.observedAt)}；'
-            '${snapshot.isStale ? '数据已过期。' : '数据仍在有效期内。'}',
+            '数据状态：${current ? '有效' : '已过期'} · 更新于 ${_dateTime(snapshot.observedAt)}',
             style: const TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 11,
@@ -827,8 +950,8 @@ class _ProvenanceCard extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             forecast == null
-                ? '未来窗口增强暂不可用，工作台只展示 Context 当前事实。'
-                : '窗口增强来自 Open-Meteo、7Timer 辅助一致性、天文几何及可用的地形与光污染数据。置信等级：${_confidenceLabel(confidence!.band)}。',
+                ? '未来窗口暂不可用，因此这里只展示当前观测。'
+                : '窗口可信度：${_confidenceLabel(confidence!.band)}。依据公开天气、天文几何、地形与可用的光污染数据；7Timer 只用于交叉核对。',
             style: const TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 11,
@@ -837,15 +960,24 @@ class _ProvenanceCard extends StatelessWidget {
           ),
           if (confidence != null && confidence.missingSources.isNotEmpty) ...[
             const SizedBox(height: 5),
-            Text(
-              '缺失来源：${confidence.missingSources.join('、')}。',
-              style: const TextStyle(
+            const Text(
+              '部分辅助来源未返回，系统已降低可信度，不会用缺失值补齐。',
+              style: TextStyle(
                 color: V2Palette.mutedInk,
                 fontSize: 11,
                 height: 1.45,
               ),
             ),
           ],
+          const SizedBox(height: 5),
+          const Text(
+            '局地雾、临时遮挡与短时天气变化仍需在出发前确认。',
+            style: TextStyle(
+              color: V2Palette.mutedInk,
+              fontSize: 11,
+              height: 1.45,
+            ),
+          ),
         ],
       ),
     );
@@ -1076,9 +1208,9 @@ class _V2EnvironmentLabPageState extends State<V2EnvironmentLabPage> {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: MediaQuery(
-                        data: MediaQuery.of(context).copyWith(
-                          textScaler: TextScaler.linear(_textScale),
-                        ),
+                        data: MediaQuery.of(
+                          context,
+                        ).copyWith(textScaler: TextScaler.linear(_textScale)),
                         child: ProviderScope(
                           child: V2EnvironmentWorkbenchPage(
                             initialSnapshot: fixture.snapshot,
@@ -1152,8 +1284,9 @@ _EnvironmentFixture _fixtureData({
     sunrise: now.subtract(const Duration(hours: 3)),
     sunset: now.add(const Duration(hours: 2)),
     isStale: stale,
-    dataFreshness:
-        stale ? ContextDataFreshness.stale : ContextDataFreshness.fresh,
+    dataFreshness: stale
+        ? ContextDataFreshness.stale
+        : ContextDataFreshness.fresh,
   );
   final assessments = List.generate(5, (index) {
     final factor = index / 4;
@@ -1181,25 +1314,27 @@ _EnvironmentFixture _fixtureData({
   });
   final windows = <SkyWindowCandidate>[
     for (var index = 1; index < assessments.length; index += 1)
-      if (assessments[index].conditionBand == SkyWindowConditionBand.favorable ||
-          assessments[index].conditionBand == SkyWindowConditionBand.conditional)
+      if (assessments[index].conditionBand ==
+              SkyWindowConditionBand.favorable ||
+          assessments[index].conditionBand ==
+              SkyWindowConditionBand.conditional)
         SkyWindowCandidate(
           id: 'lab-window-$index',
           startAt: assessments[index].observedAt.subtract(
             const Duration(minutes: 30),
           ),
-          endAt: assessments[index].observedAt.add(
-            const Duration(minutes: 30),
-          ),
+          endAt: assessments[index].observedAt.add(const Duration(minutes: 30)),
           peakAt: assessments[index].observedAt,
           conditionBand: assessments[index].conditionBand,
           sampleCount: 4,
           favorableSamples:
-              assessments[index].conditionBand == SkyWindowConditionBand.favorable
+              assessments[index].conditionBand ==
+                  SkyWindowConditionBand.favorable
               ? 4
               : 0,
           conditionalSamples:
-              assessments[index].conditionBand == SkyWindowConditionBand.conditional
+              assessments[index].conditionBand ==
+                  SkyWindowConditionBand.conditional
               ? 4
               : 0,
           peakAssessment: assessments[index],

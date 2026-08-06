@@ -52,6 +52,22 @@ void main() {
     expect(result.cards.first.type, EnvironmentMetricType.precipitation);
     expect(result.cards[1].type, EnvironmentMetricType.cloud);
   });
+
+  test(
+    'solar elevation is named and explained without an ambiguous light value',
+    () {
+      final result = EnvironmentVisualization.fromSnapshot(
+        _snapshot(now, cloud: 30),
+        now: now,
+      );
+      final light = result.cards.firstWhere(
+        (card) => card.type == EnvironmentMetricType.light,
+      );
+
+      expect(light.label, '太阳高度');
+      expect(light.summary, contains('地平线上方'));
+    },
+  );
 }
 
 ContextSnapshot _snapshot(DateTime now, {double? cloud}) => ContextSnapshot(
