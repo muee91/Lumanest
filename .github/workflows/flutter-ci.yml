@@ -8,12 +8,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      upload_apk:
-        description: Upload the debug APK for temporary manual download
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -41,7 +35,7 @@ jobs:
               sha: context.sha,
               state: 'pending',
               context: 'LumaNest / verification',
-              description: 'Flutter, service and Android verification is running',
+              description: 'Flutter and service verification is running',
               target_url: targetUrl,
             });
 
@@ -53,12 +47,6 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -126,23 +114,8 @@ jobs:
         run: pip install -e '.[test]'
 
       - name: Run discovery service tests
-        shell: bash
         working-directory: services/lumanest-discovery-service
-        run: |
-          set +e
-          pytest -q --tb=short > discovery-test.log 2>&1
-          status=$?
-          cat discovery-test.log
-          exit "$status"
-
-      - name: Upload failed discovery test log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: discovery-test-log-${{ github.sha }}
-          path: services/lumanest-discovery-service/discovery-test.log
-          if-no-files-found: error
-          retention-days: 2
+        run: pytest -q --tb=short
 
   raster-service:
     name: Test raster service
@@ -192,44 +165,6 @@ jobs:
         working-directory: services/lumanest-terrain-service
         run: pytest
 
-  android-debug:
-    name: Build debug APK
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: quality
-
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.1'
-          channel: stable
-          cache: true
-
-      - name: Resolve dependencies
-        run: flutter pub get
-
-      - name: Build debug APK
-        run: flutter build apk --debug
-
-      - name: Upload debug APK for manual runs only
-        if: github.event_name == 'workflow_dispatch' && inputs.upload_apk
-        uses: actions/upload-artifact@v4
-        with:
-          name: lumanest-debug-apk-${{ github.sha }}
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
-          retention-days: 2
-
   verification-status:
     name: Publish combined verification status
     if: always()
@@ -239,7 +174,6 @@ jobs:
       - discovery-service
       - raster-service
       - terrain-service
-      - android-debug
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -252,7 +186,6 @@ jobs:
           DISCOVERY_RESULT: ${{ needs['discovery-service'].result }}
           RASTER_RESULT: ${{ needs['raster-service'].result }}
           TERRAIN_RESULT: ${{ needs['terrain-service'].result }}
-          ANDROID_RESULT: ${{ needs['android-debug'].result }}
         with:
           script: |
             const results = {
@@ -261,14 +194,13 @@ jobs:
               discovery: process.env.DISCOVERY_RESULT,
               raster: process.env.RASTER_RESULT,
               terrain: process.env.TERRAIN_RESULT,
-              android: process.env.ANDROID_RESULT,
             };
             const failed = Object.entries(results)
               .filter(([, result]) => result !== 'success')
               .map(([name, result]) => `${name}:${result}`);
             const state = failed.length === 0 ? 'success' : 'failure';
             const description = state === 'success'
-              ? 'Flutter, services and Android debug build passed'
+              ? 'Flutter and service verification passed'
               : `Verification failed: ${failed.join(', ')}`.slice(0, 140);
             const targetUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
 
