@@ -36,6 +36,14 @@ new_points = r'''          if (summary.keyPoints.isNotEmpty) ...[
 if prefix.count(old_points) != 1:
     raise SystemExit('assistant summary key point source block not found')
 prefix = prefix.replace(old_points, new_points, 1)
+old_point_constructor = "  const _PointRow({required this.text, super.key});"
+if prefix.count(old_point_constructor) != 1:
+    raise SystemExit('assistant point row constructor not found')
+prefix = prefix.replace(
+    old_point_constructor,
+    "  const _PointRow({required this.text});",
+    1,
+)
 old_test_key = "Key('assistant-decision-key-point')"
 if prefix.count(old_test_key) != 2:
     raise SystemExit(
