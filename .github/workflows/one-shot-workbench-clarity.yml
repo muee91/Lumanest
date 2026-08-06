@@ -65,3 +65,5 @@ jobs:
           git add -A
           git commit -m "fix: make environment workbench actionable"
           git push origin HEAD:main
+
+# retry: corrected patch anchor normalization
