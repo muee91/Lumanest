@@ -6,6 +6,10 @@ marker = "\nserver = 'services/lumanest-data-broker/src/server.mjs'\n"
 if marker not in text:
     raise SystemExit('assistant clarity server marker not found')
 prefix = text.split(marker, 1)[0]
+material_import = "import 'package:flutter/material.dart';\n"
+if prefix.count(material_import) < 1:
+    raise SystemExit('assistant summary material import not found')
+prefix = prefix.replace(material_import, '', 1)
 replacement = r'''
 server = 'services/lumanest-data-broker/src/server.mjs'
 server_path = Path(server)
