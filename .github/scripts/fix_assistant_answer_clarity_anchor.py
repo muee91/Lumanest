@@ -10,6 +10,38 @@ material_import = "import 'package:flutter/material.dart';\n"
 if prefix.count(material_import) < 1:
     raise SystemExit('assistant summary material import not found')
 prefix = prefix.replace(material_import, '', 1)
+old_points = r'''          if (summary.keyPoints.isNotEmpty) ...[
+            const SizedBox(height: 11),
+            const _SectionLabel(label: '重点'),
+            const SizedBox(height: 5),
+            for (final point in summary.keyPoints)
+              _PointRow(
+                key: const Key('assistant-decision-key-point'),
+                text: point,
+              ),
+          ],
+'''
+new_points = r'''          if (summary.keyPoints.isNotEmpty) ...[
+            const SizedBox(height: 11),
+            const _SectionLabel(label: '重点'),
+            const SizedBox(height: 5),
+            Column(
+              key: const Key('assistant-decision-key-points'),
+              children: [
+                for (final point in summary.keyPoints) _PointRow(text: point),
+              ],
+            ),
+          ],
+'''
+if prefix.count(old_points) != 1:
+    raise SystemExit('assistant summary key point source block not found')
+prefix = prefix.replace(old_points, new_points, 1)
+old_test_key = "Key('assistant-decision-key-point')"
+if prefix.count(old_test_key) != 2:
+    raise SystemExit(
+        f'expected two assistant key point test keys, found {prefix.count(old_test_key)}'
+    )
+prefix = prefix.replace(old_test_key, "Key('assistant-decision-key-points')")
 replacement = r'''
 server = 'services/lumanest-data-broker/src/server.mjs'
 server_path = Path(server)
