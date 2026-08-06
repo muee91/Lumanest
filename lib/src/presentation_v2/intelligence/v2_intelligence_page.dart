@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/assistant/assistant_intent.dart';
 import 'package:luma_nest/src/core/assistant/assistant_model.dart';
+import 'package:luma_nest/src/presentation_v2/intelligence/assistant_decision_summary.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
@@ -1045,14 +1046,7 @@ class _AssistantStage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                text,
-                style: const TextStyle(
-                  color: V2Palette.ink,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
+              AssistantDecisionSummary(text: text, loading: loading),
               const SizedBox(height: 7),
               Row(
                 children: [

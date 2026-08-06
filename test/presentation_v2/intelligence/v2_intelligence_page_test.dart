@@ -93,6 +93,12 @@ void main() {
 
     expect(find.textContaining('湖岸晚间窗口'), findsOneWidget);
     expect(find.textContaining('当前多云'), findsOneWidget);
+    expect(find.byKey(const Key('assistant-decision-conclusion')), findsOne);
+    expect(
+      find.byKey(const Key('assistant-decision-key-points')),
+      findsWidgets,
+    );
+    expect(find.byKey(const Key('assistant-decision-next-action')), findsOne);
     expect(find.text('栖光规则 · 当前数据'), findsOneWidget);
   });
 
