@@ -45,6 +45,9 @@ jobs:
           cache: npm
           cache-dependency-path: services/lumanest-data-broker/package-lock.json
 
+      - name: Correct patch anchors
+        run: python3 .github/scripts/fix_assistant_answer_clarity_anchor.py
+
       - name: Apply product patch
         run: python3 .github/scripts/apply_assistant_answer_clarity.py
 
@@ -80,6 +83,7 @@ jobs:
       - name: Remove one-shot machinery
         run: |
           rm .github/scripts/apply_assistant_answer_clarity.py
+          rm .github/scripts/fix_assistant_answer_clarity_anchor.py
           rm .github/workflows/one-shot-assistant-answer-clarity.yml
 
       - name: Commit verified result
