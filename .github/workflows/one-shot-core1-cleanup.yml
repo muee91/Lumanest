@@ -33,6 +33,17 @@ jobs:
       - name: Format touched Dart files
         run: dart format lib/src/app/router.dart lib/src/app/luma_nest_app.dart
 
+      - name: Normalize Markdown whitespace
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for path in Path('docs').rglob('*.md'):
+              text = path.read_text(encoding='utf-8')
+              had_newline = text.endswith('\n')
+              normalized = '\n'.join(line.rstrip() for line in text.splitlines())
+              path.write_text(normalized + ('\n' if had_newline else ''), encoding='utf-8')
+          PY
+
       - name: Resolve dependencies
         run: flutter pub get
 
