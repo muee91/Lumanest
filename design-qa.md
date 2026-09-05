@@ -1,3 +1,6 @@
+> **文档权威级别：HISTORICAL / VERSIONED REFERENCE**
+> 当前产品范围以 [`docs/core-1.0-scope.md`](docs/core-1.0-scope.md) 为准。本文仅保留历史设计 QA 证据，不能重新启用 Core 1.0 已冻结或退役的能力。
+
 # Presentation V2 Design QA
 
 ## Comparison target

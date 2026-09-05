@@ -1,3 +1,6 @@
+> **文档权威级别：HISTORICAL / VERSIONED REFERENCE**
+> 当前产品范围以 [`docs/core-1.0-scope.md`](docs/core-1.0-scope.md) 为准。本文仅保留历史代码审计证据，不能重新启用 Core 1.0 已冻结或退役的能力。
+
 # 栖光 LumaNest 最终整改报告
 
 **整改依据：** `docs/LUMANEST_FINAL_ENGINEERING_SPEC.md`、`docs/CODEX_EXECUTION_PROMPT.md` 与 Presentation V2 视觉验收意见  

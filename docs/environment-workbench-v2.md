@@ -102,11 +102,6 @@ Debug 构建保留 `/environment-lab`，支持以下场景：
 - 数量和 15 分钟步长校验；
 - 缺失与不规则采样拒绝。
 
-`test/presentation_v2/environment/v2_environment_timeline_page_test.dart` 覆盖：
+> **2026-09 Core 1.0 收缩说明：** 本文描述的旧 `V2EnvironmentTimelinePage` 已在生产入口切换到 `V2EnvironmentWorkbenchPage` 后删除；对应旧页面测试一并移除。Sky Window 数据层继续保留，因为当前摄影环境工作台仍消费该能力。
 
-- 320 px 小屏与 130% 字体缩放；
-- 连续云量图与风图切换；
-- 时间线缺失时保留当前事实并明确降级；
-- 页面无运行时布局异常。
-
-旧工作台回归测试继续覆盖候选窗口峰值模式，确保旧组件和 Debug 验收实验室不发生回归。
+当前页面回归由 `test/presentation_v2/environment/v2_environment_workbench_page_test.dart` 覆盖。历史验收目标仅用于解释旧实现，不再要求恢复已删除的 Timeline 页面。
