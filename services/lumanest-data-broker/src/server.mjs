@@ -101,14 +101,7 @@ import {
   MemoryRequestRateLimiter,
   RedisRequestRateLimiter,
 } from './context/request-rate-limiter.mjs';
-import {
-  CompanionStore,
-  parseInventoryQuery,
-  validCompanionRefreshRequest,
-  validIdempotencyKey,
-  validInsightFeedbackRequest,
-} from './companion/orchestrator.mjs';
-import { selectCreativeWithModel } from './companion/model-selector.mjs';
+import { ContextSnapshotStore } from './context/context-snapshot-store.mjs';
 import {
   buildAssistantContextEnvelope,
   createAssistantContextBinding,
@@ -374,14 +367,9 @@ const ratePolicies = [
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
   { path: '/v1/explore/place-media', limit: 12, windowMs: 60 * 1_000, key: 'place-media-search' },
-  { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },
-  { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },
 ];
 
 function ratePolicy(pathname) {
-  if (/^\/v1\/insights\/insight_[a-f0-9]{24}\/feedback$/.test(pathname)) {
-    return { limit: 60, windowMs: 60 * 1_000, key: 'insight-feedback' };
-  }
   if (/^\/v1\/explore\/media\/[A-Za-z0-9_-]{16,2800}$/.test(pathname)) {
     return { limit: 60, windowMs: 60 * 1_000, key: 'place-media' };
   }
@@ -1219,7 +1207,7 @@ export function createTokenBrokerServer({
   skyWindowService = null,
   requestRateLimiter = new MemoryRequestRateLimiter(),
   simulationRegistry = null,
-  companionStore = null,
+  contextSnapshotStore = null,
   operationalObservability = null,
   now = () => new Date(),
   fetcher = fetch,
@@ -1311,21 +1299,7 @@ export function createTokenBrokerServer({
   const elevationCache = new Map();
   const placeMediaCache = new Map();
   const assistantPlaceCache = new Map();
-  const companion = companionStore ?? new CompanionStore({
-    now,
-    selectCreative: ({ snapshot, candidates, maximum }) => {
-      const active = configurationSource.snapshot();
-      return selectCreativeWithModel({
-        snapshot,
-        candidates,
-        maximum,
-        profiles: active.llmProfiles,
-        routing: active.llmRouting,
-        aiEnabled: active.settings.aiEnabled,
-        fetcher,
-      });
-    },
-  });
+  const contextSnapshots = contextSnapshotStore ?? new ContextSnapshotStore();
   return createServer(async (request, response) => {
     const configuration = configurationSource.snapshot();
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
@@ -1451,33 +1425,6 @@ export function createTokenBrokerServer({
       return;
     }
 
-    if (request.method === 'POST' && requestUrl.pathname === '/v1/companion/refresh') {
-      const idempotencyKey = request.headers['idempotency-key'];
-      const body = await readJsonBody(request, 2 * 1024);
-      if (!validIdempotencyKey(idempotencyKey) ||
-          body == null || !validCompanionRefreshRequest(body)) {
-        writeApiError(response, 400, 'invalid_snapshot');
-        return;
-      }
-      const result = await companion.refresh(body, idempotencyKey);
-      if (!result.ok) {
-        writeApiError(response, result.error === 'invalid_snapshot' ? 400 : 502, result.error);
-        return;
-      }
-      writeJson(response, result.status, result.body);
-      return;
-    }
-
-    if (request.method === 'GET' && requestUrl.pathname === '/v1/inspiration/inventory') {
-      const query = parseInventoryQuery(requestUrl.searchParams);
-      if (query == null) {
-        writeApiError(response, 400, 'invalid_inventory_query');
-        return;
-      }
-      writeJson(response, 200, companion.listInventory(query));
-      return;
-    }
-
     if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities') {
       const query = validSkyOpportunityQuery(requestUrl.searchParams);
       if (query == null) {
@@ -1547,26 +1494,6 @@ export function createTokenBrokerServer({
 
     if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
       writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}${activeProviderFactsService.toPrometheus()}${activeOperationalObservability.toPrometheus()}`);
-      return;
-    }
-
-    const feedbackMatch = /^\/v1\/insights\/(insight_[a-f0-9]{24})\/feedback$/.exec(
-      requestUrl.pathname,
-    );
-    if (request.method === 'POST' && feedbackMatch != null) {
-      const idempotencyKey = request.headers['idempotency-key'];
-      const body = await readJsonBody(request, 1024);
-      if (!validIdempotencyKey(idempotencyKey) ||
-          body == null || !validInsightFeedbackRequest(body)) {
-        writeApiError(response, 400, 'invalid_feedback');
-        return;
-      }
-      const result = companion.feedback(feedbackMatch[1], body.action, idempotencyKey);
-      if (!result.ok) {
-        writeApiError(response, 404, result.error);
-        return;
-      }
-      writeJson(response, 200, result.body);
       return;
     }
 
@@ -1913,7 +1840,7 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_assistant_request' });
         return;
       }
-      const snapshot = companion.snapshot(body.snapshotId);
+      const snapshot = contextSnapshots.snapshot(body.snapshotId);
       const assistantNow = now();
       console.log(JSON.stringify({
         evt: 'assistant.request',
@@ -2231,10 +2158,10 @@ export function createTokenBrokerServer({
           result.body.expiresAt,
         );
       }
-      companion.rememberSnapshot({
+      contextSnapshots.rememberSnapshot({
         ...result.body,
         // Retain only a coarse cell and its cell centre in process-local memory.
-        // Raw GPS never enters CompanionStore or assistant conversation history.
+        // Raw GPS never enters ContextSnapshotStore or assistant conversation history.
         regionBriefGrid: regionBriefGrid(body.coordinate),
         assistantContextBinding: createAssistantContextBinding({
           coordinate: body.coordinate,
@@ -2358,7 +2285,7 @@ export function createTokenBrokerServer({
         writeJson(response, 400, { error: 'invalid_region_brief_request' });
         return;
       }
-      const snapshot = companion.snapshot(body.snapshotId);
+      const snapshot = contextSnapshots.snapshot(body.snapshotId);
       const requestGrid = regionBriefGrid(body.region);
       if (snapshot == null || snapshot.regionBriefGrid == null || snapshot.regionBriefGrid !== requestGrid ||
           !Number.isFinite(Date.parse(snapshot.expiresAt)) || Date.parse(snapshot.expiresAt) <= now().getTime()) {

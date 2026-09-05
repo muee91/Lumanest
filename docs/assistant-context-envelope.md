@@ -10,7 +10,7 @@ AI 不再只接收拍摄事件 ID。Broker 会基于同一份 Context V5 快照�
 ## 隐私边界
 
 - 环境快照请求中的原始 WGS84 坐标只在当前请求内使用。
-- CompanionStore 只保存约 5 公里网格的中心点，不保存原始 GPS。
+- ContextSnapshotStore 只保存约 5 公里网格的中心点，不保存原始 GPS。
 - 对话请求仍只发送 `snapshotId`；区域资料由 Broker 根据快照绑定重新取得。
 - 对话历史不包含坐标、Provider Token 或内部服务地址。
 

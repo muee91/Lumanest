@@ -12,7 +12,7 @@ import {
 } from '../src/server.mjs';
 import { MemoryRequestRateLimiter } from '../src/context/request-rate-limiter.mjs';
 import { MemoryWeatherCache } from '../src/context/weather-cache.mjs';
-import { CompanionStore } from '../src/companion/orchestrator.mjs';
+import { ContextSnapshotStore } from '../src/context/context-snapshot-store.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
@@ -53,7 +53,7 @@ async function withServer(run, {
   qweatherApiHost = 'https://project.qweatherapi.com',
   weatherCache,
   requestRateLimiter,
-  companionStore,
+  contextSnapshotStore,
   simulationRegistry,
   now,
 } = {}) {
@@ -87,7 +87,7 @@ async function withServer(run, {
     qweatherApiHost,
     weatherCache,
     requestRateLimiter,
-    companionStore,
+    contextSnapshotStore,
     simulationRegistry,
     now,
     fetcher,
@@ -204,73 +204,16 @@ test('health check never requires a service token', async () => {
   });
 });
 
-test('companion refresh, inventory and feedback enforce current contracts', async () => {
-  const now = new Date('2026-07-18T10:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
-  const snapshot = v5SnapshotBody();
-  snapshot.contextId = 'ctx_1234567890abcdef12345678';
-  snapshot.generatedAt = now.toISOString();
-  snapshot.facts.events = [{
-    id: 'session.water.evening', channel: 'opportunity', source: 'rule',
-    observedAt: now.toISOString(), expiresAt: '2026-07-18T11:00:00Z',
-    confidence: .82, geoScope: 'point', severity: 'info',
-    allowedAction: 'openShootingWindow', title: null, sourceUrl: null,
-  }];
-  companionStore.rememberSnapshot(snapshot);
-
-  await withServer(async (baseUrl) => {
-    const refresh = await fetch(`${baseUrl}/v1/companion/refresh`, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer test-service-token',
-        'Content-Type': 'application/json',
-        'Idempotency-Key': 'refresh:12345678',
-      },
-      body: JSON.stringify({
-        snapshotId: snapshot.contextId,
-        reason: 'manual_refresh',
-        routeId: null,
-        visiblePage: 'today',
-        localTimeZone: 'Asia/Shanghai',
-      }),
-    });
-    assert.equal(refresh.status, 200);
-    const refreshed = await refresh.json();
-    assert.equal(refreshed.primaryInsight.channel, 'photographyOpportunity');
-    assert.equal(refreshed.partial, true);
-
-    const inventory = await fetch(`${baseUrl}/v1/inspiration/inventory?limit=20`, {
-      headers: { Authorization: 'Bearer test-service-token' },
-    });
-    assert.equal(inventory.status, 200);
-    const listed = await inventory.json();
-    assert.equal(listed.items.length, 1);
-    assert.equal(listed.items.some((item) => item.channel === 'safety'), false);
-
-    const feedback = await fetch(`${baseUrl}/v1/insights/${listed.items[0].id}/feedback`, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer test-service-token',
-        'Content-Type': 'application/json',
-        'Idempotency-Key': 'feedback:12345678',
-      },
-      body: JSON.stringify({ action: 'saved' }),
-    });
-    assert.equal(feedback.status, 200);
-    assert.equal((await feedback.json()).accepted, true);
-  }, { companionStore, now: () => now });
-});
-
 test('inspiration assistant accepts the bounded creative question', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/assistant`, {
@@ -299,12 +242,12 @@ test('inspiration assistant accepts the bounded creative question', async () => 
     assert.match(answer, /湖岸晚间窗口/);
     const done = events.find((e) => e.event === 'done');
     assert.equal(done.data.source, 'template');
-  }, { companionStore, now: () => now });
+  }, { contextSnapshotStore, now: () => now });
 });
 
 test('assistant keeps current photography questions on grounded snapshot facts', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
@@ -317,7 +260,7 @@ test('assistant keeps current photography questions on grounded snapshot facts',
     endAt: '2026-07-20T00:50:00Z',
   }];
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
   let upstreamCalls = 0;
 
   await withServer(async (baseUrl) => {
@@ -343,7 +286,7 @@ test('assistant keeps current photography questions on grounded snapshot facts',
     assert.match(answer, /08:10—08:50/);
     assert.equal(events.find((event) => event.event === 'done').data.source, 'template');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async () => {
@@ -357,11 +300,11 @@ test('assistant keeps current photography questions on grounded snapshot facts',
 
 test('assistant sends a free-form photography question to the model without a template', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
   let capturedSystem;
   let capturedUser;
   const modelAnswer = JSON.stringify({
@@ -389,7 +332,7 @@ test('assistant sends a free-form photography question to the model without a te
     assert.match(answer, /S 曲线/);
     assert.equal(events.find((event) => event.event === 'done').data.source, 'model');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async (_url, options) => {
@@ -416,14 +359,14 @@ test('assistant sends a free-form photography question to the model without a te
 
 test('assistant reclassifies safety and credential questions before model routing', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
   let upstreamCalls = 0;
 
   await withServer(async (baseUrl) => {
@@ -456,7 +399,7 @@ test('assistant reclassifies safety and credential questions before model routin
     assert.match(credential.answer, /不会索取/);
     assert.equal(credential.done.source, 'template');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async () => {
@@ -470,14 +413,14 @@ test('assistant reclassifies safety and credential questions before model routin
 
 test('assistant has an independent six requests per minute rate limit', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   await withServer(async (baseUrl) => {
     const statuses = [];
@@ -498,7 +441,7 @@ test('assistant has an independent six requests per minute rate limit', async ()
     }
     assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200, 429]);
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     requestRateLimiter: new MemoryRequestRateLimiter(),
   });
@@ -506,14 +449,14 @@ test('assistant has an independent six requests per minute rate limit', async ()
 
 test('assistant streams a grounded model answer with generating status', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   // The model answer is a grounded rewrite of the template (references the same
   // 湖岸 place, invents nothing new) so the grounding guard accepts it.
@@ -549,7 +492,7 @@ test('assistant streams a grounded model answer with generating status', async (
     assert.equal(done.data.source, 'model');
     assert.equal(done.data.degraded, undefined);
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async () => new Response(
@@ -566,14 +509,14 @@ test('assistant streams a grounded model answer with generating status', async (
 
 test('assistant threads conversation history into model messages', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   let capturedMessages;
   const modelAnswer = JSON.stringify({ answer: '湖岸晚间的光线窗口值得等一等。' });
@@ -602,7 +545,7 @@ test('assistant threads conversation history into model messages', async () => {
     const events = await readSseEvents(response);
     assert.equal(events.find((e) => e.event === 'done').data.source, 'model');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async (_url, options) => {
@@ -631,14 +574,14 @@ test('assistant threads conversation history into model messages', async () => {
 
 test('assistant passes the raw question text to the model', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   let capturedUserPayload;
   const modelAnswer = JSON.stringify({ answer: '湖岸晚间的光线窗口值得等一等。' });
@@ -663,7 +606,7 @@ test('assistant passes the raw question text to the model', async () => {
     assert.equal(response.status, 200);
     await readSseEvents(response);
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async (_url, options) => {
@@ -686,14 +629,14 @@ test('assistant passes the raw question text to the model', async () => {
 
 test('assistant exposes only bounded Broker context without raw location fields', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   let capturedUserPayload;
   const modelAnswer = JSON.stringify({ answer: '现在26°C、云量55，留意保暖。' });
@@ -721,7 +664,7 @@ test('assistant exposes only bounded Broker context without raw location fields'
     assert.equal(done.data.source, 'template');
     assert.equal(done.data.degraded, 'invalid_response');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     fetcher: async (_url, options) => {
@@ -752,14 +695,14 @@ test('assistant exposes only bounded Broker context without raw location fields'
 
 test('assistant agent path answers an external question via web_search', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
   snapshot.facts.shootingSessions[0].startAt = '2026-07-20T00:10:00Z';
   snapshot.facts.shootingSessions[0].endAt = '2026-07-20T00:50:00Z';
   snapshot.facts.shootingSessions[0].expiresAt = snapshot.expiresAt;
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   const sourcePolicies = [{
     id: 'hzgov', domain: 'hangzhou.example', attribution: '杭州日报',
@@ -798,7 +741,7 @@ test('assistant agent path answers an external question via web_search', async (
       .join('');
     assert.match(assembled, /灵隐寺每日7:00开门/);
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     aiApiKey: 'test-ai-key',
     discoverySearchProfile: {
@@ -842,11 +785,11 @@ test('assistant agent path answers an external question via web_search', async (
 
 test('assistant rejects malformed conversation history', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   const base = {
     snapshotId: snapshot.contextId,
@@ -883,7 +826,7 @@ test('assistant rejects malformed conversation history', async () => {
       assert.equal(response.status, 400);
     }
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     // This contract test intentionally submits more malformed requests than
     // the production assistant quota. Keep quota behavior covered separately.
@@ -893,11 +836,11 @@ test('assistant rejects malformed conversation history', async () => {
 
 test('assistant derives place summaries from its own Amap lookup', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   let amapUrl;
   await withServer(async (baseUrl) => {
@@ -927,7 +870,7 @@ test('assistant derives place summaries from its own Amap lookup', async () => {
     assert.match(answer, /候选地点，不等于已审核机位/);
     assert.equal(events.find((e) => e.event === 'done').data.source, 'template');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     fetcher: async (url) => {
       const parsed = new URL(url);
@@ -2371,7 +2314,7 @@ test('narrative endpoint rejects extra fields and unknown model labels', async (
 
 test('deterministic safety assistant performs no Region Brief or Provider requests', async () => {
   const now = new Date('2026-07-20T00:00:00Z');
-  const companionStore = new CompanionStore({ now: () => now });
+  const contextSnapshotStore = new ContextSnapshotStore({ now: () => now });
   const snapshot = v5SnapshotBody();
   snapshot.generatedAt = now.toISOString();
   snapshot.expiresAt = '2026-07-20T01:00:00Z';
@@ -2384,7 +2327,7 @@ test('deterministic safety assistant performs no Region Brief or Provider reques
       mobility: 'stationary', routeStage: 'none',
     },
   };
-  companionStore.rememberSnapshot(snapshot);
+  contextSnapshotStore.rememberSnapshot(snapshot);
 
   let upstreamCalls = 0;
   await withServer(async (baseUrl) => {
@@ -2408,7 +2351,7 @@ test('deterministic safety assistant performs no Region Brief or Provider reques
     const done = events.find((event) => event.event === 'done');
     assert.equal(done.data.source, 'template');
   }, {
-    companionStore,
+    contextSnapshotStore,
     now: () => now,
     fetcher: async () => {
       upstreamCalls += 1;

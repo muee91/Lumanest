@@ -148,7 +148,7 @@ test('developer tools stay hidden until the authenticated capability is enabled'
   assert.match(html, /id="developer-tools-label"[^>]+hidden/);
   assert.match(html, /id="simulation-nav"[^>]+hidden/);
   assert.match(html, /场景实验室/);
-  assert.match(html, /模拟快照不会进入真实缓存、Companion 记忆或反馈校准/);
+  assert.match(html, /模拟快照不会进入真实缓存、AI 上下文快照内存或反馈校准/);
   assert.match(script, /api\('capabilities'\)/);
   assert.match(script, /api\('simulation'\)/);
   assert.match(script, /simulation\/sessions\/\$\{session\.controlId\}/);
