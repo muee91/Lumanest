@@ -1,0 +1,259 @@
+name: One-shot retire Companion backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-retire-companion-backend.yml
+
+permissions:
+  contents: write
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove legacy Companion APIs have no Flutter consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -n -E '/v1/companion/refresh|/v1/inspiration/inventory|/v1/insights/.+/feedback|companion_client\.dart|companionInventoryProvider' -- lib test; then
+            echo 'A Flutter consumer of the retired Companion API still exists.'
+            exit 1
+          fi
+
+      - name: Split snapshot memory from retired Companion product layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > services/lumanest-data-broker/src/context/context-snapshot-store.mjs <<'EOF'
+          function object(value) {
+            return value != null && typeof value === 'object' && !Array.isArray(value);
+          }
+
+          // Process-local, bounded storage used only to bind follow-up Assistant and
+          // Region Brief requests to a previously issued Context snapshot. This is
+          // infrastructure state, not a user-facing inventory or recommendation feed.
+          export class ContextSnapshotStore {
+            constructor({ maximumSnapshots = 24 } = {}) {
+              this.maximumSnapshots = maximumSnapshots;
+              this.snapshots = new Map();
+            }
+
+            rememberSnapshot(snapshot) {
+              if (!object(snapshot) || typeof snapshot.contextId !== 'string') return;
+              this.snapshots.set(
+                snapshot.contextId,
+                Object.freeze(structuredClone(snapshot)),
+              );
+              while (this.snapshots.size > this.maximumSnapshots) {
+                this.snapshots.delete(this.snapshots.keys().next().value);
+              }
+            }
+
+            snapshot(contextId) {
+              return this.snapshots.get(contextId) ?? null;
+            }
+          }
+          EOF
+
+          cat > services/lumanest-data-broker/test/context-snapshot-store.test.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import test from 'node:test';
+
+          import { ContextSnapshotStore } from '../src/context/context-snapshot-store.mjs';
+
+          test('context snapshot store clones accepted snapshots before retaining them', () => {
+            const store = new ContextSnapshotStore();
+            const source = {
+              contextId: 'ctx_1234567890abcdef12345678',
+              expiresAt: '2026-09-05T08:00:00Z',
+              facts: { events: [{ id: 'session.city.blue_hour' }] },
+            };
+
+            store.rememberSnapshot(source);
+            source.facts.events[0].id = 'mutated';
+
+            assert.equal(
+              store.snapshot('ctx_1234567890abcdef12345678').facts.events[0].id,
+              'session.city.blue_hour',
+            );
+            assert.equal(store.snapshot('missing'), null);
+          });
+
+          test('context snapshot store remains bounded and evicts the oldest snapshot', () => {
+            const store = new ContextSnapshotStore({ maximumSnapshots: 2 });
+            store.rememberSnapshot({ contextId: 'ctx_first' });
+            store.rememberSnapshot({ contextId: 'ctx_second' });
+            store.rememberSnapshot({ contextId: 'ctx_third' });
+
+            assert.equal(store.snapshot('ctx_first'), null);
+            assert.equal(store.snapshot('ctx_second').contextId, 'ctx_second');
+            assert.equal(store.snapshot('ctx_third').contextId, 'ctx_third');
+          });
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          server = Path('services/lumanest-data-broker/src/server.mjs')
+          text = server.read_text()
+
+          old_import = """import {
+            CompanionStore,
+            parseInventoryQuery,
+            validCompanionRefreshRequest,
+            validIdempotencyKey,
+            validInsightFeedbackRequest,
+          } from './companion/orchestrator.mjs';
+          import { selectCreativeWithModel } from './companion/model-selector.mjs';"""
+          new_import = "import { ContextSnapshotStore } from './context/context-snapshot-store.mjs';"
+          if old_import not in text:
+              raise SystemExit('server Companion import block changed unexpectedly')
+          text = text.replace(old_import, new_import)
+
+          text = text.replace("  { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },\n", '')
+          text = text.replace("  { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },\n", '')
+
+          old_feedback_policy = """  if (/^\\/v1\\/insights\\/insight_[a-f0-9]{24}\\/feedback$/.test(pathname)) {
+            return { limit: 60, windowMs: 60 * 1_000, key: 'insight-feedback' };
+          }
+          """
+          if old_feedback_policy not in text:
+              raise SystemExit('feedback rate policy changed unexpectedly')
+          text = text.replace(old_feedback_policy, '')
+
+          if '  companionStore = null,\n' not in text:
+              raise SystemExit('companionStore injection changed unexpectedly')
+          text = text.replace('  companionStore = null,\n', '  contextSnapshotStore = null,\n')
+
+          construction = re.compile(
+              r"  const companion = companionStore \?\? new CompanionStore\(\{\n"
+              r"    now,\n"
+              r"    selectCreative: \(\{ snapshot, candidates, maximum \}\) => \{\n"
+              r"      const active = configurationSource\.snapshot\(\);\n"
+              r"      return selectCreativeWithModel\(\{\n"
+              r"        snapshot,\n"
+              r"        candidates,\n"
+              r"        maximum,\n"
+              r"        profiles: active\.llmProfiles,\n"
+              r"        routing: active\.llmRouting,\n"
+              r"        aiEnabled: active\.settings\.aiEnabled,\n"
+              r"        fetcher,\n"
+              r"      \}\);\n"
+              r"    \},\n"
+              r"  \}\);"
+          )
+          text, count = construction.subn(
+              '  const contextSnapshots = contextSnapshotStore ?? new ContextSnapshotStore();',
+              text,
+          )
+          if count != 1:
+              raise SystemExit(f'expected one CompanionStore construction, got {count}')
+
+          refresh_start = text.find("    if (request.method === 'POST' && requestUrl.pathname === '/v1/companion/refresh') {")
+          sky_start = text.find("    if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities') {", refresh_start)
+          if refresh_start < 0 or sky_start < 0:
+              raise SystemExit('legacy refresh/inventory endpoint block not found')
+          text = text[:refresh_start] + text[sky_start:]
+
+          feedback_start = text.find("    const feedbackMatch = /^\\/v1\\/insights\\/(insight_[a-f0-9]{24})\\/feedback$/.exec(")
+          safety_start = text.find("    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/safety-detail') {", feedback_start)
+          if feedback_start < 0 or safety_start < 0:
+              raise SystemExit('legacy feedback endpoint block not found')
+          text = text[:feedback_start] + text[safety_start:]
+
+          text = text.replace('companion.snapshot(', 'contextSnapshots.snapshot(')
+          text = text.replace('companion.rememberSnapshot(', 'contextSnapshots.rememberSnapshot(')
+          text = text.replace('Raw GPS never enters CompanionStore or assistant conversation history.',
+                              'Raw GPS never enters ContextSnapshotStore or assistant conversation history.')
+          server.write_text(text)
+
+          tests = Path('services/lumanest-data-broker/test/server.test.mjs')
+          test_text = tests.read_text()
+          test_text = test_text.replace(
+              "import { CompanionStore } from '../src/companion/orchestrator.mjs';",
+              "import { ContextSnapshotStore } from '../src/context/context-snapshot-store.mjs';",
+          )
+          test_text = test_text.replace('CompanionStore', 'ContextSnapshotStore')
+          test_text = test_text.replace('companionStore', 'contextSnapshotStore')
+
+          start = test_text.find("test('companion refresh, inventory and feedback enforce current contracts'")
+          end = test_text.find("test('inspiration assistant accepts the bounded creative question'", start)
+          if start < 0 or end < 0:
+              raise SystemExit('legacy server Companion contract test not found')
+          test_text = test_text[:start] + test_text[end:]
+          tests.write_text(test_text)
+
+          admin = Path('services/lumanest-data-broker/src/admin/public/index.html')
+          admin_text = admin.read_text()
+          if 'Companion 记忆' not in admin_text:
+              raise SystemExit('admin isolation wording changed unexpectedly')
+          admin.write_text(admin_text.replace('Companion 记忆', 'AI 上下文快照内存'))
+
+          for filename in ['docs/assistant-context-envelope.md', 'docs/route-scout-mode.md']:
+              path = Path(filename)
+              value = path.read_text()
+              if 'CompanionStore' not in value:
+                  raise SystemExit(f'{filename} no longer contains expected legacy store name')
+              path.write_text(value.replace('CompanionStore', 'ContextSnapshotStore'))
+
+          scope = Path('docs/core-1.0-scope.md')
+          scope_text = scope.read_text()
+          old = '| Companion 自动 inventory/refresh | **退役** | Flutter 旧 Inspiration 消费者与 Companion client 已删除；服务端仅保留仍被 assistant/context 快照链依赖的内部状态，禁止恢复 inventory UI 或自动刷新 |'
+          new = '| Companion 自动 inventory/refresh | **已退役** | Flutter 与服务端 refresh/inventory/feedback 产品链、模型筛选器均已删除；AI/Region Brief 只保留独立的内部 `ContextSnapshotStore` 快照绑定 |'
+          if old not in scope_text:
+              raise SystemExit('Core scope Companion row changed unexpectedly')
+          scope.write_text(scope_text.replace(old, new))
+          PY
+
+          rm services/lumanest-data-broker/src/companion/orchestrator.mjs
+          rm services/lumanest-data-broker/src/companion/model-selector.mjs
+          rm services/lumanest-data-broker/test/companion-orchestrator.test.mjs
+          rm services/lumanest-data-broker/test/companion-model-selector.test.mjs
+          rm -f .github/workflows/one-shot-retire-companion-backend.yml
+
+      - name: Verify no active Companion product layer remains
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if git grep -n -E 'CompanionStore|companionStore|validCompanionRefreshRequest|validInsightFeedbackRequest|selectCreativeWithModel|/v1/companion/refresh|/v1/inspiration/inventory|insight-feedback' -- services/lumanest-data-broker/src services/lumanest-data-broker/test; then
+            echo 'Active legacy Companion implementation remains.'
+            exit 1
+          fi
+          grep -q 'ContextSnapshotStore' services/lumanest-data-broker/src/server.mjs
+          grep -q 'contextSnapshots.rememberSnapshot' services/lumanest-data-broker/src/server.mjs
+          grep -q 'contextSnapshots.snapshot' services/lumanest-data-broker/src/server.mjs
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/lumanest-data-broker/package-lock.json
+
+      - name: Test data broker
+        working-directory: services/lumanest-data-broker
+        run: |
+          npm ci
+          npm test
+
+      - name: Commit verified backend retirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'refactor: retire Companion inventory backend'
+          git pull --rebase origin main
+          git push origin HEAD:main
