@@ -1,0 +1,55 @@
+name: One-shot Core frozen surface audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-core-frozen-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Audit frozen surfaces and consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          section() { printf '\n===== %s =====\n' "$1"; }
+
+          section 'NATIVE SOUND / HAPTIC FILES'
+          git ls-files | grep -Ei '(^|/)(sound|audio|haptic|feedback)(/|_|-|\.)|sound|haptic' || true
+          section 'NATIVE SOUND / HAPTIC REFERENCES'
+          git grep -n -Ei 'sound|audio|haptic|HapticFeedback|SystemSound|AudioPlayer|just_audio|audioplayers' -- lib test pubspec.yaml android ios || true
+
+          section 'WATCH / NOTIFICATION FILES'
+          git ls-files | grep -Ei 'watch|notification|reminder|alert' || true
+          section 'WATCH / NOTIFICATION REFERENCES'
+          git grep -n -Ei 'watch|notification|reminder|schedule.*alert|local_notifications|flutter_local_notifications' -- lib test pubspec.yaml android ios || true
+
+          section 'OFFLINE PACK FILES'
+          git ls-files | grep -Ei 'offline|pack' || true
+          section 'OFFLINE PACK REFERENCES'
+          git grep -n -Ei 'OfflinePhotographyPack|offline pack|offline_pack|offlinePack|offline photography' -- lib test docs pubspec.yaml || true
+
+          section 'GPX FILES'
+          git ls-files | grep -Ei 'gpx|track' || true
+          section 'GPX REFERENCES'
+          git grep -n -Ei 'GPX|gpx|track lifecycle|trackLifecycle|import.*track' -- lib test docs pubspec.yaml || true
+
+          section 'JOURNEY REFERENCES SUMMARY'
+          git ls-files | grep -Ei 'journey' || true
+          git grep -n -Ei 'ActiveJourney|JourneyRestorer|journey.*progress|startJourney|endJourney|SavedJourney' -- lib test || true
+
+          section 'FROZEN SURFACE PACKAGE DEPENDENCIES'
+          grep -n -Ei 'audio|sound|notification|gpx|track|haptic' pubspec.yaml || true
