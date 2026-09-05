@@ -7,7 +7,6 @@ import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_detail_page.dart';
-import 'package:luma_nest/src/presentation_v2/environment/v2_environment_timeline_page.dart';
 import 'package:luma_nest/src/presentation_v2/environment/v2_environment_workbench_page.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_explore_page.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart';
@@ -134,12 +133,7 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         path: '/environment',
         pageBuilder: (context, state) => _v2DetailPage(
           state,
-          child: V2EnvironmentTimelinePage(
-            initialSnapshot: initialContext,
-            initialFocus: EnvironmentTimelineFocus.fromQuery(
-              state.uri.queryParameters['focus'],
-            ),
-          ),
+          child: V2EnvironmentWorkbenchPage(initialSnapshot: initialContext),
         ),
       ),
       GoRoute(

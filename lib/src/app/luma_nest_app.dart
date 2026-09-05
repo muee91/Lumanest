@@ -10,7 +10,6 @@ import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/companion/companion_client.dart';
 import 'package:luma_nest/src/core/device/device_energy_providers.dart';
 import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
@@ -55,7 +54,6 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   String _routeLocation = '/today';
   bool _routeRefreshScheduled = false;
   String? _lastPhotographyWatchReconciliation;
-  String? _lastCompanionRefresh;
   AmbientPresetBundle? _ambientPresets;
   Timer? _environmentRefreshTimer;
   DateTime? _environmentRefreshDeadline;
@@ -143,22 +141,6 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
               .asData
               ?.value
               .activeHomeOpportunity(now);
-    if (reconciliationSnapshot != null &&
-        _lastCompanionRefresh != reconciliationSnapshot.id) {
-      _lastCompanionRefresh = reconciliationSnapshot.id;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        unawaited(
-          ref
-              .read(companionInventoryProvider.notifier)
-              .refresh(
-                snapshotId: reconciliationSnapshot.id,
-                reason: 'manual_refresh',
-                visiblePage: _visiblePage,
-              ),
-        );
-      });
-    }
     if (photographyWatchNotificationsEnabled != null &&
         reconciliationSnapshot != null &&
         library != null) {
@@ -279,15 +261,6 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         );
       },
     );
-  }
-
-  String get _visiblePage {
-    if (_routeLocation.startsWith('/explore')) return 'explore';
-    if (_routeLocation.startsWith('/route')) return 'route';
-    if (_routeLocation.startsWith('/inspiration')) return 'inspiration';
-    if (_routeLocation.startsWith('/profile')) return 'profile';
-    if (_routeLocation.startsWith('/session')) return 'shootingWindow';
-    return 'today';
   }
 
   AmbientVisualState? _ambientVisualState(
