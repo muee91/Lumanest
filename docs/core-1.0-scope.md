@@ -55,7 +55,7 @@ AI 是全局按需入口，不是常驻一级 Tab。它解释已知事实、回�
 
 | 能力 | Core 1.0 状态 | 处理原则 |
 | --- | --- | --- |
-| Companion 自动 inventory/refresh | **退役** | 不允许无用户可见消费者的自动网络工作；后续删除残余实现 |
+| Companion 自动 inventory/refresh | **退役** | Flutter 旧 Inspiration 消费者与 Companion client 已删除；服务端仅保留仍被 assistant/context 快照链依赖的内部状态，禁止恢复 inventory UI 或自动刷新 |
 | Route Journey start/end/active/progress | **冻结并准备删除** | Route 回归 scout + corridor + 外部导航 |
 | 拍摄窗口 Watch/通知 | **P2 冻结** | Core 判断稳定后再评估 |
 | Offline Photography Pack | **P2 冻结** | 不继续扩展 |
