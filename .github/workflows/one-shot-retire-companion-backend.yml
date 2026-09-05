@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -102,7 +102,6 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           server = Path('services/lumanest-data-broker/src/server.mjs')
           text = server.read_text()
@@ -120,44 +119,33 @@ jobs:
               raise SystemExit('server Companion import block changed unexpectedly')
           text = text.replace(old_import, new_import)
 
-          text = text.replace("  { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },\n", '')
-          text = text.replace("  { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },\n", '')
+          for policy in [
+              "  { path: '/v1/companion/refresh', limit: 6, windowMs: 10 * 60 * 1_000, key: 'companion-refresh' },\n",
+              "  { path: '/v1/inspiration/inventory', limit: 30, windowMs: 60 * 1_000, key: 'inspiration-inventory' },\n",
+          ]:
+              if policy not in text:
+                  raise SystemExit(f'legacy rate policy missing: {policy.strip()}')
+              text = text.replace(policy, '')
 
-          old_feedback_policy = """  if (/^\\/v1\\/insights\\/insight_[a-f0-9]{24}\\/feedback$/.test(pathname)) {
-            return { limit: 60, windowMs: 60 * 1_000, key: 'insight-feedback' };
-          }
-          """
-          if old_feedback_policy not in text:
-              raise SystemExit('feedback rate policy changed unexpectedly')
-          text = text.replace(old_feedback_policy, '')
+          feedback_policy_start = text.find("  if (/^\\/v1\\/insights\\/insight_[a-f0-9]{24}\\/feedback$/.test(pathname)) {")
+          media_policy_start = text.find("  if (/^\\/v1\\/explore\\/media", feedback_policy_start)
+          if feedback_policy_start < 0 or media_policy_start < 0:
+              raise SystemExit('feedback rate policy markers changed unexpectedly')
+          text = text[:feedback_policy_start] + text[media_policy_start:]
 
           if '  companionStore = null,\n' not in text:
               raise SystemExit('companionStore injection changed unexpectedly')
           text = text.replace('  companionStore = null,\n', '  contextSnapshotStore = null,\n')
 
-          construction = re.compile(
-              r"  const companion = companionStore \?\? new CompanionStore\(\{\n"
-              r"    now,\n"
-              r"    selectCreative: \(\{ snapshot, candidates, maximum \}\) => \{\n"
-              r"      const active = configurationSource\.snapshot\(\);\n"
-              r"      return selectCreativeWithModel\(\{\n"
-              r"        snapshot,\n"
-              r"        candidates,\n"
-              r"        maximum,\n"
-              r"        profiles: active\.llmProfiles,\n"
-              r"        routing: active\.llmRouting,\n"
-              r"        aiEnabled: active\.settings\.aiEnabled,\n"
-              r"        fetcher,\n"
-              r"      \}\);\n"
-              r"    \},\n"
-              r"  \}\);"
+          construction_start = text.find('  const companion = companionStore ?? new CompanionStore({')
+          server_start = text.find('  return createServer(async (request, response) => {', construction_start)
+          if construction_start < 0 or server_start < 0:
+              raise SystemExit('CompanionStore construction markers changed unexpectedly')
+          text = (
+              text[:construction_start]
+              + '  const contextSnapshots = contextSnapshotStore ?? new ContextSnapshotStore();\n'
+              + text[server_start:]
           )
-          text, count = construction.subn(
-              '  const contextSnapshots = contextSnapshotStore ?? new ContextSnapshotStore();',
-              text,
-          )
-          if count != 1:
-              raise SystemExit(f'expected one CompanionStore construction, got {count}')
 
           refresh_start = text.find("    if (request.method === 'POST' && requestUrl.pathname === '/v1/companion/refresh') {")
           sky_start = text.find("    if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities') {", refresh_start)
@@ -173,14 +161,19 @@ jobs:
 
           text = text.replace('companion.snapshot(', 'contextSnapshots.snapshot(')
           text = text.replace('companion.rememberSnapshot(', 'contextSnapshots.rememberSnapshot(')
-          text = text.replace('Raw GPS never enters CompanionStore or assistant conversation history.',
-                              'Raw GPS never enters ContextSnapshotStore or assistant conversation history.')
+          text = text.replace(
+              'Raw GPS never enters CompanionStore or assistant conversation history.',
+              'Raw GPS never enters ContextSnapshotStore or assistant conversation history.',
+          )
           server.write_text(text)
 
           tests = Path('services/lumanest-data-broker/test/server.test.mjs')
           test_text = tests.read_text()
+          old_test_import = "import { CompanionStore } from '../src/companion/orchestrator.mjs';"
+          if old_test_import not in test_text:
+              raise SystemExit('server test CompanionStore import changed unexpectedly')
           test_text = test_text.replace(
-              "import { CompanionStore } from '../src/companion/orchestrator.mjs';",
+              old_test_import,
               "import { ContextSnapshotStore } from '../src/context/context-snapshot-store.mjs';",
           )
           test_text = test_text.replace('CompanionStore', 'ContextSnapshotStore')
@@ -235,7 +228,7 @@ jobs:
           grep -q 'contextSnapshots.snapshot' services/lumanest-data-broker/src/server.mjs
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
