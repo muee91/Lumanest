@@ -1,0 +1,55 @@
+name: One-shot Core dead-code audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-core-dead-code-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Inventory legacy candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== ENVIRONMENT TIMELINE FILES ==='
+          git ls-files | grep -Ei 'environment.*timeline|timeline.*environment' || true
+          echo '=== ENVIRONMENT TIMELINE REFERENCES ==='
+          git grep -n -E 'V2EnvironmentTimelinePage|v2_environment_timeline_page|EnvironmentTimelineFocus' -- ':!.github/workflows/one-shot-core-dead-code-audit.yml' || true
+
+          echo '=== COMPANION FILES ==='
+          git ls-files | grep -Ei 'companion' || true
+          echo '=== COMPANION REFERENCES ==='
+          git grep -n -Ei 'companion' -- ':!.github/workflows/one-shot-core-dead-code-audit.yml' || true
+
+          echo '=== JOURNEY FILES ==='
+          git ls-files | grep -Ei 'journey' || true
+          echo '=== JOURNEY REFERENCES ==='
+          git grep -n -Ei 'journey' -- ':!.github/workflows/one-shot-core-dead-code-audit.yml' || true
+
+          echo '=== ENVIRONMENT WORKBENCH REFERENCES ==='
+          git grep -n -E 'V2EnvironmentWorkbenchPage|v2_environment_workbench_page' || true
+
+          echo '=== CORE ROUTER REFERENCES ==='
+          git grep -n -E "path: '/environment'|/environment\?|/environment'|/environment\"" lib test integration_test 2>/dev/null || true
+
+      - name: Inventory historical Markdown authority markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== MARKDOWN COUNT ==='
+          git ls-files '*.md' | wc -l
+          echo '=== DOC STATUS MARKERS ==='
+          git grep -n -E 'CURRENT|SUPPORTING|HISTORICAL|DEPRECATED|Core 1\.0' -- 'docs/**/*.md' 'docs/*.md' 'README.md' 'AGENTS.md' | head -n 300 || true
