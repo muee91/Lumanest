@@ -192,6 +192,14 @@ jobs:
               raise SystemExit('admin isolation wording changed unexpectedly')
           admin.write_text(admin_text.replace('Companion 记忆', 'AI 上下文快照内存'))
 
+          admin_test = Path('services/lumanest-data-broker/test/admin-static.test.mjs')
+          admin_test_text = admin_test.read_text()
+          old_admin_expectation = '模拟快照不会进入真实缓存、Companion 记忆或反馈校准'
+          new_admin_expectation = '模拟快照不会进入真实缓存、AI 上下文快照内存或反馈校准'
+          if old_admin_expectation not in admin_test_text:
+              raise SystemExit('admin static isolation assertion changed unexpectedly')
+          admin_test.write_text(admin_test_text.replace(old_admin_expectation, new_admin_expectation))
+
           for filename in ['docs/assistant-context-envelope.md', 'docs/route-scout-mode.md']:
               path = Path(filename)
               value = path.read_text()
@@ -219,7 +227,7 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          if git grep -n -E 'CompanionStore|companionStore|validCompanionRefreshRequest|validInsightFeedbackRequest|selectCreativeWithModel|/v1/companion/refresh|/v1/inspiration/inventory|insight-feedback' -- services/lumanest-data-broker/src services/lumanest-data-broker/test; then
+          if git grep -n -E 'CompanionStore|companionStore|validCompanionRefreshRequest|validInsightFeedbackRequest|selectCreativeWithModel|/v1/companion/refresh|/v1/inspiration/inventory|insight-feedback|Companion 记忆' -- services/lumanest-data-broker/src services/lumanest-data-broker/test; then
             echo 'Active legacy Companion implementation remains.'
             exit 1
           fi
