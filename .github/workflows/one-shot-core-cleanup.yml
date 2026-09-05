@@ -1,0 +1,95 @@
+name: One-shot verified Core cleanup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-shot-core-cleanup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify legacy Environment page is isolated
+        shell: bash
+        run: |
+          set -euo pipefail
+          refs="$(git grep -n -E 'V2EnvironmentTimelinePage|v2_environment_timeline_page|EnvironmentTimelineFocus' -- lib ':!lib/src/presentation_v2/environment/v2_environment_timeline_page.dart' || true)"
+          if [ -n "$refs" ]; then
+            echo 'Unexpected production references remain:'
+            echo "$refs"
+            exit 1
+          fi
+
+      - name: Remove isolated legacy implementation and normalize historical docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm lib/src/presentation_v2/environment/v2_environment_timeline_page.dart
+          rm test/presentation_v2/environment/v2_environment_timeline_page_test.dart
+          python3 - <<'PY'
+          from pathlib import Path
+
+          doc = Path('docs/environment-workbench-v2.md')
+          text = doc.read_text()
+          old = """`test/presentation_v2/environment/v2_environment_timeline_page_test.dart` 覆盖：\n\n- 320 px 小屏与 130% 字体缩放；\n- 连续云量图与风图切换；\n- 时间线缺失时保留当前事实并明确降级；\n- 页面无运行时布局异常。\n\n旧工作台回归测试继续覆盖候选窗口峰值模式，确保旧组件和 Debug 验收实验室不发生回归。"""
+          new = """> **2026-09 Core 1.0 收缩说明：** 本文描述的旧 `V2EnvironmentTimelinePage` 已在生产入口切换到 `V2EnvironmentWorkbenchPage` 后删除；对应旧页面测试一并移除。Sky Window 数据层继续保留，因为当前摄影环境工作台仍消费该能力。\n\n当前页面回归由 `test/presentation_v2/environment/v2_environment_workbench_page_test.dart` 覆盖。历史验收目标仅用于解释旧实现，不再要求恢复已删除的 Timeline 页面。"""
+          if old not in text:
+              raise SystemExit('environment-workbench-v2.md expected legacy test block not found')
+          doc.write_text(text.replace(old, new))
+
+          markers = {
+              Path('design-qa.md'): '> **文档权威级别：HISTORICAL / VERSIONED REFERENCE**\n> 当前产品范围以 [`docs/core-1.0-scope.md`](docs/core-1.0-scope.md) 为准。本文仅保留历史设计 QA 证据，不能重新启用 Core 1.0 已冻结或退役的能力。\n\n',
+              Path('lumanest-code-audit-report.md'): '> **文档权威级别：HISTORICAL / VERSIONED REFERENCE**\n> 当前产品范围以 [`docs/core-1.0-scope.md`](docs/core-1.0-scope.md) 为准。本文仅保留历史代码审计证据，不能重新启用 Core 1.0 已冻结或退役的能力。\n\n',
+          }
+          for path, header in markers.items():
+              value = path.read_text()
+              if '文档权威级别：' not in value[:300]:
+                  path.write_text(header + value)
+          PY
+
+          rm -f .github/workflows/one-shot-core-dead-code-audit.yml
+          rm -f .github/workflows/one-shot-core-cleanup.yml
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Verify cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if git grep -n -E 'V2EnvironmentTimelinePage|v2_environment_timeline_page|EnvironmentTimelineFocus' -- lib test; then
+            echo 'Legacy Environment Timeline references remain.'
+            exit 1
+          fi
+          flutter analyze
+          flutter test
+
+      - name: Commit verified cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'refactor: remove dead Core 1.0 legacy paths'
+          git pull --rebase origin main
+          git push origin HEAD:main
