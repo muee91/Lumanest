@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { createHash } from 'node:crypto';
 
 const commonsApiUrl = 'https://commons.wikimedia.org/w/api.php';
@@ -324,7 +326,7 @@ export async function searchVerifiedPlaceMedia({ request, fetcher = fetch, timeo
   }).toString();
   try {
     const payload = await fetchJson(url, fetcher, timeoutMs);
-    if (payload == null) return { ok: false, error: 'upstream_unavailable' };
+    if (payload == null) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     const pages = Array.isArray(payload?.query?.pages) ? payload.query.pages : [];
     const ranked = pages
       .map((page) => candidateFromPage(page, request))
@@ -355,7 +357,7 @@ export async function searchVerifiedPlaceMedia({ request, fetcher = fetch, timeo
       ].slice(0, 3),
     };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 

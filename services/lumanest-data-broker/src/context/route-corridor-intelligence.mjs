@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const facilityKeys = Object.freeze([
   'parking', 'fuel', 'food', 'water', 'toilets', 'shelter', 'restArea',
 ]);

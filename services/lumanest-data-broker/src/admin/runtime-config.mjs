@@ -1,6 +1,10 @@
 import { createPrivateKey } from 'node:crypto';
 
-import { defaultRuntimeSettings, validateRuntimeSettings } from './runtime-settings.mjs';
+import {
+  defaultRuntimeSettings,
+  pruneUnknownRuntimeSettings,
+  validateRuntimeSettings,
+} from './runtime-settings.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { defaultDiscoverySearchProfile, validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
 import { providerSourceDefaults, validateProviderSources } from '../environment/provider-runtime-config.mjs';
@@ -251,8 +255,11 @@ export class RuntimeConfigService {
 
   async initialize() {
     const persisted = await this.#store.read() ?? {};
-    validatePatch(persisted);
-    const normalized = mergedOverrides({}, persisted);
+    const sanitized = Object.hasOwn(persisted, 'settings')
+      ? { ...persisted, settings: pruneUnknownRuntimeSettings(persisted.settings) }
+      : persisted;
+    validatePatch(sanitized);
+    const normalized = mergedOverrides({}, sanitized);
     this.#snapshot = buildSnapshot(this.#defaults, normalized, ++this.#revision);
     this.#overrides = normalized;
     return this.#snapshot;

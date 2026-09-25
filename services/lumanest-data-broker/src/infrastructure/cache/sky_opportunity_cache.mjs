@@ -1,3 +1,7 @@
+import { BoundedTtlMap } from './bounded-ttl-map.mjs';
+
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { createClient } from 'redis';
 
 const prefix = 'sky-opportunity:v1:';
@@ -32,8 +36,8 @@ function cityCacheResult(entry, now) {
 
 export class MemorySkyOpportunityCache {
   constructor() {
-    this.entries = new Map();
-    this.cityEntries = new Map();
+    this.entries = new BoundedTtlMap(256);
+    this.cityEntries = new BoundedTtlMap(64);
   }
 
   async get(key, now = new Date()) {

@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const defaultBaseUrl = 'https://api.open-meteo.com';
 const hourlyVariables = Object.freeze([
   'cloud_cover',
@@ -108,7 +110,7 @@ export class OpenMeteoNightSkyForecast {
   async forecast({ latitude, longitude, hours = 72 }) {
     if (!finite(latitude, -90, 90) || !finite(longitude, -180, 180) ||
         !Number.isInteger(hours) || hours < 6 || hours > 96 || this.baseUrl == null) {
-      return { ok: false, error: this.baseUrl == null ? 'unconfigured' : 'invalid_request' };
+      return { ok: false, error: this.baseUrl == null ? apiErrorCodes.unconfigured : apiErrorCodes.invalidRequest };
     }
     const instant = this.now();
     const key = cacheKey(latitude, longitude, hours);
@@ -155,7 +157,7 @@ export class OpenMeteoNightSkyForecast {
       });
       const payload = await response.json();
       const points = response.ok ? parseForecast(payload) : null;
-      if (points == null) return { ok: false, error: 'upstream_unavailable' };
+      if (points == null) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
       const fetchedAt = instant.toISOString();
       return {
         ok: true,
@@ -170,7 +172,7 @@ export class OpenMeteoNightSkyForecast {
         },
       };
     } catch {
-      return { ok: false, error: 'upstream_unavailable' };
+      return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     }
   }
 }

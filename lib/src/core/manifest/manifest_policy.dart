@@ -1,6 +1,5 @@
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
@@ -19,103 +18,13 @@ abstract final class ManifestPolicy {
         if (!event.isExpiredAt(evaluatedAt)) event.id: event,
     };
 
-    final serverManifest = snapshot.serverManifest;
-    if (serverManifest != null) {
-      return _buildFromServer(
-        snapshot,
-        serverManifest,
-        currentEvents,
-        effectivePersonalization,
-      );
-    }
     return _buildLocal(snapshot, currentEvents, effectivePersonalization);
   }
 
   // ---------------------------------------------------------------------------
-  // Server manifest path
-  // ---------------------------------------------------------------------------
-
-  static UiManifest _buildFromServer(
-    ContextSnapshot snapshot,
-    ServerManifest serverManifest,
-    Map<String, ContextEvent> currentEvents,
-    CreativePersonalization personalization,
-  ) {
-    final layoutMode = LayoutMode.fromServerLayout(serverManifest.layout);
-
-    // Creative: strictly primaryEventId + secondaryEventIds order.
-    // Server-manifest creative entries must have a current unexpired event.
-    final creativeIds = <String>[
-      if (serverManifest.primaryEventId != null) serverManifest.primaryEventId!,
-      ...serverManifest.secondaryEventIds,
-    ];
-    final creative = <ManifestItem>[];
-    for (final id in creativeIds) {
-      final event = currentEvents[id];
-      if (event == null) continue;
-      final template = _creativeItem(id);
-      if (template != null) creative.add(template.withEvent(event));
-    }
-    final orderedCreative = _personalizeCreative(creative, personalization);
-    final primary = orderedCreative.firstOrNull;
-    final secondary = orderedCreative.skip(1).take(2).toList(growable: false);
-
-    // Safety: union of serverManifest.safetyEventIds and all current unexpired
-    // structured safety/wildlifeSafety events. Server omissions must not hide
-    // safety events.
-    final safety = _buildServerSafety(serverManifest, currentEvents);
-
-    return UiManifest(
-      layoutMode: layoutMode,
-      summary: _summaryFor(snapshot, primary),
-      primary: primary,
-      secondary: secondary,
-      safety: safety,
-      inspirationPreview: _inspirationFor(primary),
-    );
-  }
-
-  static List<ManifestItem> _buildServerSafety(
-    ServerManifest serverManifest,
-    Map<String, ContextEvent> currentEvents,
-  ) {
-    // Collect all current unexpired structured safety-channel events.
-    final structuredSafetyIds = <String>[];
-    for (final event in currentEvents.values) {
-      if (event.channel == ContextEventChannel.safety ||
-          event.channel == ContextEventChannel.wildlifeSafety) {
-        structuredSafetyIds.add(event.id);
-      }
-    }
-
-    // Ordered union: server-listed IDs first (if they have a current event),
-    // then any current structured safety events the server missed.
-    final seen = <String>{};
-    final orderedIds = <String>[];
-    for (final id in serverManifest.safetyEventIds) {
-      if (currentEvents.containsKey(id) && seen.add(id)) {
-        orderedIds.add(id);
-      }
-    }
-    for (final id in structuredSafetyIds) {
-      if (seen.add(id)) {
-        orderedIds.add(id);
-      }
-    }
-
-    return orderedIds
-        .map((id) {
-          final event = currentEvents[id]!;
-          final template = _safetyItem(id) ?? _wildlifeSafetyItem(id);
-          return template?.withEvent(event) ??
-              _unknownSafetyItem(event).withEvent(event);
-        })
-        .whereType<ManifestItem>()
-        .toList(growable: false);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Local fallback path (no server manifest)
+  // Local composition path. `primary` is decided here and nowhere else: the
+  // rule engine's opinion reaches this function as entry priority, confidence
+  // and expiry, not as a second ordering that could contradict this one.
   // ---------------------------------------------------------------------------
 
   static UiManifest _buildLocal(
@@ -141,16 +50,26 @@ abstract final class ManifestPolicy {
 
     // Safety always requires a structured unexpired event — bare IDs (including
     // bear-risk) without a matching structured event do not produce safety
-    // entries.
-    final safety =
-        [
-              ...snapshot.safetyEventIds.map(_safetyItem),
-              ...snapshot.wildlifeEventIds.map(_wildlifeSafetyItem),
-            ]
-            .whereType<ManifestItem>()
-            .where((item) => currentEvents.containsKey(item.id))
-            .map((item) => item.withEvent(currentEvents[item.id]))
-            .toList(growable: false);
+    // entries. Beyond that, an unrecognised source still renders: losing a
+    // warning to an unknown id is worse than showing a generic one, and a
+    // structured safety event the ID lists never mention must still appear.
+    final safetyIds = <String>{
+      ...snapshot.safetyEventIds,
+      ...snapshot.wildlifeEventIds,
+      for (final event in currentEvents.values)
+        if (event.channel == ContextEventChannel.safety ||
+            event.channel == ContextEventChannel.wildlifeSafety)
+          event.id,
+    };
+    final safety = <ManifestItem>[];
+    for (final id in safetyIds) {
+      final event = currentEvents[id];
+      if (event == null) continue;
+      safety.add(
+        (_safetyItem(id) ?? _wildlifeSafetyItem(id) ?? _unknownSafetyItem(event))
+            .withEvent(event),
+      );
+    }
 
     final orderedCreative = _personalizeCreative(creative, personalization);
     final primary = orderedCreative.firstOrNull;

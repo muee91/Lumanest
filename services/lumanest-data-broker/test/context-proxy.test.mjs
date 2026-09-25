@@ -291,7 +291,7 @@ test('calibration proxy returns only bounded aggregate rows', async () => {
       minimumSamples: 5, rows: [{ targetId: 'forbidden' }],
     }), { status: 200 }),
   });
-  assert.deepEqual(rejected, { ok: false, error: 'upstream_unavailable' });
+  assert.deepEqual(rejected, { ok: false, error: 'upstream_contract_mismatch' });
 });
 
 test('context import uses only the internal service token and bounded endpoint', async () => {
@@ -369,7 +369,7 @@ test('wildlife layer proxy rejects points, unknown fields and invalid source dat
         headers: { 'Content-Type': 'application/json' },
       }),
     });
-    assert.deepEqual(result, { ok: false, error: 'upstream_unavailable' });
+    assert.deepEqual(result, { ok: false, error: 'upstream_contract_mismatch' });
   }
 });
 
@@ -404,5 +404,20 @@ test('context snapshot refuses an incomplete current response', async () => {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
   });
 
-  assert.deepEqual(result, { ok: false, error: 'upstream_unavailable' });
+  assert.deepEqual(result, { ok: false, error: 'upstream_contract_mismatch' });
+});
+
+test('a transport failure stays an availability failure, not a contract mismatch', async () => {
+  for (const [label, fetcher] of [
+    ['non-2xx', async () => new Response('{}', { status: 503 })],
+    ['thrown fetcher', async () => { throw new Error('connection refused'); }],
+  ]) {
+    const result = await forwardContextSnapshot({
+      body: { contractVersion: 5 },
+      serviceUrl: 'http://context-service:8000',
+      internalToken: 'internal-secret',
+      fetcher,
+    });
+    assert.deepEqual(result, { ok: false, error: 'upstream_unavailable' }, label);
+  }
 });

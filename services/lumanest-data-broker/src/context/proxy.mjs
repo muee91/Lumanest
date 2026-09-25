@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const canonicalRequestKeys = new Set([
   'contractVersion', 'coordinate', 'observedAt', 'locale', 'intent', 'route',
 ]);
@@ -450,7 +452,7 @@ export async function forwardContextSnapshot({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const url = new URL('/internal/v1/evaluate', serviceUrl);
     const upstream = await fetcher(url, {
@@ -463,12 +465,13 @@ export async function forwardContextSnapshot({
       signal: AbortSignal.timeout(timeoutMs),
     });
     const responseBody = await upstream.json();
-    if (!upstream.ok || !validContextResponse(responseBody)) {
-      return { ok: false, error: 'upstream_unavailable' };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!validContextResponse(responseBody)) {
+      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     }
     return { ok: true, body: responseBody };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
@@ -480,7 +483,7 @@ export async function resolveShootingTarget({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const upstream = await fetcher(new URL('/internal/v1/shooting-targets/resolve', serviceUrl), {
       method: 'POST',
@@ -492,13 +495,14 @@ export async function resolveShootingTarget({
       signal: AbortSignal.timeout(timeoutMs),
     });
     const responseBody = await upstream.json();
-    if (upstream.status === 404) return { ok: false, error: 'not_found' };
-    if (!upstream.ok || !validShootingTarget(responseBody)) {
-      return { ok: false, error: 'upstream_unavailable' };
+    if (upstream.status === 404) return { ok: false, error: apiErrorCodes.notFound };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!validShootingTarget(responseBody)) {
+      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     }
     return { ok: true, target: responseBody };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
@@ -509,7 +513,7 @@ export async function forwardShootingFeedback({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const upstream = await fetcher(new URL('/internal/v1/shooting-feedback', serviceUrl), {
       method: 'POST',
@@ -521,28 +525,29 @@ export async function forwardShootingFeedback({
       signal: AbortSignal.timeout(timeoutMs),
     });
     const responseBody = await upstream.json();
-    if (!upstream.ok || !exactKeys(responseBody, new Set(['accepted'])) ||
-        responseBody.accepted !== true) {
-      return { ok: false, error: 'upstream_unavailable' };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!exactKeys(responseBody, new Set(['accepted'])) || responseBody.accepted !== true) {
+      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
 export async function listContextSources({ serviceUrl, internalToken, fetcher = fetch, timeoutMs = 8_000 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const upstream = await fetcher(new URL('/internal/v1/sources', serviceUrl), {
       headers: { 'X-Internal-Service-Token': internalToken },
       signal: AbortSignal.timeout(timeoutMs),
     });
     const body = await upstream.json();
-    if (!upstream.ok || !Array.isArray(body)) return { ok: false, error: 'upstream_unavailable' };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!Array.isArray(body)) return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     return { ok: true, sources: body };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
@@ -575,10 +580,10 @@ export async function fetchShootingCalibration({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   if (!Number.isInteger(days) || days < 30 || days > 365 ||
       !Number.isInteger(minimumSamples) || minimumSamples < 5 || minimumSamples > 100) {
-    return { ok: false, error: 'invalid_request' };
+    return { ok: false, error: apiErrorCodes.invalidRequest };
   }
   try {
     const url = new URL('/internal/v1/shooting-feedback/calibration', serviceUrl);
@@ -589,12 +594,13 @@ export async function fetchShootingCalibration({
       signal: AbortSignal.timeout(timeoutMs),
     });
     const body = await upstream.json();
-    if (!upstream.ok || !validShootingCalibration(body)) {
-      return { ok: false, error: 'upstream_unavailable' };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!validShootingCalibration(body)) {
+      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     }
     return { ok: true, report: body };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
@@ -644,7 +650,7 @@ export async function fetchWildlifeLayers({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const url = new URL('/internal/v1/wildlife/layers', serviceUrl);
     url.searchParams.set('latitude', String(latitude));
@@ -655,12 +661,13 @@ export async function fetchWildlifeLayers({
       signal: AbortSignal.timeout(timeoutMs),
     });
     const body = await upstream.json();
-    if (!upstream.ok || !validWildlifeLayerResponse(body)) {
-      return { ok: false, error: 'upstream_unavailable' };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!validWildlifeLayerResponse(body)) {
+      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     }
     return { ok: true, body };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
@@ -678,7 +685,7 @@ export async function importContextDataset({
   fetcher = fetch,
   timeoutMs = 20_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const upstream = await fetcher(new URL('/internal/v1/imports', serviceUrl), {
       method: 'POST',
@@ -690,12 +697,13 @@ export async function importContextDataset({
       signal: AbortSignal.timeout(timeoutMs),
     });
     const responseBody = await upstream.json();
-    if (upstream.status === 422) return { ok: false, error: 'invalid_import' };
-    if (!upstream.ok || !validImportResult(responseBody)) {
-      return { ok: false, error: 'upstream_unavailable' };
+    if (upstream.status === 422) return { ok: false, error: apiErrorCodes.invalidImport };
+    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
+    if (!validImportResult(responseBody)) {
+      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     }
     return { ok: true, result: responseBody };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }

@@ -9,7 +9,6 @@ from .models import (
     AstronomyState,
     CompositeSceneContext,
     ContextEvent,
-    Manifest,
     PhotographyTarget,
     PrimaryScene,
     SceneEvidence,
@@ -585,23 +584,6 @@ def evaluate(
                 "route",
             )
 
-    creative = [
-        event.id
-        for event in events
-        if event.channel in ("opportunity", "wildlifeOpportunity")
-    ]
-    safety = [
-        event.id for event in events if event.channel in ("safety", "wildlifeSafety")
-    ]
-    layout = "safety" if safety else "opportunity" if creative else "quiet"
-    manifest = Manifest.model_validate(
-        {
-            "layoutMode": layout,
-            "primaryEventId": creative[0] if creative else None,
-            "secondaryEventIds": creative[1:3],
-            "safetyEventIds": safety,
-        }
-    )
     # The public contract intentionally caps shooting sessions at two.  A
     # route-aligned observation is more actionable than the generic solar
     # fallback during an active/planned route, so retain it before filling the
@@ -669,7 +651,6 @@ def evaluate(
         },
         "events": events,
         "allowedActions": allowed_actions,
-        "manifest": manifest,
     }
     response["contractVersion"] = 5
     response["sceneContext"] = scene_context

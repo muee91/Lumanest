@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const ROUTE_ID_PATTERN = /^[a-zA-Z0-9._:-]{1,96}$/;
 const facilityLabels = Object.freeze({
   parking: '停车标注', fuel: '加油标注', food: '餐饮标注', water: '饮水标注',

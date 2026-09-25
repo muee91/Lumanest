@@ -345,15 +345,6 @@ class ContextEvent(ApiModel):
         return self
 
 
-class Manifest(ApiModel):
-    layout_mode: Literal["quiet", "opportunity", "safety"] = Field(alias="layoutMode")
-    primary_event_id: str | None = Field(None, alias="primaryEventId")
-    secondary_event_ids: list[str] = Field(
-        default_factory=list, alias="secondaryEventIds", max_length=2
-    )
-    safety_event_ids: list[str] = Field(default_factory=list, alias="safetyEventIds")
-
-
 class DataFreshness(ApiModel):
     context: Literal["fresh", "stale"]
     weather: Literal["fresh", "stale"]
@@ -527,7 +518,6 @@ class SnapshotResponse(ApiModel):
             "dismiss",
         ]
     ] = Field(alias="allowedActions")
-    manifest: Manifest
     scene_context: CompositeSceneContext = Field(alias="sceneContext")
     opportunity_catalog_version: Literal[1] = Field(
         1, alias="opportunityCatalogVersion"

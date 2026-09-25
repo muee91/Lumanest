@@ -22,6 +22,7 @@ abstract interface class ShootingSessionNotificationService {
     required WatchedShootingSession watch,
     required ShootingSession session,
     required DateTime notifyAt,
+    required DateTime dataObservedAt,
   });
   Future<void> cancel(String watchId);
 }
@@ -118,10 +119,11 @@ class LocalShootingSessionNotificationService
     required WatchedShootingSession watch,
     required ShootingSession session,
     required DateTime notifyAt,
+    required DateTime dataObservedAt,
   }) async {
     await _ensureInitialized();
     final instant = notifyAt.toUtc();
-    final body = _reason(session);
+    final body = reasonFor(session, dataObservedAt);
     if (!instant.isAfter(DateTime.now().toUtc())) {
       await _plugin.show(
         id: _notificationId(watch.id),
@@ -160,12 +162,31 @@ class LocalShootingSessionNotificationService
     iOS: DarwinNotificationDetails(),
   );
 
-  static String _reason(ShootingSession session) {
-    final evidence = session.factors
+  /// A reminder is the app speaking first, so it states only what the evidence
+  /// supports: when the window opens, the conditions that make it, and how old
+  /// that judgement is. It never asserts a success rate.
+  @visibleForTesting
+  static String reasonFor(
+    ShootingSession session,
+    DateTime dataObservedAt,
+  ) {
+    final conditions = session.factors
         .where((item) => item.effect == ShootingFactorEffect.supporting)
         .map((item) => '${item.label} ${item.value}'.trim())
-        .firstWhere((item) => item.isNotEmpty, orElse: () => '拍摄会话已成立');
-    return evidence;
+        .where((item) => item.isNotEmpty)
+        .take(2)
+        .join(' · ');
+    return <String>[
+      '窗口 ${_clock(session.startsAt)} 开始',
+      if (conditions.isNotEmpty) '成立条件：$conditions',
+      '依据 ${_clock(dataObservedAt)} 的数据',
+    ].join(' · ');
+  }
+
+  static String _clock(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
   }
 
   static int _notificationId(String watchId) {
@@ -302,6 +323,7 @@ class ShootingSessionNotificationReconciler {
           watch: watch,
           session: session,
           notifyAt: notifyAt,
+          dataObservedAt: snapshot.observedAt,
         );
       }
     }
@@ -320,6 +342,7 @@ class ShootingSessionNotificationReconciler {
           watch: plan.watch,
           session: plan.session,
           notifyAt: plan.notifyAt,
+          dataObservedAt: plan.dataObservedAt,
         );
       }
       next[entry.key] = plan.notifyAt;
@@ -340,11 +363,13 @@ class _WatchPlan {
     required this.watch,
     required this.session,
     required this.notifyAt,
+    required this.dataObservedAt,
   });
 
   final WatchedShootingSession watch;
   final ShootingSession session;
   final DateTime notifyAt;
+  final DateTime dataObservedAt;
 }
 
 final shootingSessionNotificationServiceProvider =

@@ -136,6 +136,15 @@ AI 没有默认供应商，也不会自动选择任何模型。自动文案模�
 
    缓存构建只用于依赖清单未变化的 release；`package-lock.json` 或 `pyproject.toml` 变化时必须恢复标准 Dockerfile 构建。缓存基底仍会在部署前作为旧应用镜像归档，失败时走同一套卷与镜像自动恢复流程。
 
+   BuildKit 解析固定摘要的基础镜像时只走 Docker 守护进程的 `registry-mirrors`，且不会回退到本机镜像库；镜像站返回 `401 Unauthorized` 时构建会在读任何层之前失败。此时把部署环境文件（与 `LUMANEST_BUILD_PROXY_URL` 同一个 `qweather-token-broker.env`）里的这两个变量指向能应答同一摘要的透传镜像即可，摘要本身仍是唯一事实来源：
+
+   ```bash
+   NODE_IMAGE=docker.m.daocloud.io/library/node:22-alpine@sha256:<与 Dockerfile 相同的摘要>
+   PYTHON_IMAGE=docker.m.daocloud.io/library/python:3.12-slim@sha256:<与 Dockerfile 相同的摘要>
+   ```
+
+   Compose 已把这两个 pin 作为可覆盖的构建参数暴露，默认值与各自 `Dockerfile` 逐字相同（有回归测试比对，两边不一致就报错），所以留空即回到审查过的官方摘要；覆盖必须保留 `@sha256:`，`nas-deploy.sh` 拒绝可变标签，也可以在命令行上临时给同样的两个变量（命令行优先于环境文件）。镜像站修复后应删掉这两行，不要把透传镜像长期写进配置。
+
    新 release 没有环境文件时，脚本会从当前 release 继承受保护的环境文件并保持 `600` 权限。脚本在停服务前归档当前 Broker/Context 镜像和旧 release 源码，停服务后再一致性归档命名卷；新栈迁移、健康检查或管理端口边界失败时，会先停新栈、恢复旧卷和旧镜像，再启动并验证旧栈。任一步恢复失败都会明确报错，不会声称恢复成功。
 
    成功后，备份位置以原子方式写入 `/vol2/docker/lumanest/last-backup`。需要恢复旧配置、镜像和卷时必须显式确认破坏性卷恢复：

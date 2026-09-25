@@ -1,9 +1,25 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { createHash } from 'node:crypto';
 
 import { requestNarrative, streamNarrative } from './adapters/index.mjs';
-import { guardGroundedOutput } from './grounding-guard.mjs';
+import { guardGroundedOutput, guardRejectionReasons } from './grounding-guard.mjs';
 
 const fallbackErrors = new Set(['timeout', 'rate_limited', 'upstream_unavailable']);
+
+/// Route outcomes with a fixed name. Anything not listed is folded into
+/// `other` so a new code path cannot silently grow metric cardinality.
+const routeEventNames = Object.freeze([
+  'requests',
+  'failed',
+  'primary_success',
+  'fallback_success',
+  'fallback_profile_blocked',
+  'call_budget_exhausted',
+  'unconfigured',
+  'extraction_parse_failed',
+]);
+const safeLabelPattern = /^[a-z0-9_]{1,40}$/;
 // The agent loop is capped at one tool round: one search, then the model must
 // produce a final grounded answer. A second consecutive tool_call is treated
 // as “model cannot settle” and degrades to the no-tool path rather than
@@ -23,6 +39,54 @@ export class LLMRouteMetrics {
 
   reset() {
     this.#values.clear();
+  }
+
+  /// Prometheus view of LLM routing.
+  ///
+  /// Only outcome *names* ever leave this object. Prompts, evidence text and raw
+  /// model output are not recorded at all, so the grounding failure that made a
+  /// request degrade is diagnosable without anything user- or model-derived
+  /// reaching the scrape (AGENTS.md §12.2).
+  toPrometheus() {
+    const guard = new Map(guardRejectionReasons.map((reason) => [reason, 0]));
+    const events = new Map(routeEventNames.map((name) => [name, 0]));
+    const upstream = new Map();
+    let guardOther = 0;
+    let eventOther = 0;
+    for (const [key, count] of this.#values) {
+      if (key.startsWith('guard_')) {
+        const reason = key.slice('guard_'.length);
+        if (guard.has(reason)) guard.set(reason, guard.get(reason) + count);
+        else guardOther += count;
+      } else if (key.startsWith('upstream_')) {
+        const error = key.slice('upstream_'.length);
+        const label = safeLabelPattern.test(error) ? error : 'other';
+        upstream.set(label, (upstream.get(label) ?? 0) + count);
+      } else if (events.has(key)) {
+        events.set(key, events.get(key) + count);
+      } else {
+        eventOther += count;
+      }
+    }
+    const lines = [
+      '# TYPE lumanest_llm_route_events_total counter',
+      ...routeEventNames.map(
+        (name) => `lumanest_llm_route_events_total{event="${name}"} ${events.get(name)}`,
+      ),
+      `lumanest_llm_route_events_total{event="other"} ${eventOther}`,
+      '# TYPE lumanest_llm_guard_rejections_total counter',
+      ...guardRejectionReasons.map(
+        (reason) => `lumanest_llm_guard_rejections_total{reason="${reason}"} ${guard.get(reason)}`,
+      ),
+      `lumanest_llm_guard_rejections_total{reason="other"} ${guardOther}`,
+    ];
+    if (upstream.size > 0) {
+      lines.push('# TYPE lumanest_llm_upstream_errors_total counter');
+      for (const [error, count] of [...upstream].sort()) {
+        lines.push(`lumanest_llm_upstream_errors_total{error="${error}"} ${count}`);
+      }
+    }
+    return `${lines.join('\n')}\n`;
   }
 }
 
@@ -131,7 +195,7 @@ export async function routeNarrative({
     ? null : profilesById.get(routing.primaryProfileId);
   if (primary == null || !primary.enabled || primary.model.length === 0) {
     metrics.record('unconfigured');
-    return { ok: false, error: 'ai_unconfigured', attempts: [] };
+    return { ok: false, error: apiErrorCodes.aiUnconfigured, attempts: [] };
   }
 
   const profileIds = [primary.id];
@@ -148,10 +212,10 @@ export async function routeNarrative({
       metrics.record('fallback_profile_blocked');
       continue;
     }
-    if (signal?.aborted) return { ok: false, error: 'timeout', attempts };
+    if (signal?.aborted) return { ok: false, error: apiErrorCodes.timeout, attempts };
     if (callBudget != null && !callBudget.consume()) {
       metrics.record('call_budget_exhausted');
-      return { ok: false, error: 'rate_limited', attempts };
+      return { ok: false, error: apiErrorCodes.rateLimited, attempts };
     }
     attempts.push(id);
     const result = await requester({ profile, prompt, fetcher, signal });
@@ -212,7 +276,7 @@ export async function* routeNarrativeStream({
     ? null : profilesById.get(routing.primaryProfileId);
   if (primary == null || !primary.enabled || primary.model.length === 0) {
     metrics.record('unconfigured');
-    yield { type: 'result', ok: false, error: 'ai_unconfigured', attempts: [] };
+    yield { type: 'result', ok: false, error: apiErrorCodes.aiUnconfigured, attempts: [] };
     return;
   }
 
@@ -232,12 +296,12 @@ export async function* routeNarrativeStream({
       continue;
     }
     if (signal?.aborted) {
-      yield { type: 'result', ok: false, error: 'timeout', attempts };
+      yield { type: 'result', ok: false, error: apiErrorCodes.timeout, attempts };
       return;
     }
     if (callBudget != null && !callBudget.consume()) {
       metrics.record('call_budget_exhausted');
-      yield { type: 'result', ok: false, error: 'rate_limited', attempts };
+      yield { type: 'result', ok: false, error: apiErrorCodes.rateLimited, attempts };
       return;
     }
     attempts.push(id);
@@ -307,7 +371,7 @@ export async function* routeAssistantAgent({
     yield {
       type: 'result',
       ok: false,
-      error: budgetResult.reason === 'deterministic_only' ? 'deterministic_only' : 'rate_limited',
+      error: budgetResult.reason === 'deterministic_only' ? apiErrorCodes.deterministicOnly : apiErrorCodes.rateLimited,
       attempts: [],
     };
     return;
@@ -317,11 +381,11 @@ export async function* routeAssistantAgent({
   const primary = routing.primaryProfileId == null
     ? null : profilesById.get(routing.primaryProfileId);
   if (primary == null || !primary.enabled || primary.model.length === 0) {
-    yield { type: 'result', ok: false, error: 'ai_unconfigured', attempts: [] };
+    yield { type: 'result', ok: false, error: apiErrorCodes.aiUnconfigured, attempts: [] };
     return;
   }
   if (!Array.isArray(tools) || tools.length === 0 || typeof executeTool !== 'function') {
-    yield { type: 'result', ok: false, error: 'agent_unconfigured', attempts: [] };
+    yield { type: 'result', ok: false, error: apiErrorCodes.agentUnconfigured, attempts: [] };
     return;
   }
 
@@ -332,12 +396,12 @@ export async function* routeAssistantAgent({
 
   for (let round = 0; round <= agentMaximumToolRounds; round += 1) {
     if (signal?.aborted) {
-      yield { type: 'result', ok: false, error: 'timeout', attempts: [primary.id] };
+      yield { type: 'result', ok: false, error: apiErrorCodes.timeout, attempts: [primary.id] };
       return;
     }
     if (callBudget != null && !callBudget.consume()) {
       metrics.record('agent_call_budget_exhausted');
-      yield { type: 'result', ok: false, error: 'rate_limited', attempts: [primary.id] };
+      yield { type: 'result', ok: false, error: apiErrorCodes.rateLimited, attempts: [primary.id] };
       return;
     }
     const result = await requestNarrative({
@@ -374,14 +438,14 @@ export async function* routeAssistantAgent({
         return;
       }
       metrics.record(`agent_guard_${guarded.reason ?? 'invalid_response'}`);
-      yield { type: 'result', ok: false, error: 'invalid_response', attempts: [primary.id] };
+      yield { type: 'result', ok: false, error: apiErrorCodes.invalidResponse, attempts: [primary.id] };
       return;
     }
     if (round === agentMaximumToolRounds) {
       // The model wants another search after we already allowed one. Stop the
       // loop and let the handler fall back to the no-tool streaming path.
       metrics.record('agent_tool_loop_exceeded');
-      yield { type: 'result', ok: false, error: 'tool_loop_exceeded', attempts: [primary.id] };
+      yield { type: 'result', ok: false, error: apiErrorCodes.toolLoopExceeded, attempts: [primary.id] };
       return;
     }
     // Execute the first tool call only. Multiple parallel calls in one turn
@@ -389,7 +453,7 @@ export async function* routeAssistantAgent({
     const call = toolCalls[0];
     if (call.name !== 'web_search') {
       metrics.record('agent_unknown_tool');
-      yield { type: 'result', ok: false, error: 'unknown_tool', attempts: [primary.id] };
+      yield { type: 'result', ok: false, error: apiErrorCodes.unknownTool, attempts: [primary.id] };
       return;
     }
     const query = typeof call.arguments === 'object' && call.arguments != null
@@ -409,7 +473,7 @@ export async function* routeAssistantAgent({
     extraMessages = buildToolFollowUpMessages(call, toolResult.ok ? toolResult.excerpt : '无搜索结果。');
   }
   metrics.record('agent_failed');
-  yield { type: 'result', ok: false, error: 'upstream_unavailable', attempts: [primary.id] };
+  yield { type: 'result', ok: false, error: apiErrorCodes.upstreamUnavailable, attempts: [primary.id] };
 }
 
 function augmentPromptWithSearch(prompt, excerpt, results) {

@@ -30,6 +30,34 @@ test('provider defaults are production-safe and secrets are masked', () => {
   assert.equal(providerConfigured('ebird', explicitlyEnabled), true);
 });
 
+test('only the providers named by the product scope run by default', () => {
+  const configuration = validateProviderSources(providerSourceDefaults());
+
+  assert.deepEqual([...configuration.enabledProviders].sort(), [
+    'gbif',
+    'inaturalist',
+    'officialNotices',
+    'osm',
+    'wikidata',
+    'wikimediaCommons',
+  ]);
+  // Adapters staying in the tree is not a reason to call them upstream; each of
+  // these needs a named user value chain before it returns to the default set.
+  for (const frozen of [
+    'sentinel1',
+    'sentinel2',
+    'cams',
+    'aeronet',
+    'firms',
+    'copernicusMarine',
+    'jplHorizons',
+    'noaaSwpc',
+    'ebird',
+  ]) {
+    assert.equal(providerConfigured(frozen, configuration), false, frozen);
+  }
+});
+
 test('official notice sources require HTTPS, coverage and authority before safety promotion', () => {
   assert.throws(() => validateProviderSources({
     officialNoticeSources: [{

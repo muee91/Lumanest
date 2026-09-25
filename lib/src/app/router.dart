@@ -157,25 +157,6 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
-        path: '/opportunity/:id',
-        pageBuilder: (context, state) {
-          final sessionId = state.pathParameters['id']!;
-          return _v2DetailPage(
-            state,
-            child: V2OpportunityPage(
-              sessionId: sessionId,
-              initialSnapshot:
-                  opportunitySnapshotFromRoute(
-                    state.extra,
-                    sessionId: sessionId,
-                  ) ??
-                  initialContext,
-            ),
-          );
-        },
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
         path: '/session/:id',
         pageBuilder: (context, state) {
           final sessionId = state.pathParameters['id']!;
@@ -195,38 +176,11 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
-        path: '/insight/:id',
-        pageBuilder: (context, state) => _v2DetailPage(
-          state,
-          child: IntelligenceOverlayLifecycle(
-            child: V2IntelligencePage(
-              initialSnapshot: initialContext,
-              initialNoteId: state.pathParameters['id'],
-            ),
-          ),
-        ),
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
         path: '/place/:id',
         pageBuilder: (context, state) => _v2DetailPage(
           state,
           child: V2ExplorePage(placeId: state.pathParameters['id']),
         ),
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
-        path: '/route-detail/:id',
-        pageBuilder: (context, state) => _v2DetailPage(
-          state,
-          child: V2RoutePage(routeId: state.pathParameters['id']),
-        ),
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
-        path: '/profile/settings',
-        pageBuilder: (context, state) =>
-            _v2DetailPage(state, child: const V2ProfileSettingsPage()),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

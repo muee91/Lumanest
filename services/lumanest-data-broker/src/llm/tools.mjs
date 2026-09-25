@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 // Assistant tool-calling support. V1 exposes a single `web_search` tool that
 // delegates to the existing Tavily adapter (discovery/ingestion.mjs), so the
 // assistant can answer questions the local snapshot cannot cover (opening
@@ -42,10 +44,10 @@ export const assistantTools = [
 // template/contextFacts answer rather than surfacing an error.
 export async function executeWebSearch({ query, profile, fetcher, signal }) {
   if (typeof query !== 'string' || query.trim().length === 0) {
-    return { ok: false, error: 'empty_query' };
+    return { ok: false, error: apiErrorCodes.emptyQuery };
   }
   if (profile?.enabled !== true) {
-    return { ok: false, error: 'search_unconfigured' };
+    return { ok: false, error: apiErrorCodes.searchUnconfigured };
   }
   // Domains default to the full reviewed allow-list, matching the discovery
   // worker behaviour when no explicit domains are supplied. This keeps every

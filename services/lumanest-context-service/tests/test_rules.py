@@ -118,7 +118,6 @@ def test_stale_weather_keeps_safety_but_drops_creative_events():
     body.weather.thunder = True
     result = evaluate(body)
     assert [event.id for event in result.events] == ["thunderstorm"]
-    assert result.manifest.layout_mode == "safety"
     assert result.data_freshness.context == "stale"
     assert result.allowed_actions == ["openSafetyDetail"]
 
@@ -161,7 +160,6 @@ def test_reviewed_wildlife_opportunity_is_creative_but_never_created_from_stale_
     assert event.channel == "wildlifeOpportunity"
     assert event.source == "wildlifeHistorical"
     assert event.geo_scope == "region"
-    assert fresh.manifest.primary_event_id == "regional-wildlife"
 
     stale = evaluate(request_for(evidence={"wildlifeOpportunity": True}, stale=True))
     assert all(event.id != "regional-wildlife" for event in stale.events)
@@ -224,7 +222,6 @@ def test_active_reviewed_astronomy_event_preserves_title_and_https_authority():
     assert event.allowed_action == "openAstronomyDetail"
     assert event.observed_at == starts_at
     assert event.expires_at == ends_at
-    assert result.manifest.primary_event_id == event.id
     assert "openAstronomyDetail" in result.allowed_actions
 
 

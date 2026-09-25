@@ -3,6 +3,15 @@ x-build-proxy-args: &build-proxy-args
   HTTPS_PROXY: ${LUMANEST_BUILD_PROXY_URL:-}
   NO_PROXY: 127.0.0.1,localhost
 
+# BuildKit resolves a digest-pinned FROM through the Docker daemon's
+# registry-mirrors and never falls back to the host image store, so a mirror
+# that answers 401 fails the build before any layer is read.  These defaults
+# match the Dockerfile pins exactly; a deployment whose mirror is broken can
+# point them at a pass-through serving the same digest.
+x-base-image-args: &base-image-args
+  NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2}
+  PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de}
+
 x-build-extra-hosts: &build-extra-hosts
   - "host.docker.internal:host-gateway"
 
@@ -11,7 +20,8 @@ services:
     build:
       context: .
       dockerfile: ${BROKER_DOCKERFILE:-Dockerfile}
-      args: *build-proxy-args
+      args:
+        <<: [*build-proxy-args, *base-image-args]
       extra_hosts: *build-extra-hosts
     container_name: lumanest-qweather-token-broker
     restart: unless-stopped
@@ -80,7 +90,8 @@ services:
     build:
       context: ../lumanest-raster-service
       dockerfile: ${RASTER_DOCKERFILE:-Dockerfile}
-      args: *build-proxy-args
+      args:
+        <<: [*build-proxy-args, *base-image-args]
       extra_hosts: *build-extra-hosts
     container_name: lumanest-raster-service
     restart: unless-stopped
@@ -111,7 +122,8 @@ services:
     build:
       context: ../lumanest-terrain-service
       dockerfile: ${TERRAIN_DOCKERFILE:-Dockerfile}
-      args: *build-proxy-args
+      args:
+        <<: [*build-proxy-args, *base-image-args]
       extra_hosts: *build-extra-hosts
     container_name: lumanest-terrain-service
     restart: unless-stopped
@@ -140,7 +152,8 @@ services:
     build:
       context: ../lumanest-context-service
       dockerfile: ${CONTEXT_DOCKERFILE:-Dockerfile}
-      args: *build-proxy-args
+      args:
+        <<: [*build-proxy-args, *base-image-args]
       extra_hosts: *build-extra-hosts
     container_name: lumanest-context-service
     restart: unless-stopped
@@ -178,7 +191,7 @@ services:
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_DOCKERFILE:-Dockerfile}
       args:
-        <<: *build-proxy-args
+        <<: [*build-proxy-args, *base-image-args]
         DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
       extra_hosts: *build-extra-hosts
     container_name: lumanest-discovery-api
@@ -217,7 +230,7 @@ services:
       context: ../lumanest-discovery-service
       dockerfile: ${DISCOVERY_WORKER_DOCKERFILE:-Dockerfile.crawler}
       args:
-        <<: *build-proxy-args
+        <<: [*build-proxy-args, *base-image-args]
         DISCOVERY_BASE_IMAGE: ${DISCOVERY_BASE_IMAGE:-qweather-token-broker-context-service:latest}
       extra_hosts: *build-extra-hosts
     container_name: lumanest-discovery-worker

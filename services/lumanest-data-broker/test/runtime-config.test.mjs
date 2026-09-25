@@ -40,6 +40,36 @@ class MemoryStore {
   }
 }
 
+test('an older persisted settings block does not brick startup when keys were removed', async () => {
+  const store = new MemoryStore({
+    settings: {
+      wildlifeRadiusKm: 35,
+      skyOpportunityNotificationEnabled: true,
+      skyOpportunityNotificationThreshold: 1,
+    },
+  });
+  const service = new RuntimeConfigService({ defaults: environmentDefaults(), store });
+  await service.initialize();
+
+  const snapshot = service.snapshot();
+  assert.equal(snapshot.settings.wildlifeRadiusKm, 35);
+  assert.equal(Object.hasOwn(snapshot.settings, 'skyOpportunityNotificationEnabled'), false);
+  assert.equal(Object.hasOwn(snapshot.settings, 'skyOpportunityNotificationThreshold'), false);
+});
+
+test('settings written through the admin API still reject unknown keys', async () => {
+  const service = new RuntimeConfigService({
+    defaults: environmentDefaults(),
+    store: new MemoryStore({ settings: { wildlifeRadiusKm: 35 } }),
+  });
+  await service.initialize();
+
+  await assert.rejects(
+    service.replace({ settings: { skyOpportunityNotificationEnabled: true } }),
+    /Unknown runtime setting: skyOpportunityNotificationEnabled/,
+  );
+});
+
 test('persisted values override environment while omitted fields fall back', async () => {
   const store = new MemoryStore({
     settings: { wildlifeRadiusKm: 35 },

@@ -31,6 +31,33 @@ enum EntrySurface {
   notification,
 }
 
+/// Farthest lead time at which an entry may be the reason the app speaks first.
+///
+/// Mirrors `INTERRUPT_LEAD_LIMIT` in the context service. Evidence beyond this
+/// horizon may state its conditions on a page the user opened, but must never
+/// interrupt — see docs/core-1.0-scope.md §7.1.
+const Duration entryNotificationLeadLimit = Duration(hours: 2);
+
+/// Surfaces a non-safety entry may occupy once its own conditions qualify.
+///
+/// Mirrors `BASE_SURFACES` in `services/lumanest-context-service/app/v5.py`.
+/// Entries that arrive over the wire already carry the server's verdict, so the
+/// service stays the authority; these constants exist only so entries the client
+/// composes locally are held to the same ceiling instead of inventing their own.
+const Set<EntrySurface> entryBaseSurfaces = {
+  EntrySurface.today,
+  EntrySurface.explore,
+  EntrySurface.route,
+  EntrySurface.shootingWindow,
+};
+
+/// Safety owns the interrupt path at any lead time, unlike creative entries.
+const Set<EntrySurface> entrySafetySurfaces = {
+  ...entryBaseSurfaces,
+  EntrySurface.widget,
+  EntrySurface.notification,
+};
+
 enum EntryPresentationVariant {
   safety,
   shootingSession,

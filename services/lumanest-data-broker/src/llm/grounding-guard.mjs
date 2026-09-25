@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 // Equipment the assistant must not invent. "相机" and "镜头" were removed
 // because they are generic photography vocabulary the model naturally uses
 // when answering "why is this good to shoot"; the specific gear list
@@ -343,24 +345,48 @@ function guardGeneralAssistant(user, candidate) {
   return { ok: true };
 }
 
+/// Every rejection reason the guard can return.
+///
+/// Exported so the metrics surface can pre-declare the full label set: an
+/// operator then reads a real zero instead of guessing whether a missing series
+/// meant "never happened" or "never instrumented". The llm-metrics test fails if
+/// the guard starts returning a reason that is not listed here.
+export const guardRejectionReasons = Object.freeze([
+  'invalid_json',
+  'invalid_labels',
+  'invalid_shape',
+  'safety_polarity_reversal',
+  'sensitive_credential',
+  'unsupported_action',
+  'unsupported_equipment',
+  'unsupported_fact_binding',
+  'unsupported_label_claim',
+  'unsupported_live_claim',
+  'unsupported_number',
+  'unsupported_place',
+  'unsupported_probability',
+  'unsupported_safety_claim',
+  'unsupported_time',
+]);
+
 export function guardGroundedOutput({ prompt, text }) {
   const user = parsedJson(prompt?.user);
   if (user?.responseMode === 'general') {
     const candidate = parsedJson(text);
     if (candidate == null) {
-      return { ok: false, error: 'invalid_response', reason: 'invalid_json' };
+      return { ok: false, error: apiErrorCodes.invalidResponse, reason: 'invalid_json' };
     }
     const guarded = guardGeneralAssistant(user, candidate);
     return guarded.ok
       ? { ok: true, text }
-      : { ok: false, error: 'invalid_response', reason: guarded.reason };
+      : { ok: false, error: apiErrorCodes.invalidResponse, reason: guarded.reason };
   }
   if (user == null || (typeof user.templateAnswer !== 'string' && typeof user.templateSummary !== 'string')) {
     return { ok: true, text };
   }
   const candidate = parsedJson(text);
   if (candidate == null) {
-    return { ok: false, error: 'invalid_response', reason: 'invalid_json' };
+    return { ok: false, error: apiErrorCodes.invalidResponse, reason: 'invalid_json' };
   }
 
   const guarded = typeof user.templateAnswer === 'string'
@@ -369,5 +395,5 @@ export function guardGroundedOutput({ prompt, text }) {
 
   return guarded.ok
     ? { ok: true, text }
-    : { ok: false, error: 'invalid_response', reason: guarded.reason };
+    : { ok: false, error: apiErrorCodes.invalidResponse, reason: guarded.reason };
 }

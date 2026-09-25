@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const amapBaseUrl = 'https://restapi.amap.com';
 const earthAxis = 6_378_245;
 const eccentricitySquared = 0.00669342162296594323;
@@ -110,7 +112,7 @@ export async function fetchAmapSceneEvidence({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!apiKey) return { ok: false, error: 'not_configured' };
+  if (!apiKey) return { ok: false, error: apiErrorCodes.notConfigured };
   const gcj02 = wgs84ToGcj02(coordinate);
   const url = new URL('/v3/geocode/regeo', amapBaseUrl);
   url.searchParams.set('location', `${gcj02.longitude},${gcj02.latitude}`);
@@ -123,9 +125,9 @@ export async function fetchAmapSceneEvidence({
     const body = await upstream.json();
     const evidence = upstream.ok ? parseAmapSceneEvidence(body) : null;
     return evidence == null
-      ? { ok: false, error: 'upstream_unavailable' }
+      ? { ok: false, error: apiErrorCodes.upstreamUnavailable }
       : { ok: true, evidence };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }

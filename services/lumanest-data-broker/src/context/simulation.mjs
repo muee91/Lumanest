@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { createHash } from 'node:crypto';
 
 const presets = Object.freeze({
@@ -229,9 +231,9 @@ export class SimulationRegistry {
 
   activate(controlId, preset) {
     this.#prune();
-    if (!Object.hasOwn(presets, preset)) return { ok: false, error: 'invalid_preset' };
+    if (!Object.hasOwn(presets, preset)) return { ok: false, error: apiErrorCodes.invalidPreset };
     const entry = [...this.sessions.values()].find((candidate) => candidate.controlId === controlId);
-    if (entry == null) return { ok: false, error: 'session_not_found' };
+    if (entry == null) return { ok: false, error: apiErrorCodes.sessionNotFound };
     entry.preset = preset;
     entry.activatedAt = this.now();
     entry.expiresAt = this.now() + this.ttlMs;
@@ -240,7 +242,7 @@ export class SimulationRegistry {
 
   clear(controlId) {
     const entry = [...this.sessions.values()].find((candidate) => candidate.controlId === controlId);
-    if (entry == null) return { ok: false, error: 'session_not_found' };
+    if (entry == null) return { ok: false, error: apiErrorCodes.sessionNotFound };
     entry.preset = null;
     entry.activatedAt = null;
     return { ok: true };

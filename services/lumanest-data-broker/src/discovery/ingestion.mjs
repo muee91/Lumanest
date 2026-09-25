@@ -1,4 +1,6 @@
-import { routeNarrative } from '../llm/router.mjs';
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
+import { llmRouteMetrics, routeNarrative } from '../llm/router.mjs';
 
 const searchKeys = new Set(['query', 'locale', 'freshnessDays', 'domains']);
 const extractKeys = new Set(['missionType', 'focus', 'locale', 'region', 'evidence']);
@@ -133,7 +135,7 @@ export function sanitizeTavilyResults(payload, sourcePolicies) {
 
 export async function searchTavily({ request, profile, fetcher = fetch, signal }) {
   if (!profile?.enabled || !profile.apiKey || !profile.sourcePolicies?.some((policy) => policy.enabled)) {
-    return { ok: false, error: 'search_unconfigured' };
+    return { ok: false, error: apiErrorCodes.searchUnconfigured };
   }
   try {
     const response = await fetcher(new URL('/search', profile.baseUrl), {
@@ -153,10 +155,10 @@ export async function searchTavily({ request, profile, fetcher = fetch, signal }
       }),
     });
     const payload = await response.json().catch(() => null);
-    if (!response.ok) return { ok: false, error: 'upstream_unavailable' };
+    if (!response.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     return { ok: true, results: sanitizeTavilyResults(payload, profile.sourcePolicies) };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }
 
@@ -318,6 +320,7 @@ export function parseDiscoveryCandidates(value, evidence) {
 
 export async function extractDiscoveryCandidates({
   body, profiles, routing, fetcher = fetch, signal, callBudget,
+  metrics = llmRouteMetrics,
 }) {
   const routed = await routeNarrative({
     profiles,
@@ -326,6 +329,7 @@ export async function extractDiscoveryCandidates({
     fetcher,
     signal,
     callBudget,
+    metrics,
   });
   // This route is internal-only and all router errors are stable categories.
   // Preserve the category so the worker can distinguish a malformed model
@@ -333,5 +337,13 @@ export async function extractDiscoveryCandidates({
   // evidence text, credentials, or raw model output.
   if (!routed.ok) return { ok: false, error: routed.error };
   const result = parseDiscoveryCandidates(routed.text, body.evidence);
-  return result == null ? { ok: false, error: 'invalid_response' } : { ok: true, ...result };
+  if (result == null) {
+    // Both this and a guard rejection used to surface as `invalid_response`, so
+    // "the model ignored the extraction schema" was indistinguishable from
+    // "the model claimed an ungrounded place". The name is enumerated; the
+    // offending text is deliberately not recorded anywhere.
+    metrics.record('extraction_parse_failed');
+    return { ok: false, error: apiErrorCodes.invalidResponse };
+  }
+  return { ok: true, ...result };
 }

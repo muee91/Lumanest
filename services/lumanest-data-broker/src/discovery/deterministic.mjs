@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const amapBaseUrl = 'https://restapi.amap.com';
 const requestKeys = new Set(['missionType', 'focus', 'locale', 'region', 'evidence']);
 const regionKeys = new Set(['latitude', 'longitude', 'radiusMeters']);
@@ -205,7 +207,7 @@ export async function resolveDeterministicDiscovery({
   now = () => new Date(),
 }) {
   if (!validDeterministicDiscoveryRequest(body) || !amapWebKey) {
-    return { ok: false, error: 'not_configured' };
+    return { ok: false, error: apiErrorCodes.notConfigured };
   }
   const options = { amapWebKey, fetcher, timeoutMs, now };
   const result = body.missionType === 'routeConditions'

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
-import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 
@@ -9,7 +8,7 @@ void main() {
   final now = DateTime.utc(2026, 7, 15, 12);
 
   test('low, medium and high intensity apply the approved stable ordering', () {
-    final snapshot = _serverSnapshot(
+    final snapshot = _structuredEventSnapshot(
       now,
       creativeIds: const [
         'event.sky.sunset_glow',
@@ -48,7 +47,7 @@ void main() {
     'personalized primary keeps summary and inspiration preview coherent',
     () {
       final manifest = ManifestPolicy.build(
-        _serverSnapshot(
+        _structuredEventSnapshot(
           now,
           creativeIds: const [
             'session.water.evening',
@@ -135,24 +134,20 @@ void main() {
   });
 }
 
-ContextSnapshot _serverSnapshot(
+ContextSnapshot _structuredEventSnapshot(
   DateTime now, {
   required List<String> creativeIds,
 }) {
   return ContextSnapshot(
-    id: 'personalized-server',
+    id: 'personalized-events',
     observedAt: now,
     expiresAt: now.add(const Duration(minutes: 20)),
     primaryScene: SceneType.city,
     dayPhase: DayPhase.blueHour,
     weather: WeatherType.clear,
     activeRoute: false,
+    opportunityIds: creativeIds,
     events: [for (final id in creativeIds) _opportunity(now, id)],
-    serverManifest: ServerManifest(
-      layout: ServerManifestLayout.opportunity,
-      primaryEventId: creativeIds.first,
-      secondaryEventIds: creativeIds.skip(1).toList(),
-    ),
   );
 }
 

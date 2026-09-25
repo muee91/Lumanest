@@ -224,7 +224,6 @@ ContextSnapshot _withSessions(
   routeMode: base.routeMode,
   routeStage: base.routeStage,
   allowedActions: base.allowedActions,
-  serverManifest: base.serverManifest,
   entries: base.entries,
   canonicalEntriesPresent: base.canonicalEntriesPresent,
 );
@@ -271,7 +270,6 @@ ContextSnapshot _withFreshness(ContextSnapshot base, {required bool stale}) =>
       routeMode: base.routeMode,
       routeStage: base.routeStage,
       allowedActions: base.allowedActions,
-      serverManifest: base.serverManifest,
       entries: base.entries,
       canonicalEntriesPresent: base.canonicalEntriesPresent,
     );

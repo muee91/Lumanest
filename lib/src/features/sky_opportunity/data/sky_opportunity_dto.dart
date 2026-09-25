@@ -184,7 +184,6 @@ DailySkyOpportunities parseDailySkyOpportunities(Map<String, Object?> body) {
     flags: SkyOpportunityFeatureFlags(
       providerEnabled: flags?['sunsetbotProviderEnabled'] == true,
       cardEnabled: flags?['skyOpportunityCardEnabled'] == true,
-      notificationEnabled: flags?['skyOpportunityNotificationEnabled'] == true,
       mapEnabled: flags?['skyOpportunityMapEnabled'] == true,
     ),
   );

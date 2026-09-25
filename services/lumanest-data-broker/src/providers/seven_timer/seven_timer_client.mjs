@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { randomInt } from 'node:crypto';
 
 const retryStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -29,24 +31,24 @@ function safeRedirect(response, originalUrl, product) {
 async function boundedJson(response, maximumBytes) {
   const declared = Number.parseInt(response.headers.get('content-length') ?? '', 10);
   if (Number.isFinite(declared) && declared > maximumBytes) {
-    return { ok: false, error: 'response_too_large' };
+    return { ok: false, error: apiErrorCodes.responseTooLarge };
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maximumBytes) return { ok: false, error: 'response_too_large' };
+  if (bytes.byteLength > maximumBytes) return { ok: false, error: apiErrorCodes.responseTooLarge };
   const text = new TextDecoder().decode(bytes).trim();
   const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '';
   const jsonType = contentType === 'application/json' || contentType === 'text/json';
   const compatibleText = contentType === 'text/plain' || contentType === 'text/html';
   if (!jsonType && !(compatibleText && text.startsWith('{'))) {
-    return { ok: false, error: 'unexpected_content_type' };
+    return { ok: false, error: apiErrorCodes.unexpectedContentType };
   }
   try {
     const value = JSON.parse(text);
     return value != null && typeof value === 'object' && !Array.isArray(value)
       ? { ok: true, value }
-      : { ok: false, error: 'invalid_json_body' };
+      : { ok: false, error: apiErrorCodes.invalidJsonBody };
   } catch {
-    return { ok: false, error: 'invalid_json' };
+    return { ok: false, error: apiErrorCodes.invalidJson };
   }
 }
 
@@ -84,11 +86,11 @@ export class SevenTimerClient {
         if (redirectStatuses.has(response.status)) {
           const redirect = safeRedirect(response, url, product);
           if (redirect == null) {
-            return { ok: false, error: 'redirect_rejected', attempts: attempt };
+            return { ok: false, error: apiErrorCodes.redirectRejected, attempts: attempt };
           }
           response = await this.request(redirect);
           if (redirectStatuses.has(response.status)) {
-            return { ok: false, error: 'redirect_rejected', attempts: attempt };
+            return { ok: false, error: apiErrorCodes.redirectRejected, attempts: attempt };
           }
         }
         if (!response.ok) {

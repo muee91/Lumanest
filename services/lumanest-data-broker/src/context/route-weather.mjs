@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { buildRouteCorridorIntelligence } from './route-corridor-intelligence.mjs';
 
 const maximumRouteWeatherSamples = 5;
@@ -97,7 +99,7 @@ export async function routeWeatherForecast({
     return { weather: sanitizedSample(sample, weather), corridor };
   }));
   const samples = results.map((item) => item.weather).filter((sample) => sample != null);
-  if (samples.length === 0) return { ok: false, error: 'upstream_unavailable' };
+  if (samples.length === 0) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   const corridor = buildRouteCorridorIntelligence({
     body,
     providerResults: results.map((item) => item.corridor),

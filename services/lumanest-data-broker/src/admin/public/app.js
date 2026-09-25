@@ -46,7 +46,7 @@ function renderConfig(config){
     ['App 访问',config.services.serviceToken],
   ];
   const configuredCount=integrations.filter(([,value])=>value?.configured).length;
-  const enabledCapabilities=config.settings?.sunsetbotProviderEnabled?['skyOpportunityCardEnabled','skyOpportunityNotificationEnabled','skyOpportunityMapEnabled','skyOpportunityTomorrowSunsetEnabled'].filter((name)=>config.settings?.[name]).length:0;
+  const enabledCapabilities=config.settings?.sunsetbotProviderEnabled?['skyOpportunityCardEnabled','skyOpportunityMapEnabled','skyOpportunityTomorrowSunsetEnabled'].filter((name)=>config.settings?.[name]).length:0;
   const enabledSourceCount=(config.discoverySearch?.sourcePolicies??[]).filter((policy)=>policy.enabled).length;
   $('#revision').textContent=String(config.revision??'—');
   $('#configured-count').textContent=`${configuredCount} / ${integrations.length}`;
@@ -81,7 +81,6 @@ function renderConfig(config){
   appendCapability({name:'助手联网搜索',detail:'独立于探索搜索，回答展示可点击来源',enabled:Boolean(config.settings?.assistantWebSearchEnabled&&searchReady)});
   appendCapability({name:'审核来源探索',detail:`${enabledSourceCount} 条已启用来源政策`,enabled:searchReady});
   appendCapability({name:'首页机会对象',detail:'朝霞与晚霞机会按阈值出现',enabled:Boolean(config.settings?.sunsetbotProviderEnabled&&config.settings?.skyOpportunityCardEnabled)});
-  appendCapability({name:'机会通知',detail:'只在达到独立通知阈值时触发',enabled:Boolean(config.settings?.sunsetbotProviderEnabled&&config.settings?.skyOpportunityNotificationEnabled)});
   const issueCount=[qweatherReady,amapReady,appReady,searchReady||!config.discoverySearch?.enabled,llmReady||!config.settings?.aiEnabled].filter((ready)=>!ready).length;
   $('#action-summary').textContent=issueCount===0?'当前没有阻塞性配置问题。':`检测到 ${issueCount} 项启用中的能力尚未完成配置。`;
   for(const [name,value] of Object.entries(config.services))setMask(name,value);

@@ -112,13 +112,11 @@ class SkyOpportunityFeatureFlags {
   const SkyOpportunityFeatureFlags({
     this.providerEnabled = false,
     this.cardEnabled = false,
-    this.notificationEnabled = false,
     this.mapEnabled = false,
   });
 
   final bool providerEnabled;
   final bool cardEnabled;
-  final bool notificationEnabled;
   final bool mapEnabled;
 }
 

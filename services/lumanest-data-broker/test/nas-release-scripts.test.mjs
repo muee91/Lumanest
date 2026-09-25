@@ -115,6 +115,98 @@ test('production images pin base digests and hashed Python dependency locks', as
   }
 });
 
+test('compose exposes the base pins as overrides that default to the same digest', async () => {
+  const compose = await readFile(new URL('../compose.yaml', import.meta.url), 'utf8');
+  const pinSources = {
+    NODE_IMAGE: ['../Dockerfile'],
+    PYTHON_IMAGE: [
+      '../../lumanest-context-service/Dockerfile',
+      '../../lumanest-discovery-service/Dockerfile',
+      '../../lumanest-discovery-service/Dockerfile.crawler',
+      '../../lumanest-raster-service/Dockerfile',
+      '../../lumanest-terrain-service/Dockerfile',
+    ],
+  };
+
+  for (const [arg, sources] of Object.entries(pinSources)) {
+    const declared = compose.match(new RegExp(`${arg}: \\$\\{${arg}:-([^}]+)\\}`))?.[1];
+    assert.ok(declared, `${arg} is not overridable through compose`);
+    for (const source of sources) {
+      const dockerfile = await readFile(new URL(source, import.meta.url), 'utf8');
+      assert.equal(
+        dockerfile.match(new RegExp(`ARG ${arg}=(\\S+)`))?.[1],
+        declared,
+        `${source} and compose disagree about the ${arg} default`,
+      );
+    }
+  }
+});
+
+test('base image overrides are forwarded to BuildKit as pinned mirror references', async () => {
+  const pinnedNode =
+    'docker.m.daocloud.io/library/node:22-alpine@sha256:' +
+    '16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2';
+  const pinnedPython =
+    'docker.m.daocloud.io/library/python:3.12-slim@sha256:' +
+    '57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de';
+  const fixture = await deploymentFixture();
+  const result = spawnSync('sh', [fixture.deployScript], {
+    cwd: dirname(fixture.deployScript),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${fixture.binDir}:${process.env.PATH}`,
+      LUMANEST_ROOT: fixture.root,
+      HEALTHCHECK_ATTEMPTS: '1',
+      HEALTHCHECK_INTERVAL_SECONDS: '1',
+      NODE_IMAGE: pinnedNode,
+      PYTHON_IMAGE: pinnedPython,
+      TEST_LOG: fixture.logFile,
+      TEST_STATE: fixture.stateFile,
+      TEST_VOLUME_SOURCE: fixture.volumeSource,
+    },
+  });
+
+  const log = await readFile(fixture.logFile, 'utf8');
+  const buildLine = log
+    .split('\n')
+    .find((line) => line.startsWith('compose ') && line.includes(' build '));
+  assert.ok(
+    buildLine &&
+      buildLine.includes(`--build-arg NODE_IMAGE=${pinnedNode}`) &&
+      buildLine.endsWith(`--build-arg PYTHON_IMAGE=${pinnedPython}`),
+    `expected both base image args in one build call:\n${log}`,
+  );
+  assert.ok(!result.stderr.includes('NODE_IMAGE'), result.stderr);
+});
+
+test('base image overrides cannot weaken a digest pin into a movable tag', async () => {
+  for (const rejected of ['python:3.12-slim', 'python:3.12-slim@sha256:deadbeef']) {
+    const fixture = await deploymentFixture();
+    const result = spawnSync('sh', [fixture.deployScript], {
+      cwd: dirname(fixture.deployScript),
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fixture.binDir}:${process.env.PATH}`,
+        LUMANEST_ROOT: fixture.root,
+        PYTHON_IMAGE: rejected,
+        TEST_LOG: fixture.logFile,
+        TEST_STATE: fixture.stateFile,
+        TEST_VOLUME_SOURCE: fixture.volumeSource,
+      },
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /PYTHON_IMAGE must be an @sha256-pinned image reference/);
+    assert.equal(
+      await readFile(fixture.logFile, 'utf8'),
+      '',
+      `refusing ${rejected} must happen before any Docker call`,
+    );
+  }
+});
+
 test('NAS release scripts are POSIX-valid and never require host root volume access', async () => {
   for (const script of scripts) {
     const path = fileURLToPath(script);

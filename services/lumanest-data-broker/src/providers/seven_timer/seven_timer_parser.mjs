@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import {
   cloudCoverRanges,
   humidityRanges,
@@ -167,13 +169,13 @@ function twoPoint(raw, sourceInitAt) {
 }
 
 export function parseSevenTimerResponse(body, { product, now = new Date() }) {
-  if (!products.has(product)) return { ok: false, error: 'invalid_product' };
+  if (!products.has(product)) return { ok: false, error: apiErrorCodes.invalidProduct };
   const root = object(body);
   if (root == null || root.product !== product || !Array.isArray(root.dataseries)) {
-    return { ok: false, error: 'invalid_body' };
+    return { ok: false, error: apiErrorCodes.invalidBody };
   }
   const sourceInitAt = parseSourceInit(root.init);
-  if (sourceInitAt == null) return { ok: false, error: 'invalid_init' };
+  if (sourceInitAt == null) return { ok: false, error: apiErrorCodes.invalidInit };
   const parser = { astro: astroPoint, meteo: meteoPoint, two: twoPoint }[product];
   const points = [];
   let previousTimepoint = -1;
@@ -184,7 +186,7 @@ export function parseSevenTimerResponse(body, { product, now = new Date() }) {
     const point = parser(entry, sourceInitAt);
     if (point != null) points.push(point);
   }
-  if (points.length === 0) return { ok: false, error: 'empty_dataseries' };
+  if (points.length === 0) return { ok: false, error: apiErrorCodes.emptyDataseries };
   return {
     ok: true,
     value: {

@@ -1,23 +1,9 @@
 import 'package:luma_nest/src/core/context/context_event.dart';
-import 'package:luma_nest/src/core/context/server_manifest.dart';
 
 enum LayoutMode {
   quiet,
   opportunity,
   operation;
-
-  /// Maps the server's [ServerManifestLayout] to a client [LayoutMode].
-  ///
-  /// The mapping is exhaustive: `quiet`→[quiet], `opportunity`→[opportunity],
-  /// `safety`→[operation]. The client has no dedicated `safety` layout, so the
-  /// server's `safety` mode collapses to [operation]. Unknown values never
-  /// reach this method — [ServerManifestLayout] is already a validated enum.
-  static LayoutMode fromServerLayout(ServerManifestLayout layout) =>
-      switch (layout) {
-        ServerManifestLayout.quiet => LayoutMode.quiet,
-        ServerManifestLayout.opportunity => LayoutMode.opportunity,
-        ServerManifestLayout.safety => LayoutMode.operation,
-      };
 }
 
 enum ManifestAction {

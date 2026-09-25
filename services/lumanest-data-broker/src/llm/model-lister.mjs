@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 function responseError(status) {
   if (status === 401 || status === 403) return 'authentication_failed';
   if (status === 429) return 'rate_limited';
@@ -49,7 +51,7 @@ function modelsFrom(profile, body) {
 
 export async function listModels({ profile, fetcher = fetch }) {
   const request = requestFor(profile);
-  if (request == null) return { ok: false, error: 'request_rejected' };
+  if (request == null) return { ok: false, error: apiErrorCodes.requestRejected };
   let response;
   try {
     response = await fetcher(request.url, {
@@ -58,13 +60,13 @@ export async function listModels({ profile, fetcher = fetch }) {
     });
   } catch (error) {
     const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';
-    return { ok: false, error: timeout ? 'timeout' : 'upstream_unavailable' };
+    return { ok: false, error: timeout ? apiErrorCodes.timeout : apiErrorCodes.upstreamUnavailable };
   }
   if (!response.ok) return { ok: false, error: responseError(response.status) };
   try {
     const models = modelsFrom(profile, await response.json());
-    return models == null ? { ok: false, error: 'invalid_response' } : { ok: true, models };
+    return models == null ? { ok: false, error: apiErrorCodes.invalidResponse } : { ok: true, models };
   } catch {
-    return { ok: false, error: 'invalid_response' };
+    return { ok: false, error: apiErrorCodes.invalidResponse };
   }
 }

@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { createHash, randomUUID } from 'node:crypto';
 
 import { MemorySevenTimerCache } from '../../infrastructure/cache/seven_timer_cache.mjs';
@@ -128,7 +130,7 @@ export class SevenTimerService {
 
   async testProduct(query) {
     const valid = validSevenTimerRequest(query);
-    if (valid == null) return { ok: false, error: 'invalid_request' };
+    if (valid == null) return { ok: false, error: apiErrorCodes.invalidRequest };
     const config = sevenTimerConfig(this.settings(), { baseUrl: this.baseUrl });
     const instant = this.now();
     const previous = this.lastTestAt.get(valid.product);
@@ -136,19 +138,19 @@ export class SevenTimerService {
       const traceId = randomUUID();
       this.metrics.increment(valid.product, 'manualTestRejected');
       this._log({ traceId, product: valid.product, outcome: 'rejected', errorCode: 'test_in_progress', attempts: 0, latencyMs: 0, cacheStatus: 'test', circuitState: this.circuitBreakers.get(valid.product).state(instant), manual: true });
-      return { ok: false, error: 'test_in_progress', traceId };
+      return { ok: false, error: apiErrorCodes.testInProgress, traceId };
     }
     if (previous != null && instant.getTime() - previous < config.adminTestCooldownSeconds * 1_000) {
       const traceId = randomUUID();
       this.metrics.increment(valid.product, 'manualTestRejected');
       this._log({ traceId, product: valid.product, outcome: 'rejected', errorCode: 'test_cooldown', attempts: 0, latencyMs: 0, cacheStatus: 'test', circuitState: this.circuitBreakers.get(valid.product).state(instant), manual: true });
-      return { ok: false, error: 'test_cooldown', traceId, retryAfterSeconds: Math.ceil((config.adminTestCooldownSeconds * 1_000 - (instant.getTime() - previous)) / 1_000) };
+      return { ok: false, error: apiErrorCodes.testCooldown, traceId, retryAfterSeconds: Math.ceil((config.adminTestCooldownSeconds * 1_000 - (instant.getTime() - previous)) / 1_000) };
     }
     if (this.testInFlight.size >= config.adminTestMaxConcurrency) {
       const traceId = randomUUID();
       this.metrics.increment(valid.product, 'manualTestRejected');
       this._log({ traceId, product: valid.product, outcome: 'rejected', errorCode: 'test_busy', attempts: 0, latencyMs: 0, cacheStatus: 'test', circuitState: this.circuitBreakers.get(valid.product).state(instant), manual: true });
-      return { ok: false, error: 'test_busy', traceId };
+      return { ok: false, error: apiErrorCodes.testBusy, traceId };
     }
     this.metrics.increment(valid.product, 'manualTestTotal');
     const operation = this._fetchLive(valid, {
@@ -171,7 +173,7 @@ export class SevenTimerService {
     const breaker = this.circuitBreakers.get(query.product);
     if (!config.enabled) {
       this._record(query.product, { status: 'disabled', lastAttemptAt: instant.toISOString(), lastFailureAt: instant.toISOString(), lastErrorCode: 'disabled', traceId, cacheStatus: 'disabled', circuitState: breaker.state(instant) });
-      return { ok: false, error: 'disabled', traceId };
+      return { ok: false, error: apiErrorCodes.disabled, traceId };
     }
     this.metrics.increment(query.product, 'requestTotal');
     this.metrics.begin(query.product);
@@ -184,14 +186,14 @@ export class SevenTimerService {
       this._record(query.product, { status: 'unavailable', lastFailureAt: instant.toISOString(), lastErrorCode: 'circuit_open', cacheStatus: cached.status, circuitState: 'open' });
       this._log({ traceId, product: query.product, outcome: 'failure', errorCode: 'circuit_open', attempts: 0, latencyMs, cacheStatus: cached.status, circuitState: 'open', manual });
       if (!bypassCache && cached.status === 'stale') return { ok: true, body: publicValue(cached.entry.value, { cacheStatus: 'stale', isStaleCache: true }), traceId };
-      return { ok: false, error: 'unavailable', traceId };
+      return { ok: false, error: apiErrorCodes.unavailable, traceId };
     }
     let response;
     try {
       const client = this.clientFactory?.(config) ?? new SevenTimerClient({ config, fetcher: this.fetcher });
       response = await client.fetch(query);
     } catch {
-      response = { ok: false, error: 'upstream_error', attempts: 0 };
+      response = { ok: false, error: apiErrorCodes.upstreamError, attempts: 0 };
     }
     if (response.ok) {
       const parsed = parseSevenTimerResponse(response.body, { product: query.product, now: instant });
@@ -217,14 +219,14 @@ export class SevenTimerService {
     this._record(query.product, { status: cached.status === 'stale' && !bypassCache ? 'degraded' : 'unavailable', lastFailureAt: instant.toISOString(), lastErrorCode: failureCode, cacheStatus: cached.status, circuitState: breaker.state(instant), lastLatencyMs: latencyMs, lastFailureLatencyMs: latencyMs, lastAttempts: response.attempts ?? config.maxAttempts });
     this._log({ traceId, product: query.product, outcome: cached.status === 'stale' && !bypassCache ? 'stale_fallback' : 'failure', errorCode: failureCode, attempts: response.attempts ?? config.maxAttempts, latencyMs, cacheStatus: cached.status, circuitState: breaker.state(instant), manual });
     if (!bypassCache && cached.status === 'stale') return { ok: true, body: publicValue(cached.entry.value, { cacheStatus: 'stale', isStaleCache: true }), traceId };
-    return { ok: false, error: 'unavailable', traceId };
+    return { ok: false, error: apiErrorCodes.unavailable, traceId };
   }
 
   async forecast(query) {
     const config = sevenTimerConfig(this.settings(), { baseUrl: this.baseUrl });
     if (!config.enabled) {
       this._record(query.product, { status: 'disabled', lastErrorCode: 'disabled', cacheStatus: 'disabled', circuitState: this.circuitBreakers.get(query.product).state(this.now()) });
-      return { ok: false, error: 'disabled' };
+      return { ok: false, error: apiErrorCodes.disabled };
     }
     const key = cacheKey(query);
     const instant = this.now();

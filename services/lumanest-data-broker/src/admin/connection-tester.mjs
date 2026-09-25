@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { requestNarrative } from '../llm/adapters/index.mjs';
 import { listModels } from '../llm/model-lister.mjs';
 

@@ -1,7 +1,6 @@
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
-import 'package:luma_nest/src/core/context/server_manifest.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_observation.dart';
@@ -121,7 +120,6 @@ class ContextSnapshot {
     this.routeMode = ContextRouteMode.none,
     this.routeStage = ContextRouteStage.none,
     List<ContextAction> allowedActions = const [],
-    this.serverManifest,
     List<ContextEntry> entries = const [],
     this.canonicalEntriesPresent = false,
   }) : opportunityIds = List.unmodifiable(opportunityIds),
@@ -173,7 +171,6 @@ class ContextSnapshot {
   final ContextRouteMode routeMode;
   final ContextRouteStage routeStage;
   final List<ContextAction> allowedActions;
-  final ServerManifest? serverManifest;
   final List<ContextEntry> entries;
   final bool canonicalEntriesPresent;
 
@@ -230,7 +227,6 @@ class ContextSnapshot {
           .whereType<ContextAction>()
           .toSet()
           .toList(growable: false),
-      serverManifest: serverManifest,
       entries: entries,
       canonicalEntriesPresent: canonicalEntriesPresent,
     );
@@ -296,7 +292,6 @@ class ContextSnapshot {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
-      serverManifest: serverManifest,
       entries: entries,
       canonicalEntriesPresent: canonicalEntriesPresent,
     );
@@ -348,7 +343,6 @@ class ContextSnapshot {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
-      serverManifest: serverManifest,
       entries: entries,
       canonicalEntriesPresent: canonicalEntriesPresent,
     );
@@ -415,7 +409,6 @@ class ContextSnapshot {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: allowedActions,
-      serverManifest: serverManifest,
       entries: entries,
       canonicalEntriesPresent: canonicalEntriesPresent,
     );

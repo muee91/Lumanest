@@ -16,7 +16,7 @@ import {
   createLLMModelLister,
   createLLMProfileTester,
 } from './admin/connection-tester.mjs';
-import { LLMCallBudget, routeNarrative, routeNarrativeStream, routeAssistantAgent } from './llm/router.mjs';
+import { LLMCallBudget, llmRouteMetrics, routeNarrative, routeNarrativeStream, routeAssistantAgent } from './llm/router.mjs';
 import { assistantTools, executeWebSearch } from './llm/tools.mjs';
 import { opportunityCatalog } from './generated/opportunity-catalog.mjs';
 import {
@@ -68,6 +68,8 @@ import {
   MemorySevenTimerCache,
   RedisSevenTimerCache,
 } from './infrastructure/cache/seven_timer_cache.mjs';
+import { BoundedTtlMap } from './infrastructure/cache/bounded-ttl-map.mjs';
+import { regionalWildlifeSummary } from './ecology/wildlife-facts.mjs';
 import { SkyOpportunityMetrics } from './infrastructure/metrics/sky_opportunity_metrics.mjs';
 import { SevenTimerMetrics } from './infrastructure/metrics/seven_timer_metrics.mjs';
 import { BrokerHealthMonitor } from './infrastructure/metrics/broker_health_monitor.mjs';
@@ -107,10 +109,10 @@ import {
   createAssistantContextBinding,
   mergeAssistantSources,
 } from './assistant/context-envelope.mjs';
+import { apiErrorCodes } from './api/error-codes.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
 const maximumVerifiedPlaceMediaBytes = 8 * 1024 * 1024;
-const gbifBaseUrl = 'https://api.gbif.org';
 const elevationBaseUrl = 'https://api.open-meteo.com';
 
 function writeJson(response, status, body, headers = {}) {
@@ -262,7 +264,7 @@ async function searchAmapPoiMedia({ request, amapWebKey, fetcher, timeoutMs }) {
 async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
   const url = decodedVerifiedMediaUrl(token);
   if (url == null) {
-    writeJson(response, 400, { error: 'invalid_media_reference' });
+    writeJson(response, 400, { error: apiErrorCodes.invalidMediaReference });
     return;
   }
   try {
@@ -276,7 +278,7 @@ async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
     if (!upstream.ok || !verifiedPlaceMediaContentTypes.has(contentType) ||
         (Number.isFinite(declaredLength) && declaredLength > maximumVerifiedPlaceMediaBytes) ||
         upstream.body == null) {
-      writeJson(response, 502, { error: 'media_unavailable' });
+      writeJson(response, 502, { error: apiErrorCodes.mediaUnavailable });
       return;
     }
     const chunks = [];
@@ -285,7 +287,7 @@ async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
       size += chunk.byteLength;
       if (size > maximumVerifiedPlaceMediaBytes) {
         await upstream.body.cancel().catch(() => {});
-        writeJson(response, 502, { error: 'media_too_large' });
+        writeJson(response, 502, { error: apiErrorCodes.mediaTooLarge });
         return;
       }
       chunks.push(Buffer.from(chunk));
@@ -299,7 +301,7 @@ async function proxyVerifiedPlaceMedia(response, token, fetcher, timeoutMs) {
     });
     response.end(body);
   } catch {
-    writeJson(response, 502, { error: 'media_unavailable' });
+    writeJson(response, 502, { error: apiErrorCodes.mediaUnavailable });
   }
 }
 
@@ -367,6 +369,15 @@ const ratePolicies = [
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
   { path: '/v1/explore/place-media', limit: 12, windowMs: 60 * 1_000, key: 'place-media-search' },
+  // Every remaining upstream-facing route. Without an entry these silently
+  // inherited the 60/min default, including the two heaviest fan-outs.
+  { path: '/v1/environment/provider-facts', limit: 4, windowMs: 60 * 1_000, key: 'provider-facts' },
+  { path: '/v1/environment/sky-windows', limit: 6, windowMs: 60 * 1_000, key: 'sky-windows' },
+  { path: '/v1/amap/driving', limit: 6, windowMs: 60 * 1_000, key: 'amap-driving' },
+  { path: '/v1/amap/walking', limit: 6, windowMs: 60 * 1_000, key: 'amap-walking' },
+  { path: '/v1/amap/nearby', limit: 12, windowMs: 60 * 1_000, key: 'amap-nearby' },
+  { path: '/v1/amap/search', limit: 20, windowMs: 60 * 1_000, key: 'amap-search' },
+  { path: '/v1/amap/scene-evidence', limit: 20, windowMs: 60 * 1_000, key: 'amap-scene-evidence' },
 ];
 
 function ratePolicy(pathname) {
@@ -380,18 +391,18 @@ function ratePolicy(pathname) {
   };
 }
 
-function writeApiError(response, status, code, { retryAfterSeconds = null } = {}) {
-  writeJson(response, status, {
-    error: {
-      code,
-      message: code,
-      retryAfterSeconds,
-      requestId: createHash('sha256')
-        .update(`${Date.now()}:${code}`)
-        .digest('hex')
-        .slice(0, 16),
-    },
-  });
+// The context service can fail in three different ways, and they need three
+// different answers: the deployment lacks its internal wiring, the two services
+// disagree about the contract, or the upstream is not answering. Only the last
+// one is an outage, so collapsing them sends operators to the wrong runbook.
+function contextProxyFailure(result) {
+  if (result.error === apiErrorCodes.notConfigured) {
+    return { status: 503, code: apiErrorCodes.contextUnconfigured };
+  }
+  if (result.error === apiErrorCodes.upstreamContractMismatch) {
+    return { status: 502, code: apiErrorCodes.upstreamContractMismatch };
+  }
+  return { status: 502, code: apiErrorCodes.upstreamUnavailable };
 }
 
 function rateLimitKey(request, policy) {
@@ -803,363 +814,12 @@ async function forwardAmap(
     const upstream = await fetcher(url, { signal: AbortSignal.timeout(timeoutMs) });
     const body = await upstream.json();
     if (!upstream.ok || body.status !== '1') {
-      writeJson(response, 502, { error: 'upstream_unavailable' });
+      writeJson(response, 502, { error: apiErrorCodes.upstreamUnavailable });
       return;
     }
     writeJson(response, 200, transform(body));
   } catch {
-    writeJson(response, 502, { error: 'upstream_unavailable' });
-  }
-}
-
-const wildlifeGroups = new Map([
-  ['Aves', 'bird'],
-  ['Mammalia', 'mammal'],
-  ['Reptilia', 'reptile'],
-  ['Amphibia', 'amphibian'],
-  ['Insecta', 'insect'],
-]);
-
-const wildlifeClassKeys = [
-  212, // Aves
-  359, // Mammalia
-  358, // Reptilia
-  131, // Amphibia
-  216, // Insecta
-];
-
-const excludedDomesticSpecies = new Set([
-  'Felis catus',
-  'Canis lupus familiaris',
-  'Bos taurus',
-  'Equus caballus',
-  'Capra hircus',
-  'Ovis aries',
-  'Sus scrofa domesticus',
-  'Gallus gallus domesticus',
-].map((name) => name.toLowerCase()));
-
-const acceptedWildlifeBasisOfRecord = new Set([
-  'HUMAN_OBSERVATION',
-  'MACHINE_OBSERVATION',
-  'OBSERVATION',
-]);
-
-const acceptedWildlifeLicenses = new Map([
-  ['CC0_1_0', 'CC0-1.0'],
-  ['http://creativecommons.org/publicdomain/zero/1.0/legalcode', 'CC0-1.0'],
-  ['https://creativecommons.org/publicdomain/zero/1.0/legalcode', 'CC0-1.0'],
-  ['CC_BY_4_0', 'CC-BY-4.0'],
-  ['http://creativecommons.org/licenses/by/4.0/legalcode', 'CC-BY-4.0'],
-  ['https://creativecommons.org/licenses/by/4.0/legalcode', 'CC-BY-4.0'],
-]);
-
-const severeWildlifeGeospatialIssues = new Set([
-  'ZERO_COORDINATE',
-  'COORDINATE_OUT_OF_RANGE',
-  'COORDINATE_INVALID',
-  'COUNTRY_COORDINATE_MISMATCH',
-  'CONTINENT_COORDINATE_MISMATCH',
-  'PRESUMED_SWAPPED_COORDINATE',
-  'PRESUMED_NEGATED_LONGITUDE',
-]);
-
-const maximumWildlifeCoordinateUncertaintyMeters = 10_000;
-const maximumWildlifeDatasetReferences = 8;
-const gbifMetadataCacheTtlMilliseconds = 24 * 60 * 60 * 1_000;
-
-function regionalWildlifeGeometry(location, radiusKm) {
-  const [longitude, latitude] = location.split(',').map(Number);
-  const latitudeDelta = radiusKm / 111.32;
-  const longitudeDelta = radiusKm / (111.32 * Math.cos(latitude * Math.PI / 180));
-  const west = longitude - longitudeDelta;
-  const east = longitude + longitudeDelta;
-  const south = latitude - latitudeDelta;
-  const north = latitude + latitudeDelta;
-  return `POLYGON((${west} ${south},${east} ${south},${east} ${north},${west} ${north},${west} ${south}))`;
-}
-
-function wildlifeGroupFor(record) {
-  return wildlifeGroups.get(record.class) ?? 'other';
-}
-
-function acceptedWildlifeLicense(value) {
-  return typeof value === 'string' ? acceptedWildlifeLicenses.get(value) ?? null : null;
-}
-
-function acceptedWildlifeRecord(record) {
-  if (record?.coordinateUncertaintyInMeters == null) return false;
-  const uncertainty = Number(record.coordinateUncertaintyInMeters);
-  return record?.occurrenceStatus === 'PRESENT' &&
-    acceptedWildlifeBasisOfRecord.has(record.basisOfRecord) &&
-    acceptedWildlifeLicense(record.license) != null &&
-    Number.isFinite(uncertainty) && uncertainty >= 0 &&
-    uncertainty <= maximumWildlifeCoordinateUncertaintyMeters &&
-    (!Array.isArray(record.issues) ||
-      !record.issues.some((issue) => severeWildlifeGeospatialIssues.has(issue)));
-}
-
-function recordMonth(record) {
-  const month = Number(record.month);
-  if (Number.isInteger(month) && month >= 1 && month <= 12) return month;
-  const match = typeof record.eventDate === 'string'
-    ? record.eventDate.match(/^\d{4}-(\d{2})-/)
-    : null;
-  const parsed = Number(match?.[1]);
-  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 12 ? parsed : null;
-}
-
-function recordHour(record) {
-  const hour = Number(record.hour);
-  if (Number.isInteger(hour) && hour >= 0 && hour <= 23) return hour;
-  const match = typeof record.eventDate === 'string'
-    ? record.eventDate.match(/T(\d{2}):/)
-    : null;
-  const parsed = Number(match?.[1]);
-  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 23 ? parsed : null;
-}
-
-function observationPeriod(hour) {
-  if (hour >= 5 && hour <= 8) return 'dawn';
-  if (hour >= 9 && hour <= 16) return 'day';
-  if (hour >= 17 && hour <= 20) return 'dusk';
-  return 'night';
-}
-
-function temporalConcentration(records) {
-  const monthCounts = new Map();
-  const periodCounts = new Map();
-  let recordsWithMonth = 0;
-  let recordsWithTime = 0;
-  for (const record of records) {
-    const month = recordMonth(record);
-    if (month != null) {
-      recordsWithMonth += 1;
-      monthCounts.set(month, (monthCounts.get(month) ?? 0) + 1);
-    }
-    const hour = recordHour(record);
-    if (hour != null) {
-      recordsWithTime += 1;
-      const period = observationPeriod(hour);
-      periodCounts.set(period, (periodCounts.get(period) ?? 0) + 1);
-    }
-  }
-  const byCountThenKey = (a, b) => b.records - a.records ||
-    String(a.month ?? a.period).localeCompare(String(b.month ?? b.period));
-  return {
-    recordsWithMonth,
-    recordsWithTime,
-    months: [...monthCounts].map(([month, count]) => ({ month, records: count }))
-      .sort(byCountThenKey),
-    timePeriods: [...periodCounts].map(([period, count]) => ({ period, records: count }))
-      .sort(byCountThenKey),
-  };
-}
-
-function validGbifKey(value) {
-  return typeof value === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function boundedGbifText(value, maximum) {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim();
-  return normalized.length > 0 && normalized.length <= maximum &&
-    !/[\u0000-\u001f\u007f]/.test(normalized)
-    ? normalized
-    : null;
-}
-
-function selectTraceableWildlifeRecords(records) {
-  const datasetCounts = new Map();
-  for (const record of records) {
-    if (!validGbifKey(record.datasetKey)) continue;
-    datasetCounts.set(record.datasetKey, (datasetCounts.get(record.datasetKey) ?? 0) + 1);
-  }
-  const selectedKeys = [...datasetCounts]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, maximumWildlifeDatasetReferences)
-    .map(([key]) => key);
-  const selected = new Set(selectedKeys);
-  return {
-    records: records.filter((record) => selected.has(record.datasetKey)),
-    eligibleOccurrenceSampleSize: records.length,
-    datasetsTruncated: datasetCounts.size > selected.size,
-  };
-}
-
-async function gbifMetadata(path, { fetcher, cache, now, timeoutMs }) {
-  const cached = cache.get(path);
-  if (cached && now().getTime() - cached.createdAt < gbifMetadataCacheTtlMilliseconds) {
-    return cached.value;
-  }
-  try {
-    const upstream = await fetcher(new URL(path, gbifBaseUrl), {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const value = await upstream.json();
-    if (!upstream.ok || value == null || typeof value !== 'object' || Array.isArray(value)) {
-      return null;
-    }
-    cache.set(path, { createdAt: now().getTime(), value });
-    return value;
-  } catch {
-    return null;
-  }
-}
-
-async function wildlifeDatasetReferences(records, dependencies) {
-  const grouped = new Map();
-  for (const record of records) {
-    if (!validGbifKey(record.datasetKey)) continue;
-    const existing = grouped.get(record.datasetKey) ?? {
-      datasetKey: record.datasetKey,
-      title: boundedGbifText(record.datasetTitle, 160),
-      publisher: boundedGbifText(record.publishingOrgName, 160) ??
-        boundedGbifText(record.institutionCode, 80),
-      publishingOrgKey: validGbifKey(record.publishingOrgKey) ? record.publishingOrgKey : null,
-      licenses: new Set(),
-      records: 0,
-    };
-    existing.records += 1;
-    existing.licenses.add(acceptedWildlifeLicense(record.license));
-    grouped.set(record.datasetKey, existing);
-  }
-  const selected = [...grouped.values()]
-    .sort((a, b) => b.records - a.records || a.datasetKey.localeCompare(b.datasetKey))
-    .slice(0, maximumWildlifeDatasetReferences);
-  return Promise.all(selected.map(async (reference) => {
-    const dataset = await gbifMetadata(`/v1/dataset/${reference.datasetKey}`, dependencies);
-    const organizationKey = validGbifKey(dataset?.publishingOrganizationKey)
-      ? dataset.publishingOrganizationKey
-      : reference.publishingOrgKey;
-    const organization = organizationKey == null ? null : await gbifMetadata(
-      `/v1/organization/${organizationKey}`,
-      dependencies,
-    );
-    const title = boundedGbifText(dataset?.title, 160) ?? reference.title;
-    const publisher = boundedGbifText(organization?.title, 160) ?? reference.publisher;
-    const url = `https://www.gbif.org/dataset/${reference.datasetKey}`;
-    const citation = boundedGbifText(dataset?.citation?.text, 500) ??
-      (title == null
-        ? `GBIF occurrence dataset. ${url}`
-        : `${title}. ${url}`);
-    return {
-      datasetKey: reference.datasetKey,
-      title: title ?? 'GBIF occurrence dataset',
-      publisher: publisher ?? 'GBIF data publisher',
-      licenses: [...reference.licenses].filter(Boolean).sort(),
-      records: reference.records,
-      citation,
-      url,
-    };
-  }));
-}
-
-async function regionalWildlifeSummary({
-  location,
-  radiusKm,
-  fetcher,
-  cache,
-  now,
-  cacheTtlMilliseconds,
-  timeoutMs,
-  metadataCache,
-}) {
-  const [longitude, latitude] = location.split(',').map(Number);
-  const cacheKey = `${longitude.toFixed(1)},${latitude.toFixed(1)}:${radiusKm}`;
-  const cached = cache.get(cacheKey);
-  if (cached && now().getTime() - cached.createdAt < cacheTtlMilliseconds) {
-    return cached.body;
-  }
-  try {
-    const responses = await Promise.all(wildlifeClassKeys.map(async (classKey) => {
-      const url = new URL('/v1/occurrence/search', gbifBaseUrl);
-      url.searchParams.set('kingdom', 'Animalia');
-      url.searchParams.set('classKey', String(classKey));
-      url.searchParams.set('hasCoordinate', 'true');
-      url.searchParams.set('occurrenceStatus', 'PRESENT');
-      url.searchParams.set('hasGeospatialIssue', 'false');
-      url.searchParams.set(
-        'coordinateUncertaintyInMeters',
-        String(maximumWildlifeCoordinateUncertaintyMeters),
-      );
-      for (const basis of acceptedWildlifeBasisOfRecord) {
-        url.searchParams.append('basisOfRecord', basis);
-      }
-      url.searchParams.append('license', 'CC0_1_0');
-      url.searchParams.append('license', 'CC_BY_4_0');
-      url.searchParams.set('limit', '100');
-      url.searchParams.set('geometry', regionalWildlifeGeometry(location, radiusKm));
-      try {
-        const upstream = await fetcher(url, { signal: AbortSignal.timeout(timeoutMs) });
-        const body = await upstream.json();
-        return upstream.ok && Array.isArray(body.results)
-          ? { ok: true, results: body.results }
-          : { ok: false, results: [] };
-      } catch {
-        return { ok: false, results: [] };
-      }
-    }));
-    const successfulResponses = responses.filter((response) => response.ok);
-    if (successfulResponses.length === 0) return null;
-    const scannedRecords = successfulResponses.flatMap((response) => response.results);
-    const qualityRecords = scannedRecords.filter(acceptedWildlifeRecord);
-    const traceableCandidates = [];
-    for (const record of qualityRecords) {
-      const scientificName = boundedGbifText(record.species || record.scientificName, 160);
-      if (scientificName == null) continue;
-      if (excludedDomesticSpecies.has(scientificName.toLowerCase())) continue;
-      traceableCandidates.push(record);
-    }
-    const selection = selectTraceableWildlifeRecords(traceableCandidates);
-    const acceptedRecords = selection.records;
-    const grouped = new Map();
-    for (const record of acceptedRecords) {
-      const scientificName = boundedGbifText(record.species || record.scientificName, 160);
-      if (scientificName == null) continue;
-      const existing = grouped.get(scientificName) ?? {
-        scientificName,
-        commonName: boundedGbifText(record.vernacularName, 120),
-        animalClass: wildlifeGroupFor(record),
-        records: 0,
-      };
-      existing.records += 1;
-      grouped.set(scientificName, existing);
-    }
-    const taxa = [...grouped.values()]
-      .sort((a, b) => b.records - a.records)
-      .slice(0, 12);
-    const datasets = await wildlifeDatasetReferences(acceptedRecords, {
-      fetcher,
-      cache: metadataCache,
-      now,
-      timeoutMs,
-    });
-    const sanitized = {
-      contractVersion: 2,
-      source: 'GBIF',
-      scope: 'regional_wildlife_observations',
-      radiusKm,
-      scannedOccurrenceSampleSize: scannedRecords.length,
-      eligibleOccurrenceSampleSize: selection.eligibleOccurrenceSampleSize,
-      occurrenceSampleSize: acceptedRecords.length,
-      datasetReferencesTruncated: selection.datasetsTruncated,
-      qualityPolicy: {
-        acceptedLicenses: ['CC0-1.0', 'CC-BY-4.0'],
-        acceptedBasisOfRecord: [...acceptedWildlifeBasisOfRecord],
-        maximumCoordinateUncertaintyMeters: maximumWildlifeCoordinateUncertaintyMeters,
-        maximumDatasetReferences: maximumWildlifeDatasetReferences,
-        excludesSevereGeospatialIssues: true,
-      },
-      historicalRecordConcentration: temporalConcentration(acceptedRecords),
-      datasets,
-      taxa,
-    };
-    cache.set(cacheKey, { createdAt: now().getTime(), body: sanitized });
-    return sanitized;
-  } catch {
-    return null;
+    writeJson(response, 502, { error: apiErrorCodes.upstreamUnavailable });
   }
 }
 
@@ -1294,11 +954,11 @@ export function createTokenBrokerServer({
     calibrationStore: activeCalibrationStore,
     now,
   });
-  const wildlifeCache = new Map();
-  const gbifMetadataCache = new Map();
-  const elevationCache = new Map();
-  const placeMediaCache = new Map();
-  const assistantPlaceCache = new Map();
+  const wildlifeCache = new BoundedTtlMap();
+  const gbifMetadataCache = new BoundedTtlMap();
+  const elevationCache = new BoundedTtlMap(128);
+  const placeMediaCache = new BoundedTtlMap();
+  const assistantPlaceCache = new BoundedTtlMap();
   const contextSnapshots = contextSnapshotStore ?? new ContextSnapshotStore();
   return createServer(async (request, response) => {
     const configuration = configurationSource.snapshot();
@@ -1310,7 +970,7 @@ export function createTokenBrokerServer({
 
     if (requestUrl.pathname === '/admin' || requestUrl.pathname === '/admin/' ||
         requestUrl.pathname.startsWith('/admin-assets/')) {
-      writeJson(response, 404, { error: 'not_found' });
+      writeJson(response, 404, { error: apiErrorCodes.notFound });
       return;
     }
 
@@ -1325,7 +985,7 @@ export function createTokenBrokerServer({
       if (request.method !== 'POST' || !hasValidWorkerToken(
         request.headers['x-discovery-worker-token'], configuration.discoveryWorkerToken,
       )) {
-        writeJson(response, 401, { error: 'unauthorized' });
+        writeJson(response, 401, { error: apiErrorCodes.unauthorized });
         return;
       }
       const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') || requestUrl.pathname.endsWith('/resolve-place') ? 4_096 : 16 * 1_024);
@@ -1333,7 +993,7 @@ export function createTokenBrokerServer({
         if (body == null || !validDiscoverySearchRequest(
           body, configuration.discoverySearchProfile.sourcePolicies,
         )) {
-          writeJson(response, 400, { error: 'invalid_discovery_search_request' });
+          writeJson(response, 400, { error: apiErrorCodes.invalidDiscoverySearchRequest });
           return;
         }
         const result = await searchTavily({
@@ -1350,7 +1010,7 @@ export function createTokenBrokerServer({
       }
       if (requestUrl.pathname.endsWith('/deterministic')) {
         if (body == null || !validDeterministicDiscoveryRequest(body)) {
-          writeJson(response, 400, { error: 'invalid_deterministic_discovery_request' });
+          writeJson(response, 400, { error: apiErrorCodes.invalidDeterministicDiscoveryRequest });
           return;
         }
         const result = await resolveDeterministicDiscovery({
@@ -1369,7 +1029,7 @@ export function createTokenBrokerServer({
       }
       if (requestUrl.pathname.endsWith('/resolve-place')) {
         if (body == null || !validResolvePlaceRequest(body)) {
-          writeJson(response, 400, { error: 'invalid_discovery_resolve_place_request' });
+          writeJson(response, 400, { error: apiErrorCodes.invalidDiscoveryResolvePlaceRequest });
           return;
         }
         const result = await resolvePlace({
@@ -1383,11 +1043,11 @@ export function createTokenBrokerServer({
         return;
       }
       if (body == null || !validDiscoveryExtractRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_discovery_extract_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidDiscoveryExtractRequest });
         return;
       }
       if (!configuration.settings.aiEnabled) {
-        writeJson(response, 503, { error: 'ai_unconfigured' });
+        writeJson(response, 503, { error: apiErrorCodes.aiUnconfigured });
         return;
       }
       const result = await extractDiscoveryCandidates({
@@ -1407,7 +1067,7 @@ export function createTokenBrokerServer({
     }
 
     if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken)) {
-      writeJson(response, 401, { error: 'unauthorized' });
+      writeJson(response, 401, { error: apiErrorCodes.unauthorized });
       return;
     }
 
@@ -1419,7 +1079,7 @@ export function createTokenBrokerServer({
       now: now(),
     });
     if (!limit.allowed) {
-      writeJson(response, 429, { error: 'rate_limited' }, {
+      writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
         'Retry-After': String(limit.retryAfterSeconds),
       });
       return;
@@ -1428,7 +1088,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities') {
       const query = validSkyOpportunityQuery(requestUrl.searchParams);
       if (query == null) {
-        writeJson(response, 400, { error: 'invalid_sky_opportunity_query' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidSkyOpportunityQuery });
         return;
       }
       writeJson(response, 200, await skyOpportunityService.forecast(query));
@@ -1438,7 +1098,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/sky-opportunities/daily') {
       const query = validDailySkyOpportunityQuery(requestUrl.searchParams);
       if (query == null) {
-        writeJson(response, 400, { error: 'invalid_sky_opportunity_query' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidSkyOpportunityQuery });
         return;
       }
       writeJson(response, 200, await skyOpportunityService.daily(query));
@@ -1448,13 +1108,13 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/weather/7timer') {
       const query = validSevenTimerRequest(await readJsonBody(request, 512));
       if (query == null) {
-        writeJson(response, 400, { error: 'invalid_seven_timer_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidSevenTimerRequest });
         return;
       }
       const result = await activeSevenTimerService.forecast(query);
       if (!result.ok) {
         writeJson(response, result.error === 'disabled' ? 503 : 502, {
-          error: result.error === 'disabled' ? 'seven_timer_disabled' : 'seven_timer_unavailable',
+          error: result.error === 'disabled' ? apiErrorCodes.sevenTimerDisabled : apiErrorCodes.sevenTimerUnavailable,
         });
         return;
       }
@@ -1465,7 +1125,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/environment/site-facts') {
       const query = validSiteEnvironmentQuery(requestUrl.searchParams);
       if (query == null) {
-        writeJson(response, 400, { error: 'invalid_site_environment_query' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidSiteEnvironmentQuery });
         return;
       }
       writeJson(response, 200, await activeSiteEnvironmentService.facts(query));
@@ -1475,7 +1135,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/environment/provider-facts') {
       const query = validProviderFactsQuery(requestUrl.searchParams, now());
       if (query == null) {
-        writeJson(response, 400, { error: 'invalid_provider_facts_query' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidProviderFactsQuery });
         return;
       }
       writeJson(response, 200, await activeProviderFactsService.facts(query));
@@ -1485,7 +1145,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/environment/sky-windows') {
       const query = validSkyWindowQuery(requestUrl.searchParams, now());
       if (query == null) {
-        writeJson(response, 400, { error: 'invalid_sky_window_query' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidSkyWindowQuery });
         return;
       }
       writeJson(response, 200, await activeSkyWindowService.forecast(query));
@@ -1493,21 +1153,21 @@ export function createTokenBrokerServer({
     }
 
     if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
-      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}${activeProviderFactsService.toPrometheus()}${activeOperationalObservability.toPrometheus()}`);
+      writeText(response, 200, `${skyOpportunityMetrics.toPrometheus()}${activeSevenTimerMetrics.toPrometheus()}${activeProviderFactsService.toPrometheus()}${activeOperationalObservability.toPrometheus()}${llmRouteMetrics.toPrometheus()}`);
       return;
     }
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/context/safety-detail') {
       const body = await readJsonBody(request, 512);
       if (body == null || !validSafetyDetailRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_safety_detail_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidSafetyDetailRequest });
         return;
       }
       const detail = typeof weatherCache.getSafetyDetail === 'function'
         ? await weatherCache.getSafetyDetail(body.contextId, body.eventId, now())
         : null;
       if (detail == null) {
-        writeJson(response, 404, { error: 'safety_detail_unavailable' });
+        writeJson(response, 404, { error: apiErrorCodes.safetyDetailUnavailable });
         return;
       }
       writeJson(response, 200, detail);
@@ -1518,7 +1178,7 @@ export function createTokenBrokerServer({
       const body = await readJsonBody(request, 8 * 1024);
       const requestedAt = now();
       if (body == null || !validRouteWeatherRequest(body, requestedAt)) {
-        writeJson(response, 400, { error: 'invalid_route_weather_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidRouteWeatherRequest });
         return;
       }
       const result = await routeWeatherForecast({
@@ -1549,7 +1209,7 @@ export function createTokenBrokerServer({
         const configured = configuration.qweatherApiHost && configuration.privateKey &&
           configuration.keyId && configuration.projectId;
         writeJson(response, configured ? 502 : 503, {
-          error: configured ? 'upstream_unavailable' : 'weather_unconfigured',
+          error: configured ? apiErrorCodes.upstreamUnavailable : apiErrorCodes.weatherUnconfigured,
         });
         return;
       }
@@ -1560,7 +1220,7 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/context/shooting-feedback') {
       const body = await readJsonBody(request, 4 * 1024);
       if (body == null || !validShootingFeedbackRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_shooting_feedback_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidShootingFeedbackRequest });
         return;
       }
       const simulationSession = request.headers['x-lumanest-debug-session'];
@@ -1577,9 +1237,8 @@ export function createTokenBrokerServer({
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });
       if (!result.ok) {
-        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
-          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
-        });
+        const failure = contextProxyFailure(result);
+        writeJson(response, failure.status, { error: failure.code });
         return;
       }
       writeJson(response, 202, { accepted: true });
@@ -1602,7 +1261,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/explore/place-media') {
       const mediaRequest = parsePlaceMediaRequest(requestUrl.searchParams);
       if (mediaRequest == null) {
-        writeJson(response, 400, { error: 'invalid_place_media_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidPlaceMediaRequest });
         return;
       }
       const cacheKey = createHash('sha256')
@@ -1651,7 +1310,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/amap/nearby') {
       const location = requestUrl.searchParams.get('location');
       if (!validCoordinate(location)) {
-        writeJson(response, 400, { error: 'invalid_location' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidLocation });
         return;
       }
       await forwardAmap(response, '/v3/place/around', {
@@ -1670,7 +1329,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/amap/search') {
       const keywords = requestUrl.searchParams.get('keywords');
       if (!validKeywords(keywords)) {
-        writeJson(response, 400, { error: 'invalid_keywords' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidKeywords });
         return;
       }
       await forwardAmap(response, '/v3/place/text', {
@@ -1687,7 +1346,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/amap/scene-evidence') {
       const location = requestUrl.searchParams.get('location');
       if (!validCoordinate(location)) {
-        writeJson(response, 400, { error: 'invalid_location' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidLocation });
         return;
       }
       await forwardAmap(response, '/v3/geocode/regeo', {
@@ -1705,7 +1364,7 @@ export function createTokenBrokerServer({
       const origin = requestUrl.searchParams.get('origin');
       const destination = requestUrl.searchParams.get('destination');
       if (!validCoordinate(origin) || !validCoordinate(destination)) {
-        writeJson(response, 400, { error: 'invalid_route' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidRoute });
         return;
       }
       const walking = requestUrl.pathname.endsWith('/walking');
@@ -1721,7 +1380,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/wildlife/nearby') {
       const location = requestUrl.searchParams.get('location');
       if (!validCoordinate(location)) {
-        writeJson(response, 400, { error: 'invalid_location' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidLocation });
         return;
       }
       const radiusKm = clampInteger(requestUrl.searchParams.get('radiusKm'), {
@@ -1740,7 +1399,7 @@ export function createTokenBrokerServer({
         metadataCache: gbifMetadataCache,
       });
       if (body == null) {
-        writeJson(response, 502, { error: 'upstream_unavailable' });
+        writeJson(response, 502, { error: apiErrorCodes.upstreamUnavailable });
         return;
       }
       writeJson(response, 200, body);
@@ -1750,7 +1409,7 @@ export function createTokenBrokerServer({
     if (request.method === 'GET' && requestUrl.pathname === '/v1/wildlife/layers') {
       const location = requestUrl.searchParams.get('location');
       if (!validCoordinate(location)) {
-        writeJson(response, 400, { error: 'invalid_location' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidLocation });
         return;
       }
       const [longitude, latitude] = location.split(',').map(Number);
@@ -1769,9 +1428,8 @@ export function createTokenBrokerServer({
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });
       if (!result.ok) {
-        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
-          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
-        });
+        const failure = contextProxyFailure(result);
+        writeJson(response, failure.status, { error: failure.code });
         return;
       }
       writeJson(response, 200, result.body);
@@ -1784,7 +1442,7 @@ export function createTokenBrokerServer({
         configuration.settings.elevationMaximumSamples,
       );
       if (locations == null) {
-        writeJson(response, 400, { error: 'invalid_locations' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidLocations });
         return;
       }
       const body = await elevationProfile({
@@ -1796,7 +1454,7 @@ export function createTokenBrokerServer({
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });
       if (body == null) {
-        writeJson(response, 502, { error: 'upstream_unavailable' });
+        writeJson(response, 502, { error: apiErrorCodes.upstreamUnavailable });
         return;
       }
       writeJson(response, 200, body);
@@ -1805,12 +1463,12 @@ export function createTokenBrokerServer({
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/narrative') {
       if (!configuration.settings.aiEnabled || configuration.llmRouting.primaryProfileId == null) {
-        writeJson(response, 503, { error: 'ai_unconfigured' });
+        writeJson(response, 503, { error: apiErrorCodes.aiUnconfigured });
         return;
       }
       const body = await readJsonBody(request);
       if (body == null || !validNarrativeRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_narrative_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidNarrativeRequest });
         return;
       }
       const routed = await routeNarrative({
@@ -1822,12 +1480,12 @@ export function createTokenBrokerServer({
         callBudget: new LLMCallBudget({ limit: 3 }),
       });
       if (!routed.ok) {
-        writeJson(response, 502, { error: 'upstream_unavailable' });
+        writeJson(response, 502, { error: apiErrorCodes.upstreamUnavailable });
         return;
       }
       const narrative = parsedNarrative(routed.text, body.creativeEventIds);
       if (narrative == null) {
-        writeJson(response, 502, { error: 'upstream_unavailable' });
+        writeJson(response, 502, { error: apiErrorCodes.upstreamUnavailable });
         return;
       }
       writeJson(response, 200, narrative);
@@ -1837,7 +1495,7 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/assistant') {
       const body = await readJsonBody(request, 2 * 1024);
       if (body == null || !validAssistantRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_assistant_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidAssistantRequest });
         return;
       }
       const snapshot = contextSnapshots.snapshot(body.snapshotId);
@@ -1852,7 +1510,7 @@ export function createTokenBrokerServer({
         expired: snapshot != null && new Date(snapshot.expiresAt) <= assistantNow,
       }));
       if (snapshot == null || snapshot.stale || new Date(snapshot.expiresAt) <= now()) {
-        writeJson(response, 410, { error: 'snapshot_expired' });
+        writeJson(response, 410, { error: apiErrorCodes.snapshotExpired });
         return;
       }
       const knownIds = new Set([
@@ -1860,7 +1518,7 @@ export function createTokenBrokerServer({
         ...(snapshot.facts?.shootingSessions ?? []).map((session) => session.id),
       ]);
       if (body.eventIds.some((id) => !knownIds.has(id))) {
-        writeJson(response, 400, { error: 'invalid_event_reference' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidEventReference });
         return;
       }
       const disconnectController = new AbortController();
@@ -1878,7 +1536,7 @@ export function createTokenBrokerServer({
         : { ...body, questionType: effectiveQuestionType };
       if (effectiveQuestionType === 'general' &&
           (!configuration.settings.aiEnabled || configuration.llmRouting.primaryProfileId == null)) {
-        writeJson(response, 503, { error: 'ai_unconfigured' });
+        writeJson(response, 503, { error: apiErrorCodes.aiUnconfigured });
         return;
       }
       writeSseHeaders(response);
@@ -2059,7 +1717,7 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/context/snapshot') {
       const body = await readJsonBody(request, 16 * 1024);
       if (body == null || !validContextRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_context_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidContextRequest });
         return;
       }
       // This header is emitted only by Flutter debug builds. A release build
@@ -2101,7 +1759,7 @@ export function createTokenBrokerServer({
       ]);
       if (!weather.ok) {
         writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
-          error: weather.error === 'not_configured' ? 'weather_unconfigured' : 'upstream_unavailable',
+          error: weather.error === 'not_configured' ? apiErrorCodes.weatherUnconfigured : apiErrorCodes.upstreamUnavailable,
         });
         return;
       }
@@ -2141,9 +1799,8 @@ export function createTokenBrokerServer({
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });
       if (!result.ok) {
-        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
-          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
-        });
+        const failure = contextProxyFailure(result);
+        writeJson(response, failure.status, { error: failure.code });
         return;
       }
       const details = safetyDetailsFor(
@@ -2197,7 +1854,7 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/context/target-session') {
       const body = await readJsonBody(request, 2 * 1024);
       if (body == null || !validTargetSessionRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_target_session_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidTargetSessionRequest });
         return;
       }
       const resolved = await resolveShootingTarget({
@@ -2234,7 +1891,7 @@ export function createTokenBrokerServer({
       });
       if (!weather.ok) {
         writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
-          error: weather.error === 'not_configured' ? 'weather_unconfigured' : 'upstream_unavailable',
+          error: weather.error === 'not_configured' ? apiErrorCodes.weatherUnconfigured : apiErrorCodes.upstreamUnavailable,
         });
         return;
       }
@@ -2270,9 +1927,8 @@ export function createTokenBrokerServer({
         timeoutMs: configuration.settings.upstreamTimeoutMs,
       });
       if (!result.ok) {
-        writeJson(response, result.error === 'not_configured' ? 503 : 502, {
-          error: result.error === 'not_configured' ? 'context_unconfigured' : 'upstream_unavailable',
-        });
+        const failure = contextProxyFailure(result);
+        writeJson(response, failure.status, { error: failure.code });
         return;
       }
       writeJson(response, 200, result.body);
@@ -2282,14 +1938,14 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/explore/brief') {
       const body = await readJsonBody(request, 8 * 1024);
       if (body == null || !validRegionBriefRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_region_brief_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidRegionBriefRequest });
         return;
       }
       const snapshot = contextSnapshots.snapshot(body.snapshotId);
       const requestGrid = regionBriefGrid(body.region);
       if (snapshot == null || snapshot.regionBriefGrid == null || snapshot.regionBriefGrid !== requestGrid ||
           !Number.isFinite(Date.parse(snapshot.expiresAt)) || Date.parse(snapshot.expiresAt) <= now().getTime()) {
-        writeJson(response, 409, { error: 'invalid_or_expired_snapshot' });
+        writeJson(response, 409, { error: apiErrorCodes.invalidOrExpiredSnapshot });
         return;
       }
       const regionBriefStartedAt = Date.now();
@@ -2307,7 +1963,7 @@ export function createTokenBrokerServer({
           status: 'failed', latencyMs: Date.now() - regionBriefStartedAt,
         });
         writeJson(response, result.error === 'not_configured' ? 503 : 502, {
-          error: result.error === 'not_configured' ? 'discovery_unconfigured' : 'upstream_unavailable',
+          error: result.error === 'not_configured' ? apiErrorCodes.discoveryUnconfigured : apiErrorCodes.upstreamUnavailable,
         });
         return;
       }
@@ -2324,7 +1980,7 @@ export function createTokenBrokerServer({
     if (request.method === 'POST' && requestUrl.pathname === '/v1/explore/discover') {
       const body = await readJsonBody(request, 1024);
       if (body == null || !validDiscoveryRequest(body)) {
-        writeJson(response, 400, { error: 'invalid_discovery_request' });
+        writeJson(response, 400, { error: apiErrorCodes.invalidDiscoveryRequest });
         return;
       }
       const result = await forwardDiscovery({
@@ -2337,7 +1993,7 @@ export function createTokenBrokerServer({
       });
       if (!result.ok) {
         writeJson(response, result.error === 'not_configured' ? 503 : 502, {
-          error: result.error === 'not_configured' ? 'discovery_unconfigured' : 'upstream_unavailable',
+          error: result.error === 'not_configured' ? apiErrorCodes.discoveryUnconfigured : apiErrorCodes.upstreamUnavailable,
         });
         return;
       }
@@ -2345,7 +2001,7 @@ export function createTokenBrokerServer({
       return;
     }
 
-    writeJson(response, 404, { error: 'not_found' });
+    writeJson(response, 404, { error: apiErrorCodes.notFound });
   });
 }
 
@@ -2518,6 +2174,14 @@ export async function createBrokerServices(environment = process.env, {
         skyOpportunityCache.clear(),
         sevenTimerCache.clear(),
         Promise.resolve(providerFactsService.clearCache()),
+        // The route-level caches were invisible to the console: clearing every
+        // advertised cache still left wildlife, elevation and place lookups
+        // running against whatever the process happened to remember.
+        wildlifeCache.clear(),
+        gbifMetadataCache.clear(),
+        elevationCache.clear(),
+        placeMediaCache.clear(),
+        assistantPlaceCache.clear(),
       ]);
     },
     outboundNetworkController: createOutboundNetworkControllerClient({

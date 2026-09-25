@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 const missionTypes = new Set([
   'popularPlaces', 'hiddenPlaces', 'humanityEvents', 'localStories',
   'routeConditions', 'openingAndClosure', 'seasonalSignals',
@@ -128,7 +130,7 @@ export async function forwardDiscovery({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const upstream = await fetcher(new URL('/internal/v1/discover', serviceUrl), {
       method: 'POST',
@@ -147,10 +149,10 @@ export async function forwardDiscovery({
     });
     const responseBody = await upstream.json();
     if (!upstream.ok || !validDiscoveryResponse(responseBody)) {
-      return { ok: false, error: 'upstream_unavailable' };
+      return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     }
     return { ok: true, body: responseBody };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }

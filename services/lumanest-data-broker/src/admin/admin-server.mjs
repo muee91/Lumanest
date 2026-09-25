@@ -7,6 +7,7 @@ import { validateLLMProfile } from '../llm/profile.mjs';
 import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
 import { simulationPresetCatalog } from '../context/simulation.mjs';
 import { providerSourceDefaults, publicProviderSourceCatalog, safeProviderSources } from '../environment/provider-runtime-config.mjs';
+import { apiErrorCodes } from '../api/error-codes.mjs';
 
 const maximumBodyBytes = 16 * 1024;
 const maximumImportBodyBytes = 2 * 1024 * 1024;
@@ -173,8 +174,8 @@ export function createAdminServer({
   auditLog,
   testConnection = async () => ({ status: 'ok' }),
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
-  listLLMModels = async () => ({ ok: false, error: 'upstream_unavailable' }),
-  listContextSources = async () => ({ ok: false, error: 'not_configured' }),
+  listLLMModels = async () => ({ ok: false, error: apiErrorCodes.upstreamUnavailable }),
+  listContextSources = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   getSevenTimerHealth = async () => ({ provider: '7timer', enabled: false, status: 'unknown', products: [] }),
   getBrokerHealth = async () => ({ status: 'unknown' }),
   getProviderHealth = async () => ({ provider: 'providerHub', enabled: false, providers: [], cache: {} }),
@@ -182,11 +183,11 @@ export function createAdminServer({
     contractVersion: 1, checkedAt: new Date().toISOString(),
     privacy: {}, regionBrief: {}, assistantContext: {}, providers: {},
   }),
-  testProvider = async () => ({ ok: false, error: 'not_configured' }),
+  testProvider = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
-  testSevenTimer = async () => ({ ok: false, error: 'not_configured' }),
-  getShootingCalibration = async () => ({ ok: false, error: 'not_configured' }),
-  importContextDataset = async () => ({ ok: false, error: 'not_configured' }),
+  testSevenTimer = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
+  getShootingCalibration = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
+  importContextDataset = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   simulationEnabled = false,
   simulationRegistry = null,
   clearCache = async () => {},
@@ -196,7 +197,7 @@ export function createAdminServer({
   return createServer(async (request, response) => {
     const remoteAddress = request.socket.remoteAddress;
     if (!isLanAddress(remoteAddress)) {
-      json(response, 403, { error: 'lan_only' });
+      json(response, 403, { error: apiErrorCodes.lanOnly });
       return;
     }
     const url = new URL(request.url ?? '/', 'http://localhost');
@@ -204,8 +205,8 @@ export function createAdminServer({
 
     if (request.method === 'POST' && url.pathname === '/admin-api/login') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (typeof parsed.value?.password !== 'string') return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (typeof parsed.value?.password !== 'string') return json(response, 400, { error: apiErrorCodes.invalidRequest });
       const result = await authService.login({ password: parsed.value.password, ipAddress: remoteAddress });
       auditLog.record({ operation: 'login', result: result.ok ? 'ok' : result.reason });
       if (!result.ok) return json(response, result.reason === 'rate_limited' ? 429 : 401, { error: result.reason });
@@ -236,7 +237,7 @@ export function createAdminServer({
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/config') {
       const outboundNetwork = outboundNetworkController == null
-        ? { status: 'unavailable', error: 'controller_not_configured' }
+        ? { status: 'unavailable', error: apiErrorCodes.controllerNotConfigured }
         : await outboundNetworkController.status();
       return json(response, 200, safeConfiguration(runtimeConfig.snapshot(), outboundNetwork));
     }
@@ -256,12 +257,12 @@ export function createAdminServer({
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/providers/test') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
       const { providerId, latitude, longitude, radiusKm = 25 } = parsed.value ?? {};
       if (typeof providerId !== 'string' || typeof latitude !== 'number' || latitude < -90 || latitude > 90 ||
           typeof longitude !== 'number' || longitude < -180 || longitude > 180 ||
           typeof radiusKm !== 'number' || radiusKm < 1 || radiusKm > 50) {
-        return json(response, 400, { error: 'invalid_request' });
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
       }
       const result = await testProvider({ providerId, latitude, longitude, radiusKm });
       auditLog.record({ operation: 'test_provider', fields: ['providerId'], result: result.ok ? 'ok' : result.error, details: { providerId, traceId: result.traceId ?? null } });
@@ -285,12 +286,12 @@ export function createAdminServer({
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/services/7timer/test') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
       const { product, latitude, longitude } = parsed.value ?? {};
       if (!['astro', 'meteo', 'two'].includes(product) ||
           typeof latitude !== 'number' || latitude < -90 || latitude > 90 ||
           typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
-        return json(response, 400, { error: 'invalid_request' });
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
       }
       const result = await testSevenTimer({ product, latitude, longitude });
       auditLog.record({
@@ -315,8 +316,8 @@ export function createAdminServer({
     }
     if (request.method === 'PUT' && url.pathname === '/admin-api/discovery/search-profile') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       try {
         const current = runtimeConfig.snapshot().discoverySearchProfile;
         const profile = validateDiscoverySearchProfile(parsed.value, { existing: current });
@@ -329,7 +330,7 @@ export function createAdminServer({
         return json(response, 200, { profile: safeDiscoverySearchProfile(snapshot.discoverySearchProfile) });
       } catch {
         auditLog.record({ operation: 'update_discovery_search_profile', result: 'rejected' });
-        return json(response, 400, { error: 'invalid_search_profile' });
+        return json(response, 400, { error: apiErrorCodes.invalidSearchProfile });
       }
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/context/sources') {
@@ -351,7 +352,7 @@ export function createAdminServer({
         : NaN;
       if (!Number.isInteger(days) || days < 30 || days > 365 ||
           !Number.isInteger(minimumSamples) || minimumSamples < 5 || minimumSamples > 100) {
-        return json(response, 400, { error: 'invalid_request' });
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
       }
       const result = await getShootingCalibration({ days, minimumSamples });
       auditLog.record({
@@ -365,7 +366,7 @@ export function createAdminServer({
     }
     if (url.pathname.startsWith('/admin-api/simulation') &&
         (!simulationEnabled || simulationRegistry == null)) {
-      return json(response, 404, { error: 'not_found' });
+      return json(response, 404, { error: apiErrorCodes.notFound });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/simulation') {
       return json(response, 200, {
@@ -385,7 +386,7 @@ export function createAdminServer({
     if (simulationMatch != null && request.method === 'POST') {
       const parsed = await body(request);
       if (parsed.tooLarge || typeof parsed.value?.preset !== 'string') {
-        return json(response, 400, { error: 'invalid_simulation_request' });
+        return json(response, 400, { error: apiErrorCodes.invalidSimulationRequest });
       }
       const result = simulationRegistry.activate(simulationMatch[1], parsed.value.preset);
       auditLog.record({ operation: 'activate_simulation', fields: ['preset'], result: result.ok ? 'ok' : result.error });
@@ -398,8 +399,8 @@ export function createAdminServer({
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/context/imports') {
       const parsed = await body(request, maximumImportBodyBytes);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       const result = await importContextDataset(parsed.value);
       auditLog.record({
         operation: 'import_context_dataset',
@@ -420,8 +421,8 @@ export function createAdminServer({
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/llm/models') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       try {
         const existing = (runtimeConfig.snapshot().llmProfiles ?? []).find((profile) =>
           profile.id === parsed.value.id) ?? null;
@@ -433,17 +434,17 @@ export function createAdminServer({
         });
         return json(response, 200, result.ok ? { models: result.models } : { models: [], error: result.error });
       } catch {
-        return json(response, 400, { error: 'invalid_profile' });
+        return json(response, 400, { error: apiErrorCodes.invalidProfile });
       }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/llm/profiles') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       try {
         const current = runtimeConfig.snapshot();
         if ((current.llmProfiles ?? []).some((profile) => profile.id === parsed.value.id)) {
-          return json(response, 409, { error: 'profile_exists' });
+          return json(response, 409, { error: apiErrorCodes.profileExists });
         }
         const snapshot = await runtimeConfig.replace({
           llmProfiles: [...(current.llmProfiles ?? []), parsed.value],
@@ -453,7 +454,7 @@ export function createAdminServer({
         return json(response, 201, { profile: safeLLMProfile(profile) });
       } catch {
         auditLog.record({ operation: 'create_llm_profile', result: 'rejected' });
-        return json(response, 400, { error: 'invalid_profile' });
+        return json(response, 400, { error: apiErrorCodes.invalidProfile });
       }
     }
     const profileMatch = /^\/admin-api\/llm\/profiles\/([a-z0-9][a-z0-9_-]*)$/.exec(url.pathname);
@@ -466,13 +467,13 @@ export function createAdminServer({
     }
     if (profileMatch != null && request.method === 'PUT') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       const profileId = profileMatch[1];
       try {
         const current = runtimeConfig.snapshot();
         const existing = (current.llmProfiles ?? []).find((profile) => profile.id === profileId);
-        if (existing == null) return json(response, 404, { error: 'profile_not_found' });
+        if (existing == null) return json(response, 404, { error: apiErrorCodes.profileNotFound });
         const next = { ...existing, ...parsed.value, id: profileId };
         const snapshot = await runtimeConfig.replace({
           llmProfiles: current.llmProfiles.map((profile) => profile.id === profileId ? next : profile),
@@ -481,17 +482,17 @@ export function createAdminServer({
         auditLog.record({ operation: 'update_llm_profile', fields: Object.keys(parsed.value), result: 'ok' });
         return json(response, 200, { profile: safeLLMProfile(profile) });
       } catch {
-        return json(response, 400, { error: 'invalid_profile' });
+        return json(response, 400, { error: apiErrorCodes.invalidProfile });
       }
     }
     if (profileMatch != null && request.method === 'DELETE') {
       const parsed = await body(request);
       const profileId = profileMatch[1];
-      if (parsed.value?.confirmId !== profileId) return json(response, 400, { error: 'confirmation_required' });
+      if (parsed.value?.confirmId !== profileId) return json(response, 400, { error: apiErrorCodes.confirmationRequired });
       try {
         const current = runtimeConfig.snapshot();
         if (!(current.llmProfiles ?? []).some((profile) => profile.id === profileId)) {
-          return json(response, 404, { error: 'profile_not_found' });
+          return json(response, 404, { error: apiErrorCodes.profileNotFound });
         }
         await runtimeConfig.replace({
           llmProfiles: current.llmProfiles.filter((profile) => profile.id !== profileId),
@@ -499,44 +500,44 @@ export function createAdminServer({
         auditLog.record({ operation: 'delete_llm_profile', fields: ['profileId'], result: 'ok' });
         return json(response, 200, { ok: true });
       } catch {
-        return json(response, 400, { error: 'profile_referenced' });
+        return json(response, 400, { error: apiErrorCodes.profileReferenced });
       }
     }
     if (request.method === 'PUT' && url.pathname === '/admin-api/llm/routing') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       try {
         const snapshot = await runtimeConfig.replace({ llmRouting: parsed.value });
         auditLog.record({ operation: 'update_llm_routing', fields: Object.keys(parsed.value), result: 'ok' });
         return json(response, 200, { routing: snapshot.llmRouting });
       } catch {
-        return json(response, 400, { error: 'invalid_routing' });
+        return json(response, 400, { error: apiErrorCodes.invalidRouting });
       }
     }
     if (request.method === 'PUT' && url.pathname === '/admin-api/config') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
-      if (parsed.value == null) return json(response, 400, { error: 'invalid_request' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (parsed.value == null) return json(response, 400, { error: apiErrorCodes.invalidRequest });
       try {
         const snapshot = await runtimeConfig.replace(parsed.value);
         auditLog.record({ operation: 'update_config', fields: Object.keys(parsed.value), result: 'ok' });
         return json(response, 200, safeConfiguration(snapshot));
       } catch {
         auditLog.record({ operation: 'update_config', fields: Object.keys(parsed.value), result: 'rejected' });
-        return json(response, 400, { error: 'invalid_configuration' });
+        return json(response, 400, { error: apiErrorCodes.invalidConfiguration });
       }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/test-connection') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
       return json(response, 200, await testConnection(parsed.value ?? {}));
     }
     if (request.method === 'PUT' && url.pathname === '/admin-api/outbound-network') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
       if (typeof parsed.value?.mode !== 'string' || outboundNetworkController == null) {
-        return json(response, 400, { error: 'invalid_request' });
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
       }
       const result = await outboundNetworkController.apply(parsed.value);
       const accepted = result.accepted === true;
@@ -549,14 +550,14 @@ export function createAdminServer({
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/change-password') {
       const parsed = await body(request);
-      if (parsed.tooLarge) return json(response, 413, { error: 'body_too_large' });
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
       const { currentPassword, newPassword, confirmPassword } = parsed.value ?? {};
       if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' ||
           typeof confirmPassword !== 'string') {
-        return json(response, 400, { error: 'invalid_request' });
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
       }
       if (newPassword !== confirmPassword) {
-        return json(response, 400, { error: 'password_mismatch' });
+        return json(response, 400, { error: apiErrorCodes.passwordMismatch });
       }
       try {
         const result = await authService.changePassword(newPassword, { currentPassword });
@@ -570,7 +571,7 @@ export function createAdminServer({
         });
       } catch {
         auditLog.record({ operation: 'change_password', result: 'invalid_password' });
-        return json(response, 400, { error: 'invalid_password' });
+        return json(response, 400, { error: apiErrorCodes.invalidPassword });
       }
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/audit') {
@@ -583,7 +584,7 @@ export function createAdminServer({
         return json(response, 200, { ok: true });
       } catch {
         auditLog.record({ operation: 'clear_cache', result: 'failed' });
-        return json(response, 503, { error: 'cache_clear_failed' });
+        return json(response, 503, { error: apiErrorCodes.cacheClearFailed });
       }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/restart') {
@@ -599,6 +600,6 @@ export function createAdminServer({
       });
       return;
     }
-    json(response, 404, { error: 'not_found' });
+    json(response, 404, { error: apiErrorCodes.notFound });
   });
 }

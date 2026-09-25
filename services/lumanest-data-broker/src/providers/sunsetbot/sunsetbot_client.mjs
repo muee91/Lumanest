@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { randomInt } from 'node:crypto';
 
 const retryStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -31,21 +33,23 @@ function delay(milliseconds) {
 async function boundedJson(response) {
   const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
   if (!['application/json', 'text/json'].includes(contentType)) {
-    return { ok: false, error: 'unexpected_content_type' };
+    return { ok: false, error: apiErrorCodes.unexpectedContentType };
   }
   const declared = Number.parseInt(response.headers.get('content-length') ?? '', 10);
   if (Number.isFinite(declared) && declared > maximumJsonBytes) {
-    return { ok: false, error: 'response_too_large' };
+    return { ok: false, error: apiErrorCodes.responseTooLarge };
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength > maximumJsonBytes) return { ok: false, error: 'response_too_large' };
+  if (bytes.byteLength > maximumJsonBytes) {
+    return { ok: false, error: apiErrorCodes.responseTooLarge };
+  }
   try {
     const value = JSON.parse(new TextDecoder().decode(bytes));
     return value != null && typeof value === 'object' && !Array.isArray(value)
       ? { ok: true, value }
-      : { ok: false, error: 'invalid_json_body' };
+      : { ok: false, error: apiErrorCodes.invalidJsonBody };
   } catch {
-    return { ok: false, error: 'invalid_json' };
+    return { ok: false, error: apiErrorCodes.invalidJson };
   }
 }
 

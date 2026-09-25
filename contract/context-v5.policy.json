@@ -1,0 +1,17 @@
+{
+  "$comment": "Single source for the numbers and sets that the context service, the broker and the Flutter client each have to agree on. Changing a value here is the change; the three test suites fail until every layer matches.",
+  "contractVersion": 5,
+  "interruptLeadLimitSeconds": 7200,
+  "baseSurfaces": [
+    "today",
+    "explore",
+    "route",
+    "shootingWindow"
+  ],
+  "safetyExtraSurfaces": [
+    "widget",
+    "notification"
+  ],
+  "maxEntries": 64,
+  "maxProvenance": 8
+}

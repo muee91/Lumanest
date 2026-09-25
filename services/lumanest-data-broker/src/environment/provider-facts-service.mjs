@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { createHash } from 'node:crypto';
 
 import { loadOfficialNoticeItems, officialNoticeSafetyKinds } from './official-notice-feed.mjs';
@@ -1104,7 +1106,7 @@ export class ProviderFactsService {
   async testProvider({ providerId, latitude, longitude, radiusKm = 25, locale = 'zh-CN' }) {
     if (!providerIdSet.has(providerId) || !finite(latitude, -90, 90) ||
         !finite(longitude, -180, 180) || !finite(radiusKm, 1, maximumRadiusKm)) {
-      return { ok: false, error: 'invalid_request' };
+      return { ok: false, error: apiErrorCodes.invalidRequest };
     }
     const started = Date.now();
     const now = this.now();

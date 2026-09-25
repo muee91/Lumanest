@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
+import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
@@ -188,7 +189,6 @@ void main() {
     expect(result.airQualityStale, isFalse);
     expect(result.solarAzimuthDegrees, 280);
     expect(result.entries, isEmpty);
-    expect(result.serverManifest, isNull);
   });
 
   test(
@@ -592,7 +592,6 @@ void main() {
 
       expect(result.opportunityIds, ['regional-wildlife']);
       expect(result.wildlifeEventIds, ['regional-wildlife']);
-      expect(result.serverManifest, isNull);
     },
   );
 
@@ -637,6 +636,33 @@ void main() {
       expect(result.allowedActions, [ContextAction.openAstronomyDetail]);
     },
   );
+
+  test('服务端授予的通知表面原样到达客户端，未知表面被丢弃', () async {
+    final transport = _FakeTransport()
+      ..mutateResponse = (response) {
+        response['entries'] = [
+          _entryV5Body(
+            surfaces: ['today', 'notification', 'widget', 'lockScreen'],
+          ),
+        ];
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    final result = await repository.fetchSnapshot(
+      location: _location(),
+      observedAt: DateTime.utc(2026, 7, 14, 2),
+    );
+
+    expect(
+      result.entries.single.allowedSurfaces,
+      {EntrySurface.today, EntrySurface.notification, EntrySurface.widget},
+      reason: '能否不请自来是服务端的结论，客户端不得静默丢掉这份授权',
+    );
+  });
 }
 
 LocationReading _location() => LocationReading(
@@ -713,6 +739,52 @@ Map<String, Object?> _shootingTargetBody() => {
   'sourceAttribution': '审核目录',
   'sourceLicense': 'CC-BY-4.0',
   'sourceUrl': 'https://source.example/lakes/east-bank',
+};
+
+Map<String, Object?> _entryV5Body({required List<String> surfaces}) => {
+  'id': 'entry_0123456789abcdef01234567',
+  'kind': 'photographyOpportunity',
+  'sourceNamespace': 'contextService.v5',
+  'sourceId': 'session.water.evening',
+  'revision': 1,
+  'observedAt': '2026-07-14T02:00:00Z',
+  'validFrom': '2026-07-14T02:05:00Z',
+  'expiresAt': '2026-07-14T02:15:00Z',
+  'freshness': 'fresh',
+  'evidenceConfidence': 0.9,
+  'basePriority': 'p1',
+  'severity': 'info',
+  'geoScope': 'region',
+  'allowedSurfaces': surfaces,
+  'actions': [
+    {
+      'type': 'openShootingWindow',
+      'targetId': 'session.water.evening',
+      'query': null,
+    },
+  ],
+  'presentation': {
+    'variant': 'shootingSession',
+    'title': '湖岸晚间窗口',
+    'shortLabel': '晚间窗口',
+    'fallbackSummary': '风与云正在把窗口慢慢打开。',
+  },
+  'payload': {
+    'type': 'opportunity',
+    'definitionId': 'session.water.evening',
+    'instanceId': 'session.water.evening',
+    'sessionId': 'session.water.evening',
+  },
+  'provenance': [
+    {
+      'sourceId': 'context-service',
+      'observedAt': '2026-07-14T02:00:00Z',
+      'sourceUrl': null,
+    },
+  ],
+  'dedupeKey': 'session.water.evening',
+  'suppressionKeys': <String>[],
+  'contentFingerprint': 'sha256:${'0' * 64}',
 };
 
 class _FakeTransport implements ContextDataTransport {

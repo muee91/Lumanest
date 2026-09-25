@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { createHash } from 'node:crypto';
 
 import { SunsetBotCircuitBreaker } from '../../infrastructure/circuit_breaker/sunsetbot_circuit_breaker.mjs';
@@ -95,11 +97,16 @@ function validateEventDate(result, { dayOffset, now }) {
   return result;
 }
 
+// Mirrors INTERRUPT_LEAD_LIMIT in the context service and
+// entryNotificationLeadLimit in the client (docs/core-1.0-scope.md §7.1).
+const NOTIFICATION_LEAD_LIMIT_MS = 2 * 60 * 60 * 1_000;
+
 function applyPresentationPolicy(data, config, now) {
   const score = data.summary.score;
   const eventTime = Date.parse(data.event.eventTime ?? '');
   const ageMilliseconds = Number.isFinite(eventTime) ? now.getTime() - eventTime : Infinity;
   const notMissed = ageMilliseconds <= 90 * 60 * 1_000;
+  const leadMilliseconds = Number.isFinite(eventTime) ? eventTime - now.getTime() : Infinity;
   const usable = Number.isFinite(score) && data.provider.providerStatus !== 'unavailable';
   const confidenceFactor = data.summary.confidence === 'low' ? .5 : 1;
   const staleFactor = data.freshness.isStale ? .5 : 1;
@@ -111,8 +118,15 @@ function applyPresentationPolicy(data, config, now) {
       proactiveEligible: config.cardEnabled && usable && notMissed &&
         score >= config.proactiveDisplayThreshold,
       paperEligible: usable && notMissed && score >= config.paperNoteThreshold,
-      notificationEligible: config.notificationEnabled && usable && notMissed &&
-        score >= config.notificationThreshold && data.summary.confidence !== 'low',
+      // A sky window is day-scale evidence, so it may interrupt only once it has
+      // entered the horizon where the models are actually accurate, and never
+      // claim more than the paper note already grants it. Delivery is still the
+      // app's decision; this only states what the evidence supports.
+      notificationEligible: usable && notMissed &&
+        data.summary.confidence !== 'low' &&
+        score >= config.paperNoteThreshold &&
+        leadMilliseconds >= 0 &&
+        leadMilliseconds <= NOTIFICATION_LEAD_LIMIT_MS,
       ambientStrength: Math.min(.25, bandStrength * confidenceFactor * staleFactor),
     },
   };
@@ -243,7 +257,6 @@ export class SkyOpportunityService {
     return {
       sunsetbotProviderEnabled: config.enabled,
       skyOpportunityCardEnabled: config.cardEnabled,
-      skyOpportunityNotificationEnabled: config.notificationEnabled,
       skyOpportunityMapEnabled: config.mapEnabled,
     };
   }

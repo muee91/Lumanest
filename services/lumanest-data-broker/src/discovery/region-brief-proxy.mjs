@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import {
   validRegionBriefResponse,
 } from './region-brief-contract.mjs';
@@ -10,7 +12,7 @@ export async function forwardRegionBrief({
   fetcher = fetch,
   timeoutMs = 8_000,
 }) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: 'not_configured' };
+  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
     const upstream = await fetcher(new URL('/internal/v1/explore/brief', serviceUrl), {
       method: 'POST',
@@ -30,10 +32,10 @@ export async function forwardRegionBrief({
     });
     const responseBody = await upstream.json();
     if (![200, 202].includes(upstream.status) || !validRegionBriefResponse(responseBody)) {
-      return { ok: false, error: 'upstream_unavailable' };
+      return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     }
     return { ok: true, status: upstream.status, body: responseBody };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/profile/domain/profile_preferences.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
@@ -372,109 +373,6 @@ class _V2UnderstandingObject extends StatelessWidget {
   }
 }
 
-class V2ProfileSettingsPage extends StatelessWidget {
-  const V2ProfileSettingsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) => _V2SecondaryPage(
-    title: '设置',
-    subtitle: '调整栖光的表达、隐私和设备行为。',
-    child: ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        _V2SettingsEntry(
-          icon: CupertinoIcons.slider_horizontal_3,
-          title: '我的观看方式',
-          detail: '题材、行动方式、器材和 AI 表达密度',
-          onTap: () => context.push('/profile/style'),
-        ),
-        const SizedBox(height: 12),
-        _V2SettingsEntry(
-          icon: CupertinoIcons.lock_shield,
-          title: '隐私与感受',
-          detail: '动态、高对比、匿名反馈和本地活动清理',
-          onTap: () => context.push('/profile/privacy'),
-        ),
-        const SizedBox(height: 12),
-        _V2SettingsEntry(
-          icon: CupertinoIcons.cloud,
-          title: '摄影环境工作台',
-          detail: '当前事实、候选窗口采样与摄影解读',
-          onTap: () => context.push('/environment'),
-        ),
-        if (kDebugMode) ...[
-          const SizedBox(height: 12),
-          _V2SettingsEntry(
-            icon: CupertinoIcons.lab_flask,
-            title: '动态背景实验室',
-            detail: '仅开发调试可见',
-            onTap: () => context.push('/ambient-debug'),
-          ),
-          const SizedBox(height: 12),
-          _V2SettingsEntry(
-            icon: CupertinoIcons.rectangle_3_offgrid,
-            title: '环境验收实验室',
-            detail: '场景、屏宽与字体缩放检查',
-            onTap: () => context.push('/environment-lab'),
-          ),
-        ],
-      ],
-    ),
-  );
-}
-
-class _V2SettingsEntry extends StatelessWidget {
-  const _V2SettingsEntry({
-    required this.icon,
-    required this.title,
-    required this.detail,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String detail;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => V2Pressable(
-    onTap: onTap,
-    color: V2Palette.paper,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      child: Row(
-        children: [
-          Icon(icon, color: V2Palette.moss, size: 21),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  detail,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(CupertinoIcons.chevron_right, color: V2Palette.mutedInk),
-        ],
-      ),
-    ),
-  );
-}
-
 class V2ProfileStylePage extends ConsumerStatefulWidget {
   const V2ProfileStylePage({super.key});
 
@@ -643,6 +541,10 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final value = ref.watch(profilePreferencesProvider);
     final controller = ref.read(profilePreferencesProvider.notifier);
+    final watchReminders = ref
+        .watch(shootingSessionNotificationsEnabledProvider)
+        .asData
+        ?.value;
     return _V2SecondaryPage(
       title: '隐私与感受',
       subtitle: '位置用于当前环境，个人偏好和收藏默认留在本机。',
@@ -661,6 +563,24 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
             detail: '提高文本和控制对象的视觉边界。',
             value: value.highContrast,
             onTap: controller.toggleHighContrast,
+          ),
+          const SizedBox(height: 12),
+          _V2ToggleObject(
+            title: '拍摄关注提醒',
+            detail: '为你关注的拍摄窗口在本机安排提醒；只使用系统通知，不联网、不上报位置。',
+            value: watchReminders ?? false,
+            onTap: () {
+              final enabled = watchReminders;
+              // A loading value must not be read as `false`: sending an enable
+              // command before the stored preference is restored would silently
+              // disagree with what the user already chose.
+              if (enabled == null) return;
+              unawaited(
+                ref
+                    .read(shootingSessionNotificationsEnabledProvider.notifier)
+                    .setEnabled(!enabled),
+              );
+            },
           ),
           const SizedBox(height: 12),
           _V2ToggleObject(

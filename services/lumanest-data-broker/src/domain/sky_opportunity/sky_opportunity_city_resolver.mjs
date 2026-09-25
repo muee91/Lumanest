@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { readFileSync } from 'node:fs';
 
 import { wgs84ToGcj02 } from '../../context/amap-evidence.mjs';
@@ -46,7 +48,7 @@ export async function resolveSkyOpportunityCity({
   fetcher = fetch,
   timeoutMs = 5_000,
 }) {
-  if (!amapWebKey) return { ok: false, error: 'not_configured' };
+  if (!amapWebKey) return { ok: false, error: apiErrorCodes.notConfigured };
   const gcj = wgs84ToGcj02({ latitude, longitude });
   const url = new URL('/v3/geocode/regeo', amapBaseUrl);
   url.searchParams.set('location', `${gcj.longitude},${gcj.latitude}`);
@@ -59,15 +61,15 @@ export async function resolveSkyOpportunityCity({
     });
     const length = Number.parseInt(response.headers.get('content-length') ?? '', 10);
     if (!response.ok || (Number.isFinite(length) && length > 1024 * 1024)) {
-      return { ok: false, error: 'upstream_unavailable' };
+      return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > 1024 * 1024) return { ok: false, error: 'response_too_large' };
+    if (bytes.byteLength > 1024 * 1024) return { ok: false, error: apiErrorCodes.responseTooLarge };
     const parsed = parseAmapCityCandidates(JSON.parse(new TextDecoder().decode(bytes)));
     return parsed == null
-      ? { ok: false, error: 'city_unavailable' }
+      ? { ok: false, error: apiErrorCodes.cityUnavailable }
       : { ok: true, ...parsed };
   } catch {
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }

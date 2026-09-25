@@ -1,0 +1,403 @@
+{
+  "contextId": "ctx_d8aa32b2fa599670afb4e6b0",
+  "contractVersion": 5,
+  "entries": [
+    {
+      "actions": [
+        {
+          "query": null,
+          "targetId": "session_e21a62fca0440744d3fd0c29",
+          "type": "openShootingWindow"
+        }
+      ],
+      "allowedSurfaces": [
+        "today",
+        "explore",
+        "route",
+        "shootingWindow",
+        "widget",
+        "notification"
+      ],
+      "basePriority": "p1",
+      "contentFingerprint": "sha256:1dd1d4df85971bb06246b761afbdc16a9e7bacc68c0f1f124936333caaca7926",
+      "dedupeKey": "session_e21a62fca0440744d3fd0c29",
+      "evidenceConfidence": 0.9,
+      "expiresAt": "2026-09-21T21:40:25Z",
+      "freshness": "fresh",
+      "geoScope": "region",
+      "id": "entry_db6886a01c05a1fd7d67fd90",
+      "kind": "photographyOpportunity",
+      "observedAt": "2026-09-21T21:20:25Z",
+      "payload": {
+        "definitionId": "session_e21a62fca0440744d3fd0c29",
+        "eventId": null,
+        "instanceId": "session_e21a62fca0440744d3fd0c29",
+        "sessionId": "session_e21a62fca0440744d3fd0c29",
+        "type": "opportunity"
+      },
+      "presentation": {
+        "fallbackSummary": "城市晨光窗口",
+        "shortLabel": "城市晨光窗口",
+        "title": "城市晨光窗口",
+        "variant": "shootingSession"
+      },
+      "provenance": [
+        {
+          "observedAt": "2026-09-21T21:20:25Z",
+          "sourceId": "context-service",
+          "sourceUrl": null
+        }
+      ],
+      "revision": 1790025625000000,
+      "severity": "info",
+      "sourceId": "session_e21a62fca0440744d3fd0c29",
+      "sourceNamespace": "contextService.v5",
+      "suppressionKeys": [],
+      "validFrom": "2026-09-21T21:12:02Z"
+    },
+    {
+      "actions": [
+        {
+          "query": null,
+          "targetId": "session_e5057e8eac925c17b9ce4363",
+          "type": "openShootingWindow"
+        }
+      ],
+      "allowedSurfaces": [
+        "today",
+        "explore",
+        "route",
+        "shootingWindow",
+        "widget"
+      ],
+      "basePriority": "p1",
+      "contentFingerprint": "sha256:3d8f2535c35e111519ce272f218eda6ce28e051a0af9d6533914deca4d85c96b",
+      "dedupeKey": "session_e5057e8eac925c17b9ce4363",
+      "evidenceConfidence": 0.9,
+      "expiresAt": "2026-09-21T21:40:25Z",
+      "freshness": "fresh",
+      "geoScope": "region",
+      "id": "entry_5ec6dd22855ac585cf4b4cc9",
+      "kind": "photographyOpportunity",
+      "observedAt": "2026-09-21T21:20:25Z",
+      "payload": {
+        "definitionId": "session_e5057e8eac925c17b9ce4363",
+        "eventId": null,
+        "instanceId": "session_e5057e8eac925c17b9ce4363",
+        "sessionId": "session_e5057e8eac925c17b9ce4363",
+        "type": "opportunity"
+      },
+      "presentation": {
+        "fallbackSummary": "城市日落与蓝调窗口",
+        "shortLabel": "城市日落与蓝调窗口",
+        "title": "城市日落与蓝调窗口",
+        "variant": "shootingSession"
+      },
+      "provenance": [
+        {
+          "observedAt": "2026-09-21T21:20:25Z",
+          "sourceId": "context-service",
+          "sourceUrl": null
+        }
+      ],
+      "revision": 1790025625000000,
+      "severity": "info",
+      "sourceId": "session_e5057e8eac925c17b9ce4363",
+      "sourceNamespace": "contextService.v5",
+      "suppressionKeys": [],
+      "validFrom": "2026-09-22T09:09:30Z"
+    }
+  ],
+  "environment": {
+    "allowedActions": [
+      "openShootingWindow"
+    ],
+    "astronomy": {
+      "astronomicalNight": false,
+      "galacticCenterAltitudeDegrees": -85.149,
+      "galacticCenterAzimuthDegrees": 286.6832,
+      "galacticCenterWindow": {
+        "endAt": "2026-09-22T13:23:29.631832Z",
+        "peakAltitudeDegrees": 26.2792,
+        "peakAt": "2026-09-22T11:14:41.799975Z",
+        "startAt": "2026-09-22T11:14:41.799975Z"
+      },
+      "moonAltitudeDegrees": -51.0123,
+      "moonAzimuthDegrees": 271.6787,
+      "moonIllumination": 0.774136,
+      "moonPhase": "waxingGibbous",
+      "moonriseAt": "2026-09-22T07:24:17.370589Z",
+      "moonsetAt": "2026-09-22T18:07:12.626500Z",
+      "status": "geometryOnly"
+    },
+    "dataFreshness": {
+      "context": "fresh",
+      "weather": "fresh",
+      "weatherObservedAt": "2026-09-21T21:05:00Z"
+    },
+    "route": {
+      "active": false,
+      "mode": "none",
+      "stage": "none"
+    },
+    "scene": "city",
+    "sceneContext": {
+      "activity": "stationary",
+      "facets": [],
+      "primaryScene": "urban",
+      "reviewedOverride": false,
+      "scores": {
+        "urban": 45
+      }
+    },
+    "sunMoon": {
+      "dayPhase": "dawn",
+      "moonIllumination": 0.774136,
+      "moonPhase": "waxingGibbous",
+      "sunAzimuthDegrees": 85.815,
+      "sunElevationDegrees": -6.2036
+    },
+    "weather": {
+      "airQualityCategory": null,
+      "airQualityIndex": null,
+      "airQualityObservedAt": null,
+      "airQualityStale": true,
+      "cloudCoverPercent": 10,
+      "condition": "unknown",
+      "precipitationMm": 0,
+      "primaryPollutant": null,
+      "temperatureCelsius": 23,
+      "thunder": false,
+      "visibilityKm": 14,
+      "windDirectionDegrees": 45,
+      "windSpeedMps": 2.5
+    }
+  },
+  "expiresAt": "2026-09-21T21:30:25Z",
+  "facts": {
+    "events": [],
+    "shootingSessions": [
+      {
+        "conditionBand": "good",
+        "confidenceBand": "high",
+        "endAt": "2026-09-21T22:30:23Z",
+        "expiresAt": "2026-09-21T21:40:25Z",
+        "factors": [
+          {
+            "effect": "limiting",
+            "id": "cloud",
+            "label": "云量",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "9%"
+          },
+          {
+            "effect": "supporting",
+            "id": "wind",
+            "label": "风速",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "2.3m/s"
+          },
+          {
+            "effect": "supporting",
+            "id": "precipitation",
+            "label": "降水",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "0.0mm"
+          },
+          {
+            "effect": "supporting",
+            "id": "visibility",
+            "label": "能见度",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "14km"
+          }
+        ],
+        "id": "session_e21a62fca0440744d3fd0c29",
+        "kind": "generalMorning",
+        "phases": [
+          {
+            "conditionBand": "good",
+            "directionDegrees": 85.9353,
+            "endAt": "2026-09-21T21:30:40Z",
+            "kind": "morningBlueHour",
+            "peakAt": "2026-09-21T21:21:21Z",
+            "startAt": "2026-09-21T21:12:02Z"
+          },
+          {
+            "conditionBand": "good",
+            "directionDegrees": 89.0086,
+            "endAt": "2026-09-21T22:30:23Z",
+            "kind": "sunrise",
+            "peakAt": "2026-09-21T21:45:23Z",
+            "startAt": "2026-09-21T21:30:40Z"
+          }
+        ],
+        "primaryPhase": "morningBlueHour",
+        "recommendedCapabilities": [
+          "tripod"
+        ],
+        "ruleVersion": "general-solar.1",
+        "startAt": "2026-09-21T21:12:02Z",
+        "targetCandidates": [],
+        "title": "城市晨光窗口",
+        "trend": "stable",
+        "trendSamples": [
+          {
+            "at": "2026-09-21T21:12:02Z",
+            "cloudCoverPercent": 9.744242424242424,
+            "conditionIndex": 80,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.428956228956229
+          },
+          {
+            "at": "2026-09-21T21:21:21Z",
+            "cloudCoverPercent": 9.405454545454546,
+            "conditionIndex": 80,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.334848484848485
+          },
+          {
+            "at": "2026-09-21T21:30:40Z",
+            "cloudCoverPercent": 9.066666666666666,
+            "conditionIndex": 80,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.2407407407407405
+          },
+          {
+            "at": "2026-09-21T21:45:23Z",
+            "cloudCoverPercent": 8.531515151515151,
+            "conditionIndex": 80,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.092087542087542
+          },
+          {
+            "at": "2026-09-21T22:30:23Z",
+            "cloudCoverPercent": 9.519166666666667,
+            "conditionIndex": 80,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.366435185185185
+          }
+        ]
+      },
+      {
+        "conditionBand": "good",
+        "confidenceBand": "high",
+        "endAt": "2026-09-22T10:27:48Z",
+        "expiresAt": "2026-09-21T21:40:25Z",
+        "factors": [
+          {
+            "effect": "supporting",
+            "id": "cloud",
+            "label": "云量",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "21%"
+          },
+          {
+            "effect": "supporting",
+            "id": "wind",
+            "label": "风速",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "2.0m/s"
+          },
+          {
+            "effect": "supporting",
+            "id": "precipitation",
+            "label": "降水",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "0.0mm"
+          },
+          {
+            "effect": "supporting",
+            "id": "visibility",
+            "label": "能见度",
+            "sourceAt": "2026-09-21T21:20:25.076000Z",
+            "value": "14km"
+          }
+        ],
+        "id": "session_e5057e8eac925c17b9ce4363",
+        "kind": "cityBlueHour",
+        "phases": [
+          {
+            "conditionBand": "good",
+            "directionDegrees": 270.7599,
+            "endAt": "2026-09-22T10:09:12Z",
+            "kind": "sunset",
+            "peakAt": "2026-09-22T09:54:30Z",
+            "startAt": "2026-09-22T09:09:30Z"
+          },
+          {
+            "conditionBand": "good",
+            "directionDegrees": 273.8165,
+            "endAt": "2026-09-22T10:27:48Z",
+            "kind": "blueHour",
+            "peakAt": "2026-09-22T10:18:30Z",
+            "startAt": "2026-09-22T10:09:12Z"
+          }
+        ],
+        "primaryPhase": "sunset",
+        "recommendedCapabilities": [
+          "tripod"
+        ],
+        "ruleVersion": "general-solar.1",
+        "startAt": "2026-09-22T09:09:30Z",
+        "targetCandidates": [],
+        "title": "城市日落与蓝调窗口",
+        "trend": "weakening",
+        "trendSamples": [
+          {
+            "at": "2026-09-22T09:09:30Z",
+            "cloudCoverPercent": 24.366666666666667,
+            "conditionIndex": 100,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.645833333333333
+          },
+          {
+            "at": "2026-09-22T09:54:30Z",
+            "cloudCoverPercent": 21.366666666666667,
+            "conditionIndex": 100,
+            "precipitationMm": 0,
+            "windSpeedMps": 2.020833333333333
+          },
+          {
+            "at": "2026-09-22T10:09:12Z",
+            "cloudCoverPercent": 20.386666666666667,
+            "conditionIndex": 100,
+            "precipitationMm": 0,
+            "windSpeedMps": 1.9444444444444444
+          },
+          {
+            "at": "2026-09-22T10:18:30Z",
+            "cloudCoverPercent": 19.766666666666666,
+            "conditionIndex": 90,
+            "precipitationMm": 0,
+            "windSpeedMps": 1.9444444444444444
+          },
+          {
+            "at": "2026-09-22T10:27:48Z",
+            "cloudCoverPercent": 19.14666666666667,
+            "conditionIndex": 90,
+            "precipitationMm": 0,
+            "windSpeedMps": 1.9444444444444444
+          }
+        ]
+      }
+    ]
+  },
+  "generatedAt": "2026-09-21T21:20:25Z",
+  "refreshHints": {
+    "airQuality": "ttl:2700",
+    "astronomy": "ttl:3600",
+    "opportunities": "solar-or-weather-delta",
+    "solar": "phase-boundary",
+    "weather": "ttl:600"
+  },
+  "snapshotRevision": 1790025625000000,
+  "sourceRevisions": {
+    "astronomy": 1790025625000000,
+    "route": 1790025625000000,
+    "scene": 1790025625000000,
+    "solar": 1790025625000000,
+    "weather": 1790024700000000
+  },
+  "stale": false
+}

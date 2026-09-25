@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .models import SnapshotResponse, V5SnapshotResponse
@@ -70,6 +70,35 @@ def project_snapshot_v5(snapshot: SnapshotResponse) -> V5SnapshotResponse:
     )
 
 
+BASE_SURFACES: tuple[str, ...] = ("today", "explore", "route", "shootingWindow")
+INTERRUPT_LEAD_LIMIT = timedelta(hours=2)
+
+
+def _allowed_surfaces(
+    *,
+    safety: bool,
+    interruptible: bool,
+    valid_from: datetime,
+    generated_at: datetime,
+) -> list[str]:
+    """Decide which surfaces may appear without the user asking.
+
+    Safety warnings own the interrupt path at any lead time. A photography entry
+    may interrupt only inside the window where its evidence is actually accurate;
+    day-scale candidates never reach a notification. This ceiling lives here
+    rather than in the client so a view model cannot widen it.
+    See docs/core-1.0-scope.md §7.1.
+    """
+    surfaces = list(BASE_SURFACES)
+    if safety:
+        return [*surfaces, "widget", "notification"]
+    if interruptible:
+        surfaces.append("widget")
+        if valid_from - generated_at <= INTERRUPT_LEAD_LIMIT:
+            surfaces.append("notification")
+    return surfaces
+
+
 def _entries(
     snapshot: SnapshotResponse,
     events: list[dict[str, Any]],
@@ -115,6 +144,12 @@ def _entries(
                     "definitionId": event_id if not safety else None,
                     "instanceId": event_id if not safety else None,
                 },
+                allowed_surfaces=_allowed_surfaces(
+                    safety=safety,
+                    interruptible=False,
+                    valid_from=observed_at,
+                    generated_at=snapshot.generated_at,
+                ),
                 source_url=event.get("sourceUrl"),
             )
         )
@@ -147,6 +182,14 @@ def _entries(
                     "instanceId": session.id,
                     "sessionId": session.id,
                 },
+                allowed_surfaces=_allowed_surfaces(
+                    safety=False,
+                    # A `limited` band session states conditions it cannot back
+                    # up, so it may never be the reason the app speaks first.
+                    interruptible=session.confidence_band in {"high", "medium"},
+                    valid_from=session.start_at,
+                    generated_at=snapshot.generated_at,
+                ),
             )
         )
     return result
@@ -205,6 +248,7 @@ def _entry(
     action: str,
     presentation: dict[str, Any],
     payload: dict[str, Any],
+    allowed_surfaces: list[str],
     source_url: str | None = None,
 ) -> dict[str, Any]:
     entry_id = "entry_" + hashlib.sha256(source_id.encode()).hexdigest()[:24]
@@ -228,7 +272,7 @@ def _entry(
         "basePriority": priority,
         "severity": severity,
         "geoScope": "region",
-        "allowedSurfaces": ["today", "explore", "route", "shootingWindow"],
+        "allowedSurfaces": allowed_surfaces,
         "actions": [{"type": action, "targetId": source_id}],
         "presentation": presentation,
         "payload": payload,

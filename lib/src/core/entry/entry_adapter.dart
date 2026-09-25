@@ -78,11 +78,18 @@ abstract final class ContextEntryAdapter {
       ],
       dedupeKey: '${session.kind.name}:${_dateKey(session.startsAt)}',
       suppressionKeys: {session.kind.name},
-      allowedSurfaces: const {
-        EntrySurface.today,
-        EntrySurface.explore,
-        EntrySurface.shootingWindow,
-        EntrySurface.widget,
+      allowedSurfaces: {
+        ...entryBaseSurfaces,
+        // A `limited` band states less than it implies, and a window past the
+        // evidence horizon is a plan rather than a cue; neither may occupy a
+        // surface the user is not already looking at.
+        if (session.confidenceBand != ShootingConfidenceBand.limited) ...[
+          EntrySurface.widget,
+          if (!session.startsAt.isAfter(
+                observedAt.add(entryNotificationLeadLimit),
+              ))
+            EntrySurface.notification,
+        ],
       },
     );
   }
@@ -143,10 +150,17 @@ abstract final class ContextEntryAdapter {
       ],
       dedupeKey: '${forecast.eventType.name}:${forecast.dayOffset}',
       suppressionKeys: const {},
-      allowedSurfaces: const {
+      allowedSurfaces: {
         EntrySurface.today,
         EntrySurface.explore,
         EntrySurface.shootingWindow,
+        // The broker already decided eligibility against the two-hour evidence
+        // horizon (§7.1); the client maps that verdict onto surfaces and never
+        // widens it on its own.
+        if (forecast.presentation.notificationEligible) ...[
+          EntrySurface.widget,
+          EntrySurface.notification,
+        ],
       },
     );
   }
@@ -246,11 +260,7 @@ abstract final class ContextEntryAdapter {
       ],
       dedupeKey: item.id,
       allowedSurfaces: safety
-          ? const {
-              EntrySurface.today,
-              EntrySurface.route,
-              EntrySurface.notification,
-            }
+          ? entrySafetySurfaces
           : const {EntrySurface.today, EntrySurface.inspiration},
     );
   }

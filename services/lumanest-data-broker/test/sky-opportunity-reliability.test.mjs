@@ -302,3 +302,33 @@ test('missed event and remote feature flag never reserve a proactive card', asyn
   assert.equal((await disabled.forecast(query)).status, 'unavailable');
   assert.equal(calls, 0);
 });
+
+test('a sky window may interrupt only inside the two hour evidence horizon', async () => {
+  // Provider sunset is 2026-07-18 18:59:55 Asia/Shanghai, i.e. 10:59:55Z.
+  const query = {
+    latitude: 30.2741,
+    longitude: 120.1551,
+    locale: 'zh-CN',
+    eventType: 'sunset',
+    dayOffset: 0,
+  };
+  const forecastAt = async (instant) => new SkyOpportunityService({
+    amapWebKey: () => 'amap-key',
+    fetcher: async (url) => url.hostname === 'restapi.amap.com'
+      ? amap()
+      : json(providerBody(.8)),
+    now: () => new Date(instant),
+  }).forecast(query);
+
+  const inside = await forecastAt('2026-07-18T09:30:00Z');
+  const outside = await forecastAt('2026-07-18T06:30:00Z');
+
+  // Lead time is the only difference between the two calls, so every other gate
+  // must already pass in both; otherwise this test proves nothing.
+  assert.equal(inside.data.presentation.proactiveEligible, true);
+  assert.equal(inside.data.presentation.paperEligible, true);
+  assert.equal(outside.data.presentation.paperEligible, true);
+
+  assert.equal(inside.data.presentation.notificationEligible, true);
+  assert.equal(outside.data.presentation.notificationEligible, false);
+});

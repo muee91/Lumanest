@@ -19,7 +19,6 @@ export const sunsetBotDefaults = Object.freeze({
   models: Object.freeze(['GFS', 'EC']),
   proactiveDisplayThreshold: .20,
   paperNoteThreshold: .60,
-  notificationThreshold: 1.00,
   attribution: '晚霞预测数据来源：SunsetBot',
 });
 
@@ -29,7 +28,6 @@ export function sunsetBotConfig(settings = {}, { baseUrl } = {}) {
     baseUrl: baseUrl?.trim() || sunsetBotDefaults.baseUrl,
     enabled: settings.sunsetbotProviderEnabled ?? true,
     cardEnabled: settings.skyOpportunityCardEnabled ?? true,
-    notificationEnabled: settings.skyOpportunityNotificationEnabled ?? false,
     mapEnabled: settings.skyOpportunityMapEnabled ?? false,
     tomorrowSunsetEnabled: settings.skyOpportunityTomorrowSunsetEnabled ?? false,
     timeoutMs: settings.sunsetbotTimeoutMs ?? sunsetBotDefaults.timeoutMs,
@@ -55,7 +53,5 @@ export function sunsetBotConfig(settings = {}, { baseUrl } = {}) {
       settings.skyOpportunityDisplayThreshold ?? sunsetBotDefaults.proactiveDisplayThreshold,
     paperNoteThreshold:
       settings.skyOpportunityPaperThreshold ?? sunsetBotDefaults.paperNoteThreshold,
-    notificationThreshold:
-      settings.skyOpportunityNotificationThreshold ?? sunsetBotDefaults.notificationThreshold,
   });
 }

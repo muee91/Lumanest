@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import {
   interpolateDirectionalLight,
   interpolateTerrainHorizon,
@@ -401,7 +403,7 @@ export class SkyWindowService {
         latitude: query.latitude,
         longitude: query.longitude,
         product: 'astro',
-      }).catch(() => ({ ok: false, error: 'unavailable' })),
+      }).catch(() => ({ ok: false, error: apiErrorCodes.unavailable })),
     ]);
     const horizon = environment.terrainHorizon;
     const nightSkyBackground = environment.nightSkyBackground;

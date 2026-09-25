@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { readFileSync } from 'node:fs';
 
 const maximumCells = 200_000;
@@ -83,10 +85,10 @@ export class SkyBrightnessCalibrationStore {
     try {
       const bundle = validatedBundle(JSON.parse(readFileSync(path.trim(), 'utf8')));
       return bundle == null
-        ? new SkyBrightnessCalibrationStore({ status: 'unavailable', error: 'invalid_calibration_bundle' })
+        ? new SkyBrightnessCalibrationStore({ status: 'unavailable', error: apiErrorCodes.invalidCalibrationBundle })
         : new SkyBrightnessCalibrationStore({ status: 'ready', bundle });
     } catch {
-      return new SkyBrightnessCalibrationStore({ status: 'unavailable', error: 'calibration_bundle_unavailable' });
+      return new SkyBrightnessCalibrationStore({ status: 'unavailable', error: apiErrorCodes.calibrationBundleUnavailable });
     }
   }
 

@@ -67,7 +67,6 @@ test('fills omitted settings from immutable defaults', () => {
   assert.equal(value.sunsetbotProviderEnabled, true);
   assert.equal(value.sunsetbotFreshTtlSeconds, 5_400);
   assert.equal(value.sunsetbotStaleTtlSeconds, 21_600);
-  assert.equal(value.skyOpportunityNotificationEnabled, false);
   assert.equal(value.sevenTimerProviderEnabled, true);
   assert.equal(value.sevenTimerAdminTestTimeoutMs, 8_000);
   assert.equal(value.sevenTimerAdminTestCooldownSeconds, 10);

@@ -9,6 +9,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
@@ -294,6 +295,12 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
 
   Future<void> _toggleWatch(String? watchedId) async {
     if (watchedId == null) {
+      // Permission is requested at the moment the user asks to be reminded, not
+      // at launch. A denial still keeps the watch itself, so the failure mode is
+      // a missing reminder rather than a lost bookmark.
+      final remindersEnabled = await ref
+          .read(shootingSessionNotificationsEnabledProvider.notifier)
+          .setEnabled(true);
       await ref
           .read(userLibraryProvider.notifier)
           .watchSession(
@@ -301,13 +308,23 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             snapshotId: widget.snapshot.id,
             targetId: widget.session.targetCandidates.firstOrNull?.id,
           );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            remindersEnabled
+                ? '已开启守候提醒'
+                : '通知权限未开启，窗口到达时不会提醒。可在「我的 — 隐私与感受」重新开启。',
+          ),
+        ),
+      );
     } else {
       await ref.read(userLibraryProvider.notifier).unwatchSession(watchedId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已取消守候提醒')),
+      );
     }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(watchedId == null ? '已开启守候提醒' : '已取消守候提醒')),
-    );
   }
 
   void _primaryAction(

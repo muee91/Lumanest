@@ -11,6 +11,11 @@ CONTEXT_DOCKERFILE=${CONTEXT_DOCKERFILE:-Dockerfile}
 DISCOVERY_DOCKERFILE=${DISCOVERY_DOCKERFILE:-Dockerfile}
 RASTER_DOCKERFILE=${RASTER_DOCKERFILE:-Dockerfile}
 TERRAIN_DOCKERFILE=${TERRAIN_DOCKERFILE:-Dockerfile}
+# Build-time base image overrides.  Empty keeps each Dockerfile's pinned digest
+# authoritative; a value is only needed when the host's registry mirror cannot
+# serve that digest.  It must resolve to the identical pinned content.
+NODE_IMAGE=${NODE_IMAGE:-}
+PYTHON_IMAGE=${PYTHON_IMAGE:-}
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99}
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
@@ -59,6 +64,17 @@ valid_sha256() {
     ''|*[!0-9A-Fa-f]*) return 1 ;;
   esac
   [ ${#1} -eq 64 ]
+}
+
+# A base image override may change which registry answers the request, but it
+# must not turn an immutable pin into a movable tag.
+valid_pinned_base_image() {
+  case "$1" in
+    *@sha256:*) ;;
+    *) return 1 ;;
+  esac
+  valid_sha256 "${1##*@sha256:}" || return 1
+  valid_image_reference "$1"
 }
 
 file_sha256() {
@@ -611,6 +627,14 @@ if ! valid_identifier "$TERRAIN_DOCKERFILE"; then
   exit 1
 fi
 export BROKER_DOCKERFILE CONTEXT_DOCKERFILE DISCOVERY_DOCKERFILE RASTER_DOCKERFILE TERRAIN_DOCKERFILE
+if [ -n "$NODE_IMAGE" ] && ! valid_pinned_base_image "$NODE_IMAGE"; then
+  echo "NODE_IMAGE must be an @sha256-pinned image reference: $NODE_IMAGE" >&2
+  exit 1
+fi
+if [ -n "$PYTHON_IMAGE" ] && ! valid_pinned_base_image "$PYTHON_IMAGE"; then
+  echo "PYTHON_IMAGE must be an @sha256-pinned image reference: $PYTHON_IMAGE" >&2
+  exit 1
+fi
 case "$HEALTHCHECK_ATTEMPTS" in
   ''|0|*[!0-9]*) echo "HEALTHCHECK_ATTEMPTS must be a positive integer." >&2; exit 1 ;;
 esac
@@ -710,7 +734,16 @@ fi
 compose_release config --quiet
 if [ "$SKIP_BUILD" = 0 ]; then
   echo "Building the release while the current stack remains online."
-  compose_release build
+  base_image_args=""
+  if [ -n "$NODE_IMAGE" ]; then
+    base_image_args="$base_image_args --build-arg NODE_IMAGE=$NODE_IMAGE"
+  fi
+  if [ -n "$PYTHON_IMAGE" ]; then
+    base_image_args="$base_image_args --build-arg PYTHON_IMAGE=$PYTHON_IMAGE"
+  fi
+  # Word splitting is intentional: validated references contain no spaces.
+  # shellcheck disable=SC2086
+  compose_release build $base_image_args
 fi
 docker image inspect "$BACKUP_HELPER_IMAGE" >/dev/null 2>&1 || docker pull "$BACKUP_HELPER_IMAGE"
 

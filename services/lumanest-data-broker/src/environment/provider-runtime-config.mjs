@@ -72,10 +72,22 @@ function environmentValue(environment, name, fallback = '') {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
 }
 
+// docs/core-1.0-scope.md §5 fixes which providers may run by default. The rest
+// keep their adapters but stay closed until each has a named user value chain;
+// an adapter existing in the tree is not a reason to call it upstream.
+const defaultEnabledProviders = Object.freeze([
+  'osm',
+  'wikidata',
+  'wikimediaCommons',
+  'officialNotices',
+  'gbif',
+  'inaturalist',
+]);
+
 export function providerSourceDefaults(environment = {}) {
   return {
     enabled: true,
-    enabledProviders: supportedProviderSourceIds.filter((id) => id !== 'ebird'),
+    enabledProviders: defaultEnabledProviders,
     timeoutMs: 8_000,
     sentinelStacBaseUrl: environmentValue(
       environment,
@@ -300,7 +312,7 @@ export function validateProviderSources(input = {}, { partial = false, base = nu
     }
   }
   if (partial) return deepFreeze(result);
-  result.enabledProviders = Object.freeze([...(result.enabledProviders ?? supportedProviderSourceIds)]);
+  result.enabledProviders = Object.freeze([...(result.enabledProviders ?? defaultEnabledProviders)]);
   result.officialNoticeSources = Object.freeze([...(result.officialNoticeSources ?? [])]);
   return deepFreeze(result);
 }

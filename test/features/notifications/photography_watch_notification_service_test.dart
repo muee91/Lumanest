@@ -50,6 +50,39 @@ void main() {
     expect(service.scheduled.single.notifyAt, now);
   });
 
+  test('提醒携带快照的数据时间，不暗示自己读到的是实时', () async {
+    final service = _FakeService();
+    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+
+    await _reconciler(service, _MemoryLedger(), now).reconcile(
+      snapshot: _snapshot(now, session),
+      library: _library(now, session),
+    );
+
+    expect(service.scheduled.single.dataObservedAt, now);
+  });
+
+  test('提醒正文只陈述窗口、成立条件与数据时间', () {
+    final session = ContextFixtures.waterEveningSession(
+      observedAt: DateTime.utc(2026, 7, 18, 10, 40),
+    );
+
+    final body = LocalShootingSessionNotificationService.reasonFor(
+      session,
+      DateTime.utc(2026, 7, 18, 10, 40),
+    );
+
+    expect(
+      body,
+      '窗口 ${_clock(session.startsAt)} 开始 · '
+      '成立条件：云量 58% · 风速 2.1m/s · '
+      '依据 ${_clock(DateTime.utc(2026, 7, 18, 10, 40))} 的数据',
+    );
+    for (final claim in <String>['概率', '成功率', '把握']) {
+      expect(body, isNot(contains(claim)), reason: '未校准的分数不得伪装成 $claim');
+    }
+  });
+
   test('stale or missing sessions cancel their prior notification', () async {
     final service = _FakeService();
     final ledger = _MemoryLedger();
@@ -92,6 +125,12 @@ void main() {
     expect(preference.enabled, isFalse);
     expect(service.permissionRequests, 1);
   });
+}
+
+String _clock(DateTime value) {
+  final local = value.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
 }
 
 ShootingSession _sessionStarting(DateTime startsAt) =>
@@ -138,9 +177,14 @@ ShootingSessionNotificationReconciler _reconciler(
 );
 
 class _Scheduled {
-  const _Scheduled({required this.session, required this.notifyAt});
+  const _Scheduled({
+    required this.session,
+    required this.notifyAt,
+    required this.dataObservedAt,
+  });
   final ShootingSession session;
   final DateTime notifyAt;
+  final DateTime dataObservedAt;
 }
 
 class _FakeService implements ShootingSessionNotificationService {
@@ -168,8 +212,15 @@ class _FakeService implements ShootingSessionNotificationService {
     required WatchedShootingSession watch,
     required ShootingSession session,
     required DateTime notifyAt,
+    required DateTime dataObservedAt,
   }) async {
-    scheduled.add(_Scheduled(session: session, notifyAt: notifyAt));
+    scheduled.add(
+      _Scheduled(
+        session: session,
+        notifyAt: notifyAt,
+        dataObservedAt: dataObservedAt,
+      ),
+    );
   }
 }
 

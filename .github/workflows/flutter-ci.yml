@@ -93,6 +93,30 @@ jobs:
         working-directory: services/lumanest-data-broker
         run: npm test
 
+  context-service:
+    name: Test context service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: services/lumanest-context-service/pyproject.toml
+
+      - name: Install context service dependencies
+        working-directory: services/lumanest-context-service
+        run: pip install -e '.[test]'
+
+      - name: Run context service tests
+        working-directory: services/lumanest-context-service
+        run: pytest -q --tb=short
+
   discovery-service:
     name: Test discovery service
     runs-on: ubuntu-latest
@@ -165,15 +189,43 @@ jobs:
         working-directory: services/lumanest-terrain-service
         run: pytest
 
+  contract-drift:
+    name: Check shared contracts and generated mirrors
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The catalog is authored once and mirrored into Dart, Python and Node.
+      # The generators have a --check mode that no suite calls, so a regenerated
+      # catalog could otherwise merge with one mirror left behind.
+      - name: Verify generated catalog mirrors are current
+        run: python3 tool/generate_catalog.py --check
+
+      # contract/context-v5.* is the single source for the numbers each language
+      # restates; these tests read it from their own layer, so a partial contract
+      # change fails here rather than in a shipped client.
+      - name: Check the V5 contract files are present and parseable
+        run: python3 -c "import json;[json.load(open(p)) for p in ('contract/context-v5.snapshot.golden.json','contract/context-v5.policy.json')]"
+
   verification-status:
     name: Publish combined verification status
     if: always()
     needs:
       - quality
       - data-broker
+      - context-service
       - discovery-service
       - raster-service
       - terrain-service
+      - contract-drift
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -183,17 +235,21 @@ jobs:
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           DATA_BROKER_RESULT: ${{ needs['data-broker'].result }}
+          CONTEXT_RESULT: ${{ needs['context-service'].result }}
           DISCOVERY_RESULT: ${{ needs['discovery-service'].result }}
           RASTER_RESULT: ${{ needs['raster-service'].result }}
           TERRAIN_RESULT: ${{ needs['terrain-service'].result }}
+          CONTRACT_RESULT: ${{ needs['contract-drift'].result }}
         with:
           script: |
             const results = {
               flutter: process.env.QUALITY_RESULT,
               dataBroker: process.env.DATA_BROKER_RESULT,
+              context: process.env.CONTEXT_RESULT,
               discovery: process.env.DISCOVERY_RESULT,
               raster: process.env.RASTER_RESULT,
               terrain: process.env.TERRAIN_RESULT,
+              contract: process.env.CONTRACT_RESULT,
             };
             const failed = Object.entries(results)
               .filter(([, result]) => result !== 'success')

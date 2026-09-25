@@ -12,7 +12,6 @@ const definitions = Object.freeze({
   minimumOpportunityConfidence: Object.freeze({ type: 'number', minimum: 0, maximum: 1, defaultValue: 0.5 }),
   sunsetbotProviderEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
   skyOpportunityCardEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
-  skyOpportunityNotificationEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
   skyOpportunityMapEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
   skyOpportunityTomorrowSunsetEnabled: Object.freeze({ type: 'boolean', defaultValue: false }),
   sunsetbotTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 12_000 }),
@@ -28,7 +27,6 @@ const definitions = Object.freeze({
   sunsetbotCircuitOpenSeconds: Object.freeze({ type: 'integer', minimum: 60, maximum: 3_600, defaultValue: 900 }),
   skyOpportunityDisplayThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: .20 }),
   skyOpportunityPaperThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: .60 }),
-  skyOpportunityNotificationThreshold: Object.freeze({ type: 'number', minimum: 0, maximum: 2.5, defaultValue: 1.00 }),
   sevenTimerProviderEnabled: Object.freeze({ type: 'boolean', defaultValue: true }),
   sevenTimerTimeoutMs: Object.freeze({ type: 'integer', minimum: 2_000, maximum: 30_000, defaultValue: 12_000 }),
   sevenTimerMaxAttempts: Object.freeze({ type: 'integer', minimum: 1, maximum: 2, defaultValue: 2 }),
@@ -67,6 +65,16 @@ function validateValue(name, value, definition) {
   return value;
 }
 
+// A setting dropped from `definitions` can still sit in configuration saved by
+// an older release. Reading must not fail over dead data, so the persisted view
+// is pruned first; writes through the admin API stay strict on unknown keys.
+export function pruneUnknownRuntimeSettings(input) {
+  if (input == null || typeof input !== 'object' || Array.isArray(input)) return input;
+  return Object.fromEntries(
+    Object.entries(input).filter(([name]) => Object.hasOwn(definitions, name)),
+  );
+}
+
 export function validateRuntimeSettings(input = {}, { partial = false } = {}) {
   if (input == null || typeof input !== 'object' || Array.isArray(input)) {
     throw new TypeError('Runtime settings must be an object');
@@ -89,8 +97,7 @@ export function validateRuntimeSettings(input = {}, { partial = false } = {}) {
     if (result.sunsetbotMaxCityConcurrency > result.sunsetbotMaxGlobalConcurrency) {
       throw new RangeError('sunsetbotMaxCityConcurrency must not exceed global concurrency');
     }
-    if (result.skyOpportunityPaperThreshold < result.skyOpportunityDisplayThreshold ||
-        result.skyOpportunityNotificationThreshold < result.skyOpportunityPaperThreshold) {
+    if (result.skyOpportunityPaperThreshold < result.skyOpportunityDisplayThreshold) {
       throw new RangeError('sky opportunity thresholds must remain ordered');
     }
     const maximumSevenTimerFreshTtl = Math.max(

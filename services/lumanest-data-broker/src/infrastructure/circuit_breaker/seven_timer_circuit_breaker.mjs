@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 export class SevenTimerCircuitBreaker {
   constructor({ failureThreshold = 3, openSeconds = 1_800 } = {}) {
     this.failureThreshold = failureThreshold;

@@ -27,7 +27,6 @@ import 'package:x_amap_base/x_amap_base.dart';
 class V2RoutePage extends ConsumerWidget {
   const V2RoutePage({
     super.key,
-    this.routeId,
     this.destinationName,
     this.destinationLatitude,
     this.destinationLongitude,
@@ -35,7 +34,6 @@ class V2RoutePage extends ConsumerWidget {
   });
 
   final String? destinationName;
-  final String? routeId;
   final double? destinationLatitude;
   final double? destinationLongitude;
   final RouteTravelMode travelMode;
@@ -44,19 +42,9 @@ class V2RoutePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recent = library?.recentRoute;
-    final saved = routeId == null
-        ? null
-        : library?.savedRoutes
-              .where((route) => route.id == routeId)
-              .firstOrNull;
-    final savedDestination = saved?.destination;
-    final name = destinationName ?? savedDestination?.name ?? recent?.name;
-    final latitude =
-        destinationLatitude ?? savedDestination?.latitude ?? recent?.latitude;
-    final longitude =
-        destinationLongitude ??
-        savedDestination?.longitude ??
-        recent?.longitude;
+    final name = destinationName ?? recent?.name;
+    final latitude = destinationLatitude ?? recent?.latitude;
+    final longitude = destinationLongitude ?? recent?.longitude;
     if (name == null || latitude == null || longitude == null) {
       return V2PageStage(
         child: V2EmptyObject(

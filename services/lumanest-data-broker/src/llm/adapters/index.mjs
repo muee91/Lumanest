@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import {
   openAICompatibleRequest,
   openAICompatibleText,
@@ -72,7 +74,7 @@ function requestSignal(timeoutMs, signal) {
 
 export async function requestNarrative({ profile, prompt, fetcher = fetch, tools, extraMessages, signal } = {}) {
   const adapter = adapters.get(profile.protocol);
-  if (adapter == null) return { ok: false, error: 'request_rejected' };
+  if (adapter == null) return { ok: false, error: apiErrorCodes.requestRejected };
   // Tools are optional and protocol-opt-in: an adapter that does not expose
   // withTools/extractToolCalls simply cannot run the agent loop, and the
   // caller degrades to a plain chat completion. This keeps the legacy path
@@ -92,28 +94,28 @@ export async function requestNarrative({ profile, prompt, fetcher = fetch, tools
     });
   } catch (error) {
     const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';
-    return { ok: false, error: timeout ? 'timeout' : 'upstream_unavailable' };
+    return { ok: false, error: timeout ? apiErrorCodes.timeout : apiErrorCodes.upstreamUnavailable };
   }
   if (!response.ok) return { ok: false, error: responseError(response.status) };
-  if (exceedsDeclaredLimit(response)) return { ok: false, error: 'invalid_response' };
+  if (exceedsDeclaredLimit(response)) return { ok: false, error: apiErrorCodes.invalidResponse };
   try {
     const body = await response.json();
-    if (!boundedBody(body)) return { ok: false, error: 'invalid_response' };
+    if (!boundedBody(body)) return { ok: false, error: apiErrorCodes.invalidResponse };
     const text = adapter.text(body);
     // In tool mode the model may legitimately emit only a tool call and no
     // textual content; a null/empty text is then acceptable as long as a
     // tool call is present. Without tools the legacy contract stands: a
     // missing text is an invalid response.
     const hasText = typeof text === 'string' && Buffer.byteLength(text, 'utf8') <= 8 * 1024 && text.length > 0;
-    if (!usingTools && !hasText) return { ok: false, error: 'invalid_response' };
+    if (!usingTools && !hasText) return { ok: false, error: apiErrorCodes.invalidResponse };
     if (!usingTools) return { ok: true, text };
     const toolCalls = adapter.extractToolCalls(body);
     if (!hasText && !(toolCalls && toolCalls.length > 0)) {
-      return { ok: false, error: 'invalid_response' };
+      return { ok: false, error: apiErrorCodes.invalidResponse };
     }
     return { ok: true, text: hasText ? text : '', toolCalls: toolCalls ?? null };
   } catch {
-    return { ok: false, error: 'invalid_response' };
+    return { ok: false, error: apiErrorCodes.invalidResponse };
   }
 }
 
@@ -126,7 +128,7 @@ export async function requestNarrative({ profile, prompt, fetcher = fetch, tools
 export async function* streamNarrative({ profile, prompt, fetcher = fetch, signal }) {
   const adapter = adapters.get(profile.protocol);
   if (adapter?.streamRequest == null) {
-    yield { type: 'error', error: 'request_rejected' };
+    yield { type: 'error', error: apiErrorCodes.requestRejected };
     return;
   }
   const { url, options } = adapter.streamRequest(profile, prompt);
@@ -139,7 +141,7 @@ export async function* streamNarrative({ profile, prompt, fetcher = fetch, signa
     });
   } catch (error) {
     const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';
-    yield { type: 'error', error: timeout ? 'timeout' : 'upstream_unavailable' };
+    yield { type: 'error', error: timeout ? apiErrorCodes.timeout : apiErrorCodes.upstreamUnavailable };
     return;
   }
   if (!response.ok) {
@@ -147,7 +149,7 @@ export async function* streamNarrative({ profile, prompt, fetcher = fetch, signa
     return;
   }
   if (response.body == null) {
-    yield { type: 'error', error: 'invalid_response' };
+    yield { type: 'error', error: apiErrorCodes.invalidResponse };
     return;
   }
 
@@ -175,7 +177,7 @@ export async function* streamNarrative({ profile, prompt, fetcher = fetch, signa
         if (result.text) {
           accumulatedBytes += Buffer.byteLength(result.text, 'utf8');
           if (accumulatedBytes > 8 * 1024) {
-            yield { type: 'error', error: 'invalid_response' };
+            yield { type: 'error', error: apiErrorCodes.invalidResponse };
             return;
           }
           yield { type: 'token', text: result.text };
@@ -186,6 +188,6 @@ export async function* streamNarrative({ profile, prompt, fetcher = fetch, signa
     if (trailing?.done) return;
     yield { type: 'done' };
   } catch {
-    yield { type: 'error', error: 'upstream_unavailable' };
+    yield { type: 'error', error: apiErrorCodes.upstreamUnavailable };
   }
 }

@@ -1,3 +1,7 @@
+import { BoundedTtlMap } from './bounded-ttl-map.mjs';
+
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 import { createClient } from 'redis';
 
 const prefix = 'seven-timer:v1:';
@@ -25,7 +29,7 @@ function entry(value, { now, freshTtlSeconds, staleTtlSeconds }) {
 
 export class MemorySevenTimerCache {
   constructor() {
-    this.entries = new Map();
+    this.entries = new BoundedTtlMap(256);
   }
 
   async get(key, now = new Date()) {

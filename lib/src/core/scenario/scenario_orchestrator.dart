@@ -138,13 +138,9 @@ class ScenarioOrchestrator {
       );
     }
 
-    final qualified = _qualify(entries, now);
-    final blockingSafety = qualified
-        .where((entry) => entry.kind == EntryKind.safety)
-        .firstOrNull;
-    final primary = qualified
-        .where((entry) => entry.kind != EntryKind.safety)
-        .firstOrNull;
+    final selection = selectToday(entries: entries, now: now);
+    final blockingSafety = selection.blockingSafety;
+    final primary = selection.primary;
     final quiet = primary == null;
     final selectedPrimary =
         primary ??
@@ -236,6 +232,29 @@ class ScenarioOrchestrator {
     );
   }
 
+  /// The single authority for what leads Today.
+  ///
+  /// Safety leads whenever one is present and unexpired; otherwise the strongest
+  /// remaining entry leads. Ranking reads only fields the rule engine already
+  /// decided — base priority, evidence confidence, validity window — so there is
+  /// no second ordering anywhere that could contradict this one, and
+  /// docs/core-1.0-scope.md's one-main-opportunity rule has exactly one home.
+  static TodaySelection selectToday({
+    required List<ContextEntry> entries,
+    required DateTime now,
+  }) {
+    final qualified = _qualify(entries, now);
+    return TodaySelection._(
+      qualified: qualified,
+      blockingSafety: qualified
+          .where((entry) => entry.kind == EntryKind.safety)
+          .firstOrNull,
+      primary: qualified
+          .where((entry) => entry.kind != EntryKind.safety)
+          .firstOrNull,
+    );
+  }
+
   /// Produces a deterministic qualified list in display order.
   static List<ContextEntry> _qualify(List<ContextEntry> entries, DateTime now) {
     final deduped = _dedupe(entries, now);
@@ -305,4 +324,23 @@ class ScenarioOrchestrator {
     }
     return primary.presentation.judgement ?? primary.presentation.title;
   }
+}
+
+/// What [ScenarioOrchestrator.selectToday] decided, kept separate from the
+/// surface that consumes it so the choice can be tested without a widget tree.
+class TodaySelection {
+  const TodaySelection._({
+    required this.qualified,
+    required this.blockingSafety,
+    required this.primary,
+  });
+
+  /// Display-ordered entries that survived expiry, dedupe and suppression.
+  final List<ContextEntry> qualified;
+
+  /// The safety entry that outranks everything, or `null`.
+  final ContextEntry? blockingSafety;
+
+  /// The one main photography opportunity, or `null` when Today stays quiet.
+  final ContextEntry? primary;
 }

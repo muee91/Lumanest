@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../api/error-codes.mjs';
+
 import { createHash } from 'node:crypto';
 
 import { createQWeatherJwt } from '../jwt.mjs';
@@ -258,7 +260,7 @@ export async function authoritativeWeather({
 }) {
   const host = qweatherHost(apiHost);
   if (host == null || privateKey == null || !keyId || !projectId) {
-    return { ok: false, error: 'not_configured' };
+    return { ok: false, error: apiErrorCodes.notConfigured };
   }
   const key = cacheKey(coordinate);
   const fetchedAt = now();
@@ -312,6 +314,6 @@ export async function authoritativeWeather({
         cache: 'stale',
       };
     }
-    return { ok: false, error: 'upstream_unavailable' };
+    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }
 }

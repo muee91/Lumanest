@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 export class SunsetBotCircuitBreaker {
   constructor({
     failureThreshold = 5,

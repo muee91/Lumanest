@@ -1,3 +1,5 @@
+import { apiErrorCodes } from '../../api/error-codes.mjs';
+
 // Gemini uses `user`/`model` roles (not `assistant`), so prior turns are
 // remapped here. History always alternates user→model and ends before the
 // current user turn, which keeps the contents sequence valid.
