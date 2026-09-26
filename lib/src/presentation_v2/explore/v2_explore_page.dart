@@ -1078,7 +1078,8 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   void _openRoute(String name, GeoPoint point) {
     context.go(
       '/route?name=${Uri.encodeQueryComponent(name)}'
-      '&lat=${point.latitude}&lon=${point.longitude}',
+      '&lat=${point.latitude}&lon=${point.longitude}'
+      '&system=${point.coordinateSystem.name}',
     );
   }
 
