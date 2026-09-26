@@ -17,6 +17,7 @@ import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
 import 'package:luma_nest/src/features/route/application/route_navigation_launcher.dart';
 import 'package:luma_nest/src/features/route/application/route_scout_providers.dart';
@@ -198,6 +199,10 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   @override
   void dispose() {
     _controller?.disponse();
+    final sessionId = widget.activeShootingIntent?.sessionId;
+    if (sessionId != null) {
+      ref.read(shootingDeparturePlanProvider.notifier).clearFor(sessionId);
+    }
     super.dispose();
   }
 
@@ -244,6 +249,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _syncDeparturePlan(snapshot);
       if (_syncedRouteRevision != _routeRevision) {
         _syncedRouteRevision = _routeRevision;
         _replaceCorridor(departureAt: DateTime.now());
@@ -361,6 +367,49 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
         context,
       ).showSnackBar(const SnackBar(content: Text('暂时无法打开外部地图')));
     }
+  }
+
+  void _syncDeparturePlan(ContextSnapshot? snapshot) {
+    final intent = widget.activeShootingIntent;
+    if (intent == null || snapshot == null) return;
+    final session = snapshot.shootingSessions
+        .where((candidate) => candidate.id == intent.sessionId)
+        .firstOrNull;
+    final target = session?.targetCandidates
+        .where((candidate) => candidate.id == intent.targetId)
+        .firstOrNull;
+    if (session == null ||
+        target == null ||
+        GeoDistance.metersBetween(
+              target.coordinate,
+              widget.destination.point,
+            ) >
+            target.arrivalRadiusMeters) {
+      ref.read(shootingDeparturePlanProvider.notifier).clearFor(intent.sessionId);
+      return;
+    }
+    final decision = ShootingExecutionResolver.resolve(
+      session: session,
+      now: DateTime.now(),
+      target: target,
+      routeDuration: Duration(seconds: widget.route.durationSeconds),
+    );
+    final deadline = decision.departureDeadline;
+    if (deadline == null) {
+      ref.read(shootingDeparturePlanProvider.notifier).clearFor(intent.sessionId);
+      return;
+    }
+    ref
+        .read(shootingDeparturePlanProvider.notifier)
+        .setPlan(
+          ShootingDeparturePlan(
+            sessionId: intent.sessionId,
+            targetId: intent.targetId,
+            departureDeadline: deadline,
+            routeDuration: Duration(seconds: widget.route.durationSeconds),
+            createdAt: intent.createdAt,
+          ),
+        );
   }
 
   void _syncPlannedRoute() {
