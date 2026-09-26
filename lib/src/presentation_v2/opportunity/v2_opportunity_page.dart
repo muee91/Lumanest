@@ -4,10 +4,16 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/app/router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
+import 'package:luma_nest/src/core/location/location_reading.dart';
+import 'package:luma_nest/src/core/photography/field_environment_selector.dart';
+import 'package:luma_nest/src/core/photography/field_mode.dart';
+import 'package:luma_nest/src/core/photography/opportunity_migration.dart';
+import 'package:luma_nest/src/core/photography/target_arrival_state.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
@@ -104,17 +110,120 @@ class _V2OpportunityStage extends ConsumerStatefulWidget {
 class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   bool _evidenceOpen = false;
   bool _atTarget = false;
+  bool _locationRefreshing = false;
+  bool _locationFailed = false;
   int _selectedPhaseIndex = 0;
+  DateTime _clockNow = DateTime.now();
+  LocationReading? _locationReading;
+  Timer? _clockTimer;
+  Duration? _clockInterval;
+  Timer? _locationTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_targetForIntent() == null) return;
+    _refreshLocation();
+    _locationTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted && !_locationFailed) _refreshLocation();
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshLocation() async {
+    if (_locationRefreshing || _locationFailed) return;
+    _locationRefreshing = true;
+    try {
+      final reading = await ref.read(effectiveLocationRepositoryProvider).current();
+      if (!mounted) return;
+      setState(() => _locationReading = reading);
+    } on Object {
+      // Location is an enhancement only. The manual arrival control remains
+      // available when permission, service or a reliable fix is unavailable.
+      if (mounted) {
+        setState(() {
+          _locationReading = null;
+          _locationFailed = true;
+        });
+      }
+    } finally {
+      _locationRefreshing = false;
+    }
+  }
+
+  void _toggleAtTarget() {
+    setState(() => _atTarget = !_atTarget);
+    if (_atTarget) {
+      _startClockTimer();
+    } else {
+      _clockTimer?.cancel();
+      _clockTimer = null;
+      _clockInterval = null;
+    }
+  }
+
+  void _startClockTimer() {
+    final interval = _clockIntervalFor(_clockNow);
+    if (_clockTimer != null && _clockInterval == interval) return;
+    _clockTimer?.cancel();
+    _clockInterval = interval;
+    _clockTimer = Timer.periodic(interval, (_) {
+      if (!mounted) return;
+      setState(() => _clockNow = DateTime.now());
+      _startClockTimer();
+    });
+  }
+
+  Duration _clockIntervalFor(DateTime now) {
+    final phase = _fieldPhase(now, widget.session);
+    if (phase == null) return const Duration(seconds: 30);
+    final untilStart = phase.startsAt.difference(now);
+    final untilEnd = phase.endsAt.difference(now);
+    final nearBoundary = (untilStart >= Duration.zero &&
+            untilStart <= const Duration(minutes: 10)) ||
+        (untilEnd >= Duration.zero && untilEnd <= const Duration(minutes: 10));
+    return nearBoundary
+        ? const Duration(seconds: 1)
+        : const Duration(seconds: 30);
+  }
 
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
     final target = _targetForIntent();
+    final now = _clockNow;
     final decision = ShootingExecutionResolver.resolve(
       session: session,
-      now: DateTime.now(),
+      now: now,
       target: target,
       atTarget: _atTarget,
+    );
+    final arrival = target == null
+        ? null
+        : TargetArrivalStateResolver.assess(
+            currentPoint: _locationReading?.point,
+            accuracyMeters: _locationReading?.accuracyMeters,
+            target: target,
+          );
+    final fieldPhase = decision.phase ?? _fieldPhase(now, session);
+    final fieldFacts = FieldEnvironmentSelector.select(
+      session: session,
+      phase: fieldPhase,
+    );
+    final migration = ShootingOpportunityFallbackResolver.resolve(
+      primary: session,
+      sessions: widget.snapshot.shootingSessions,
+      now: now,
+      snapshotFresh: !widget.snapshot.isStale &&
+          widget.snapshot.expiresAt.toUtc().isAfter(now.toUtc()),
+      primaryTarget: target,
+      currentLocation: _locationReading?.point,
     );
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
@@ -185,23 +294,55 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                       onSelected: (index) =>
                           setState(() => _selectedPhaseIndex = index),
                     ),
-                    const SizedBox(height: 18),
-                    _V2ShootingAdvice(
-                      phase: selectedPhase,
-                      capabilities: session.recommendedCapabilities,
-                      target: target,
-                    ),
                   ],
                   if (target != null) ...[
                     const SizedBox(height: 18),
                     _V2FieldModeObject(
                       atTarget: _atTarget,
+                      arrival: arrival,
                       decision: decision,
                       target: target,
-                      directionDegrees:
-                          decision.phase?.directionDegrees ??
-                          target.viewBearingDegrees,
-                      onToggle: () => setState(() => _atTarget = !_atTarget),
+                      phase: fieldPhase,
+                      now: now,
+                      environmentFacts: fieldFacts,
+                      migration: migration,
+                      isMigrationTriggered: ShootingSessionFallback.shouldOfferPlanB(
+                        session,
+                        now: now,
+                      ),
+                      onToggle: _toggleAtTarget,
+                      onOpenPlanB: migration.alternative == null
+                          ? null
+                          : () {
+                              final alternative = migration.alternative!;
+                              final alternativeTarget = alternative
+                                  .targetCandidates
+                                  .where(
+                                    (candidate) => candidate.supportedSessions
+                                        .contains(alternative.kind),
+                                  )
+                                  .firstOrNull;
+                              if (alternativeTarget == null) return;
+                              final intent = ActiveShootingIntent(
+                                sessionId: alternative.id,
+                                targetId: alternativeTarget.id,
+                                createdAt: DateTime.now(),
+                              );
+                              context.push(
+                                shootingSessionLocation(
+                                  alternative.id,
+                                  intent: intent,
+                                ),
+                              );
+                            },
+                    ),
+                  ],
+                  if (selectedPhase != null) ...[
+                    const SizedBox(height: 18),
+                    _V2ShootingAdvice(
+                      phase: selectedPhase,
+                      capabilities: session.recommendedCapabilities,
+                      target: target,
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -451,6 +592,18 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
           outcome: outcome,
           targetId: _targetForIntent()?.id,
         );
+  }
+
+  ShootingSessionPhase? _fieldPhase(
+    DateTime now,
+    ShootingSession session,
+  ) {
+    return session.phases
+            .where((phase) => phase.isActiveAt(now))
+            .firstOrNull ??
+        session.phases
+            .where((phase) => phase.startsAt.isAfter(now))
+            .firstOrNull;
   }
 
   ShootingTarget? _targetForIntent() {
@@ -772,70 +925,272 @@ class _V2PhaseNode extends StatelessWidget {
 class _V2FieldModeObject extends StatelessWidget {
   const _V2FieldModeObject({
     required this.atTarget,
+    required this.arrival,
     required this.decision,
     required this.target,
-    required this.directionDegrees,
+    required this.phase,
+    required this.now,
+    required this.environmentFacts,
+    required this.migration,
+    required this.isMigrationTriggered,
     required this.onToggle,
+    required this.onOpenPlanB,
   });
 
   final bool atTarget;
+  final TargetArrivalAssessment? arrival;
   final ShootingExecutionDecision decision;
   final ShootingTarget target;
-  final double directionDegrees;
+  final ShootingSessionPhase? phase;
+  final DateTime now;
+  final List<FieldEnvironmentFact> environmentFacts;
+  final ShootingFallbackResolution migration;
+  final bool isMigrationTriggered;
   final VoidCallback onToggle;
+  final VoidCallback? onOpenPlanB;
 
   @override
-  Widget build(BuildContext context) => V2Pressable(
-    key: const Key('v2-arrived-at-target'),
-    onTap: onToggle,
-    color: atTarget ? V2Palette.mossSoft : V2Palette.paper,
-    semanticLabel: atTarget ? '已到达机位，关闭现场模式' : '已到达机位，进入现场模式',
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Row(
-        children: [
-          Icon(
-            atTarget ? CupertinoIcons.location_fill : CupertinoIcons.location,
-            color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
-            size: 19,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
+  Widget build(BuildContext context) {
+    final direction = phase?.directionDegrees ?? target.viewBearingDegrees;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        V2Pressable(
+          key: const Key('v2-arrived-at-target'),
+          onTap: onToggle,
+          color: atTarget ? V2Palette.mossSoft : V2Palette.paper,
+          semanticLabel: atTarget ? '已到达机位，关闭现场模式' : '已到达机位，进入现场模式',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  atTarget ? '现场模式 · ' + decision.label : '到达机位后再判断',
-                  style: const TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      atTarget
+                          ? CupertinoIcons.location_fill
+                          : CupertinoIcons.location,
+                      color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        atTarget ? '现场模式 · ${decision.label}' : _arrivalTitle(),
+                        style: const TextStyle(
+                          color: V2Palette.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      atTarget
+                          ? CupertinoIcons.checkmark_circle_fill
+                          : CupertinoIcons.circle,
+                      color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 7),
                 Text(
-                  atTarget
-                      ? target.name +
-                            ' · 朝 ' +
-                            directionDegrees.round().toString() +
-                            '° 观察'
-                      : '由你确认已经抵达 ' + target.name,
+                  _arrivalDetail(),
                   style: const TextStyle(
                     color: V2Palette.mutedInk,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (atTarget) ...[
+                  const SizedBox(height: 15),
+                  if (phase != null)
+                    Text(
+                      _countdownLabel(phase!, now),
+                      style: const TextStyle(
+                        color: V2Palette.ink,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    )
+                  else
+                    const Text(
+                      '当前没有可用的阶段依据',
+                      style: TextStyle(
+                        color: V2Palette.mutedInk,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  const SizedBox(height: 11),
+                  Row(
+                    children: [
+                      Text(
+                        '${_directionArrow(direction)} ${direction.round()}°',
+                        style: const TextStyle(
+                          color: V2Palette.sky,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        target.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: V2Palette.mutedInk,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (environmentFacts.isNotEmpty) ...[
+                    const SizedBox(height: 13),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        for (final factor in environmentFacts)
+                          _V2FieldFactObject(factor: factor),
+                      ],
+                    ),
+                  ],
+                ],
               ],
             ),
           ),
-          Icon(
-            atTarget
-                ? CupertinoIcons.checkmark_circle_fill
-                : CupertinoIcons.circle,
-            color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
-          ),
+        ),
+        if (atTarget && isMigrationTriggered) ...[
+          const SizedBox(height: 10),
+          if (migration.alternative != null)
+            V2Pressable(
+              key: const Key('v2-plan-b-action'),
+              onTap: onOpenPlanB!,
+              color: V2Palette.skySoft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.arrow_2_circlepath, color: V2Palette.sky),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Plan B · 原计划正在减弱',
+                            style: TextStyle(
+                              color: V2Palette.ink,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${migration.alternative!.title} · ${_time(migration.alternative!.presentationStartsAt)} 开始',
+                            style: const TextStyle(
+                              color: V2Palette.mutedInk,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(CupertinoIcons.chevron_right, color: V2Palette.sky),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+              decoration: BoxDecoration(
+                color: V2Palette.paper,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: V2Palette.line),
+              ),
+              child: const Text(
+                '当前机会正在减弱，暂时没有更可靠的替代窗口。',
+                style: TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
         ],
+      ],
+    );
+  }
+
+  String _arrivalTitle() => switch (arrival?.state) {
+    TargetArrivalState.arrived => '已进入机位范围 · 点击确认',
+    TargetArrivalState.approaching => '正在接近机位',
+    TargetArrivalState.far => '距机位较远',
+    null => '到达机位后再判断',
+  };
+
+  String _arrivalDetail() {
+    final distance = arrival?.distanceMeters;
+    if (distance != null) {
+      final rounded = distance < 1000
+          ? '${distance.round()}m'
+          : '${(distance / 1000).toStringAsFixed(1)}km';
+      return '${target.name} · 距你 $rounded';
+    }
+    return atTarget ? '已由你确认抵达 ${target.name}' : '由你确认已经抵达 ${target.name}';
+  }
+
+  static String _countdownLabel(ShootingSessionPhase phase, DateTime now) {
+    final active = phase.isActiveAt(now);
+    final remaining = FieldModeCountdown.remaining(phase, now);
+    if (remaining <= Duration.zero) return '${_V2PhaseNode.label(phase.kind)} · 已结束';
+    final text = FieldModeCountdown.usesSecondPrecision(remaining)
+        ? '${remaining.inMinutes.toString().padLeft(2, '0')}:${(remaining.inSeconds % 60).toString().padLeft(2, '0')}'
+        : '${remaining.inMinutes}分钟';
+    return active
+        ? '${_V2PhaseNode.label(phase.kind)} · 剩余 $text'
+        : '距${_V2PhaseNode.label(phase.kind)} $text';
+  }
+
+  static String _directionArrow(double degrees) {
+    final normalized = ((degrees % 360) + 360) % 360;
+    if (normalized < 22.5 || normalized >= 337.5) return '↑';
+    if (normalized < 67.5) return '↗';
+    if (normalized < 112.5) return '→';
+    if (normalized < 157.5) return '↘';
+    if (normalized < 202.5) return '↓';
+    if (normalized < 247.5) return '↙';
+    if (normalized < 292.5) return '←';
+    return '↖';
+  }
+
+  static String _time(DateTime value) =>
+      '${value.toLocal().hour.toString().padLeft(2, '0')}:${value.toLocal().minute.toString().padLeft(2, '0')}';
+}
+
+class _V2FieldFactObject extends StatelessWidget {
+  const _V2FieldFactObject({required this.factor});
+  final FieldEnvironmentFact factor;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    decoration: BoxDecoration(
+      color: factor.effect == ShootingFactorEffect.limiting
+          ? V2Palette.emberSoft
+          : V2Palette.paper,
+      borderRadius: BorderRadius.circular(13),
+      border: Border.all(color: V2Palette.line),
+    ),
+    child: Text(
+      '${factor.label} ${factor.value}',
+      style: const TextStyle(
+        color: V2Palette.ink,
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
       ),
     ),
   );

@@ -263,10 +263,11 @@ abstract final class ShootingSessionFallback {
   /// Existing secondary windows may be presented as a fallback only when the
   /// selected primary window is visibly weakening or limited. This is a copy
   /// and ranking signal; it never invents a new opportunity.
-  static bool shouldOfferPlanB(ShootingSession? primary) =>
+  static bool shouldOfferPlanB(ShootingSession? primary, {DateTime? now}) =>
       primary != null &&
       (primary.conditionBand == ShootingConditionBand.limited ||
-          primary.trend == ShootingTrend.weakening);
+          primary.trend == ShootingTrend.weakening ||
+          now != null && primary.isEvidenceExpiredAt(now));
 }
 
 enum ShootingExecutionState {
