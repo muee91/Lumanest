@@ -34,9 +34,13 @@ class ShootingDeparturePlan {
       ':' +
       departureDeadline.toUtc().toIso8601String();
 
-  bool matches(WatchedShootingSession watch) =>
-      watch.sessionId == sessionId &&
-      (watch.targetId == null || watch.targetId == targetId);
+  bool matches(WatchedShootingSession watch) {
+    if (watch.sessionId != sessionId) return false;
+    final plannedTarget = targetId;
+    return plannedTarget == null
+        ? watch.targetId == null
+        : watch.targetId == plannedTarget;
+  }
 }
 
 class ShootingDeparturePlanController extends Notifier<ShootingDeparturePlan?> {
@@ -396,11 +400,27 @@ class ShootingSessionNotificationReconciler {
             departurePlan != null && departurePlan.matches(watch)
             ? departurePlan
             : null;
-        final notifyAt = _notificationTime(
-          session,
-          now,
-          matchedDeparturePlan?.departureDeadline,
-        );
+        final fallbackNotifyAt = _notificationTime(session, now, null);
+        final previousNotifyAt = existing[watch.id];
+        // A route-derived deadline may already be scheduled by the OS. The
+        // in-memory route plan intentionally does not survive process death;
+        // when the app restarts without that transient plan, do not silently
+        // cancel an earlier still-future departure reminder and downgrade it
+        // to the generic 15-minute window reminder.
+        final preservedDepartureNotifyAt =
+            matchedDeparturePlan == null &&
+                previousNotifyAt != null &&
+                previousNotifyAt.isAfter(now) &&
+                previousNotifyAt.isBefore(fallbackNotifyAt)
+            ? previousNotifyAt
+            : null;
+        final notifyAt = matchedDeparturePlan == null
+            ? preservedDepartureNotifyAt ?? fallbackNotifyAt
+            : _notificationTime(
+                session,
+                now,
+                matchedDeparturePlan.departureDeadline,
+              );
         valid[watch.id] = _WatchPlan(
           watch: watch,
           session: session,
@@ -420,8 +440,7 @@ class ShootingSessionNotificationReconciler {
       final previous = existing[entry.key];
       final plan = entry.value;
       if (previous == null ||
-          !previous.isAtSameMomentAs(plan.notifyAt) ||
-          departurePlan != null) {
+          !previous.isAtSameMomentAs(plan.notifyAt)) {
         if (previous != null) await service.cancel(entry.key);
         await service.schedule(
           watch: plan.watch,
