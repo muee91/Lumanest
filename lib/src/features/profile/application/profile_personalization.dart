@@ -30,6 +30,7 @@ abstract final class ProfilePersonalization {
         '人文' => PhotographyPreference.humanities,
         '星空' => PhotographyPreference.astro,
         '城市' => PhotographyPreference.city,
+        '生态' => PhotographyPreference.ecology,
         _ => null,
       };
 
@@ -38,7 +39,7 @@ abstract final class ProfilePersonalization {
         '自驾' => ActivityPreference.driving,
         '轻徒步' => ActivityPreference.lightHiking,
         '重装徒步' => ActivityPreference.backpacking,
-        '小众探索' => ActivityPreference.nicheExploration,
+        '慢探索' || '小众探索' => ActivityPreference.nicheExploration,
         _ => null,
       };
 }
