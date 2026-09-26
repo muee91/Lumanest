@@ -267,6 +267,66 @@ abstract final class ShootingSessionFallback {
       primary != null &&
       (primary.conditionBand == ShootingConditionBand.limited ||
           primary.trend == ShootingTrend.weakening);
+
+  /// Chooses only from sessions that are already established by the current
+  /// snapshot. The fallback layer never manufactures a new opportunity and
+  /// never upgrades limited or expired evidence into an action.
+  static ShootingSession? selectPlanB(
+    Iterable<ShootingSession> sessions, {
+    required ShootingSession primary,
+    required DateTime now,
+  }) {
+    if (!shouldOfferPlanB(primary)) return null;
+    final utcNow = now.toUtc();
+    final candidates = sessions
+        .where(
+          (session) =>
+              session.id != primary.id &&
+              session.endsAt.toUtc().isAfter(utcNow) &&
+              !session.isEvidenceExpiredAt(utcNow) &&
+              session.confidenceBand != ShootingConfidenceBand.limited &&
+              session.conditionBand != ShootingConditionBand.limited,
+        )
+        .toList(growable: false);
+    if (candidates.isEmpty) return null;
+    candidates.sort((left, right) {
+      final leftActive =
+          !utcNow.isBefore(left.startsAt.toUtc()) &&
+          utcNow.isBefore(left.endsAt.toUtc());
+      final rightActive =
+          !utcNow.isBefore(right.startsAt.toUtc()) &&
+          utcNow.isBefore(right.endsAt.toUtc());
+      if (leftActive != rightActive) return leftActive ? -1 : 1;
+
+      final condition = _conditionRank(
+        right.conditionBand,
+      ).compareTo(_conditionRank(left.conditionBand));
+      if (condition != 0) return condition;
+
+      final trend = _trendRank(
+        right.trend,
+      ).compareTo(_trendRank(left.trend));
+      if (trend != 0) return trend;
+
+      final time = left.presentationStartsAt.compareTo(
+        right.presentationStartsAt,
+      );
+      return time != 0 ? time : left.id.compareTo(right.id);
+    });
+    return candidates.first;
+  }
+
+  static int _conditionRank(ShootingConditionBand value) => switch (value) {
+    ShootingConditionBand.good => 2,
+    ShootingConditionBand.fair => 1,
+    ShootingConditionBand.limited => 0,
+  };
+
+  static int _trendRank(ShootingTrend value) => switch (value) {
+    ShootingTrend.improving => 2,
+    ShootingTrend.stable => 1,
+    ShootingTrend.weakening => 0,
+  };
 }
 
 enum ShootingExecutionState {
