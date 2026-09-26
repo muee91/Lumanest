@@ -215,15 +215,16 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
       primary: executionSession,
       now: now,
     );
-    final planBTarget = planB == null
-        ? null
-        : planB.targetCandidates
-              .where(
-                (candidate) =>
-                    candidate.arrivalRadiusMeters > 0 &&
-                    candidate.supportedSessions.contains(planB.kind),
-              )
-              .firstOrNull;
+    ShootingTarget? planBTarget;
+    if (planB != null) {
+      planBTarget = planB.targetCandidates
+          .where(
+            (candidate) =>
+                candidate.arrivalRadiusMeters > 0 &&
+                candidate.supportedSessions.contains(planB.kind),
+          )
+          .firstOrNull;
+    }
     final fieldFacts = _fieldFacts(executionSession, fieldSnapshot);
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
