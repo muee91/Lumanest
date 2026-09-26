@@ -39,17 +39,65 @@ class ShootingDeparturePlan {
   }
 }
 
+@immutable
+class ShootingDeparturePlanInvalidation {
+  const ShootingDeparturePlanInvalidation({
+    required this.sessionId,
+    this.targetId,
+  });
+
+  final String sessionId;
+  final String? targetId;
+
+  String get key => '$sessionId:${targetId ?? ''}';
+
+  bool matches(WatchedShootingSession watch) {
+    if (watch.sessionId != sessionId) return false;
+    final invalidatedTarget = targetId;
+    return invalidatedTarget == null
+        ? watch.targetId == null
+        : watch.targetId == invalidatedTarget;
+  }
+}
+
+class ShootingDeparturePlanInvalidationController
+    extends Notifier<ShootingDeparturePlanInvalidation?> {
+  @override
+  ShootingDeparturePlanInvalidation? build() => null;
+
+  void mark(ShootingDeparturePlanInvalidation invalidation) {
+    if (state?.key == invalidation.key) return;
+    state = invalidation;
+  }
+
+  void clear() => state = null;
+}
+
+final shootingDeparturePlanInvalidationProvider = NotifierProvider<
+  ShootingDeparturePlanInvalidationController,
+  ShootingDeparturePlanInvalidation?
+>(ShootingDeparturePlanInvalidationController.new);
+
 class ShootingDeparturePlanController extends Notifier<ShootingDeparturePlan?> {
   @override
   ShootingDeparturePlan? build() => null;
 
   void setPlan(ShootingDeparturePlan plan) {
+    ref.read(shootingDeparturePlanInvalidationProvider.notifier).clear();
     if (state?.key == plan.key) return;
     state = plan;
   }
 
-  void clearFor(String sessionId) {
+  void clearFor(String sessionId, {String? targetId}) {
     if (state?.sessionId == sessionId) state = null;
+    ref
+        .read(shootingDeparturePlanInvalidationProvider.notifier)
+        .mark(
+          ShootingDeparturePlanInvalidation(
+            sessionId: sessionId,
+            targetId: targetId,
+          ),
+        );
   }
 }
 
@@ -368,6 +416,7 @@ class ShootingSessionNotificationReconciler {
     required ContextSnapshot? snapshot,
     required UserLibraryState? library,
     ShootingDeparturePlan? departurePlan,
+    ShootingDeparturePlanInvalidation? departureInvalidation,
   }) async {
     final existing = await ledger.read();
     final now = _now().toUtc();
@@ -396,6 +445,8 @@ class ShootingSessionNotificationReconciler {
             departurePlan != null && departurePlan.matches(watch)
             ? departurePlan
             : null;
+        final explicitlyInvalidated =
+            departureInvalidation?.matches(watch) ?? false;
         final fallbackNotifyAt = _notificationTime(session, now, null);
         final previousNotifyAt = existing[watch.id];
         // A route-derived deadline may already be scheduled by the OS. The
@@ -405,6 +456,7 @@ class ShootingSessionNotificationReconciler {
         // to the generic 15-minute window reminder.
         final preservedDepartureNotifyAt =
             matchedDeparturePlan == null &&
+                !explicitlyInvalidated &&
                 previousNotifyAt != null &&
                 previousNotifyAt.isAfter(now) &&
                 previousNotifyAt.isBefore(fallbackNotifyAt)
