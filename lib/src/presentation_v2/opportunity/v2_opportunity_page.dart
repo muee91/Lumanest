@@ -128,18 +128,22 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
         distanceMeters != null &&
         distanceMeters <= target.arrivalRadiusMeters;
     final atTarget = _arrivalOverride ?? automaticArrival;
+    final refreshedSession = fieldSnapshot?.shootingSessions
+        .where((candidate) => candidate.id == session.id)
+        .firstOrNull;
+    final executionSession = refreshedSession ?? session;
     final decision = ShootingExecutionResolver.resolve(
-      session: session,
+      session: executionSession,
       now: now,
       target: target,
       atTarget: atTarget,
     );
     final planB = ShootingSessionFallback.selectPlanB(
-      widget.snapshot.shootingSessions,
-      primary: session,
+      fieldSnapshot?.shootingSessions ?? widget.snapshot.shootingSessions,
+      primary: executionSession,
       now: now,
     );
-    final fieldFacts = _fieldFacts(session, fieldSnapshot);
+    final fieldFacts = _fieldFacts(executionSession, fieldSnapshot);
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
     final watchedEntry = library?.watchedSessions
