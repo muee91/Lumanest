@@ -66,6 +66,31 @@ void main() {
     expect(service.scheduled.single.departureDeadline, deadline);
   });
 
+  test('does not apply a route deadline to another reviewed target', () async {
+    final service = _FakeService();
+    final ledger = _MemoryLedger();
+    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+    final plan = ShootingDeparturePlan(
+      sessionId: session.id,
+      targetId: 'target-a',
+      departureDeadline: now.add(const Duration(minutes: 7)),
+      routeDuration: const Duration(minutes: 22),
+      createdAt: now,
+    );
+
+    await _reconciler(service, ledger, now).reconcile(
+      snapshot: _snapshot(now, session),
+      library: _library(now, session, targetId: 'target-b'),
+      departurePlan: plan,
+    );
+
+    expect(
+      service.scheduled.single.notifyAt,
+      session.startsAt.subtract(const Duration(minutes: 15)),
+    );
+    expect(service.scheduled.single.departureDeadline, isNull);
+  });
+
   test('uses one immediate notification for a current session', () async {
     final service = _FakeService();
     final session = _sessionStarting(now.subtract(const Duration(minutes: 2)));
@@ -182,13 +207,18 @@ ContextSnapshot _snapshot(
   shootingSessions: session == null ? const [] : [session],
 );
 
-UserLibraryState _library(DateTime now, ShootingSession session) =>
+UserLibraryState _library(
+  DateTime now,
+  ShootingSession session, {
+  String? targetId,
+}) =>
     UserLibraryState(
       watchedSessions: [
         WatchedShootingSession.create(
           session: session,
           snapshotId: 'fresh-snapshot',
           watchedAt: now.subtract(const Duration(minutes: 1)),
+          targetId: targetId,
         ),
       ],
     );
