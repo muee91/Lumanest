@@ -285,7 +285,12 @@ abstract final class ShootingSessionFallback {
               session.endsAt.toUtc().isAfter(utcNow) &&
               !session.isEvidenceExpiredAt(utcNow) &&
               session.confidenceBand != ShootingConfidenceBand.limited &&
-              session.conditionBand != ShootingConditionBand.limited,
+              session.conditionBand != ShootingConditionBand.limited &&
+              session.targetCandidates.any(
+                (target) =>
+                    target.arrivalRadiusMeters > 0 &&
+                    target.supportedSessions.contains(session.kind),
+              ),
         )
         .toList(growable: false);
     if (candidates.isEmpty) return null;
