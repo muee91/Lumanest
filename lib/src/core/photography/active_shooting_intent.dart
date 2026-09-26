@@ -34,7 +34,8 @@ class ActiveShootingIntent {
   }) {
     final cleanTarget = targetId?.trim();
     final cleanCreatedAt = createdAt?.trim();
-    if (cleanTarget == null && (cleanCreatedAt == null || cleanCreatedAt.isEmpty)) {
+    if (cleanTarget == null &&
+        (cleanCreatedAt == null || cleanCreatedAt.isEmpty)) {
       return null;
     }
     if (!_validId(sessionId) ||
