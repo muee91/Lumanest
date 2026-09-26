@@ -482,7 +482,11 @@ class V2ProfileLibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider);
-    final environment = ref.watch(environmentSnapshotProvider).asData?.value;
+    final hasSavedPlaces =
+        library.asData?.value.savedPlaces.isNotEmpty == true;
+    final environment = hasSavedPlaces
+        ? ref.watch(environmentSnapshotProvider).asData?.value
+        : null;
     return _V2SecondaryPage(
       title: '我留下的',
       subtitle: '地点、纸条和拍摄结果都保存在本机。',
