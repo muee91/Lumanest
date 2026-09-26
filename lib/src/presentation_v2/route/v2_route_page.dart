@@ -10,6 +10,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
@@ -371,23 +372,39 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
 class _V2RouteVerdict extends StatelessWidget {
   const _V2RouteVerdict({
     required this.route,
+    required this.destination,
     required this.snapshot,
     required this.scout,
   });
   final DrivingRoute route;
+  final RouteDestination destination;
   final ContextSnapshot? snapshot;
   final RouteScoutPlan? scout;
 
   @override
   Widget build(BuildContext context) {
-    final arrival = DateTime.now().add(
-      Duration(seconds: route.durationSeconds),
-    );
-    final session = snapshot == null
+    final now = DateTime.now();
+    final arrival = now.add(Duration(seconds: route.durationSeconds));
+    final candidateSession = snapshot == null
         ? null
         : ShootingSessionSelector.select(
             snapshot!.shootingSessions,
-            now: DateTime.now(),
+            now: now,
+          );
+    final target = candidateSession == null
+        ? null
+        : _targetForDestination(candidateSession, destination);
+    // A route to an arbitrary place must not inherit the current session's
+    // timing verdict. Only a reviewed target tied to this destination can
+    // produce a catchability or latest-departure statement.
+    final session = target == null ? null : candidateSession;
+    final decision = session == null
+        ? null
+        : ShootingExecutionResolver.resolve(
+            session: session,
+            now: now,
+            target: target,
+            routeDuration: Duration(seconds: route.durationSeconds),
           );
     final canCatch = session == null || arrival.isBefore(session.endsAt);
     final headline = scout?.headline ??
@@ -396,7 +413,11 @@ class _V2RouteVerdict extends StatelessWidget {
             : canCatch
             ? '按当前路线赶得上'
             : '按当前路线已经赶不上');
-    final urgent = (scout?.criticalCount ?? 0) > 0 || !canCatch;
+    final urgent =
+        (scout?.criticalCount ?? 0) > 0 ||
+        !canCatch ||
+        decision?.state == ShootingExecutionState.departNow ||
+        decision?.state == ShootingExecutionState.tooLate;
     return Material(
       color: V2Palette.paper,
       elevation: 10,
@@ -437,11 +458,22 @@ class _V2RouteVerdict extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (decision?.departureDeadline != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      '最晚 ${_time(decision!.departureDeadline!)} 出发',
+                      style: TextStyle(
+                        color: urgent ? V2Palette.ember : V2Palette.moss,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             Text(
-              _time(arrival),
+              '${_time(arrival)} 抵达',
               style: const TextStyle(
                 color: V2Palette.ink,
                 fontSize: 17,
@@ -452,6 +484,22 @@ class _V2RouteVerdict extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static ShootingTarget? _targetForDestination(
+    ShootingSession session,
+    RouteDestination destination,
+  ) {
+    return session.targetCandidates
+        .where(
+          (target) =>
+              GeoDistance.metersBetween(
+                target.coordinate,
+                destination.point,
+              ) <=
+              500,
+        )
+        .firstOrNull;
   }
 
   static String _duration(int seconds) {
@@ -465,9 +513,8 @@ class _V2RouteVerdict extends StatelessWidget {
 
   static String _time(DateTime value) =>
       '${value.hour.toString().padLeft(2, '0')}:'
-      '${value.minute.toString().padLeft(2, '0')} 抵达';
+      '${value.minute.toString().padLeft(2, '0')}';
 }
-
 class _V2RouteActionObject extends StatelessWidget {
   const _V2RouteActionObject({
     required this.scout,
