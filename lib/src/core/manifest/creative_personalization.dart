@@ -21,15 +21,13 @@ class CreativePersonalization {
     Set<ActivityPreference> activityPreferences = const {},
     this.tone = NarrativeTone.balanced,
     double recommendationIntensity = 0.5,
-    Map<String, double> localAffinity = const {},
   }) : photographyPreferences = UnmodifiableSetView(
          Set.of(photographyPreferences),
        ),
        activityPreferences = UnmodifiableSetView(Set.of(activityPreferences)),
        recommendationIntensity = recommendationIntensity
            .clamp(0.0, 1.0)
-           .toDouble(),
-       localAffinity = UnmodifiableMapView(Map.from(localAffinity));
+           .toDouble();
 
   static final neutral = CreativePersonalization();
 
@@ -37,12 +35,9 @@ class CreativePersonalization {
   final Set<ActivityPreference> activityPreferences;
   final NarrativeTone tone;
   final double recommendationIntensity;
-  final Map<String, double> localAffinity;
 
   bool get hasRecommendationPreferences =>
-      photographyPreferences.isNotEmpty ||
-      activityPreferences.isNotEmpty ||
-      localAffinity.values.any((value) => value > 0);
+      photographyPreferences.isNotEmpty || activityPreferences.isNotEmpty;
 
   late final String fingerprint = sha256
       .convert(utf8.encode(_canonicalFingerprintInput()))
@@ -64,9 +59,6 @@ class CreativePersonalization {
         ) ||
         activityPreferences.any((value) => _matchesActivity(value, definition));
   }
-
-  double affinityForCreativeEvent(String eventId) =>
-      localAffinity[eventId] ?? 0;
 
   String _canonicalFingerprintInput() {
     final photography =
