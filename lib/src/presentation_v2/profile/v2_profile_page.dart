@@ -498,7 +498,7 @@ class V2ProfileLibraryPage extends ConsumerWidget {
           final activePlaces = freshEnvironment
               ? ActiveSavedPlaceMatcher.match(
                   places: value.savedPlaces,
-                  sessions: environment.shootingSessions,
+                  sessions: environment!.shootingSessions,
                   now: now,
                 )
               : const <ActiveSavedPlaceMatch>[];
