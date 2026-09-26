@@ -58,6 +58,7 @@ void main() {
         'event.sky.sunset_glow',
         'session.route.light_window',
       },
+      PhotographyPreference.ecology: {'regional-wildlife'},
       ActivityPreference.driving: {'session.route.light_window'},
       ActivityPreference.lightHiking: {
         'session.mountain.morning',
