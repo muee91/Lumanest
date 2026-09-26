@@ -14,6 +14,7 @@ import 'package:luma_nest/src/core/environment/sky_window_providers.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_payload.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/scenario/scenario_providers.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
@@ -245,10 +246,23 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                     sessions: snapshot.shootingSessions,
                     primaryId: sessionId,
                     now: now,
-                    onOpen: (session) => context.push(
-                      '/session/${Uri.encodeComponent(session.id)}',
-                      extra: snapshot,
-                    ),
+                    onOpen: (session) {
+                      final target = session.targetCandidates.firstOrNull;
+                      final intent = ActiveShootingIntent(
+                        sessionId: session.id,
+                        targetId: target?.id,
+                        createdAt: DateTime.now(),
+                      );
+                      final path =
+                          '/session/' + Uri.encodeComponent(session.id);
+                      context.push(
+                        Uri(
+                          path: path,
+                          queryParameters: intent.queryParameters,
+                        ).toString(),
+                        extra: snapshot,
+                      );
+                    },
                   ),
                   if (widget.regionalHighlight case final highlight?) ...[
                     SizedBox(height: compact ? 12 : 16),
