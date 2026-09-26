@@ -42,8 +42,8 @@ class ActiveShootingIntent {
         (cleanCreatedAt == null || cleanCreatedAt.isEmpty)) {
       return null;
     }
-    if (!_validId(sessionId) ||
-        cleanTarget != null && !_validId(cleanTarget)) {
+    if (!_validSessionId(sessionId) ||
+        cleanTarget != null && !_validTargetId(cleanTarget)) {
       return null;
     }
     final parsed = cleanCreatedAt == null || cleanCreatedAt.isEmpty
@@ -57,6 +57,13 @@ class ActiveShootingIntent {
     );
   }
 
-  static bool _validId(String value) =>
-      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$').hasMatch(value);
+  static bool _validSessionId(String value) =>
+      RegExp(r'^session_[a-f0-9]{24}
+}
+).hasMatch(value);
+
+  static bool _validTargetId(String value) =>
+      RegExp(r'^target_[a-f0-9]{24}
+}
+).hasMatch(value);
 }
