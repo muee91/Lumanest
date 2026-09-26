@@ -141,5 +141,4 @@ void main() {
     expect(ShootingSessionFallback.shouldOfferPlanB(limited), isTrue);
     expect(ShootingSessionFallback.shouldOfferPlanB(null), isFalse);
   });
-
 }
