@@ -198,6 +198,9 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                       atTarget: _atTarget,
                       decision: decision,
                       target: target,
+                      directionDegrees:
+                          decision.phase?.directionDegrees ??
+                          target.viewBearingDegrees,
                       onToggle: () => setState(() => _atTarget = !_atTarget),
                     ),
                   ],
@@ -771,12 +774,14 @@ class _V2FieldModeObject extends StatelessWidget {
     required this.atTarget,
     required this.decision,
     required this.target,
+    required this.directionDegrees,
     required this.onToggle,
   });
 
   final bool atTarget;
   final ShootingExecutionDecision decision;
   final ShootingTarget target;
+  final double directionDegrees;
   final VoidCallback onToggle;
 
   @override
@@ -810,7 +815,10 @@ class _V2FieldModeObject extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   atTarget
-                      ? target.name + ' · 依据当前窗口继续观察'
+                      ? target.name +
+                            ' · 朝 ' +
+                            directionDegrees.round().toString() +
+                            '° 观察'
                       : '由你确认已经抵达 ' + target.name,
                   style: const TextStyle(
                     color: V2Palette.mutedInk,
