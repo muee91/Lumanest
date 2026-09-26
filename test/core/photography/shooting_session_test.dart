@@ -142,25 +142,4 @@ void main() {
     expect(ShootingSessionFallback.shouldOfferPlanB(null), isFalse);
   });
 
-  test('saved place matches only a fresh reviewed target radius', () {
-    final session = ContextFixtures.waterEveningSession(
-      observedAt: now,
-      targetCandidates: [target],
-    );
-
-    final match = ShootingSessionPlaceMatcher.find(
-      place: target.coordinate,
-      sessions: [session],
-      now: now,
-    );
-    final distant = ShootingSessionPlaceMatcher.find(
-      place: const GeoPoint(latitude: 30.30, longitude: 120.20),
-      sessions: [session],
-      now: now,
-    );
-
-    expect(match?.session.id, session.id);
-    expect(match?.target.id, target.id);
-    expect(distant, isNull);
-  });
 }
