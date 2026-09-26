@@ -86,7 +86,7 @@ class LocalShootingSessionNotificationService
   void Function(String payload)? _onNotificationResponse;
 
   /// Must be registered by the foreground app before scheduling. The payload
-  /// contains only an internal route plus a server-established session ID.
+  /// contains only an internal route plus a server-established session and optional target ID.
   void setNotificationResponseHandler(void Function(String payload) handler) {
     _onNotificationResponse = handler;
   }
