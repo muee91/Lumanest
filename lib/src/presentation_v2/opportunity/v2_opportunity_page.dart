@@ -162,7 +162,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
-    final target = _targetForIntent();
+    final initialTarget = _targetForIntent();
     final now = widget.activeShootingIntent?.targetId == null
         ? DateTime.now()
         : _fieldNow;
@@ -172,6 +172,21 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     final freshLiveSnapshot = _freshFieldSnapshot(liveSnapshot, now);
     final fieldSnapshot = freshLiveSnapshot ??
         _freshFieldSnapshot(widget.snapshot, now);
+    final refreshedSession = fieldSnapshot?.shootingSessions
+        .where((candidate) => candidate.id == session.id)
+        .firstOrNull;
+    final executionSession = refreshedSession ?? session;
+    final requestedTargetId = widget.activeShootingIntent?.targetId;
+    final refreshedTarget = requestedTargetId == null
+        ? null
+        : refreshedSession?.targetCandidates
+              .where((candidate) => candidate.id == requestedTargetId)
+              .firstOrNull;
+    final target = refreshedTarget ?? initialTarget;
+    final liveIdentityMissing =
+        freshLiveSnapshot != null &&
+        (refreshedSession == null ||
+            requestedTargetId != null && refreshedTarget == null);
     final arrivalAssessment = target == null
         ? null
         : TargetArrivalStateResolver.assess(
@@ -180,15 +195,10 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             now: now,
           );
     final distanceMeters = arrivalAssessment?.distanceMeters;
-    final automaticArrival = arrivalAssessment?.isArrived ?? false;
+    final automaticArrival =
+        !liveIdentityMissing && (arrivalAssessment?.isArrived ?? false);
     final atTarget = _arrivalOverride ?? automaticArrival;
-    final refreshedSession = fieldSnapshot?.shootingSessions
-        .where((candidate) => candidate.id == session.id)
-        .firstOrNull;
-    final liveSessionMissing =
-        freshLiveSnapshot != null && refreshedSession == null;
-    final executionSession = refreshedSession ?? session;
-    final decision = liveSessionMissing
+    final decision = liveIdentityMissing
         ? const ShootingExecutionDecision(
             state: ShootingExecutionState.observe,
             label: '查看依据',
@@ -285,7 +295,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     const SizedBox(height: 18),
                     _V2ShootingAdvice(
                       phase: selectedPhase,
-                      capabilities: session.recommendedCapabilities,
+                      capabilities: executionSession.recommendedCapabilities,
                       target: target,
                     ),
                   ],
