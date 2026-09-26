@@ -28,11 +28,7 @@ class ShootingDeparturePlan {
   final DateTime createdAt;
 
   String get key =>
-      sessionId +
-      ':' +
-      (targetId ?? '') +
-      ':' +
-      departureDeadline.toUtc().toIso8601String();
+      '$sessionId:${targetId ?? ''}:${departureDeadline.toUtc().toIso8601String()}';
 
   bool matches(WatchedShootingSession watch) {
     if (watch.sessionId != sessionId) return false;
@@ -273,7 +269,7 @@ String shootingSessionNotificationPayloadFor(
   String sessionId, {
   String? targetId,
 }) {
-  final path = '/session/' + Uri.encodeComponent(sessionId);
+  final path = '/session/${Uri.encodeComponent(sessionId)}';
   if (targetId == null || targetId.isEmpty) return path;
   return Uri(path: path, queryParameters: {'target': targetId}).toString();
 }
