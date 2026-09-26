@@ -11,6 +11,53 @@ import '../../../core/context/context_snapshot.dart';
 import '../../../core/photography/shooting_session.dart';
 import '../../library/domain/user_library.dart';
 
+@immutable
+class ShootingDeparturePlan {
+  const ShootingDeparturePlan({
+    required this.sessionId,
+    this.targetId,
+    required this.departureDeadline,
+    required this.routeDuration,
+    required this.createdAt,
+  });
+
+  final String sessionId;
+  final String? targetId;
+  final DateTime departureDeadline;
+  final Duration routeDuration;
+  final DateTime createdAt;
+
+  String get key =>
+      sessionId +
+      ':' +
+      (targetId ?? '') +
+      ':' +
+      departureDeadline.toUtc().toIso8601String();
+
+  bool matches(WatchedShootingSession watch) =>
+      watch.sessionId == sessionId &&
+      (watch.targetId == null || watch.targetId == targetId);
+}
+
+class ShootingDeparturePlanController extends Notifier<ShootingDeparturePlan?> {
+  @override
+  ShootingDeparturePlan? build() => null;
+
+  void setPlan(ShootingDeparturePlan plan) {
+    if (state?.key == plan.key) return;
+    state = plan;
+  }
+
+  void clearFor(String sessionId) {
+    if (state?.sessionId == sessionId) state = null;
+  }
+}
+
+final shootingDeparturePlanProvider =
+    NotifierProvider<ShootingDeparturePlanController, ShootingDeparturePlan?>(
+      ShootingDeparturePlanController.new,
+    );
+
 /// Local-only reminders for shooting sessions the user explicitly chose to watch.
 ///
 /// This service deliberately has no network, location, or background-refresh
@@ -23,6 +70,7 @@ abstract interface class ShootingSessionNotificationService {
     required ShootingSession session,
     required DateTime notifyAt,
     required DateTime dataObservedAt,
+    DateTime? departureDeadline,
   });
   Future<void> cancel(String watchId);
 }
@@ -120,27 +168,43 @@ class LocalShootingSessionNotificationService
     required ShootingSession session,
     required DateTime notifyAt,
     required DateTime dataObservedAt,
+    DateTime? departureDeadline,
   }) async {
     await _ensureInitialized();
     final instant = notifyAt.toUtc();
-    final body = reasonFor(session, dataObservedAt);
+    final body = reasonFor(
+      session,
+      dataObservedAt,
+      departureDeadline: departureDeadline,
+    );
+    final isDepartureReminder = departureDeadline != null;
     if (!instant.isAfter(DateTime.now().toUtc())) {
       await _plugin.show(
         id: _notificationId(watch.id),
-        title: '现在可以留意 ${session.title}',
+        title: isDepartureReminder
+            ? '现在该出发：${session.title}'
+            : '现在可以留意 ${session.title}',
         body: body,
         notificationDetails: _details,
-        payload: shootingSessionNotificationPayloadFor(session.id),
+        payload: shootingSessionNotificationPayloadFor(
+          session.id,
+          targetId: watch.targetId,
+        ),
       );
       return;
     }
     await _plugin.zonedSchedule(
       id: _notificationId(watch.id),
       scheduledDate: tz.TZDateTime.from(instant, tz.UTC),
-      title: '${session.title} 即将开始',
+      title: isDepartureReminder
+          ? '${session.title} 出发提醒'
+          : '${session.title} 即将开始',
       body: body,
       notificationDetails: _details,
-      payload: shootingSessionNotificationPayloadFor(session.id),
+      payload: shootingSessionNotificationPayloadFor(
+        session.id,
+        targetId: watch.targetId,
+      ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
@@ -168,8 +232,9 @@ class LocalShootingSessionNotificationService
   @visibleForTesting
   static String reasonFor(
     ShootingSession session,
-    DateTime dataObservedAt,
-  ) {
+    DateTime dataObservedAt, {
+    DateTime? departureDeadline,
+  }) {
     final conditions = session.factors
         .where((item) => item.effect == ShootingFactorEffect.supporting)
         .map((item) => '${item.label} ${item.value}'.trim())
@@ -177,7 +242,9 @@ class LocalShootingSessionNotificationService
         .take(2)
         .join(' · ');
     return <String>[
-      '窗口 ${_clock(session.startsAt)} 开始',
+      departureDeadline == null
+          ? '窗口 ${_clock(session.startsAt)} 开始'
+          : '最晚 ${_clock(departureDeadline)} 出发',
       if (conditions.isNotEmpty) '成立条件：$conditions',
       '依据 ${_clock(dataObservedAt)} 的数据',
     ].join(' · ');
@@ -198,8 +265,14 @@ class LocalShootingSessionNotificationService
   }
 }
 
-String shootingSessionNotificationPayloadFor(String sessionId) =>
-    '/session/${Uri.encodeComponent(sessionId)}';
+String shootingSessionNotificationPayloadFor(
+  String sessionId, {
+  String? targetId,
+}) {
+  final path = '/session/' + Uri.encodeComponent(sessionId);
+  if (targetId == null || targetId.isEmpty) return path;
+  return Uri(path: path, queryParameters: {'target': targetId}).toString();
+}
 
 /// Wires only the local implementation to the app router. Keeping this out of
 /// the scheduling interface lets deterministic notification tests use a small
@@ -294,6 +367,7 @@ class ShootingSessionNotificationReconciler {
   Future<void> reconcile({
     required ContextSnapshot? snapshot,
     required UserLibraryState? library,
+    ShootingDeparturePlan? departurePlan,
   }) async {
     final existing = await ledger.read();
     final now = _now().toUtc();
@@ -318,12 +392,21 @@ class ShootingSessionNotificationReconciler {
             !session.endsAt.toUtc().isAfter(now)) {
           continue;
         }
-        final notifyAt = _notificationTime(session, now);
+        final matchedDeparturePlan =
+            departurePlan != null && departurePlan.matches(watch)
+            ? departurePlan
+            : null;
+        final notifyAt = _notificationTime(
+          session,
+          now,
+          matchedDeparturePlan?.departureDeadline,
+        );
         valid[watch.id] = _WatchPlan(
           watch: watch,
           session: session,
           notifyAt: notifyAt,
           dataObservedAt: snapshot.observedAt,
+          departureDeadline: matchedDeparturePlan?.departureDeadline,
         );
       }
     }
@@ -343,6 +426,7 @@ class ShootingSessionNotificationReconciler {
           session: plan.session,
           notifyAt: plan.notifyAt,
           dataObservedAt: plan.dataObservedAt,
+          departureDeadline: plan.departureDeadline,
         );
       }
       next[entry.key] = plan.notifyAt;
@@ -350,11 +434,14 @@ class ShootingSessionNotificationReconciler {
     await ledger.write(next);
   }
 
-  static DateTime _notificationTime(ShootingSession session, DateTime now) {
-    final beforeStart = session.startsAt.toUtc().subtract(
-      const Duration(minutes: 15),
-    );
-    return beforeStart.isAfter(now) ? beforeStart : now;
+  static DateTime _notificationTime(
+    ShootingSession session,
+    DateTime now,
+    DateTime? departureDeadline,
+  ) {
+    final candidate = departureDeadline?.toUtc() ??
+        session.startsAt.toUtc().subtract(const Duration(minutes: 15));
+    return candidate.isAfter(now) ? candidate : now;
   }
 }
 
@@ -364,12 +451,14 @@ class _WatchPlan {
     required this.session,
     required this.notifyAt,
     required this.dataObservedAt,
+    this.departureDeadline,
   });
 
   final WatchedShootingSession watch;
   final ShootingSession session;
   final DateTime notifyAt;
   final DateTime dataObservedAt;
+  final DateTime? departureDeadline;
 }
 
 final shootingSessionNotificationServiceProvider =
