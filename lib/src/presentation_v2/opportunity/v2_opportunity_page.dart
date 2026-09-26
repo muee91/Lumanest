@@ -112,7 +112,9 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     final session = widget.session;
     final target = _targetForIntent();
     final now = DateTime.now();
-    final liveSnapshot = ref.watch(environmentSnapshotProvider).asData?.value;
+    final liveSnapshot = widget.activeShootingIntent?.targetId == null
+        ? null
+        : ref.watch(environmentSnapshotProvider).asData?.value;
     final fieldSnapshot = _freshFieldSnapshot(liveSnapshot, now) ??
         _freshFieldSnapshot(widget.snapshot, now);
     final distanceMeters = target == null || fieldSnapshot?.location == null
