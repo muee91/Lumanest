@@ -1154,7 +1154,7 @@ class _V2PlanBObject extends StatelessWidget {
       child: Row(
         children: [
           const Icon(
-            CupertinoIcons.arrow_branch,
+            CupertinoIcons.arrow_right,
             color: V2Palette.ember,
             size: 20,
           ),
