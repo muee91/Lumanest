@@ -421,7 +421,7 @@ class ShootingSessionNotificationReconciler {
       final plan = entry.value;
       if (previous == null ||
           !previous.isAtSameMomentAs(plan.notifyAt) ||
-          plan.departureDeadline != null) {
+          departurePlan != null) {
         if (previous != null) await service.cancel(entry.key);
         await service.schedule(
           watch: plan.watch,
