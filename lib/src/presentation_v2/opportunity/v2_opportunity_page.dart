@@ -225,6 +225,11 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
       primaryTarget: target,
       currentLocation: _locationReading?.point,
     );
+    final migrationCause = session.conditionBand == ShootingConditionBand.limited
+        ? '原计划条件有限'
+        : session.isEvidenceExpiredAt(now)
+        ? '原计划依据已过期'
+        : '原计划正在减弱';
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
     final watchedEntry = library?.watchedSessions
@@ -306,6 +311,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                       now: now,
                       environmentFacts: fieldFacts,
                       migration: migration,
+                      migrationCause: migrationCause,
                       isMigrationTriggered: ShootingSessionFallback.shouldOfferPlanB(
                         session,
                         now: now,
@@ -932,6 +938,7 @@ class _V2FieldModeObject extends StatelessWidget {
     required this.now,
     required this.environmentFacts,
     required this.migration,
+    required this.migrationCause,
     required this.isMigrationTriggered,
     required this.onToggle,
     required this.onOpenPlanB,
@@ -945,6 +952,7 @@ class _V2FieldModeObject extends StatelessWidget {
   final DateTime now;
   final List<FieldEnvironmentFact> environmentFacts;
   final ShootingFallbackResolution migration;
+  final String migrationCause;
   final bool isMigrationTriggered;
   final VoidCallback onToggle;
   final VoidCallback? onOpenPlanB;
@@ -1078,8 +1086,8 @@ class _V2FieldModeObject extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Plan B · 原计划正在减弱',
+                          Text(
+                            'Plan B · $migrationCause',
                             style: TextStyle(
                               color: V2Palette.ink,
                               fontSize: 13,
@@ -1111,8 +1119,8 @@ class _V2FieldModeObject extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: V2Palette.line),
               ),
-              child: const Text(
-                '当前机会正在减弱，暂时没有更可靠的替代窗口。',
+              child: Text(
+                '$migrationCause，暂时没有更可靠的替代窗口。',
                 style: TextStyle(
                   color: V2Palette.mutedInk,
                   fontSize: 12,
