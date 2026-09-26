@@ -59,10 +59,14 @@ class V2RoutePage extends ConsumerWidget {
         ),
       );
     }
+    final coordinateSystem =
+        destinationLatitude != null && destinationLongitude != null
+        ? destinationCoordinateSystem
+        : CoordinateSystem.wgs84;
     final rawPoint = GeoPoint(
       latitude: latitude,
       longitude: longitude,
-      coordinateSystem: destinationCoordinateSystem,
+      coordinateSystem: coordinateSystem,
     );
     final destination = RouteDestination(
       name: name,
