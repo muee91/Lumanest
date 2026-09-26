@@ -533,6 +533,7 @@ class _V2RouteVerdict extends StatelessWidget {
       '${value.hour.toString().padLeft(2, '0')}:'
       '${value.minute.toString().padLeft(2, '0')}';
 }
+
 class _V2RouteActionObject extends StatelessWidget {
   const _V2RouteActionObject({
     required this.scout,
