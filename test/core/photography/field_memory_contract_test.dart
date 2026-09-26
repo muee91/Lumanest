@@ -74,6 +74,10 @@ void main() {
       ),
       isFalse,
     );
+    expect(
+      FieldModeCountdown.remaining(phase, phase.endsAt),
+      Duration.zero,
+    );
     final nextPhase = ShootingSessionPhase(
       kind: ShootingPhaseKind.blueHour,
       startsAt: now.add(const Duration(minutes: 20)),
