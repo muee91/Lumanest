@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/app/router.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
+import 'package:luma_nest/src/features/library/domain/saved_place_opportunity_matcher.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
@@ -480,6 +484,8 @@ class V2ProfileLibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider);
+    final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
+    final now = DateTime.now();
     return _V2SecondaryPage(
       title: '我留下的',
       subtitle: '地点、纸条和拍摄结果都保存在本机。',
@@ -509,13 +515,35 @@ class V2ProfileLibraryPage extends ConsumerWidget {
             _V2LibraryGroup(
               title: '收藏地点',
               empty: '还没有收藏地点',
-              items: value.savedPlaces
-                  .take(8)
-                  .map(
-                    (item) =>
-                        _V2LibraryItem(title: item.name, detail: item.category),
-                  )
-                  .toList(),
+              items: value.savedPlaces.take(8).map((item) {
+                final match = snapshot == null
+                    ? null
+                    : SavedPlaceOpportunityMatcher.match(
+                        place: item,
+                        snapshot: snapshot,
+                        now: now,
+                      );
+                final onOpen = match == null
+                    ? null
+                    : () {
+                        final intent = ActiveShootingIntent(
+                          sessionId: match.sessionId,
+                          targetId: match.targetId,
+                          createdAt: DateTime.now(),
+                        );
+                        context.push(
+                          shootingSessionLocation(match.sessionId, intent: intent),
+                        );
+                      };
+                return _V2LibraryItem(
+                  title: item.name,
+                  detail: item.category,
+                  status: match == null
+                      ? null
+                      : '今晚重新匹配 · ${_time(match.startsAt)}',
+                  onTap: onOpen,
+                );
+              }).toList(),
             ),
             const SizedBox(height: 16),
             _V2SectionObject(
@@ -775,49 +803,84 @@ class _V2LibraryItem extends StatelessWidget {
   const _V2LibraryItem({
     required this.title,
     required this.detail,
+    this.status,
+    this.onTap,
     this.onDelete,
   });
   final String title;
   final String detail;
+  final String? status;
+  final VoidCallback? onTap;
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 9),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: V2Palette.ink,
-                  fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    final child = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                detail,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: V2Palette.mutedInk, fontSize: 12),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: V2Palette.mutedInk, fontSize: 12),
+                ),
+                if (status != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: V2Palette.mossSoft,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text(
+                      status!,
+                      style: const TextStyle(
+                        color: V2Palette.moss,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
-        if (onDelete != null)
-          IconButton(
-            onPressed: onDelete,
-            icon: const Icon(CupertinoIcons.trash, size: 18),
-          ),
-      ],
-    ),
-  );
+          if (onTap != null)
+            const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(CupertinoIcons.chevron_right, size: 16, color: V2Palette.mutedInk),
+            ),
+          if (onDelete != null)
+            IconButton(
+              onPressed: onDelete,
+              icon: const Icon(CupertinoIcons.trash, size: 18),
+            ),
+        ],
+      ),
+    );
+    return onTap == null
+        ? child
+        : Semantics(button: true, label: '$title，打开当前机会', child: GestureDetector(onTap: onTap, child: child));
+  }
 }
+
+String _time(DateTime value) =>
+    '${value.toLocal().hour.toString().padLeft(2, '0')}:${value.toLocal().minute.toString().padLeft(2, '0')}';
 
 class _V2ToggleObject extends StatelessWidget {
   const _V2ToggleObject({

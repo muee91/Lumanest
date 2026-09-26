@@ -1084,6 +1084,11 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   }
 
   void _toggleSave(NearbyPlace place) {
+    // SavedPlace has one canonical storage contract: WGS-84. Explore results
+    // may still come from AMap in GCJ-02, so normalize before persisting.
+    final point = place.point.coordinateSystem == CoordinateSystem.gcj02
+        ? ChinaCoordinateConverter.gcj02ToWgs84(place.point)
+        : place.point;
     ref
         .read(userLibraryProvider.notifier)
         .togglePlace(
@@ -1091,8 +1096,8 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
             id: place.id,
             name: place.name,
             category: place.category.name,
-            latitude: place.point.latitude,
-            longitude: place.point.longitude,
+            latitude: point.latitude,
+            longitude: point.longitude,
           ),
         );
   }
