@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
@@ -80,6 +81,10 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                       destinationName: query['name'],
                       destinationLatitude: double.tryParse(query['lat'] ?? ''),
                       destinationLongitude: double.tryParse(query['lon'] ?? ''),
+                      destinationCoordinateSystem:
+                          query['system'] == CoordinateSystem.gcj02.name
+                          ? CoordinateSystem.gcj02
+                          : CoordinateSystem.wgs84,
                       travelMode: query['mode'] == RouteTravelMode.walking.name
                           ? RouteTravelMode.walking
                           : RouteTravelMode.driving,
