@@ -664,7 +664,16 @@ class _V2OpportunityRail extends StatelessWidget {
               (item) =>
                   item.id != primaryId &&
                   !item.isEvidenceExpiredAt(moment) &&
-                  item.canStartWatchingAt(moment),
+                  item.canStartWatchingAt(moment) &&
+                  (!planB ||
+                      item.conditionBand != ShootingConditionBand.limited &&
+                          item.confidenceBand !=
+                              ShootingConfidenceBand.limited &&
+                          item.targetCandidates.any(
+                            (target) =>
+                                target.arrivalRadiusMeters > 0 &&
+                                target.supportedSessions.contains(item.kind),
+                          )),
             )
             .toList()
           ..sort((left, right) => left.startsAt.compareTo(right.startsAt));
