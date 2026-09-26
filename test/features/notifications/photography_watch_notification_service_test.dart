@@ -147,6 +147,44 @@ void main() {
     });
   });
 
+  test('explicit departure invalidation downgrades an obsolete earlier reminder', () async {
+    final service = _FakeService();
+    final ledger = _MemoryLedger();
+    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+    final library = _library(now, session, targetId: 'target-a');
+    final deadline = now.add(const Duration(minutes: 7));
+    final plan = ShootingDeparturePlan(
+      sessionId: session.id,
+      targetId: 'target-a',
+      departureDeadline: deadline,
+      routeDuration: const Duration(minutes: 22),
+      createdAt: now,
+    );
+    final reconciler = _reconciler(service, ledger, now);
+
+    await reconciler.reconcile(
+      snapshot: _snapshot(now, session),
+      library: library,
+      departurePlan: plan,
+    );
+    await reconciler.reconcile(
+      snapshot: _snapshot(now, session),
+      library: library,
+      departureInvalidation: ShootingDeparturePlanInvalidation(
+        sessionId: session.id,
+        targetId: 'target-a',
+      ),
+    );
+
+    expect(service.scheduled, hasLength(2));
+    expect(service.cancelled, [library.watchedSessions.single.id]);
+    expect(
+      service.scheduled.last.notifyAt,
+      session.startsAt.subtract(const Duration(minutes: 15)),
+    );
+    expect(service.scheduled.last.departureDeadline, isNull);
+  });
+
   test('uses one immediate notification for a current session', () async {
     final service = _FakeService();
     final session = _sessionStarting(now.subtract(const Duration(minutes: 2)));
