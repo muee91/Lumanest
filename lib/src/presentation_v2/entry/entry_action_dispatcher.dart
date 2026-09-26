@@ -4,6 +4,8 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_action.dart';
+import 'package:luma_nest/src/core/entry/entry_payload.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/shared/actions/manifest_action_handler.dart';
 
@@ -19,7 +21,19 @@ abstract final class EntryActionDispatcher {
       case EntryActionType.openShootingWindow:
         final id = action.targetId;
         if (id != null) {
-          context.push('/session/${Uri.encodeComponent(id)}', extra: snapshot);
+          final targetId = entry.payload is OpportunityEntryPayload
+              ? (entry.payload as OpportunityEntryPayload).targetId
+              : null;
+          final intent = ActiveShootingIntent(
+            sessionId: id,
+            targetId: targetId,
+            createdAt: DateTime.now(),
+          );
+          final path = '/session/' + Uri.encodeComponent(id);
+          context.push(
+            Uri(path: path, queryParameters: intent.queryParameters).toString(),
+            extra: snapshot,
+          );
         }
       case EntryActionType.openExplore:
         final query = action.query;
