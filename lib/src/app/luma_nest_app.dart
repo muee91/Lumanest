@@ -118,6 +118,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     final reconciliationSnapshot =
         widget.initialContext ?? liveSnapshot?.asData?.value;
     final departurePlan = ref.watch(shootingDeparturePlanProvider);
+    final departureInvalidation = ref.watch(
+      shootingDeparturePlanInvalidationProvider,
+    );
     if (widget.initialContext == null && reconciliationSnapshot != null) {
       _scheduleEnvironmentRefresh(reconciliationSnapshot);
     }
@@ -150,7 +153,8 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
       final reconciliationKey =
           '${photographyWatchNotificationsEnabled ? 'enabled' : 'disabled'}:'
           '${reconciliationSnapshot.id}:${watchIds.join(',')}:'
-          '${departurePlan?.key ?? ''}';
+          '${departurePlan?.key ?? ''}:'
+          '${departureInvalidation?.key ?? ''}';
       if (_lastPhotographyWatchReconciliation != reconciliationKey) {
         _lastPhotographyWatchReconciliation = reconciliationKey;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -162,6 +166,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
                   snapshot: reconciliationSnapshot,
                   library: library,
                   departurePlan: departurePlan,
+                  departureInvalidation: departureInvalidation,
                 ),
           );
         });
