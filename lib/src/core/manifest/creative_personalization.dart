@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 
-enum PhotographyPreference { landscape, humanities, astro, city }
+enum PhotographyPreference { landscape, humanities, astro, city, ecology }
 
 enum ActivityPreference { driving, lightHiking, backpacking, nicheExploration }
 
@@ -50,9 +50,10 @@ class CreativePersonalization {
 
   bool matchesCreativeEvent(String eventId) {
     if (eventId == 'regional-wildlife') {
-      return activityPreferences.any(
-        (value) => value != ActivityPreference.driving,
-      );
+      return photographyPreferences.contains(PhotographyPreference.ecology) ||
+          activityPreferences.any(
+            (value) => value != ActivityPreference.driving,
+          );
     }
     final definition = OpportunityCatalog.current.byId[eventId];
     if (definition == null || !definition.isActiveCore) return false;
@@ -94,6 +95,9 @@ Set<PhotographyPreferenceId> _photographyAffinities(
   PhotographyPreference.astro => const {PhotographyPreferenceId.astroCelestial},
   PhotographyPreference.city => const {
     PhotographyPreferenceId.cityArchitecture,
+  },
+  PhotographyPreference.ecology => const {
+    PhotographyPreferenceId.wildlifeEcology,
   },
 };
 
