@@ -103,9 +103,9 @@ abstract final class ManifestPolicy {
         _RankedCreative(
           item: creative[index],
           originalIndex: index,
-          matched:
-              personalization.matchesCreativeEvent(creative[index].id) ||
-              personalization.affinityForCreativeEvent(creative[index].id) > 0,
+          matched: personalization.matchesCreativeEvent(
+            creative[index].id,
+          ),
         ),
     ];
 
