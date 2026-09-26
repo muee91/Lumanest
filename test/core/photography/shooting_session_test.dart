@@ -124,4 +124,21 @@ void main() {
       evening.id,
     );
   });
+
+  test('fallback copy is reserved for a weakening or limited primary', () {
+    final stable = ContextFixtures.waterEveningSession(observedAt: now);
+    final weakening = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final limited = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      conditionBand: ShootingConditionBand.limited,
+    );
+
+    expect(ShootingSessionFallback.shouldOfferPlanB(stable), isFalse);
+    expect(ShootingSessionFallback.shouldOfferPlanB(weakening), isTrue);
+    expect(ShootingSessionFallback.shouldOfferPlanB(limited), isTrue);
+    expect(ShootingSessionFallback.shouldOfferPlanB(null), isFalse);
+  });
 }
