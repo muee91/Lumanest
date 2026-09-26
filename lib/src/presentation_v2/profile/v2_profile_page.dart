@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
@@ -480,6 +484,8 @@ class V2ProfileLibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider);
+    final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
+    final now = DateTime.now();
     return _V2SecondaryPage(
       title: '我留下的',
       subtitle: '地点、纸条和拍摄结果都保存在本机。',
@@ -512,8 +518,10 @@ class V2ProfileLibraryPage extends ConsumerWidget {
               items: value.savedPlaces
                   .take(8)
                   .map(
-                    (item) =>
-                        _V2LibraryItem(title: item.name, detail: item.category),
+                    (item) => _V2LibraryItem(
+                      title: item.name,
+                      detail: _savedPlaceDetail(item, snapshot, now),
+                    ),
                   )
                   .toList(),
             ),
@@ -530,6 +538,39 @@ class V2ProfileLibraryPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static String _savedPlaceDetail(
+    SavedPlace place,
+    ContextSnapshot? snapshot,
+    DateTime now,
+  ) {
+    if (snapshot == null ||
+        snapshot.isStale ||
+        !snapshot.expiresAt.toUtc().isAfter(now.toUtc())) {
+      return place.category;
+    }
+    final match = ShootingSessionPlaceMatcher.find(
+      place: GeoPoint(latitude: place.latitude, longitude: place.longitude),
+      sessions: snapshot.shootingSessions,
+      now: now,
+    );
+    if (match == null) return place.category;
+    final session = match.session;
+    return '${_condition(session.conditionBand)} · '
+        '${_time(session.presentationStartsAt)}—${_time(session.presentationEndsAt)}';
+  }
+
+  static String _condition(ShootingConditionBand value) => switch (value) {
+    ShootingConditionBand.good => '当前值得关注',
+    ShootingConditionBand.fair => '当前可以观察',
+    ShootingConditionBand.limited => '当前条件有限',
+  };
+
+  static String _time(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}'
+        ':${local.minute.toString().padLeft(2, '0')}';
   }
 }
 
