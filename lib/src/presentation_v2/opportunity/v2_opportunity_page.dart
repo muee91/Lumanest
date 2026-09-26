@@ -1180,7 +1180,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
               const SizedBox(height: 10),
               Text(
                 <String>[
-                  widget.automaticArrival ? '已按实时位置识别到达' : '由你手动确认到达',
+                  widget.automaticArrival ? '已按前台定位识别到达' : '由你手动确认到达',
                   if (widget.dataObservedAt != null)
                     '环境 ${_time(widget.dataObservedAt!)} 更新',
                 ].join(' · '),
