@@ -199,10 +199,8 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   @override
   void dispose() {
     _controller?.disponse();
-    final sessionId = widget.activeShootingIntent?.sessionId;
-    if (sessionId != null) {
-      ref.read(shootingDeparturePlanProvider.notifier).clearFor(sessionId);
-    }
+    // Keep the latest route deadline in the foreground scope so leaving the
+    // route page does not silently downgrade an already scheduled reminder.
     super.dispose();
   }
 
