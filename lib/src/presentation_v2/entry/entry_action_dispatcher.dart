@@ -29,7 +29,7 @@ abstract final class EntryActionDispatcher {
             targetId: targetId,
             createdAt: DateTime.now(),
           );
-          final path = '/session/' + Uri.encodeComponent(id);
+          final path = '/session/${Uri.encodeComponent(id)}';
           context.push(
             Uri(path: path, queryParameters: intent.queryParameters).toString(),
             extra: snapshot,
