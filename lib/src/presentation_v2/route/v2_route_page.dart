@@ -12,6 +12,7 @@ import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -33,6 +34,7 @@ class V2RoutePage extends ConsumerWidget {
     this.destinationLongitude,
     this.destinationCoordinateSystem = CoordinateSystem.wgs84,
     this.travelMode = RouteTravelMode.driving,
+    this.activeShootingIntent,
   });
 
   final String? destinationName;
@@ -40,6 +42,7 @@ class V2RoutePage extends ConsumerWidget {
   final double? destinationLongitude;
   final CoordinateSystem destinationCoordinateSystem;
   final RouteTravelMode travelMode;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -75,13 +78,20 @@ class V2RoutePage extends ConsumerWidget {
       point: ChinaCoordinateConverter.gcj02ToWgs84(rawPoint),
       travelMode: travelMode,
     );
-    return _V2RouteStage(destination: destination);
+    return _V2RouteStage(
+      destination: destination,
+      activeShootingIntent: activeShootingIntent,
+    );
   }
 }
 
 class _V2RouteStage extends ConsumerStatefulWidget {
-  const _V2RouteStage({required this.destination});
+  const _V2RouteStage({
+    required this.destination,
+    this.activeShootingIntent,
+  });
   final RouteDestination destination;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   ConsumerState<_V2RouteStage> createState() => _V2RouteStageState();
@@ -157,15 +167,24 @@ class _V2RouteStageState extends ConsumerState<_V2RouteStage> {
         ),
       ),
       data: (value) =>
-          _V2LiveRoute(route: value, destination: widget.destination),
+          _V2LiveRoute(
+            route: value,
+            destination: widget.destination,
+            activeShootingIntent: widget.activeShootingIntent,
+          ),
     );
   }
 }
 
 class _V2LiveRoute extends ConsumerStatefulWidget {
-  const _V2LiveRoute({required this.route, required this.destination});
+  const _V2LiveRoute({
+    required this.route,
+    required this.destination,
+    this.activeShootingIntent,
+  });
   final DrivingRoute route;
   final RouteDestination destination;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   ConsumerState<_V2LiveRoute> createState() => _V2LiveRouteState();
@@ -293,6 +312,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
             destination: widget.destination,
             snapshot: snapshot,
             scout: scout.asData?.value,
+            activeShootingIntent: widget.activeShootingIntent,
           ),
         ),
         Positioned(
@@ -389,11 +409,13 @@ class _V2RouteVerdict extends StatelessWidget {
     required this.destination,
     required this.snapshot,
     required this.scout,
+    this.activeShootingIntent,
   });
   final DrivingRoute route;
   final RouteDestination destination;
   final ContextSnapshot? snapshot;
   final RouteScoutPlan? scout;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -401,13 +423,14 @@ class _V2RouteVerdict extends StatelessWidget {
     final arrival = now.add(Duration(seconds: route.durationSeconds));
     final candidateSession = snapshot == null
         ? null
-        : ShootingSessionSelector.select(
-            snapshot!.shootingSessions,
-            now: now,
-          );
+        : _sessionForIntent(snapshot!, activeShootingIntent, now);
     final target = candidateSession == null
         ? null
-        : _targetForDestination(candidateSession, destination);
+        : _targetForDestination(
+            candidateSession,
+            destination,
+            activeShootingIntent,
+          );
     // A route to an arbitrary place must not inherit the current session's
     // timing verdict. Only a reviewed target tied to this destination can
     // produce a catchability or latest-departure statement.
@@ -509,11 +532,34 @@ class _V2RouteVerdict extends StatelessWidget {
     );
   }
 
+  static ShootingSession? _sessionForIntent(
+    ContextSnapshot snapshot,
+    ActiveShootingIntent? intent,
+    DateTime now,
+  ) {
+    if (intent == null) {
+      return ShootingSessionSelector.select(
+        snapshot.shootingSessions,
+        now: now,
+      );
+    }
+    final session = snapshot.shootingSessions
+        .where((candidate) => candidate.id == intent.sessionId)
+        .firstOrNull;
+    return session != null && session.endsAt.isAfter(now) ? session : null;
+  }
+
   static ShootingTarget? _targetForDestination(
     ShootingSession session,
     RouteDestination destination,
+    ActiveShootingIntent? intent,
   ) {
-    return session.targetCandidates
+    final candidates = intent?.targetId == null
+        ? session.targetCandidates
+        : session.targetCandidates.where(
+            (target) => target.id == intent!.targetId,
+          );
+    return candidates
         .where(
           (target) =>
               GeoDistance.metersBetween(
