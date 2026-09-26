@@ -279,7 +279,7 @@ String shootingSessionLocation(
   String sessionId, {
   ActiveShootingIntent? intent,
 }) {
-  final path = '/session/' + Uri.encodeComponent(sessionId);
+  final path = '/session/${Uri.encodeComponent(sessionId)}';
   final queryParameters = intent?.queryParameters;
   if (queryParameters == null || queryParameters.isEmpty) return path;
   return Uri(path: path, queryParameters: queryParameters).toString();
