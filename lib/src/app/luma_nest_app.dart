@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
@@ -116,6 +117,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         ?.value;
     final reconciliationSnapshot =
         widget.initialContext ?? liveSnapshot?.asData?.value;
+    final departurePlan = ref.watch(shootingDeparturePlanProvider);
     if (widget.initialContext == null && reconciliationSnapshot != null) {
       _scheduleEnvironmentRefresh(reconciliationSnapshot);
     }
@@ -147,7 +149,8 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
             ..sort();
       final reconciliationKey =
           '${photographyWatchNotificationsEnabled ? 'enabled' : 'disabled'}:'
-          '${reconciliationSnapshot.id}:${watchIds.join(',')}';
+          '${reconciliationSnapshot.id}:${watchIds.join(',')}:'
+          '${departurePlan?.key ?? ''}';
       if (_lastPhotographyWatchReconciliation != reconciliationKey) {
         _lastPhotographyWatchReconciliation = reconciliationKey;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -155,7 +158,11 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
           unawaited(
             ref
                 .read(shootingSessionNotificationReconcilerProvider)
-                .reconcile(snapshot: reconciliationSnapshot, library: library),
+                .reconcile(
+                  snapshot: reconciliationSnapshot,
+                  library: library,
+                  departurePlan: departurePlan,
+                ),
           );
         });
       }
@@ -313,7 +320,12 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     if (uri == null) return;
     final sessionId = shootingSessionIdFrom(uri);
     if (sessionId != null) {
-      _router.go(shootingSessionLocation(sessionId));
+      final intent = ActiveShootingIntent.fromQueryParameters(
+        sessionId: sessionId,
+        targetId: uri.queryParameters['target'],
+        createdAt: uri.queryParameters['intentAt'],
+      );
+      _router.go(shootingSessionLocation(sessionId, intent: intent));
     }
   }
 
