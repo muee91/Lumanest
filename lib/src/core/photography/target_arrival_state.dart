@@ -44,8 +44,12 @@ abstract final class TargetArrivalStateResolver {
         radius < maximumAccuracyMeters ? radius : maximumAccuracyMeters;
     if (accuracy > allowedAccuracy) return null;
 
-    final age = now.toUtc().difference(reading.recordedAt.toUtc());
-    if (age > maximumReadingAge || age < -maximumFutureSkew) return null;
+    final utcNow = now.toUtc();
+    final recordedAt = reading.recordedAt.toUtc();
+    if (recordedAt.isBefore(utcNow.subtract(maximumReadingAge)) ||
+        recordedAt.isAfter(utcNow.add(maximumFutureSkew))) {
+      return null;
+    }
 
     try {
       final current = ChinaCoordinateConverter.gcj02ToWgs84(
