@@ -259,6 +259,16 @@ abstract final class ShootingSessionSelector {
   }
 }
 
+abstract final class ShootingSessionFallback {
+  /// Existing secondary windows may be presented as a fallback only when the
+  /// selected primary window is visibly weakening or limited. This is a copy
+  /// and ranking signal; it never invents a new opportunity.
+  static bool shouldOfferPlanB(ShootingSession? primary) =>
+      primary != null &&
+      (primary.conditionBand == ShootingConditionBand.limited ||
+          primary.trend == ShootingTrend.weakening);
+}
+
 enum ShootingExecutionState {
   observe,
   planRoute,
