@@ -506,8 +506,7 @@ class _V2RouteVerdict extends StatelessWidget {
               GeoDistance.metersBetween(
                 target.coordinate,
                 destination.point,
-              ) <=
-              500,
+              ) <= target.arrivalRadiusMeters,
         )
         .firstOrNull;
   }
