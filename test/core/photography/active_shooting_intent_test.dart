@@ -4,8 +4,8 @@ import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 void main() {
   test('round trips the selected session and target through query values', () {
     final original = ActiveShootingIntent(
-      sessionId: 'session_aaaaaaaaaaaaaaaaaaaaaaaa',
-      targetId: 'target_north_ridge',
+      sessionId: 'session_0123456789abcdef01234567',
+      targetId: 'target_89abcdef0123456789abcdef',
       createdAt: DateTime.utc(2026, 9, 26, 10, 30),
     );
 
@@ -23,7 +23,7 @@ void main() {
   test('plain session links remain legacy links without an intent', () {
     expect(
       ActiveShootingIntent.fromQueryParameters(
-        sessionId: 'session_aaaaaaaaaaaaaaaaaaaaaaaa',
+        sessionId: 'session_0123456789abcdef01234567',
       ),
       isNull,
     );
@@ -33,15 +33,15 @@ void main() {
     expect(
       ActiveShootingIntent.fromQueryParameters(
         sessionId: 'bad',
-        targetId: 'target_north_ridge',
+        targetId: 'target_89abcdef0123456789abcdef',
         createdAt: '2026-09-26T10:30:00Z',
       ),
       isNull,
     );
     expect(
       ActiveShootingIntent.fromQueryParameters(
-        sessionId: 'session_aaaaaaaaaaaaaaaaaaaaaaaa',
-        targetId: 'target_north_ridge',
+        sessionId: 'session_0123456789abcdef01234567',
+        targetId: 'target_89abcdef0123456789abcdef',
         createdAt: 'not-a-date',
       ),
       isNull,
