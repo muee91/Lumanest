@@ -383,7 +383,9 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
               widget.destination.point,
             ) >
             target.arrivalRadiusMeters) {
-      ref.read(shootingDeparturePlanProvider.notifier).clearFor(intent.sessionId);
+      ref
+          .read(shootingDeparturePlanProvider.notifier)
+          .clearFor(intent.sessionId, targetId: intent.targetId);
       return;
     }
     final decision = ShootingExecutionResolver.resolve(
@@ -394,7 +396,9 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     );
     final deadline = decision.departureDeadline;
     if (deadline == null) {
-      ref.read(shootingDeparturePlanProvider.notifier).clearFor(intent.sessionId);
+      ref
+          .read(shootingDeparturePlanProvider.notifier)
+          .clearFor(intent.sessionId, targetId: intent.targetId);
       return;
     }
     ref
