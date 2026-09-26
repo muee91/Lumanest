@@ -6,10 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
-import 'package:luma_nest/src/core/location/geo_distance.dart';
+import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/core/photography/target_arrival_state.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
@@ -105,44 +106,112 @@ class _V2OpportunityStage extends ConsumerStatefulWidget {
 class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   bool _evidenceOpen = false;
   bool? _arrivalOverride;
+  bool _locationRefreshing = false;
   int _selectedPhaseIndex = 0;
+  DateTime _fieldNow = DateTime.now();
+  LocationReading? _locationReading;
+  Timer? _fieldClock;
+  Timer? _locationTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.activeShootingIntent?.targetId == null) return;
+    unawaited(_refreshFieldLocation());
+    _locationTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) unawaited(_refreshFieldLocation());
+    });
+    _fieldClock = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) {
+        setState(() => _fieldNow = DateTime.now());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _fieldClock?.cancel();
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshFieldLocation() async {
+    if (_locationRefreshing ||
+        widget.activeShootingIntent?.targetId == null) {
+      return;
+    }
+    _locationRefreshing = true;
+    try {
+      // Field arrival must use a real foreground device fix. Manual/base-region
+      // fallbacks are valid for environment lookup but must never auto-confirm
+      // physical arrival at a reviewed shooting target.
+      final reading = await ref.read(locationRepositoryProvider).current();
+      if (!mounted) return;
+      setState(() {
+        _locationReading = reading;
+        _fieldNow = DateTime.now();
+      });
+    } on Object {
+      // Keep the last reading; the pure resolver expires it after two minutes.
+      // The periodic foreground poll retries transient location failures.
+    } finally {
+      _locationRefreshing = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
     final target = _targetForIntent();
-    final now = DateTime.now();
+    final now = widget.activeShootingIntent?.targetId == null
+        ? DateTime.now()
+        : _fieldNow;
     final liveSnapshot = widget.activeShootingIntent?.targetId == null
         ? null
         : ref.watch(environmentSnapshotProvider).asData?.value;
-    final fieldSnapshot = _freshFieldSnapshot(liveSnapshot, now) ??
+    final freshLiveSnapshot = _freshFieldSnapshot(liveSnapshot, now);
+    final fieldSnapshot = freshLiveSnapshot ??
         _freshFieldSnapshot(widget.snapshot, now);
-    final distanceMeters = target == null || fieldSnapshot?.location == null
+    final arrivalAssessment = target == null
         ? null
-        : GeoDistance.metersBetween(
-            fieldSnapshot!.location!,
-            target.coordinate,
+        : TargetArrivalStateResolver.assess(
+            reading: _locationReading,
+            target: target,
+            now: now,
           );
-    final automaticArrival =
-        target != null &&
-        distanceMeters != null &&
-        distanceMeters <= target.arrivalRadiusMeters;
+    final distanceMeters = arrivalAssessment?.distanceMeters;
+    final automaticArrival = arrivalAssessment?.isArrived ?? false;
     final atTarget = _arrivalOverride ?? automaticArrival;
     final refreshedSession = fieldSnapshot?.shootingSessions
         .where((candidate) => candidate.id == session.id)
         .firstOrNull;
+    final liveSessionMissing =
+        freshLiveSnapshot != null && refreshedSession == null;
     final executionSession = refreshedSession ?? session;
-    final decision = ShootingExecutionResolver.resolve(
-      session: executionSession,
-      now: now,
-      target: target,
-      atTarget: atTarget,
-    );
+    final decision = liveSessionMissing
+        ? const ShootingExecutionDecision(
+            state: ShootingExecutionState.observe,
+            label: '查看依据',
+            reason: '这个机会已不在最新环境判断中，暂不据此行动。',
+          )
+        : ShootingExecutionResolver.resolve(
+            session: executionSession,
+            now: now,
+            target: target,
+            atTarget: atTarget,
+          );
     final planB = ShootingSessionFallback.selectPlanB(
       fieldSnapshot?.shootingSessions ?? widget.snapshot.shootingSessions,
       primary: executionSession,
       now: now,
     );
+    final planBTarget = planB?.targetCandidates
+        .where(
+          (candidate) =>
+              candidate.arrivalRadiusMeters > 0 &&
+              candidate.supportedSessions.contains(planB.kind),
+        )
+        .firstOrNull;
     final fieldFacts = _fieldFacts(executionSession, fieldSnapshot);
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
@@ -161,11 +230,11 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
               (intentTargetId == null || item.targetId == intentTargetId),
         ) ==
         true;
-    final selectedPhase = session.phases.isEmpty
+    final selectedPhase = executionSession.phases.isEmpty
         ? null
-        : session.phases[_selectedPhaseIndex.clamp(
+        : executionSession.phases[_selectedPhaseIndex.clamp(
             0,
-            session.phases.length - 1,
+            executionSession.phases.length - 1,
           )];
 
     return SafeArea(
@@ -178,7 +247,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                 V2BackButton(onTap: () => context.pop()),
                 const Spacer(),
                 Text(
-                  _condition(session.conditionBand),
+                  _condition(executionSession.conditionBand),
                   style: const TextStyle(
                     color: V2Palette.moss,
                     fontSize: 13,
@@ -197,18 +266,18 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                 children: [
                   _V2SessionSummary(
                     stableId: session.id,
-                    eyebrow: _eyebrow(session.kind),
-                    title: session.title,
+                    eyebrow: _eyebrow(executionSession.kind),
+                    title: executionSession.title,
                     detail: decision.reason,
                     timeLabel:
-                        '${_time(session.presentationStartsAt)}—'
-                        '${_time(session.presentationEndsAt)}',
-                    accent: _accent(session.conditionBand),
+                        '${_time(executionSession.presentationStartsAt)}—'
+                        '${_time(executionSession.presentationEndsAt)}',
+                    accent: _accent(executionSession.conditionBand),
                   ),
                   const SizedBox(height: 20),
                   if (selectedPhase != null) ...[
                     _V2Timeline(
-                      phases: session.phases,
+                      phases: executionSession.phases,
                       selectedIndex: _selectedPhaseIndex,
                       onSelected: (index) =>
                           setState(() => _selectedPhaseIndex = index),
@@ -237,15 +306,25 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                           setState(() => _arrivalOverride = !atTarget),
                     ),
                   ],
-                  if (planB != null) ...[
+                  if (planB != null && planBTarget != null) ...[
                     const SizedBox(height: 18),
                     _V2PlanBObject(
-                      primary: session,
+                      primary: executionSession,
                       alternative: planB,
-                      onOpen: () => context.push(
-                        '/session/${Uri.encodeComponent(planB.id)}',
-                        extra: widget.snapshot,
-                      ),
+                      onOpen: () {
+                        final intent = ActiveShootingIntent(
+                          sessionId: planB.id,
+                          targetId: planBTarget.id,
+                          createdAt: DateTime.now(),
+                        );
+                        context.push(
+                          Uri(
+                            path: '/session/${Uri.encodeComponent(planB.id)}',
+                            queryParameters: intent.queryParameters,
+                          ).toString(),
+                          extra: fieldSnapshot ?? widget.snapshot,
+                        );
+                      },
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -277,7 +356,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
-                                  for (final factor in session.factors.take(6))
+                                  for (final factor
+                                      in executionSession.factors.take(6))
                                     _V2FactorObject(factor: factor),
                                 ],
                               ),
@@ -297,10 +377,12 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
             child: Row(
               children: [
-                if (watched || session.canStartWatchingAt(DateTime.now())) ...[
+                if (watched ||
+                    executionSession.canStartWatchingAt(now)) ...[
                   V2Pressable(
                     key: const Key('v2-watch-session-action'),
-                    onTap: () => _toggleWatch(watchedEntry?.id),
+                    onTap: () =>
+                        _toggleWatch(watchedEntry?.id, executionSession),
                     compact: true,
                     color: watched ? V2Palette.mossSoft : V2Palette.paper,
                     semanticLabel: watched ? '取消守候提醒' : '开启守候提醒',
@@ -372,7 +454,10 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     );
   }
 
-  Future<void> _toggleWatch(String? watchedId) async {
+  Future<void> _toggleWatch(
+    String? watchedId,
+    ShootingSession session,
+  ) async {
     if (watchedId == null) {
       // Permission is requested at the moment the user asks to be reminded, not
       // at launch. A denial still keeps the watch itself, so the failure mode is
@@ -383,7 +468,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
       await ref
           .read(userLibraryProvider.notifier)
           .watchSession(
-            session: widget.session,
+            session: session,
             snapshotId: widget.snapshot.id,
             targetId: _targetForIntent()?.id,
           );
