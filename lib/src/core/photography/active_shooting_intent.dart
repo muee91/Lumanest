@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 /// replacing the user's chosen session or reviewed target.
 @immutable
 class ActiveShootingIntent {
-  const ActiveShootingIntent({
+  ActiveShootingIntent({
     required this.sessionId,
     this.targetId,
     required DateTime createdAt,
@@ -19,10 +19,14 @@ class ActiveShootingIntent {
   final String? targetId;
   final DateTime createdAt;
 
-  Map<String, String> get queryParameters => {
-    if (targetId != null) 'target': targetId!,
-    'intentAt': createdAt.toIso8601String(),
-  };
+  Map<String, String> get queryParameters {
+    final result = <String, String>{
+      'intentAt': createdAt.toIso8601String(),
+    };
+    final target = targetId;
+    if (target != null) result['target'] = target;
+    return result;
+  }
 
   /// Reads only the optional identity query values. A plain session deep link
   /// remains a legacy route and returns null, while a target-bearing link
