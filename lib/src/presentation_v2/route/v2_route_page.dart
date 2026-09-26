@@ -31,12 +31,14 @@ class V2RoutePage extends ConsumerWidget {
     this.destinationName,
     this.destinationLatitude,
     this.destinationLongitude,
+    this.destinationCoordinateSystem = CoordinateSystem.wgs84,
     this.travelMode = RouteTravelMode.driving,
   });
 
   final String? destinationName;
   final double? destinationLatitude;
   final double? destinationLongitude;
+  final CoordinateSystem destinationCoordinateSystem;
   final RouteTravelMode travelMode;
 
   @override
@@ -57,9 +59,16 @@ class V2RoutePage extends ConsumerWidget {
         ),
       );
     }
+    final rawPoint = GeoPoint(
+      latitude: latitude,
+      longitude: longitude,
+      coordinateSystem: destinationCoordinateSystem,
+    );
     final destination = RouteDestination(
       name: name,
-      point: GeoPoint(latitude: latitude, longitude: longitude),
+      // Route, target and weather contracts use WGS-84. Explore carries the
+      // coordinate system explicitly so AMap GCJ-02 values are converted once.
+      point: ChinaCoordinateConverter.gcj02ToWgs84(rawPoint),
       travelMode: travelMode,
     );
     return _V2RouteStage(destination: destination);
