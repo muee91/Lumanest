@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
@@ -103,19 +104,40 @@ class _V2OpportunityStage extends ConsumerStatefulWidget {
 
 class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   bool _evidenceOpen = false;
-  bool _atTarget = false;
+  bool? _arrivalOverride;
   int _selectedPhaseIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
     final target = _targetForIntent();
+    final now = DateTime.now();
+    final liveSnapshot = ref.watch(environmentSnapshotProvider).asData?.value;
+    final fieldSnapshot = _freshFieldSnapshot(liveSnapshot, now) ??
+        _freshFieldSnapshot(widget.snapshot, now);
+    final distanceMeters = target == null || fieldSnapshot?.location == null
+        ? null
+        : GeoDistance.metersBetween(
+            fieldSnapshot!.location!,
+            target.coordinate,
+          );
+    final automaticArrival =
+        target != null &&
+        distanceMeters != null &&
+        distanceMeters <= target.arrivalRadiusMeters;
+    final atTarget = _arrivalOverride ?? automaticArrival;
     final decision = ShootingExecutionResolver.resolve(
       session: session,
-      now: DateTime.now(),
+      now: now,
       target: target,
-      atTarget: _atTarget,
+      atTarget: atTarget,
     );
+    final planB = ShootingSessionFallback.selectPlanB(
+      widget.snapshot.shootingSessions,
+      primary: session,
+      now: now,
+    );
+    final fieldFacts = _fieldFacts(session, fieldSnapshot);
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
     final watchedEntry = library?.watchedSessions
@@ -195,13 +217,29 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                   if (target != null) ...[
                     const SizedBox(height: 18),
                     _V2FieldModeObject(
-                      atTarget: _atTarget,
+                      atTarget: atTarget,
+                      automaticArrival: automaticArrival,
+                      distanceMeters: distanceMeters,
                       decision: decision,
                       target: target,
+                      facts: fieldFacts,
+                      dataObservedAt: fieldSnapshot?.observedAt,
                       directionDegrees:
                           decision.phase?.directionDegrees ??
                           target.viewBearingDegrees,
-                      onToggle: () => setState(() => _atTarget = !_atTarget),
+                      onToggle: () =>
+                          setState(() => _arrivalOverride = !atTarget),
+                    ),
+                  ],
+                  if (planB != null) ...[
+                    const SizedBox(height: 18),
+                    _V2PlanBObject(
+                      primary: session,
+                      alternative: planB,
+                      onOpen: () => context.push(
+                        '/session/${Uri.encodeComponent(planB.id)}',
+                        extra: widget.snapshot,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -366,9 +404,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     ShootingExecutionDecision decision,
     ShootingTarget? target,
   ) {
-    if (_atTarget &&
-        (decision.state == ShootingExecutionState.shootNow ||
-            decision.state == ShootingExecutionState.waitAtTarget)) {
+    if (decision.state == ShootingExecutionState.shootNow ||
+        decision.state == ShootingExecutionState.waitAtTarget) {
       setState(() => _evidenceOpen = true);
       return;
     }
@@ -459,6 +496,95 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     return widget.session.targetCandidates
         .where((candidate) => candidate.id == targetId)
         .firstOrNull;
+  }
+
+  static ContextSnapshot? _freshFieldSnapshot(
+    ContextSnapshot? snapshot,
+    DateTime now,
+  ) {
+    if (snapshot == null ||
+        snapshot.isStale ||
+        !snapshot.expiresAt.toUtc().isAfter(now.toUtc())) {
+      return null;
+    }
+    return snapshot;
+  }
+
+  static List<_V2FieldFact> _fieldFacts(
+    ShootingSession session,
+    ContextSnapshot? snapshot,
+  ) {
+    if (snapshot == null) return const [];
+    final preferred = switch (session.kind) {
+      ShootingSessionKind.waterMorning ||
+      ShootingSessionKind.waterEvening => const [
+        'wind',
+        'precipitation',
+        'cloud',
+      ],
+      ShootingSessionKind.mountainMorning ||
+      ShootingSessionKind.mountainEvening => const [
+        'visibility',
+        'cloud',
+        'wind',
+      ],
+      ShootingSessionKind.cityAfterRain => const [
+        'precipitation',
+        'cloud',
+        'visibility',
+      ],
+      ShootingSessionKind.desertSideLight => const [
+        'visibility',
+        'wind',
+        'cloud',
+      ],
+      ShootingSessionKind.generalMorning ||
+      ShootingSessionKind.generalEvening ||
+      ShootingSessionKind.cityBlueHour => const [
+        'cloud',
+        'visibility',
+        'wind',
+      ],
+      ShootingSessionKind.routeLightWindow => const [
+        'cloud',
+        'wind',
+        'precipitation',
+      ],
+    };
+    final facts = <_V2FieldFact>[];
+    for (final id in preferred) {
+      final fact = switch (id) {
+        'cloud' when snapshot.cloudCoverPercent != null => _V2FieldFact(
+            label: '云量',
+            value: '${snapshot.cloudCoverPercent!.round()}%',
+          ),
+        'wind' when snapshot.windSpeedMetersPerSecond != null => _V2FieldFact(
+            label: '风速',
+            value:
+                '${snapshot.windSpeedMetersPerSecond!.toStringAsFixed(1)}m/s',
+          ),
+        'precipitation'
+            when snapshot.precipitationMillimeters != null => _V2FieldFact(
+            label: '降水',
+            value:
+                '${snapshot.precipitationMillimeters!.toStringAsFixed(1)}mm',
+          ),
+        'visibility' when snapshot.visibilityKilometers != null => _V2FieldFact(
+            label: '能见度',
+            value: '${snapshot.visibilityKilometers!.round()}km',
+          ),
+        _ => null,
+      };
+      if (fact != null) facts.add(fact);
+    }
+    if (facts.length < 3) {
+      for (final factor in session.factors) {
+        if (facts.any((fact) => fact.label == factor.label)) continue;
+        facts.add(_V2FieldFact(label: factor.label, value: factor.value));
+        if (facts.length == 3) break;
+      }
+    }
+    return List.unmodifiable(facts.take(3));
   }
 
   static String _outcome(ShootingSessionOutcome value) => switch (value) {
@@ -769,71 +895,305 @@ class _V2PhaseNode extends StatelessWidget {
   };
 }
 
-class _V2FieldModeObject extends StatelessWidget {
+class _V2FieldFact {
+  const _V2FieldFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _V2FieldModeObject extends StatefulWidget {
   const _V2FieldModeObject({
     required this.atTarget,
+    required this.automaticArrival,
+    required this.distanceMeters,
     required this.decision,
     required this.target,
+    required this.facts,
+    required this.dataObservedAt,
     required this.directionDegrees,
     required this.onToggle,
   });
 
   final bool atTarget;
+  final bool automaticArrival;
+  final double? distanceMeters;
   final ShootingExecutionDecision decision;
   final ShootingTarget target;
+  final List<_V2FieldFact> facts;
+  final DateTime? dataObservedAt;
   final double directionDegrees;
   final VoidCallback onToggle;
 
   @override
+  State<_V2FieldModeObject> createState() => _V2FieldModeObjectState();
+}
+
+class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant _V2FieldModeObject oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.atTarget != widget.atTarget ||
+        oldWidget.decision.phase != widget.decision.phase ||
+        oldWidget.decision.state != widget.decision.state) {
+      _syncTicker();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  void _syncTicker() {
+    _ticker?.cancel();
+    if (!widget.atTarget || widget.decision.phase == null) return;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final countdown = _countdownLabel();
+    final distance = widget.distanceMeters == null
+        ? null
+        : widget.distanceMeters! < 1000
+        ? '${widget.distanceMeters!.round()}m'
+        : '${(widget.distanceMeters! / 1000).toStringAsFixed(1)}km';
+    return V2Pressable(
+      key: const Key('v2-arrived-at-target'),
+      onTap: widget.onToggle,
+      color: widget.atTarget ? V2Palette.mossSoft : V2Palette.paper,
+      semanticLabel: widget.atTarget ? '已到达机位，关闭现场模式' : '已到达机位，进入现场模式',
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  widget.atTarget
+                      ? CupertinoIcons.location_fill
+                      : CupertinoIcons.location,
+                  color: widget.atTarget
+                      ? V2Palette.moss
+                      : V2Palette.mutedInk,
+                  size: 19,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.atTarget
+                            ? '现场模式 · ${widget.decision.label}'
+                            : '到达机位后再判断',
+                        style: const TextStyle(
+                          color: V2Palette.ink,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        widget.atTarget
+                            ? '${widget.target.name} · 朝 ${widget.directionDegrees.round()}° 观察'
+                            : distance == null
+                            ? '由你确认已经抵达 ${widget.target.name}'
+                            : '距 ${widget.target.name} $distance · 到达后进入现场模式',
+                        style: const TextStyle(
+                          color: V2Palette.mutedInk,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  widget.atTarget
+                      ? CupertinoIcons.checkmark_circle_fill
+                      : CupertinoIcons.circle,
+                  color: widget.atTarget
+                      ? V2Palette.moss
+                      : V2Palette.mutedInk,
+                ),
+              ],
+            ),
+            if (widget.atTarget && countdown != null) ...[
+              const SizedBox(height: 13),
+              Text(
+                countdown,
+                style: const TextStyle(
+                  color: V2Palette.ink,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.5,
+                ),
+              ),
+            ],
+            if (widget.atTarget && widget.facts.isNotEmpty) ...[
+              const SizedBox(height: 13),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final fact in widget.facts)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 11,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: V2Palette.paper,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: V2Palette.line),
+                      ),
+                      child: Text(
+                        '${fact.label} ${fact.value}',
+                        style: const TextStyle(
+                          color: V2Palette.ink,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            if (widget.atTarget) ...[
+              const SizedBox(height: 10),
+              Text(
+                <String>[
+                  widget.automaticArrival ? '已按实时位置识别到达' : '由你手动确认到达',
+                  if (widget.dataObservedAt != null)
+                    '环境 ${_time(widget.dataObservedAt!)} 更新',
+                ].join(' · '),
+                style: const TextStyle(
+                  color: V2Palette.mutedInk,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _countdownLabel() {
+    final phase = widget.decision.phase;
+    if (phase == null) return null;
+    final now = DateTime.now();
+    final target = widget.decision.state == ShootingExecutionState.shootNow
+        ? phase.endsAt
+        : phase.startsAt;
+    final remaining = target.difference(now);
+    if (remaining <= Duration.zero) return null;
+    final prefix = widget.decision.state == ShootingExecutionState.shootNow
+        ? '${_V2PhaseNode.label(phase.kind)}还剩'
+        : '距${_V2PhaseNode.label(phase.kind)}';
+    return '$prefix ${_duration(remaining)}';
+  }
+
+  static String _duration(Duration value) {
+    final seconds = value.inSeconds;
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final remainder = seconds % 60;
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:'
+          '${minutes.toString().padLeft(2, '0')}:'
+          '${remainder.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:'
+        '${remainder.toString().padLeft(2, '0')}';
+  }
+
+  static String _time(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _V2PlanBObject extends StatelessWidget {
+  const _V2PlanBObject({
+    required this.primary,
+    required this.alternative,
+    required this.onOpen,
+  });
+
+  final ShootingSession primary;
+  final ShootingSession alternative;
+  final VoidCallback onOpen;
+
+  @override
   Widget build(BuildContext context) => V2Pressable(
-    key: const Key('v2-arrived-at-target'),
-    onTap: onToggle,
-    color: atTarget ? V2Palette.mossSoft : V2Palette.paper,
-    semanticLabel: atTarget ? '已到达机位，关闭现场模式' : '已到达机位，进入现场模式',
+    key: const Key('v2-opportunity-plan-b'),
+    onTap: onOpen,
+    color: V2Palette.paper,
+    semanticLabel: '查看备选拍摄机会 ${alternative.title}',
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
       child: Row(
         children: [
-          Icon(
-            atTarget ? CupertinoIcons.location_fill : CupertinoIcons.location,
-            color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
-            size: 19,
+          const Icon(
+            CupertinoIcons.arrow_triangle_branch,
+            color: V2Palette.ember,
+            size: 20,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  '条件变化 · 有备选',
+                  style: TextStyle(
+                    color: V2Palette.ember,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  atTarget ? '现场模式 · ' + decision.label : '到达机位后再判断',
+                  alternative.title,
                   style: const TextStyle(
                     color: V2Palette.ink,
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  atTarget
-                      ? target.name +
-                            ' · 朝 ' +
-                            directionDegrees.round().toString() +
-                            '° 观察'
-                      : '由你确认已经抵达 ' + target.name,
+                  '${primary.title}正在减弱；这个窗口仍有已成立依据。',
                   style: const TextStyle(
                     color: V2Palette.mutedInk,
                     fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    height: 1.35,
                   ),
                 ),
               ],
             ),
           ),
-          Icon(
-            atTarget
-                ? CupertinoIcons.checkmark_circle_fill
-                : CupertinoIcons.circle,
-            color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
+          const Icon(
+            CupertinoIcons.chevron_right,
+            color: V2Palette.mutedInk,
+            size: 17,
           ),
         ],
       ),
