@@ -14,6 +14,13 @@ void main() {
       shootingSessionNotificationPayloadFor('session-blue-hour'),
       '/session/session-blue-hour',
     );
+    expect(
+      shootingSessionNotificationPayloadFor(
+        'session-blue-hour',
+        targetId: 'target-north-ridge',
+      ),
+      '/session/session-blue-hour?target=target-north-ridge',
+    );
   });
 
   test(
@@ -37,6 +44,27 @@ void main() {
       expect(service.scheduled.single.session.id, session.id);
     },
   );
+
+  test('uses the route departure deadline when one is available', () async {
+    final service = _FakeService();
+    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+    final deadline = now.add(const Duration(minutes: 7));
+    final plan = ShootingDeparturePlan(
+      sessionId: session.id,
+      departureDeadline: deadline,
+      routeDuration: const Duration(minutes: 22),
+      createdAt: now,
+    );
+
+    await _reconciler(service, _MemoryLedger(), now).reconcile(
+      snapshot: _snapshot(now, session),
+      library: _library(now, session),
+      departurePlan: plan,
+    );
+
+    expect(service.scheduled.single.notifyAt, deadline);
+    expect(service.scheduled.single.departureDeadline, deadline);
+  });
 
   test('uses one immediate notification for a current session', () async {
     final service = _FakeService();
@@ -181,10 +209,12 @@ class _Scheduled {
     required this.session,
     required this.notifyAt,
     required this.dataObservedAt,
+    this.departureDeadline,
   });
   final ShootingSession session;
   final DateTime notifyAt;
   final DateTime dataObservedAt;
+  final DateTime? departureDeadline;
 }
 
 class _FakeService implements ShootingSessionNotificationService {
@@ -213,12 +243,14 @@ class _FakeService implements ShootingSessionNotificationService {
     required ShootingSession session,
     required DateTime notifyAt,
     required DateTime dataObservedAt,
+    DateTime? departureDeadline,
   }) async {
     scheduled.add(
       _Scheduled(
         session: session,
         notifyAt: notifyAt,
         dataObservedAt: dataObservedAt,
+        departureDeadline: departureDeadline,
       ),
     );
   }
