@@ -1084,6 +1084,10 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   }
 
   void _toggleSave(NearbyPlace place) {
+    final canonicalPoint =
+        place.point.coordinateSystem == CoordinateSystem.gcj02
+        ? ChinaCoordinateConverter.gcj02ToWgs84(place.point)
+        : place.point;
     ref
         .read(userLibraryProvider.notifier)
         .togglePlace(
@@ -1091,8 +1095,8 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
             id: place.id,
             name: place.name,
             category: place.category.name,
-            latitude: place.point.latitude,
-            longitude: place.point.longitude,
+            latitude: canonicalPoint.latitude,
+            longitude: canonicalPoint.longitude,
           ),
         );
   }
