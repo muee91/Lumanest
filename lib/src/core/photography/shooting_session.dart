@@ -1,3 +1,4 @@
+import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 
@@ -267,6 +268,54 @@ abstract final class ShootingSessionFallback {
       primary != null &&
       (primary.conditionBand == ShootingConditionBand.limited ||
           primary.trend == ShootingTrend.weakening);
+}
+
+class ShootingPlaceMatch {
+  const ShootingPlaceMatch({required this.session, required this.target});
+
+  final ShootingSession session;
+  final ShootingTarget target;
+}
+
+abstract final class ShootingSessionPlaceMatcher {
+  /// Matches a saved coordinate only to a reviewed target that explicitly
+  /// declares its arrival radius and whose evidence is still usable.
+  static ShootingPlaceMatch? find({
+    required GeoPoint place,
+    required Iterable<ShootingSession> sessions,
+    required DateTime now,
+  }) {
+    final utcNow = now.toUtc();
+    final matches = <ShootingPlaceMatch>[];
+    for (final session in sessions) {
+      if (!session.endsAt.isAfter(utcNow) ||
+          session.isEvidenceExpiredAt(utcNow)) {
+        continue;
+      }
+      final target = session.targetCandidates
+          .where(
+            (candidate) =>
+                GeoDistance.metersBetween(candidate.coordinate, place) <=
+                candidate.arrivalRadiusMeters,
+          )
+          .firstOrNull;
+      if (target != null) {
+        matches.add(ShootingPlaceMatch(session: session, target: target));
+      }
+    }
+    matches.sort((left, right) {
+      final leftActive =
+          !utcNow.isBefore(left.session.startsAt) &&
+          utcNow.isBefore(left.session.endsAt);
+      final rightActive =
+          !utcNow.isBefore(right.session.startsAt) &&
+          utcNow.isBefore(right.session.endsAt);
+      if (leftActive != rightActive) return leftActive ? -1 : 1;
+      final starts = left.session.startsAt.compareTo(right.session.startsAt);
+      return starts != 0 ? starts : left.session.id.compareTo(right.session.id);
+    });
+    return matches.firstOrNull;
+  }
 }
 
 enum ShootingExecutionState {
