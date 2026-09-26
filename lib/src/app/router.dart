@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
@@ -75,6 +76,14 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                 path: '/route',
                 pageBuilder: (context, state) {
                   final query = state.uri.queryParameters;
+                  final sessionId = query['session'];
+                  final activeIntent = sessionId == null
+                      ? null
+                      : ActiveShootingIntent.fromQueryParameters(
+                          sessionId: sessionId,
+                          targetId: query['target'],
+                          createdAt: query['intentAt'],
+                        );
                   return _tabPage(
                     state,
                     child: V2RoutePage(
@@ -88,6 +97,7 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
                       travelMode: query['mode'] == RouteTravelMode.walking.name
                           ? RouteTravelMode.walking
                           : RouteTravelMode.driving,
+                      activeShootingIntent: activeIntent,
                     ),
                   );
                 },
@@ -165,10 +175,16 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
         path: '/session/:id',
         pageBuilder: (context, state) {
           final sessionId = state.pathParameters['id']!;
+          final activeIntent = ActiveShootingIntent.fromQueryParameters(
+            sessionId: sessionId,
+            targetId: state.uri.queryParameters['target'],
+            createdAt: state.uri.queryParameters['intentAt'],
+          );
           return _v2DetailPage(
             state,
             child: V2OpportunityPage(
               sessionId: sessionId,
+              activeShootingIntent: activeIntent,
               initialSnapshot:
                   opportunitySnapshotFromRoute(
                     state.extra,
@@ -259,8 +275,15 @@ CustomTransitionPage<void> _v2DetailPage(
   },
 );
 
-String shootingSessionLocation(String sessionId) =>
-    '/session/${Uri.encodeComponent(sessionId)}';
+String shootingSessionLocation(
+  String sessionId, {
+  ActiveShootingIntent? intent,
+}) {
+  final path = '/session/' + Uri.encodeComponent(sessionId);
+  final queryParameters = intent?.queryParameters;
+  if (queryParameters == null || queryParameters.isEmpty) return path;
+  return Uri(path: path, queryParameters: queryParameters).toString();
+}
 
 String? shootingSessionIdFrom(Uri uri) {
   final segments = uri.pathSegments;
