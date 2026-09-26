@@ -56,6 +56,23 @@ void main() {
     );
   });
 
+  test('field mode resolves the active phase at the reviewed target', () {
+    final session = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      targetCandidates: [target],
+    );
+    final decision = ShootingExecutionResolver.resolve(
+      session: session,
+      now: session.primaryPhaseValue.startsAt.add(const Duration(minutes: 1)),
+      target: target,
+      atTarget: true,
+    );
+
+    expect(decision.state, ShootingExecutionState.shootNow);
+    expect(decision.label, '现在拍摄');
+    expect(decision.phase, isNotNull);
+  });
+
   test('limited confidence stays observational even with a route', () {
     final session = ContextFixtures.waterEveningSession(
       observedAt: now,
