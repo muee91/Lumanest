@@ -277,6 +277,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           top: MediaQuery.paddingOf(context).top + 12,
           child: _V2RouteVerdict(
             route: widget.route,
+            destination: widget.destination,
             snapshot: snapshot,
             scout: scout.asData?.value,
           ),
@@ -406,16 +407,25 @@ class _V2RouteVerdict extends StatelessWidget {
             target: target,
             routeDuration: Duration(seconds: route.durationSeconds),
           );
-    final canCatch = session == null || arrival.isBefore(session.endsAt);
+    final canCatch = switch (decision?.state) {
+      ShootingExecutionState.waitToDepart ||
+      ShootingExecutionState.departNow ||
+      ShootingExecutionState.waitAtTarget ||
+      ShootingExecutionState.shootNow => true,
+      ShootingExecutionState.tooLate => false,
+      _ => null,
+    };
     final headline = scout?.headline ??
         (session == null
             ? '路线已经准备好'
-            : canCatch
+            : canCatch == true
             ? '按当前路线赶得上'
-            : '按当前路线已经赶不上');
+            : canCatch == false
+            ? '按当前路线已经赶不上'
+            : '当前条件不足以判断');
     final urgent =
         (scout?.criticalCount ?? 0) > 0 ||
-        !canCatch ||
+        canCatch == false ||
         decision?.state == ShootingExecutionState.departNow ||
         decision?.state == ShootingExecutionState.tooLate;
     return Material(
