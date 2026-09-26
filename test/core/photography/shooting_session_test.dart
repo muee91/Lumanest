@@ -63,7 +63,7 @@ void main() {
     );
     final decision = ShootingExecutionResolver.resolve(
       session: session,
-      now: session.primaryPhaseValue.startsAt.add(const Duration(minutes: 1)),
+      now: session.phases.first.startsAt.add(const Duration(minutes: 1)),
       target: target,
       atTarget: true,
     );
