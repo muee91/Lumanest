@@ -379,7 +379,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     if (session == null ||
         target == null ||
         GeoDistance.metersBetween(
-              target.coordinate,
+              ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate),
               widget.destination.point,
             ) >
             target.arrivalRadiusMeters) {
@@ -610,7 +610,7 @@ class _V2RouteVerdict extends StatelessWidget {
         .where(
           (target) =>
               GeoDistance.metersBetween(
-                target.coordinate,
+                ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate),
                 destination.point,
               ) <= target.arrivalRadiusMeters,
         )
@@ -626,9 +626,11 @@ class _V2RouteVerdict extends StatelessWidget {
   static String _distance(int meters) =>
       meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)} km' : '$meters m';
 
-  static String _time(DateTime value) =>
-      '${value.hour.toString().padLeft(2, '0')}:'
-      '${value.minute.toString().padLeft(2, '0')}';
+  static String _time(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
 }
 
 class _V2RouteActionObject extends StatelessWidget {
