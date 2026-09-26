@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -17,10 +18,12 @@ class V2OpportunityPage extends ConsumerWidget {
   const V2OpportunityPage({
     super.key,
     required this.sessionId,
+    this.activeShootingIntent,
     this.initialSnapshot,
   });
 
   final String sessionId;
+  final ActiveShootingIntent? activeShootingIntent;
   final ContextSnapshot? initialSnapshot;
 
   @override
@@ -72,7 +75,11 @@ class V2OpportunityPage extends ConsumerWidget {
               ),
             );
           }
-          return _V2OpportunityStage(snapshot: value, session: session);
+          return _V2OpportunityStage(
+            snapshot: value,
+            session: session,
+            activeShootingIntent: activeShootingIntent,
+          );
         },
       ),
     );
@@ -80,9 +87,14 @@ class V2OpportunityPage extends ConsumerWidget {
 }
 
 class _V2OpportunityStage extends ConsumerStatefulWidget {
-  const _V2OpportunityStage({required this.snapshot, required this.session});
+  const _V2OpportunityStage({
+    required this.snapshot,
+    required this.session,
+    this.activeShootingIntent,
+  });
   final ContextSnapshot snapshot;
   final ShootingSession session;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   ConsumerState<_V2OpportunityStage> createState() =>
@@ -91,24 +103,35 @@ class _V2OpportunityStage extends ConsumerStatefulWidget {
 
 class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   bool _evidenceOpen = false;
+  bool _atTarget = false;
   int _selectedPhaseIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
-    final target = session.targetCandidates.firstOrNull;
+    final target = _targetForIntent();
     final decision = ShootingExecutionResolver.resolve(
       session: session,
       now: DateTime.now(),
       target: target,
+      atTarget: _atTarget,
     );
+    final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
     final watchedEntry = library?.watchedSessions
-        .where((item) => item.sessionId == session.id)
+        .where(
+          (item) =>
+              item.sessionId == session.id &&
+              (intentTargetId == null || item.targetId == intentTargetId),
+        )
         .firstOrNull;
     final watched = watchedEntry != null;
     final hasResult =
-        library?.sessionResults.any((item) => item.sessionId == session.id) ==
+        library?.sessionResults.any(
+          (item) =>
+              item.sessionId == session.id &&
+              (intentTargetId == null || item.targetId == intentTargetId),
+        ) ==
         true;
     final selectedPhase = session.phases.isEmpty
         ? null
@@ -167,6 +190,15 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                       phase: selectedPhase,
                       capabilities: session.recommendedCapabilities,
                       target: target,
+                    ),
+                  ],
+                  if (target != null) ...[
+                    const SizedBox(height: 18),
+                    _V2FieldModeObject(
+                      atTarget: _atTarget,
+                      decision: decision,
+                      target: target,
+                      onToggle: () => setState(() => _atTarget = !_atTarget),
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -306,7 +338,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
           .watchSession(
             session: widget.session,
             snapshotId: widget.snapshot.id,
-            targetId: widget.session.targetCandidates.firstOrNull?.id,
+            targetId: _targetForIntent()?.id,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,15 +363,34 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     ShootingExecutionDecision decision,
     ShootingTarget? target,
   ) {
+    if (_atTarget &&
+        (decision.state == ShootingExecutionState.shootNow ||
+            decision.state == ShootingExecutionState.waitAtTarget)) {
+      setState(() => _evidenceOpen = true);
+      return;
+    }
     if (target != null &&
         (decision.state == ShootingExecutionState.planRoute ||
             decision.state == ShootingExecutionState.departNow ||
             decision.state == ShootingExecutionState.waitToDepart)) {
+      final intent = ActiveShootingIntent(
+        sessionId: widget.session.id,
+        targetId: target.id,
+        createdAt: DateTime.now(),
+      );
+      final queryParameters = <String, String>{
+        'name': target.name,
+        'lat': target.coordinate.latitude.toString(),
+        'lon': target.coordinate.longitude.toString(),
+        'system': target.coordinate.coordinateSystem.name,
+        'mode': target.accessModes.contains(ShootingTravelMode.walking)
+            ? 'walking'
+            : 'driving',
+        'session': widget.session.id,
+        ...intent.queryParameters,
+      };
       context.go(
-        '/route?name=${Uri.encodeQueryComponent(target.name)}'
-        '&lat=${target.coordinate.latitude}'
-        '&lon=${target.coordinate.longitude}'
-        '&mode=${target.accessModes.contains(ShootingTravelMode.walking) ? 'walking' : 'driving'}',
+        Uri(path: '/route', queryParameters: queryParameters).toString(),
       );
       return;
     }
@@ -395,8 +446,16 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
           session: widget.session,
           snapshotId: widget.snapshot.id,
           outcome: outcome,
-          targetId: widget.session.targetCandidates.firstOrNull?.id,
+          targetId: _targetForIntent()?.id,
         );
+  }
+
+  ShootingTarget? _targetForIntent() {
+    final targetId = widget.activeShootingIntent?.targetId;
+    if (targetId == null) return widget.session.targetCandidates.firstOrNull;
+    return widget.session.targetCandidates
+        .where((candidate) => candidate.id == targetId)
+        .firstOrNull;
   }
 
   static String _outcome(ShootingSessionOutcome value) => switch (value) {
@@ -705,6 +764,73 @@ class _V2PhaseNode extends StatelessWidget {
     ShootingPhaseKind.returnWindow => '返程窗口',
     ShootingPhaseKind.sessionEnd => '结束',
   };
+}
+
+class _V2FieldModeObject extends StatelessWidget {
+  const _V2FieldModeObject({
+    required this.atTarget,
+    required this.decision,
+    required this.target,
+    required this.onToggle,
+  });
+
+  final bool atTarget;
+  final ShootingExecutionDecision decision;
+  final ShootingTarget target;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) => V2Pressable(
+    key: const Key('v2-arrived-at-target'),
+    onTap: onToggle,
+    color: atTarget ? V2Palette.mossSoft : V2Palette.paper,
+    semanticLabel: atTarget ? '已到达机位，关闭现场模式' : '已到达机位，进入现场模式',
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          Icon(
+            atTarget ? CupertinoIcons.location_fill : CupertinoIcons.location,
+            color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
+            size: 19,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  atTarget ? '现场模式 · ' + decision.label : '到达机位后再判断',
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  atTarget
+                      ? target.name + ' · 依据当前窗口继续观察'
+                      : '由你确认已经抵达 ' + target.name,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            atTarget
+                ? CupertinoIcons.checkmark_circle_fill
+                : CupertinoIcons.circle,
+            color: atTarget ? V2Palette.moss : V2Palette.mutedInk,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _V2ShootingAdvice extends StatelessWidget {
