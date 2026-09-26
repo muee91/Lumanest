@@ -254,7 +254,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                         createdAt: DateTime.now(),
                       );
                       final path =
-                          '/session/' + Uri.encodeComponent(session.id);
+                          '/session/${Uri.encodeComponent(session.id)}';
                       context.push(
                         Uri(
                           path: path,
