@@ -640,6 +640,10 @@ class _V2OpportunityRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final moment = now.toUtc();
+    final primary = sessions
+        .where((item) => item.id == primaryId)
+        .firstOrNull;
+    final planB = ShootingSessionFallback.shouldOfferPlanB(primary);
     final items =
         sessions
             .where(
@@ -658,8 +662,8 @@ class _V2OpportunityRail extends StatelessWidget {
         key: const Key('v2-secondary-opportunity-rail'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '接下来还可以看',
+          Text(
+            planB ? '主机会减弱时，可以转拍' : '接下来还可以看',
             style: TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 12,
