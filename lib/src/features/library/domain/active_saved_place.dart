@@ -1,3 +1,4 @@
+import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -45,7 +46,14 @@ abstract final class ActiveSavedPlaceMatcher {
       ActiveSavedPlaceMatch? best;
       for (final session in validSessions) {
         for (final target in session.targetCandidates) {
-          final distance = GeoDistance.metersBetween(place.point, target.coordinate);
+          if (target.arrivalRadiusMeters <= 0 ||
+              !target.supportedSessions.contains(session.kind)) {
+            continue;
+          }
+          final targetPoint = ChinaCoordinateConverter.gcj02ToWgs84(
+            target.coordinate,
+          );
+          final distance = GeoDistance.metersBetween(place.point, targetPoint);
           if (distance > target.arrivalRadiusMeters) continue;
           final candidate = ActiveSavedPlaceMatch(
             place: place,
