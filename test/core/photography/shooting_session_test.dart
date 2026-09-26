@@ -158,4 +158,40 @@ void main() {
     expect(ShootingSessionFallback.shouldOfferPlanB(limited), isTrue);
     expect(ShootingSessionFallback.shouldOfferPlanB(null), isFalse);
   });
+  test('plan B selects only an already-established usable session', () {
+    final primary = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final alternative = ContextFixtures.waterMorningSession(observedAt: now);
+
+    final selected = ShootingSessionFallback.selectPlanB(
+      [primary, alternative],
+      primary: primary,
+      now: now,
+    );
+
+    expect(selected?.id, alternative.id);
+  });
+
+  test('plan B never promotes limited evidence', () {
+    final primary = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final limited = ContextFixtures.waterMorningSession(
+      observedAt: now,
+      confidenceBand: ShootingConfidenceBand.limited,
+    );
+
+    expect(
+      ShootingSessionFallback.selectPlanB(
+        [primary, limited],
+        primary: primary,
+        now: now,
+      ),
+      isNull,
+    );
+  });
+
 }
