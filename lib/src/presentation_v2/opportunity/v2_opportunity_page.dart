@@ -225,6 +225,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
           )
           .firstOrNull;
     }
+    final selectedPlanBTarget = planBTarget;
     final fieldFacts = _fieldFacts(executionSession, fieldSnapshot);
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
@@ -319,7 +320,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                           setState(() => _arrivalOverride = !atTarget),
                     ),
                   ],
-                  if (planB != null && planBTarget != null) ...[
+                  if (planB != null && selectedPlanBTarget != null) ...[
                     const SizedBox(height: 18),
                     _V2PlanBObject(
                       primary: executionSession,
@@ -327,7 +328,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                       onOpen: () {
                         final intent = ActiveShootingIntent(
                           sessionId: planB.id,
-                          targetId: planBTarget.id,
+                          targetId: selectedPlanBTarget.id,
                           createdAt: DateTime.now(),
                         );
                         context.push(
