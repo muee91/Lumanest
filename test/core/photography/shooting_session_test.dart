@@ -163,7 +163,10 @@ void main() {
       observedAt: now,
       trend: ShootingTrend.weakening,
     );
-    final alternative = ContextFixtures.waterMorningSession(observedAt: now);
+    final alternative = _withTargets(
+      ContextFixtures.waterMorningSession(observedAt: now),
+      [_reviewedTargetFor(ShootingSessionKind.waterMorning)],
+    );
 
     final selected = ShootingSessionFallback.selectPlanB(
       [primary, alternative],
@@ -179,9 +182,12 @@ void main() {
       observedAt: now,
       trend: ShootingTrend.weakening,
     );
-    final limited = ContextFixtures.waterMorningSession(
-      observedAt: now,
-      confidenceBand: ShootingConfidenceBand.limited,
+    final limited = _withTargets(
+      ContextFixtures.waterMorningSession(
+        observedAt: now,
+        confidenceBand: ShootingConfidenceBand.limited,
+      ),
+      [_reviewedTargetFor(ShootingSessionKind.waterMorning)],
     );
 
     expect(
@@ -194,4 +200,60 @@ void main() {
     );
   });
 
+  test('plan B ignores sessions without a reviewed target for that session kind', () {
+    final primary = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final targetless = ContextFixtures.waterMorningSession(observedAt: now);
+
+    expect(
+      ShootingSessionFallback.selectPlanB(
+        [primary, targetless],
+        primary: primary,
+        now: now,
+      ),
+      isNull,
+    );
+  });
 }
+
+ShootingSession _withTargets(
+  ShootingSession source,
+  List<ShootingTarget> targets,
+) => ShootingSession(
+  id: source.id,
+  kind: source.kind,
+  title: source.title,
+  startsAt: source.startsAt,
+  endsAt: source.endsAt,
+  primaryPhase: source.primaryPhase,
+  conditionBand: source.conditionBand,
+  confidenceBand: source.confidenceBand,
+  trend: source.trend,
+  phases: source.phases,
+  factors: source.factors,
+  trendSamples: source.trendSamples,
+  targetCandidates: targets,
+  recommendedCapabilities: source.recommendedCapabilities,
+  ruleVersion: source.ruleVersion,
+  expiresAt: source.expiresAt,
+);
+
+ShootingTarget _reviewedTargetFor(ShootingSessionKind kind) => ShootingTarget(
+  id: 'target_plan_b_${kind.name}_0123456789',
+  name: 'Plan B 审核机位',
+  coordinate: const GeoPoint(latitude: 30.251, longitude: 120.151),
+  supportedSessions: [kind],
+  viewBearingDegrees: 76,
+  bearingToleranceDegrees: 20,
+  accessModes: const [ShootingTravelMode.driving],
+  leadTimeMinutes: 10,
+  arrivalRadiusMeters: 100,
+  shorelineSide: ShootingShorelineSide.east,
+  reviewedAt: DateTime.utc(2026, 7, 1),
+  reviewReference: Uri.parse('https://review.example/targets/plan-b'),
+  sourceAttribution: '审核目录',
+  sourceLicense: 'CC-BY-4.0',
+  sourceUrl: Uri.parse('https://source.example/targets/plan-b'),
+);
