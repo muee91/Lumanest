@@ -13,11 +13,6 @@ from .models import (
     ContextImportRequest,
     ContextImportResult,
     SceneEvidence,
-    ShootingTarget,
-    ShootingTargetResolveRequest,
-    ShootingSessionFeedbackReceipt,
-    ShootingSessionFeedbackRequest,
-    ShootingFeedbackCalibrationResponse,
     SnapshotRequest,
     V5SnapshotResponse,
     SourceStatus,
@@ -142,42 +137,6 @@ async def sources(request: Request) -> list[SourceStatus]:
     return await request.app.state.store.source_statuses()
 
 
-@app.post(
-    "/internal/v1/shooting-targets/resolve",
-    response_model=ShootingTarget,
-    response_model_by_alias=True,
-    dependencies=[Depends(require_internal_token)],
-)
-async def resolve_shooting_target(
-    body: ShootingTargetResolveRequest, request: Request
-) -> ShootingTarget:
-    """Verify an opaque target ID against its already-public map coordinate."""
-    target = await request.app.state.store.resolve_shooting_target(
-        body.target_id,
-        body.coordinate.latitude,
-        body.coordinate.longitude,
-    )
-    if target is None:
-        raise HTTPException(status_code=404, detail="shooting_target_not_found")
-    return target
-
-
-@app.post(
-    "/internal/v1/shooting-feedback",
-    response_model=ShootingSessionFeedbackReceipt,
-    response_model_by_alias=True,
-    dependencies=[Depends(require_internal_token)],
-)
-async def record_shooting_feedback(
-    body: ShootingSessionFeedbackRequest, request: Request
-) -> ShootingSessionFeedbackReceipt:
-    try:
-        await request.app.state.store.record_shooting_feedback(body)
-    except RuntimeError as error:
-        raise HTTPException(status_code=503, detail="storage_unavailable") from error
-    return ShootingSessionFeedbackReceipt()
-
-
 @app.get(
     "/internal/v1/wildlife/layers",
     response_model=WildlifeLayerResponse,
@@ -221,22 +180,3 @@ async def import_context_dataset(
         raise HTTPException(status_code=503, detail="storage_unavailable") from error
 
 
-@app.get(
-    "/internal/v1/shooting-feedback/calibration",
-    response_model=ShootingFeedbackCalibrationResponse,
-    response_model_by_alias=True,
-    dependencies=[Depends(require_internal_token)],
-)
-async def shooting_feedback_calibration(
-    request: Request,
-    days: int = Query(90, ge=30, le=365),
-    minimum_samples: int = Query(5, alias="minimumSamples", ge=5, le=100),
-) -> ShootingFeedbackCalibrationResponse:
-    since = datetime.now(timezone.utc) - timedelta(days=days)
-    try:
-        return await request.app.state.store.shooting_feedback_calibration(
-            since,
-            minimum_samples,
-        )
-    except RuntimeError as error:
-        raise HTTPException(status_code=503, detail="storage_unavailable") from error

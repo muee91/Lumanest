@@ -116,42 +116,11 @@ function switchPage(name){
   $$('.nav-item[data-page]').forEach((button)=>button.classList.toggle('active',button.dataset.page===name));
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
   if(name==='simulation'&&!state.simulationEnabled)return;
-  const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V5 环境场景。'],observability:['数据可观测','查看探索、AI 上下文和 Provider 的真实覆盖。'],calibration:['反馈校准','查看达到隐私阈值的匿名拍摄反馈聚合。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
+  const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V5 环境场景。'],observability:['数据可观测','查看探索、AI 上下文和 Provider 的真实覆盖。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
   if(name==='security')loadAudit();
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
   if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
-  if(name==='calibration')loadCalibration().catch(()=>status('反馈校准读数读取失败'));
   if(name==='runtime')loadSevenTimerHealth().catch(()=>status('7Timer 健康状态读取失败'));
-}
-
-const calibrationLabels={
-  band:{good:'较好',fair:'一般',limited:'受限'},
-  factor:{cloud:'云层',wind:'风况',precipitation:'降水',visibility:'能见度',dataCoverage:'数据完整性'},
-  effect:{supporting:'支持',neutral:'中性',limiting:'限制'},
-};
-
-function renderCalibration(report){
-  const summary=$('#calibration-summary');summary.replaceChildren();
-  const facts=[
-    ['统计起点',new Date(report.since).toLocaleString('zh-CN',{hour12:false})],
-    ['生成时间',new Date(report.generatedAt).toLocaleString('zh-CN',{hour12:false})],
-    ['隐私阈值',`每组至少 ${report.minimumSamples} 条`],
-  ];
-  for(const [label,value] of facts){const item=document.createElement('div');const small=document.createElement('small');small.textContent=label;const strong=document.createElement('strong');strong.textContent=value;item.append(small,strong);summary.append(item);}
-  const body=$('#calibration-rows');body.replaceChildren();
-  $('#calibration-empty').hidden=report.rows.length!==0;
-  for(const row of report.rows){
-    const tr=document.createElement('tr');
-    const values=[row.ruleVersion,calibrationLabels.band[row.conditionBand],calibrationLabels.factor[row.factorId],calibrationLabels.effect[row.factorEffect],String(row.evaluatedCount),String(row.capturedCount),String(row.conditionsDidNotAppearCount),`${Math.round(row.capturedRate*100)}%`];
-    for(const value of values){const cell=document.createElement('td');cell.textContent=value;tr.append(cell);}
-    body.append(tr);
-  }
-}
-
-async function loadCalibration(){
-  const form=$('#calibration-form');
-  const days=Number(form.elements.days.value);const minimumSamples=Number(form.elements.minimumSamples.value);
-  renderCalibration(await api(`context/shooting-calibration?days=${days}&minimumSamples=${minimumSamples}`));
 }
 
 const simulationLabels={conditionBand:{good:'条件较好',fair:'条件一般',limited:'条件受限'},confidenceBand:{high:'高置信',medium:'中置信',limited:'有限置信'}};
@@ -183,7 +152,7 @@ async function loadSimulation(){
   for(const session of sessions){
     const item=document.createElement('li');item.className='simulation-session-card';
     const identity=document.createElement('div');identity.className='simulation-session-identity';const title=document.createElement('strong');title.textContent=`Debug App · ${session.sessionCode}`;const meta=document.createElement('small');meta.textContent=`契约 V${session.contractVersion??'未知'} · 最后在线 ${new Date(session.lastSeenAt).toLocaleTimeString('zh-CN',{hour12:false})} · ${remainingText(session.expiresAt)}`;identity.append(title,meta);
-    const delivery=document.createElement('div');delivery.className='simulation-delivery';const deliveryTitle=document.createElement('strong');deliveryTitle.textContent=session.activePreset?simulationPresetLabel(session.activePreset):'未启用模拟';const deliveryMeta=document.createElement('small');deliveryMeta.textContent=`已下发 ${session.deliveryCount} 次 · 已隔离 ${session.suppressedFeedbackCount} 条反馈`;delivery.append(deliveryTitle,deliveryMeta);
+    const delivery=document.createElement('div');delivery.className='simulation-delivery';const deliveryTitle=document.createElement('strong');deliveryTitle.textContent=session.activePreset?simulationPresetLabel(session.activePreset):'未启用模拟';const deliveryMeta=document.createElement('small');deliveryMeta.textContent=`已下发 ${session.deliveryCount} 次`;delivery.append(deliveryTitle,deliveryMeta);
     const actions=document.createElement('div');actions.className='simulation-session-actions';const send=document.createElement('button');send.type='button';send.className='secondary';send.textContent=session.activePreset?'切换场景':'发送场景';send.addEventListener('click',async()=>{send.disabled=true;try{await api(`simulation/sessions/${session.controlId}`,{method:'POST',body:{preset:$('#simulation-preset').value}});status('场景已激活；Debug App 下次刷新环境数据时生效');await loadSimulation();}catch{status('场景发送失败，会话可能已经过期');}finally{send.disabled=false;}});const clear=document.createElement('button');clear.type='button';clear.className='secondary';clear.textContent='停止';clear.disabled=!session.activePreset;clear.addEventListener('click',async()=>{clear.disabled=true;try{await api(`simulation/sessions/${session.controlId}`,{method:'DELETE',body:{}});status('该会话的模拟已停止');await loadSimulation();}catch{status('停止失败，会话可能已经过期');}});actions.append(send,clear);
     item.append(identity,delivery,actions);list.append(item);
   }
@@ -221,7 +190,6 @@ $('#login-form').addEventListener('submit',async(event)=>{
 $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=>switchPage(button.dataset.page)));
 document.addEventListener('click',(event)=>{const button=event.target.closest('button[data-target]');if(button)switchPage(button.dataset.target);});
 $('#refresh-overview').addEventListener('click',async()=>{const button=$('#refresh-overview');button.disabled=true;try{status('正在刷新配置快照…');await loadConfig();status('状态已刷新');}catch{status('刷新失败，请确认 Broker 服务状态');}finally{button.disabled=false;}});
-$('#calibration-form').addEventListener('submit',async(event)=>{event.preventDefault();try{status('正在读取匿名聚合…');await loadCalibration();status('反馈校准读数已更新');}catch{status('读取失败，请确认 Context Service 与数据库迁移已就绪');}});
 $('#simulation-preset').addEventListener('change',renderSimulationPreset);
 $('#refresh-simulations').addEventListener('click',async()=>{const button=$('#refresh-simulations');button.disabled=true;try{await loadSimulation();status('测试会话已刷新');}catch{status('测试会话读取失败');}finally{button.disabled=false;}});
 $('#clear-all-simulations').addEventListener('click',async()=>{if(!window.confirm('确认停止全部活动模拟？Debug App 下一次刷新将恢复真实环境链路。'))return;try{const result=await api('simulation/sessions',{method:'DELETE',body:{}});status(`已停止 ${result.cleared} 个活动模拟`);await loadSimulation();}catch{status('停止全部模拟失败');}});

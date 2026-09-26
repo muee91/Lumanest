@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_event.dart';
-import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
@@ -9,141 +8,9 @@ import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
-import 'package:luma_nest/src/core/photography/equipment_capability.dart';
-import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
 
 void main() {
-  test(
-    'target session uses only the reviewed public target coordinate',
-    () async {
-      final transport = _FakeTransport()
-        ..mutateResponse = (response) {
-          final session = _shootingSessionBody();
-          session['targetCandidates'] = [_shootingTargetBody()];
-          _facts(response)['shootingSessions'] = [session];
-        };
-      final repository = DataBrokerContextRepository(
-        brokerBaseUrl: 'https://broker.example',
-        serviceToken: 'service-token',
-        transport: transport,
-      );
-      final target = ShootingTarget(
-        id: 'target_0123456789abcdef01234567',
-        name: '东岸审核湖岸',
-        coordinate: const GeoPoint(latitude: 30.251, longitude: 120.151),
-        supportedSessions: const [ShootingSessionKind.waterEvening],
-        viewBearingDegrees: 286,
-        bearingToleranceDegrees: 25,
-        accessModes: const [ShootingTravelMode.driving],
-        leadTimeMinutes: 12,
-        arrivalRadiusMeters: 100,
-        shorelineSide: ShootingShorelineSide.east,
-        reviewedAt: DateTime.utc(2026, 7, 1),
-        reviewReference: Uri.parse('https://review.example/targets/east-bank'),
-        sourceAttribution: '审核目录',
-        sourceLicense: 'CC-BY-4.0',
-        sourceUrl: Uri.parse('https://source.example/lakes/east-bank'),
-      );
-
-      final session = await repository.fetchForTarget(
-        target: target,
-        observedAt: DateTime.utc(2026, 7, 14, 2),
-      );
-
-      expect(transport.uri.path, '/v1/context/target-session');
-      expect(transport.body.keys, {
-        'contractVersion',
-        'targetId',
-        'targetCoordinate',
-        'observedAt',
-        'locale',
-      });
-      expect(transport.body.containsKey('userCoordinate'), isFalse);
-      expect(transport.body.containsKey('deviceId'), isFalse);
-      expect((transport.body['targetCoordinate'] as Map)['latitude'], 30.251);
-      expect(session?.kind, ShootingSessionKind.waterEvening);
-      expect(session?.conditionBand, ShootingConditionBand.good);
-      expect(session?.recommendedCapabilities, {EquipmentCapability.tripod});
-      expect(
-        session?.targetCandidates.single.shorelineSide,
-        ShootingShorelineSide.east,
-      );
-      expect(session?.targetCandidates.single.sourceLicense, 'CC-BY-4.0');
-      expect(session?.targetCandidates.single.reviewReference.scheme, 'https');
-    },
-  );
-
-  test(
-    'anonymous feedback contains no identity, coordinate or media fields',
-    () async {
-      final transport = _FakeTransport()..fixedResponse = {'accepted': true};
-      final repository = DataBrokerContextRepository(
-        brokerBaseUrl: 'https://broker.example',
-        serviceToken: 'service-token',
-        transport: transport,
-      );
-      final session = ContextFixtures.waterEveningSession(
-        observedAt: DateTime.utc(2026, 7, 14, 2),
-      );
-
-      await repository.upload(
-        session: session,
-        outcome: ShootingSessionOutcome.conditionsDidNotAppear,
-        reasons: const {
-          ShootingSessionOutcomeReason.wind,
-          ShootingSessionOutcomeReason.cloud,
-        },
-      );
-
-      expect(transport.uri.path, '/v1/context/shooting-feedback');
-      expect(transport.body.keys, {
-        'contractVersion',
-        'ruleVersion',
-        'conditionBand',
-        'factors',
-        'outcome',
-        'reasons',
-        'targetId',
-      });
-      expect(transport.body['targetId'], isNull);
-      expect(transport.body['contractVersion'], 2);
-      expect(transport.body['conditionBand'], 'good');
-      expect(transport.body.toString(), isNot(contains('coordinate')));
-      expect(transport.body.toString(), isNot(contains('device')));
-      expect(transport.body.toString(), isNot(contains('photo')));
-      expect(transport.body.toString(), isNot(contains('exif')));
-    },
-  );
-
-  test(
-    'debug feedback carries only the ephemeral simulation headers',
-    () async {
-      final transport = _FakeTransport()..fixedResponse = {'accepted': true};
-      final repository = DataBrokerContextRepository(
-        brokerBaseUrl: 'https://broker.example',
-        serviceToken: 'service-token',
-        debugSimulationSession: 'debugsession2345678',
-        transport: transport,
-      );
-
-      await repository.upload(
-        session: ContextFixtures.waterEveningSession(
-          observedAt: DateTime.utc(2026, 7, 14, 2),
-        ),
-        outcome: ShootingSessionOutcome.captured,
-        reasons: const {},
-      );
-
-      expect(transport.headers, {
-        'Authorization': 'Bearer service-token',
-        'X-LumaNest-Debug-Session': 'debugsession2345678',
-        'X-LumaNest-Debug-Contract': '5',
-      });
-      expect(transport.body.toString(), isNot(contains('debugsession2345678')));
-    },
-  );
-
   test('uses only the strict V5 request and response contract', () async {
     final transport = _FakeTransport();
     final repository = DataBrokerContextRepository(
@@ -670,76 +537,6 @@ LocationReading _location() => LocationReading(
   recordedAt: DateTime.utc(2026, 7, 14, 2),
   accuracyMeters: 8,
 );
-
-Map<String, Object?> _shootingSessionBody() => {
-  'id': 'session_0123456789abcdef01234567',
-  'kind': 'waterEvening',
-  'title': '湖岸晚间窗口',
-  'startAt': '2026-07-14T10:10:00+08:00',
-  'endAt': '2026-07-14T11:10:00+08:00',
-  'primaryPhase': 'reflection',
-  'conditionBand': 'good',
-  'confidenceBand': 'high',
-  'trend': 'improving',
-  'phases': [
-    {
-      'kind': 'reflection',
-      'startAt': '2026-07-14T10:20:00+08:00',
-      'peakAt': '2026-07-14T10:35:00+08:00',
-      'endAt': '2026-07-14T10:50:00+08:00',
-      'conditionBand': 'good',
-      'directionDegrees': 286,
-    },
-  ],
-  'factors': [
-    {
-      'id': 'wind',
-      'effect': 'supporting',
-      'label': '风速',
-      'value': '1.8m/s',
-      'sourceAt': '2026-07-14T10:00:00+08:00',
-    },
-  ],
-  'trendSamples': [
-    {
-      'at': '2026-07-14T10:10:00+08:00',
-      'conditionIndex': 60,
-      'cloudCoverPercent': 60,
-      'windSpeedMps': 3,
-      'precipitationMm': 0,
-    },
-    {
-      'at': '2026-07-14T10:50:00+08:00',
-      'conditionIndex': 80,
-      'cloudCoverPercent': 50,
-      'windSpeedMps': 1.8,
-      'precipitationMm': 0,
-    },
-  ],
-  'targetCandidates': [],
-  'recommendedCapabilities': ['tripod'],
-  'ruleVersion': 'water-evening.1',
-  'expiresAt': '2026-07-14T10:15:00+08:00',
-};
-
-Map<String, Object?> _shootingTargetBody() => {
-  'id': 'target_0123456789abcdef01234567',
-  'name': '东岸审核湖岸',
-  'kind': 'lakeshore',
-  'coordinate': {'latitude': 30.251, 'longitude': 120.151, 'system': 'wgs84'},
-  'supportedSessions': ['waterMorning', 'waterEvening'],
-  'viewBearingDegrees': 286,
-  'bearingToleranceDegrees': 25,
-  'accessModes': ['driving'],
-  'leadTimeMinutes': 12,
-  'arrivalRadiusMeters': 100,
-  'shorelineSide': 'east',
-  'reviewedAt': '2026-07-01T00:00:00Z',
-  'reviewReference': 'https://review.example/targets/east-bank',
-  'sourceAttribution': '审核目录',
-  'sourceLicense': 'CC-BY-4.0',
-  'sourceUrl': 'https://source.example/lakes/east-bank',
-};
 
 Map<String, Object?> _entryV5Body({required List<String> surfaces}) => {
   'id': 'entry_0123456789abcdef01234567',

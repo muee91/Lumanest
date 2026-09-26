@@ -80,43 +80,6 @@ export function validContextRequest(body) {
   return true;
 }
 
-export function validTargetSessionRequest(body) {
-  return exactKeys(body, new Set([
-    'contractVersion', 'targetId', 'targetCoordinate', 'observedAt', 'locale',
-  ])) && body.contractVersion === 1 &&
-    typeof body.targetId === 'string' && /^target_[a-f0-9]{24}$/.test(body.targetId) &&
-    exactKeys(body.targetCoordinate, new Set(['latitude', 'longitude', 'system'])) &&
-    body.targetCoordinate.system === 'wgs84' &&
-    finiteIn(body.targetCoordinate.latitude, -90, 90) &&
-    finiteIn(body.targetCoordinate.longitude, -180, 180) &&
-    typeof body.observedAt === 'string' && Number.isFinite(Date.parse(body.observedAt)) &&
-    ['zh-CN', 'en'].includes(body.locale);
-}
-
-export function validShootingFeedbackRequest(body) {
-  const keys = new Set([
-    'contractVersion', 'ruleVersion', 'conditionBand', 'factors', 'outcome',
-    'reasons', 'targetId',
-  ]);
-  if (body?.contractVersion !== 2 || !exactKeys(body, keys) ||
-      typeof body.ruleVersion !== 'string' || !/^[a-z0-9._-]{1,32}$/.test(body.ruleVersion) ||
-      !['good', 'fair', 'limited'].includes(body.conditionBand) ||
-      !['captured', 'conditionsDidNotAppear', 'arrivedLate', 'didNotGo'].includes(body.outcome) ||
-      !Array.isArray(body.factors) || body.factors.length < 1 || body.factors.length > 8 ||
-      !body.factors.every((factor) => exactKeys(factor, new Set(['id', 'effect'])) &&
-        ['cloud', 'wind', 'precipitation', 'visibility', 'dataCoverage'].includes(factor.id) &&
-        ['supporting', 'neutral', 'limiting'].includes(factor.effect)) ||
-      new Set(body.factors.map((factor) => factor.id)).size !== body.factors.length ||
-      !Array.isArray(body.reasons) || body.reasons.length > 4 ||
-      !body.reasons.every((reason) => ['wind', 'cloud', 'precipitation', 'target'].includes(reason)) ||
-      new Set(body.reasons).size !== body.reasons.length ||
-      (body.targetId != null &&
-        (typeof body.targetId !== 'string' || !/^target_[a-f0-9]{24}$/.test(body.targetId)))) {
-    return false;
-  }
-  return true;
-}
-
 const actions = new Set([
   'openShootingWindow', 'openExplore', 'openRoute', 'openPlaceDetail',
   'openAstronomyDetail', 'openWildlifeDetail', 'openSafetyDetail',
@@ -475,66 +438,6 @@ export async function forwardContextSnapshot({
   }
 }
 
-export async function resolveShootingTarget({
-  targetId,
-  coordinate,
-  serviceUrl,
-  internalToken,
-  fetcher = fetch,
-  timeoutMs = 8_000,
-}) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
-  try {
-    const upstream = await fetcher(new URL('/internal/v1/shooting-targets/resolve', serviceUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Service-Token': internalToken,
-      },
-      body: JSON.stringify({ targetId, coordinate }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const responseBody = await upstream.json();
-    if (upstream.status === 404) return { ok: false, error: apiErrorCodes.notFound };
-    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
-    if (!validShootingTarget(responseBody)) {
-      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
-    }
-    return { ok: true, target: responseBody };
-  } catch {
-    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
-  }
-}
-
-export async function forwardShootingFeedback({
-  body,
-  serviceUrl,
-  internalToken,
-  fetcher = fetch,
-  timeoutMs = 8_000,
-}) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
-  try {
-    const upstream = await fetcher(new URL('/internal/v1/shooting-feedback', serviceUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Internal-Service-Token': internalToken,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const responseBody = await upstream.json();
-    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
-    if (!exactKeys(responseBody, new Set(['accepted'])) || responseBody.accepted !== true) {
-      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
-  }
-}
-
 export async function listContextSources({ serviceUrl, internalToken, fetcher = fetch, timeoutMs = 8_000 }) {
   if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
   try {
@@ -546,59 +449,6 @@ export async function listContextSources({ serviceUrl, internalToken, fetcher = 
     if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
     if (!Array.isArray(body)) return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
     return { ok: true, sources: body };
-  } catch {
-    return { ok: false, error: apiErrorCodes.upstreamUnavailable };
-  }
-}
-
-function validShootingCalibration(body) {
-  if (!exactKeys(body, new Set([
-    'generatedAt', 'since', 'minimumSamples', 'rows',
-  ])) || !Number.isFinite(Date.parse(body.generatedAt)) ||
-      !Number.isFinite(Date.parse(body.since)) ||
-      !Number.isInteger(body.minimumSamples) || !finiteIn(body.minimumSamples, 5, 100) ||
-      !Array.isArray(body.rows) || body.rows.length > 500) return false;
-  return body.rows.every((row) => exactKeys(row, new Set([
-    'ruleVersion', 'conditionBand', 'factorId', 'factorEffect', 'evaluatedCount',
-    'capturedCount', 'conditionsDidNotAppearCount', 'capturedRate',
-  ])) && typeof row.ruleVersion === 'string' && /^[a-z0-9._-]{1,32}$/.test(row.ruleVersion) &&
-    ['good', 'fair', 'limited'].includes(row.conditionBand) &&
-    ['cloud', 'wind', 'precipitation', 'visibility', 'dataCoverage'].includes(row.factorId) &&
-    ['supporting', 'neutral', 'limiting'].includes(row.factorEffect) &&
-    Number.isInteger(row.evaluatedCount) && row.evaluatedCount >= body.minimumSamples &&
-    Number.isInteger(row.capturedCount) && row.capturedCount >= 0 &&
-    Number.isInteger(row.conditionsDidNotAppearCount) && row.conditionsDidNotAppearCount >= 0 &&
-    row.capturedCount + row.conditionsDidNotAppearCount === row.evaluatedCount &&
-    finiteIn(row.capturedRate, 0, 1));
-}
-
-export async function fetchShootingCalibration({
-  days = 90,
-  minimumSamples = 5,
-  serviceUrl,
-  internalToken,
-  fetcher = fetch,
-  timeoutMs = 8_000,
-}) {
-  if (!serviceUrl || !internalToken) return { ok: false, error: apiErrorCodes.notConfigured };
-  if (!Number.isInteger(days) || days < 30 || days > 365 ||
-      !Number.isInteger(minimumSamples) || minimumSamples < 5 || minimumSamples > 100) {
-    return { ok: false, error: apiErrorCodes.invalidRequest };
-  }
-  try {
-    const url = new URL('/internal/v1/shooting-feedback/calibration', serviceUrl);
-    url.searchParams.set('days', String(days));
-    url.searchParams.set('minimumSamples', String(minimumSamples));
-    const upstream = await fetcher(url, {
-      headers: { 'X-Internal-Service-Token': internalToken },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const body = await upstream.json();
-    if (!upstream.ok) return { ok: false, error: apiErrorCodes.upstreamUnavailable };
-    if (!validShootingCalibration(body)) {
-      return { ok: false, error: apiErrorCodes.upstreamContractMismatch };
-    }
-    return { ok: true, report: body };
   } catch {
     return { ok: false, error: apiErrorCodes.upstreamUnavailable };
   }

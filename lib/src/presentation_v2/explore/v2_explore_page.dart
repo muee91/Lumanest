@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:amap_map/amap_map.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
@@ -12,7 +13,6 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/environment/provider_facts.dart';
 import 'package:luma_nest/src/core/environment/provider_facts_providers.dart';
 import 'package:luma_nest/src/core/environment/provider_signal_relevance.dart';
-import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_catalog.dart';
@@ -837,22 +837,14 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
                       : _panelFraction >= .38
                       ? .82
                       : collapsedPanelFraction;
-                  LumaNestFeedbackService.instance.play(
-                    LumaNestSound.click,
-                    volume: 0,
-                    haptic: LumaNestHaptic.lightImpact,
-                  );
+                  unawaited(HapticFeedback.lightImpact());
                   setState(() {
                     _panelDragging = false;
                     _panelFraction = target;
                   });
                 },
                 onToggle: () {
-                  LumaNestFeedbackService.instance.play(
-                    LumaNestSound.click,
-                    volume: 0,
-                    haptic: LumaNestHaptic.lightImpact,
-                  );
+                  unawaited(HapticFeedback.lightImpact());
                   setState(() {
                     _panelDragging = false;
                     _panelFraction = panelExpanded

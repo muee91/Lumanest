@@ -3,12 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
-import 'package:luma_nest/src/core/location/geo_point.dart';
-import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
-import 'package:luma_nest/src/core/context/route_context_state.dart';
-import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 
@@ -131,160 +127,7 @@ void main() {
     expect(store.value.savedRoutes, isEmpty);
   });
 
-  test('records an explicit journey lifecycle and rejects overlap', () async {
-    final store = _FakeStore(const UserLibraryState());
-    final container = ProviderContainer(
-      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
-    );
-    addTearDown(container.dispose);
-    await container.read(userLibraryProvider.future);
-    const first = SavedRouteDestination(
-      name: '湖岸行程',
-      latitude: 30,
-      longitude: 120,
-    );
-    const second = SavedRouteDestination(
-      name: '山地行程',
-      latitude: 31,
-      longitude: 121,
-      travelMode: 'walking',
-    );
-    final controller = container.read(userLibraryProvider.notifier);
-
-    final started = await controller.startJourney(first);
-    expect(started.isActive, isTrue);
-    expect(store.value.activeJourney?.destination.name, '湖岸行程');
-    expect(await controller.startJourney(first), same(started));
-    await expectLater(
-      controller.startJourney(second),
-      throwsA(isA<ActiveJourneyConflict>()),
-    );
-
-    await controller.endJourney(first);
-    expect(store.value.activeJourney, isNull);
-    expect(store.value.journeys.single.endedAt, isNotNull);
-  });
-
-  test('cold-start restorer activates an unfinished walking journey', () async {
-    final store = _FakeStore(
-      UserLibraryState(
-        journeys: [
-          SavedJourney.start(
-            const SavedRouteDestination(
-              name: '山谷步道',
-              latitude: 30,
-              longitude: 120,
-              travelMode: 'walking',
-            ),
-            startedAt: DateTime.utc(2026, 7, 15, 8),
-            routeKey: 'track-1',
-          ),
-        ],
-      ),
-    );
-    final container = ProviderContainer(
-      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(journeyRouteContextRestorerProvider).restore();
-
-    expect(
-      container.read(routeContextStateProvider),
-      RouteContextState.active(ContextRouteMode.hiking),
-    );
-  });
-
-  test('persists and deletes an imported GPX track', () async {
-    final store = _FakeStore(const UserLibraryState());
-    final container = ProviderContainer(
-      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
-    );
-    addTearDown(container.dispose);
-    const points = [
-      GeoPoint(latitude: 30, longitude: 120),
-      GeoPoint(latitude: 30.1, longitude: 120.1),
-    ];
-    final track = ImportedRouteTrack(
-      id: 'track-1',
-      name: '导入徒步',
-      importedAt: DateTime.utc(2026, 7, 15),
-      points: points,
-      distanceMeters: 1000,
-      durationSeconds: 600,
-      durationEstimated: false,
-    );
-
-    await container.read(userLibraryProvider.notifier).saveImportedTrack(track);
-    expect(store.value.importedTracks.single.id, 'track-1');
-
-    await container
-        .read(userLibraryProvider.notifier)
-        .deleteImportedTrack('track-1');
-    expect(store.value.importedTracks, isEmpty);
-  });
-
-  test('keeps an imported track while its journey is active', () async {
-    final track = ImportedRouteTrack(
-      id: 'active-track',
-      name: '进行中徒步',
-      importedAt: DateTime.utc(2026, 7, 15),
-      points: const [
-        GeoPoint(latitude: 30, longitude: 120),
-        GeoPoint(latitude: 30.1, longitude: 120.1),
-      ],
-      distanceMeters: 1000,
-      durationSeconds: 600,
-      durationEstimated: false,
-    );
-    final destination = SavedRouteDestination(
-      name: track.name,
-      latitude: track.destination.latitude,
-      longitude: track.destination.longitude,
-      travelMode: 'walking',
-    );
-    final store = _FakeStore(
-      UserLibraryState(
-        importedTracks: [track],
-        journeys: [
-          SavedJourney.start(
-            destination,
-            startedAt: DateTime.utc(2026, 7, 15, 8),
-            routeKey: track.id,
-          ),
-        ],
-      ),
-    );
-    final container = ProviderContainer(
-      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
-    );
-    addTearDown(container.dispose);
-    final controller = container.read(userLibraryProvider.notifier);
-
-    await expectLater(
-      controller.deleteImportedTrack(track.id),
-      throwsA(isA<ActiveImportedTrackConflict>()),
-    );
-    await expectLater(
-      controller.clearImportedTracks(),
-      throwsA(isA<ActiveImportedTrackConflict>()),
-    );
-    expect(store.value.importedTracks.single.id, track.id);
-  });
-
   test('clears only the selected local library category', () async {
-    final track = ImportedRouteTrack(
-      id: 'track-1',
-      name: '导入徒步',
-      importedAt: DateTime.utc(2026, 7, 15),
-      points: const [
-        GeoPoint(latitude: 30, longitude: 120),
-        GeoPoint(latitude: 30.1, longitude: 120.1),
-      ],
-      distanceMeters: 1000,
-      durationSeconds: 600,
-      durationEstimated: false,
-    );
     final store = _FakeStore(
       UserLibraryState(
         savedPlaces: const [
@@ -311,17 +154,6 @@ void main() {
             savedAt: DateTime.utc(2026, 7, 15),
           ),
         ],
-        journeys: [
-          SavedJourney.start(
-            const SavedRouteDestination(
-              name: '进行中行程',
-              latitude: 30.6,
-              longitude: 120.6,
-            ),
-            startedAt: DateTime.utc(2026, 7, 15),
-          ),
-        ],
-        importedTracks: [track],
       ),
     );
     final container = ProviderContainer(
@@ -335,8 +167,6 @@ void main() {
     expect(store.value.savedPlaces, isEmpty);
     expect(store.value.recentRoute, isNotNull);
     expect(store.value.savedRoutes, hasLength(1));
-    expect(store.value.journeys, hasLength(1));
-    expect(store.value.importedTracks, hasLength(1));
 
     final session = ContextFixtures.waterEveningSession(
       observedAt: DateTime.now(),
@@ -347,35 +177,15 @@ void main() {
       snapshotId: 'snapshot-1',
       outcome: ShootingSessionOutcome.captured,
     );
-    await controller.saveOfflinePhotographyPack(
-      OfflinePhotographyPack.create(
-        name: '本地拍摄包',
-        createdAt: DateTime.now(),
-        dataTimestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-        places: const [],
-        windows: const [],
-        sessionSnapshot: const {'sessions': []},
-      ),
-    );
 
     await controller.clearRecentRoute();
     expect(store.value.recentRoute, isNull);
     expect(store.value.savedRoutes, hasLength(1));
-    expect(store.value.journeys, hasLength(1));
     expect(store.value.watchedSessions, hasLength(1));
     expect(store.value.sessionResults, hasLength(1));
-    expect(store.value.offlinePhotographyPacks, hasLength(1));
 
     await controller.clearSavedRoutes();
     expect(store.value.savedRoutes, isEmpty);
-    expect(store.value.journeys, hasLength(1));
-
-    await controller.clearJourneys();
-    expect(store.value.journeys, isEmpty);
-    expect(store.value.importedTracks, hasLength(1));
-
-    await controller.clearImportedTracks();
-    expect(store.value.importedTracks, isEmpty);
   });
 
   test(
@@ -420,60 +230,38 @@ void main() {
     },
   );
 
-  test(
-    'keeps explicit photography feedback and packs local and clearable',
-    () async {
-      final store = _FakeStore(const UserLibraryState());
-      final container = ProviderContainer(
-        overrides: [userLibraryStoreProvider.overrideWithValue(store)],
-      );
-      addTearDown(container.dispose);
-      await container.read(userLibraryProvider.future);
-      final controller = container.read(userLibraryProvider.notifier);
+  test('keeps explicit shooting records local and clearable', () async {
+    final store = _FakeStore(const UserLibraryState());
+    final container = ProviderContainer(
+      overrides: [userLibraryStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    await container.read(userLibraryProvider.future);
+    final controller = container.read(userLibraryProvider.notifier);
 
-      final session = ContextFixtures.waterEveningSession(
-        observedAt: DateTime.now(),
-      );
-      await controller.watchSession(session: session, snapshotId: 'snapshot-2');
-      await controller.recordShootingSessionResult(
-        session: session,
-        snapshotId: 'snapshot-2',
-        outcome: ShootingSessionOutcome.arrivedLate,
-        reasons: const {ShootingSessionOutcomeReason.target},
-      );
-      await controller.saveOfflinePhotographyPack(
-        OfflinePhotographyPack.create(
-          name: '山谷清晨',
-          createdAt: DateTime.utc(2026, 7, 15, 8),
-          dataTimestamp: DateTime.utc(2026, 7, 15, 7, 50),
-          places: const [],
-          windows: [
-            OfflinePhotographyWindow(
-              id: 'mist',
-              label: '晨雾',
-              startsAt: DateTime.utc(2026, 7, 16, 5),
-              endsAt: DateTime.utc(2026, 7, 16, 6),
-            ),
-          ],
-          sessionSnapshot: const {'sessions': []},
-        ),
-      );
+    final session = ContextFixtures.waterEveningSession(
+      observedAt: DateTime.now(),
+    );
+    await controller.watchSession(session: session, snapshotId: 'snapshot-2');
+    await controller.recordShootingSessionResult(
+      session: session,
+      snapshotId: 'snapshot-2',
+      outcome: ShootingSessionOutcome.arrivedLate,
+      reasons: const {ShootingSessionOutcomeReason.target},
+    );
 
-      expect(store.value.watchedSessions.single.sessionId, session.id);
-      expect(
-        store.value.sessionResults.single.outcome,
-        ShootingSessionOutcome.arrivedLate,
-      );
-      expect(store.value.offlinePhotographyPacks.single.name, '山谷清晨');
-      expect(store.value.toExportJson()['format'], 'lumanest-local-library-v4');
+    expect(store.value.watchedSessions.single.sessionId, session.id);
+    expect(
+      store.value.sessionResults.single.outcome,
+      ShootingSessionOutcome.arrivedLate,
+    );
+    expect(store.value.toExportJson()['format'], 'lumanest-local-library-v4');
 
-      await controller.clearPhotographyActivity();
+    await controller.clearPhotographyActivity();
 
-      expect(store.value.watchedSessions, isEmpty);
-      expect(store.value.sessionResults, isEmpty);
-      expect(store.value.offlinePhotographyPacks, isEmpty);
-    },
-  );
+    expect(store.value.watchedSessions, isEmpty);
+    expect(store.value.sessionResults, isEmpty);
+  });
 }
 
 class _FakeStore implements UserLibraryStore {

@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
@@ -41,11 +43,7 @@ class V2AppShell extends ConsumerWidget {
   }
 
   static void _select(int index, StatefulNavigationShell navigationShell) {
-    LumaNestFeedbackService.instance.play(
-      LumaNestSound.changeCard,
-      volume: .18,
-      haptic: LumaNestHaptic.selection,
-    );
+    unawaited(HapticFeedback.selectionClick());
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,
@@ -53,11 +51,7 @@ class V2AppShell extends ConsumerWidget {
   }
 
   static void _openIntelligence(BuildContext context) {
-    LumaNestFeedbackService.instance.play(
-      LumaNestSound.paper,
-      volume: .18,
-      haptic: LumaNestHaptic.mediumImpact,
-    );
+    unawaited(HapticFeedback.mediumImpact());
     context.push('/intelligence');
   }
 }

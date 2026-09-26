@@ -27,7 +27,6 @@ void main() {
       equipmentList: '相机、三脚架',
       aiTone: AiTone.detailed,
       recommendationIntensity: 0.8,
-      shareAnonymousPhotographyFeedback: true,
     );
 
     await store.write(value);
@@ -38,7 +37,6 @@ void main() {
         .getSingle();
     expect(row.photographyPreferencesJson, '["星空","风光"]');
     expect(row.activityPreferencesJson, '["自驾","轻徒步"]');
-    expect(row.shareAnonymousPhotographyFeedback, isTrue);
   });
 
   test('a later write replaces the singleton preference row', () async {

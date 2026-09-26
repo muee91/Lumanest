@@ -24,7 +24,6 @@ class ProfilePreferences {
     this.equipmentList = '',
     this.aiTone = AiTone.balanced,
     this.recommendationIntensity = 0.5,
-    this.shareAnonymousPhotographyFeedback = false,
   });
 
   /// Whether the ambient environment background should animate behind the UI.
@@ -55,9 +54,6 @@ class ProfilePreferences {
   /// How strongly recommendations should bias toward user preferences.
   final double recommendationIntensity;
 
-  /// Explicit opt-in; false means shooting feedback never leaves this device.
-  final bool shareAnonymousPhotographyFeedback;
-
   ProfilePreferences copyWith({
     bool? ambientBackgroundEnabled,
     bool? reduceMotion,
@@ -69,7 +65,6 @@ class ProfilePreferences {
     String? equipmentList,
     AiTone? aiTone,
     double? recommendationIntensity,
-    bool? shareAnonymousPhotographyFeedback,
   }) {
     return ProfilePreferences(
       ambientBackgroundEnabled:
@@ -85,9 +80,6 @@ class ProfilePreferences {
       aiTone: aiTone ?? this.aiTone,
       recommendationIntensity:
           recommendationIntensity ?? this.recommendationIntensity,
-      shareAnonymousPhotographyFeedback:
-          shareAnonymousPhotographyFeedback ??
-          this.shareAnonymousPhotographyFeedback,
     );
   }
 
@@ -104,9 +96,7 @@ class ProfilePreferences {
         _setEquals(other.activityPreferences, activityPreferences) &&
         other.equipmentList == equipmentList &&
         other.aiTone == aiTone &&
-        other.recommendationIntensity == recommendationIntensity &&
-        other.shareAnonymousPhotographyFeedback ==
-            shareAnonymousPhotographyFeedback;
+        other.recommendationIntensity == recommendationIntensity;
   }
 
   @override
@@ -121,7 +111,6 @@ class ProfilePreferences {
     equipmentList,
     aiTone,
     recommendationIntensity,
-    shareAnonymousPhotographyFeedback,
   );
 }
 

@@ -186,7 +186,6 @@ export function createAdminServer({
   testProvider = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
   testSevenTimer = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
-  getShootingCalibration = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   importContextDataset = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   simulationEnabled = false,
   simulationRegistry = null,
@@ -342,27 +341,6 @@ export function createAdminServer({
       return json(response, result.ok ? 200 : 503, result.ok
         ? { sources: result.sources }
         : { sources: [], error: result.error });
-    }
-    if (request.method === 'GET' && url.pathname === '/admin-api/context/shooting-calibration') {
-      const rawDays = url.searchParams.get('days') ?? '90';
-      const rawMinimum = url.searchParams.get('minimumSamples') ?? '5';
-      const days = /^\d{1,3}$/.test(rawDays) ? Number.parseInt(rawDays, 10) : NaN;
-      const minimumSamples = /^\d{1,3}$/.test(rawMinimum)
-        ? Number.parseInt(rawMinimum, 10)
-        : NaN;
-      if (!Number.isInteger(days) || days < 30 || days > 365 ||
-          !Number.isInteger(minimumSamples) || minimumSamples < 5 || minimumSamples > 100) {
-        return json(response, 400, { error: apiErrorCodes.invalidRequest });
-      }
-      const result = await getShootingCalibration({ days, minimumSamples });
-      auditLog.record({
-        operation: 'read_shooting_calibration',
-        fields: ['days', 'minimumSamples'],
-        result: result.ok ? 'ok' : result.error,
-      });
-      return json(response, result.ok ? 200 : 503, result.ok
-        ? result.report
-        : { error: result.error });
     }
     if (url.pathname.startsWith('/admin-api/simulation') &&
         (!simulationEnabled || simulationRegistry == null)) {

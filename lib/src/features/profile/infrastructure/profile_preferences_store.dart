@@ -41,9 +41,6 @@ class DriftProfilePreferencesStore implements ProfilePreferencesStore {
               equipmentList: value.equipmentList,
               aiTone: value.aiTone.name,
               recommendationIntensity: value.recommendationIntensity,
-              shareAnonymousPhotographyFeedback: Value(
-                value.shareAnonymousPhotographyFeedback,
-              ),
             ),
           );
     });
@@ -61,7 +58,6 @@ class DriftProfilePreferencesStore implements ProfilePreferencesStore {
       equipmentList: row.equipmentList,
       aiTone: AiTone.values.byName(row.aiTone),
       recommendationIntensity: row.recommendationIntensity,
-      shareAnonymousPhotographyFeedback: row.shareAnonymousPhotographyFeedback,
     );
   }
 

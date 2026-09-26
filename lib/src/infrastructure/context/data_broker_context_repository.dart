@@ -80,11 +80,7 @@ class DioContextDataTransport implements ContextDataTransport {
   }
 }
 
-class DataBrokerContextRepository
-    implements
-        RemoteContextRepository,
-        ShootingTargetSessionRepository,
-        ShootingFeedbackRepository {
+class DataBrokerContextRepository implements RemoteContextRepository {
   const DataBrokerContextRepository({
     required this.brokerBaseUrl,
     required this.serviceToken,
@@ -108,106 +104,6 @@ class DataBrokerContextRepository
       request: _canonicalRequest(location, observedAt, route, corridor),
       location: location.point,
     );
-  }
-
-  @override
-  Future<ShootingSession?> fetchForTarget({
-    required ShootingTarget target,
-    required DateTime observedAt,
-  }) async {
-    if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) {
-      throw const RemoteContextFailure(RemoteContextFailureKind.configuration);
-    }
-    final uri = Uri.parse(brokerBaseUrl).resolve('/v1/context/target-session');
-    try {
-      final body = await transport.post(
-        uri,
-        headers: {'Authorization': 'Bearer $serviceToken'},
-        body: {
-          'contractVersion': 1,
-          'targetId': target.id,
-          'targetCoordinate': {
-            'latitude': target.coordinate.latitude,
-            'longitude': target.coordinate.longitude,
-            'system': 'wgs84',
-          },
-          'observedAt': observedAt.toUtc().toIso8601String(),
-          'locale': 'zh-CN',
-        },
-      );
-      final snapshot = _parse(body, location: target.coordinate);
-      return snapshot.shootingSessions.firstOrNull;
-    } on RemoteContextFailure {
-      rethrow;
-    } on DioException catch (error) {
-      if (error.response?.statusCode == 404) return null;
-      if (error.response?.statusCode case final status?
-          when status == 502 || status == 503) {
-        throw const RemoteContextFailure(
-          RemoteContextFailureKind.serviceUnavailable,
-        );
-      }
-      throw const RemoteContextFailure(RemoteContextFailureKind.network);
-    } catch (_) {
-      throw const RemoteContextFailure(RemoteContextFailureKind.response);
-    }
-  }
-
-  @override
-  Future<void> upload({
-    required ShootingSession session,
-    required ShootingSessionOutcome outcome,
-    required Set<ShootingSessionOutcomeReason> reasons,
-    String? targetId,
-  }) async {
-    if (brokerBaseUrl.isEmpty || serviceToken.isEmpty) {
-      throw const RemoteContextFailure(RemoteContextFailureKind.configuration);
-    }
-    final uri = Uri.parse(
-      brokerBaseUrl,
-    ).resolve('/v1/context/shooting-feedback');
-    try {
-      final headers = <String, String>{'Authorization': 'Bearer $serviceToken'};
-      final debugSession = debugSimulationSession;
-      if (debugSession != null) {
-        headers['X-LumaNest-Debug-Session'] = debugSession;
-        headers['X-LumaNest-Debug-Contract'] = '5';
-      }
-      final body = await transport.post(
-        uri,
-        headers: headers,
-        body: {
-          'contractVersion': 2,
-          'ruleVersion': session.ruleVersion,
-          'conditionBand': session.conditionBand.name,
-          'factors': session.factors
-              .map((factor) => {'id': factor.id, 'effect': factor.effect.name})
-              .toList(growable: false),
-          'outcome': outcome.name,
-          'reasons': reasons.map((reason) => reason.name).toList()..sort(),
-          'targetId': targetId,
-        },
-      );
-      if (!_hasExactKeys(body, const {'accepted'}) ||
-          body['accepted'] != true) {
-        throw const RemoteContextFailure(RemoteContextFailureKind.response);
-      }
-    } on RemoteContextFailure {
-      rethrow;
-    } on DioException catch (error) {
-      if (error.response?.statusCode case final status? when status == 400) {
-        throw const RemoteContextFailure(RemoteContextFailureKind.response);
-      }
-      if (error.response?.statusCode case final status?
-          when status == 502 || status == 503) {
-        throw const RemoteContextFailure(
-          RemoteContextFailureKind.serviceUnavailable,
-        );
-      }
-      throw const RemoteContextFailure(RemoteContextFailureKind.network);
-    } catch (_) {
-      throw const RemoteContextFailure(RemoteContextFailureKind.response);
-    }
   }
 
   Future<ContextSnapshot> _post({

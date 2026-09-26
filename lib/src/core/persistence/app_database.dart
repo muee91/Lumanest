@@ -69,57 +69,6 @@ class SavedRoutes extends Table {
   ];
 }
 
-@DataClassName('SavedJourneyRow')
-class SavedJourneys extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-  RealColumn get latitude => real()();
-  RealColumn get longitude => real()();
-  TextColumn get travelMode => text()();
-  TextColumn get routeKey => text().nullable()();
-  DateTimeColumn get startedAt => dateTime()();
-  DateTimeColumn get endedAt => dateTime().nullable()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-
-  @override
-  List<String> get customConstraints => const [
-    'CHECK (length(id) = 64)',
-    'CHECK (length(name) BETWEEN 1 AND 160)',
-    'CHECK (latitude BETWEEN -90 AND 90)',
-    'CHECK (longitude BETWEEN -180 AND 180)',
-    "CHECK (travel_mode IN ('driving', 'walking'))",
-    'CHECK (route_key IS NULL OR length(route_key) BETWEEN 1 AND 160)',
-    'CHECK (ended_at IS NULL OR ended_at >= started_at)',
-  ];
-}
-
-@DataClassName('ImportedRouteTrackRow')
-class ImportedRouteTracks extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-  DateTimeColumn get importedAt => dateTime()();
-  TextColumn get pointsJson => text()();
-  IntColumn get distanceMeters => integer()();
-  IntColumn get durationSeconds => integer()();
-  BoolColumn get durationEstimated => boolean()();
-  IntColumn get ascentMeters => integer().nullable()();
-  IntColumn get descentMeters => integer().nullable()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-
-  @override
-  List<String> get customConstraints => const [
-    'CHECK (length(name) BETWEEN 1 AND 120)',
-    'CHECK (distance_meters > 0)',
-    'CHECK (duration_seconds > 0)',
-    'CHECK (ascent_meters IS NULL OR ascent_meters >= 0)',
-    'CHECK (descent_meters IS NULL OR descent_meters >= 0)',
-  ];
-}
-
 @DataClassName('ProfilePreferenceRow')
 class ProfilePreferenceRecords extends Table {
   @override
@@ -136,8 +85,6 @@ class ProfilePreferenceRecords extends Table {
   TextColumn get equipmentList => text()();
   TextColumn get aiTone => text()();
   RealColumn get recommendationIntensity => real()();
-  BoolColumn get shareAnonymousPhotographyFeedback =>
-      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -327,35 +274,6 @@ class ShootingSessionResults extends Table {
   ];
 }
 
-/// A pack is created only after an explicit user action. Its route and place
-/// snapshots are immutable JSON, so ordinary environment refreshes cannot add
-/// a covert movement trail to it.
-@DataClassName('OfflinePhotographyPackRow')
-class OfflinePhotographyPacks extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get dataTimestamp => dateTime()();
-  TextColumn get routeJson => text().nullable()();
-  TextColumn get placesJson => text()();
-  TextColumn get windowsJson => text()();
-  TextColumn get sessionJson => text()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-
-  @override
-  List<String> get customConstraints => const [
-    'CHECK (length(id) = 64)',
-    'CHECK (length(name) BETWEEN 1 AND 160)',
-    'CHECK (data_timestamp <= created_at)',
-    'CHECK (route_json IS NULL OR length(route_json) BETWEEN 1 AND 131072)',
-    'CHECK (length(places_json) BETWEEN 2 AND 524288)',
-    'CHECK (length(windows_json) BETWEEN 2 AND 131072)',
-    'CHECK (length(session_json) BETWEEN 2 AND 131072)',
-  ];
-}
-
 /// Cached Region Brief payloads are local-only and keyed by a coarse region
 /// identity supplied by Broker. No raw current-location coordinate is stored
 /// in this table.
@@ -425,8 +343,6 @@ class RegionInsightImpressions extends Table {
     SavedPlaces,
     RecentRouteDestinations,
     SavedRoutes,
-    SavedJourneys,
-    ImportedRouteTracks,
     ProfilePreferenceRecords,
     BaseRegions,
     ManualLocations,
@@ -434,7 +350,6 @@ class RegionInsightImpressions extends Table {
     WildlifeMapLayerCaches,
     WatchedShootingSessions,
     ShootingSessionResults,
-    OfflinePhotographyPacks,
     RegionBriefCaches,
     RegionFamiliarities,
     RegionInsightImpressions,
@@ -449,15 +364,17 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
-      // Development baseline: schema 17 is the only supported local shape.
+      // Development baseline: schema 18 is the only supported local shape.
       // Formal data-preserving migrations start when the first RC freezes this
       // schema. Until then, rebuilding avoids carrying ambiguous pre-release
       // models into the runtime or pretending to support partial old schemas.
+      // Schema 18 drops the retired Journey, GPX-track and offline-pack tables
+      // along with the never-shipped anonymous-feedback preference column.
       for (final table in allTables.toList(growable: false).reversed) {
         await customStatement('DROP TABLE IF EXISTS ${table.actualTableName}');
       }

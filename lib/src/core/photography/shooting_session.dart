@@ -65,24 +65,6 @@ enum ShootingSessionOutcome {
 
 enum ShootingSessionOutcomeReason { wind, cloud, precipitation, target }
 
-abstract interface class ShootingTargetSessionRepository {
-  /// Re-evaluates the session with weather fetched for the reviewed target.
-  Future<ShootingSession?> fetchForTarget({
-    required ShootingTarget target,
-    required DateTime observedAt,
-  });
-}
-
-abstract interface class ShootingFeedbackRepository {
-  /// Uploads only anonymous rule/factor outcomes after explicit opt-in.
-  Future<void> upload({
-    required ShootingSession session,
-    required ShootingSessionOutcome outcome,
-    required Set<ShootingSessionOutcomeReason> reasons,
-    String? targetId,
-  });
-}
-
 class ShootingSessionFactor {
   const ShootingSessionFactor({
     required this.id,

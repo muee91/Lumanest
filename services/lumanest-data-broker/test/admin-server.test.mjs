@@ -68,19 +68,6 @@ async function withAdmin(run, {
     restart: async () => operations.push('restart'),
     testLLMProfile: async (profileId) => ({ status: 'ok', profileId }),
     listLLMModels: async (profile) => ({ ok: true, models: [`${profile.providerId}-model`] }),
-    getShootingCalibration: async ({ days, minimumSamples }) => ({
-      ok: true,
-      report: {
-        generatedAt: '2026-07-18T02:00:00Z', since: '2026-04-19T02:00:00Z',
-        minimumSamples,
-        rows: [{
-          ruleVersion: 'water-evening.1', conditionBand: 'good', factorId: 'wind',
-          factorEffect: 'supporting', evaluatedCount: minimumSamples,
-          capturedCount: minimumSamples - 1, conditionsDidNotAppearCount: 1,
-          capturedRate: (minimumSamples - 1) / minimumSamples,
-        }],
-      },
-    }),
     importContextDataset: async (body) => {
       operations.push(`import:${body.datasetType}`);
       return {
@@ -275,35 +262,6 @@ test('context imports require an authenticated CSRF-protected LAN session', asyn
       importedCount: 0, enabled: false, cacheInvalidated: true,
     });
     assert.deepEqual(operations, ['import:spatialFeatures']);
-  });
-});
-
-test('shooting calibration is authenticated and exposes aggregate rows only', async () => {
-  await withAdmin(async ({ baseUrl }) => {
-    const adminPage = await (await fetch(`${baseUrl}/admin`)).text();
-    assert.equal(adminPage.includes('data-page="calibration"'), true);
-    assert.equal(adminPage.includes('不包含地点、机位、身份或原始反馈'), true);
-
-    const unauthenticated = await fetch(
-      `${baseUrl}/admin-api/context/shooting-calibration?days=90&minimumSamples=5`,
-    );
-    assert.equal(unauthenticated.status, 401);
-
-    const credentials = await login(baseUrl);
-    const response = await fetch(
-      `${baseUrl}/admin-api/context/shooting-calibration?days=90&minimumSamples=5`,
-      { headers: { Cookie: credentials.cookie } },
-    );
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.rows[0].evaluatedCount, 5);
-    assert.equal(JSON.stringify(body).includes('targetId'), false);
-
-    const invalid = await fetch(
-      `${baseUrl}/admin-api/context/shooting-calibration?days=90x&minimumSamples=1`,
-      { headers: { Cookie: credentials.cookie } },
-    );
-    assert.equal(invalid.status, 400);
   });
 });
 

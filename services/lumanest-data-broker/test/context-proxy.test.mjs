@@ -3,14 +3,9 @@ import test from 'node:test';
 
 import {
   forwardContextSnapshot,
-  forwardShootingFeedback,
-  fetchShootingCalibration,
   fetchWildlifeLayers,
   importContextDataset,
-  resolveShootingTarget,
   validContextRequest,
-  validShootingFeedbackRequest,
-  validTargetSessionRequest,
 } from '../src/context/proxy.mjs';
 
 const wildlifeLayerResponse = {
@@ -46,37 +41,6 @@ test('public context validator accepts only the current canonical contract', () 
   assert.equal(validContextRequest({ ...minimalRequest, contractVersion: 3 }), false);
   assert.equal(validContextRequest({ ...minimalRequest, evidence: {} }), false);
   assert.equal(validContextRequest({ ...minimalRequest, deviceId: 'forbidden' }), false);
-});
-
-test('target-session and feedback requests keep exact privacy boundaries', () => {
-  const targetRequest = {
-    contractVersion: 1,
-    targetId: 'target_0123456789abcdef01234567',
-    targetCoordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
-    observedAt: '2026-07-14T02:00:00Z',
-    locale: 'zh-CN',
-  };
-  assert.equal(validTargetSessionRequest(targetRequest), true);
-  assert.equal(validTargetSessionRequest({ ...targetRequest, userCoordinate: targetRequest.targetCoordinate }), false);
-
-  const feedback = {
-    contractVersion: 2,
-    ruleVersion: 'water-evening.1',
-    conditionBand: 'good',
-    factors: [{ id: 'wind', effect: 'limiting' }],
-    outcome: 'conditionsDidNotAppear',
-    reasons: ['wind'],
-    targetId: null,
-  };
-  assert.equal(validShootingFeedbackRequest(feedback), true);
-  assert.equal(validShootingFeedbackRequest({ ...feedback, contractVersion: 1 }), false);
-  for (const field of ['coordinate', 'deviceId', 'photo', 'exif']) {
-    assert.equal(validShootingFeedbackRequest({ ...feedback, [field]: 'forbidden' }), false);
-  }
-  assert.equal(validShootingFeedbackRequest({ ...feedback, reasons: ['wind', 'wind'] }), false);
-  assert.equal(validShootingFeedbackRequest({
-    ...feedback, contractVersion: 2, conditionBand: 'unknown',
-  }), false);
 });
 
 test('route invariant rejects none/active and driving/none but accepts planned/active/paused', () => {
@@ -211,87 +175,6 @@ test('current context response validates composite scene and route invariants', 
     }), { status: 200 }),
   });
   assert.equal(rejected.ok, false);
-});
-
-test('target resolution and feedback forwarding use only the internal token', async () => {
-  const requests = [];
-  const fetcher = async (url, options) => {
-    requests.push({ url, options });
-    if (url.pathname.endsWith('/resolve')) {
-      return new Response(JSON.stringify({
-        id: 'target_0123456789abcdef01234567', name: '东岸审核湖岸', kind: 'lakeshore',
-        coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
-        supportedSessions: ['waterEvening'], viewBearingDegrees: 286,
-        bearingToleranceDegrees: 25, accessModes: ['driving'], leadTimeMinutes: 12,
-        arrivalRadiusMeters: 100, shorelineSide: 'east', reviewedAt: '2026-07-01T00:00:00Z',
-        reviewReference: 'https://review.example/targets/east-bank', sourceAttribution: '审核目录',
-        sourceLicense: 'CC-BY-4.0', sourceUrl: 'https://source.example/lakes/east-bank',
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-    return new Response(JSON.stringify({ accepted: true }), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
-    });
-  };
-  const target = await resolveShootingTarget({
-    targetId: 'target_0123456789abcdef01234567',
-    coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
-    serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret', fetcher,
-  });
-  const feedback = await forwardShootingFeedback({
-    body: {
-      contractVersion: 1, ruleVersion: 'water-evening.1',
-      factors: [{ id: 'wind', effect: 'supporting' }], outcome: 'captured', reasons: [], targetId: null,
-    },
-    serviceUrl: 'http://context-service:8000', internalToken: 'internal-secret', fetcher,
-  });
-
-  assert.equal(target.ok, true);
-  assert.equal(feedback.ok, true);
-  assert.deepEqual(requests.map((request) => request.url.pathname), [
-    '/internal/v1/shooting-targets/resolve', '/internal/v1/shooting-feedback',
-  ]);
-  assert.equal(requests.every((request) =>
-    request.options.headers['X-Internal-Service-Token'] === 'internal-secret'), true);
-});
-
-test('calibration proxy returns only bounded aggregate rows', async () => {
-  let requestedUrl;
-  const result = await fetchShootingCalibration({
-    days: 90,
-    minimumSamples: 5,
-    serviceUrl: 'http://context-service:8000',
-    internalToken: 'internal-secret',
-    fetcher: async (url, options) => {
-      requestedUrl = url;
-      assert.equal(options.headers['X-Internal-Service-Token'], 'internal-secret');
-      return new Response(JSON.stringify({
-        generatedAt: '2026-07-18T02:00:00Z',
-        since: '2026-04-19T02:00:00Z',
-        minimumSamples: 5,
-        rows: [{
-          ruleVersion: 'water-evening.1', conditionBand: 'good',
-          factorId: 'wind', factorEffect: 'supporting', evaluatedCount: 10,
-          capturedCount: 7, conditionsDidNotAppearCount: 3, capturedRate: .7,
-        }],
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    },
-  });
-  assert.equal(result.ok, true);
-  assert.equal(requestedUrl.searchParams.get('days'), '90');
-  assert.equal(requestedUrl.searchParams.get('minimumSamples'), '5');
-  assert.equal(JSON.stringify(result).includes('targetId'), false);
-
-  const rejected = await fetchShootingCalibration({
-    days: 90,
-    minimumSamples: 5,
-    serviceUrl: 'http://context-service:8000',
-    internalToken: 'internal-secret',
-    fetcher: async () => new Response(JSON.stringify({
-      generatedAt: '2026-07-18T02:00:00Z', since: '2026-04-19T02:00:00Z',
-      minimumSamples: 5, rows: [{ targetId: 'forbidden' }],
-    }), { status: 200 }),
-  });
-  assert.deepEqual(rejected, { ok: false, error: 'upstream_contract_mismatch' });
 });
 
 test('context import uses only the internal service token and bounded endpoint', async () => {

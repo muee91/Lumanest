@@ -1129,1116 +1129,6 @@ class SavedRoutesCompanion extends UpdateCompanion<SavedRouteRow> {
   }
 }
 
-class $SavedJourneysTable extends SavedJourneys
-    with TableInfo<$SavedJourneysTable, SavedJourneyRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $SavedJourneysTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _latitudeMeta = const VerificationMeta(
-    'latitude',
-  );
-  @override
-  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
-    'latitude',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _longitudeMeta = const VerificationMeta(
-    'longitude',
-  );
-  @override
-  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
-    'longitude',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _travelModeMeta = const VerificationMeta(
-    'travelMode',
-  );
-  @override
-  late final GeneratedColumn<String> travelMode = GeneratedColumn<String>(
-    'travel_mode',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _routeKeyMeta = const VerificationMeta(
-    'routeKey',
-  );
-  @override
-  late final GeneratedColumn<String> routeKey = GeneratedColumn<String>(
-    'route_key',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _startedAtMeta = const VerificationMeta(
-    'startedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
-    'started_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _endedAtMeta = const VerificationMeta(
-    'endedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> endedAt = GeneratedColumn<DateTime>(
-    'ended_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    name,
-    latitude,
-    longitude,
-    travelMode,
-    routeKey,
-    startedAt,
-    endedAt,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'saved_journeys';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<SavedJourneyRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('latitude')) {
-      context.handle(
-        _latitudeMeta,
-        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_latitudeMeta);
-    }
-    if (data.containsKey('longitude')) {
-      context.handle(
-        _longitudeMeta,
-        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_longitudeMeta);
-    }
-    if (data.containsKey('travel_mode')) {
-      context.handle(
-        _travelModeMeta,
-        travelMode.isAcceptableOrUnknown(data['travel_mode']!, _travelModeMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_travelModeMeta);
-    }
-    if (data.containsKey('route_key')) {
-      context.handle(
-        _routeKeyMeta,
-        routeKey.isAcceptableOrUnknown(data['route_key']!, _routeKeyMeta),
-      );
-    }
-    if (data.containsKey('started_at')) {
-      context.handle(
-        _startedAtMeta,
-        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_startedAtMeta);
-    }
-    if (data.containsKey('ended_at')) {
-      context.handle(
-        _endedAtMeta,
-        endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  SavedJourneyRow map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return SavedJourneyRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      latitude: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}latitude'],
-      )!,
-      longitude: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}longitude'],
-      )!,
-      travelMode: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}travel_mode'],
-      )!,
-      routeKey: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}route_key'],
-      ),
-      startedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}started_at'],
-      )!,
-      endedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}ended_at'],
-      ),
-    );
-  }
-
-  @override
-  $SavedJourneysTable createAlias(String alias) {
-    return $SavedJourneysTable(attachedDatabase, alias);
-  }
-}
-
-class SavedJourneyRow extends DataClass implements Insertable<SavedJourneyRow> {
-  final String id;
-  final String name;
-  final double latitude;
-  final double longitude;
-  final String travelMode;
-  final String? routeKey;
-  final DateTime startedAt;
-  final DateTime? endedAt;
-  const SavedJourneyRow({
-    required this.id,
-    required this.name,
-    required this.latitude,
-    required this.longitude,
-    required this.travelMode,
-    this.routeKey,
-    required this.startedAt,
-    this.endedAt,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['name'] = Variable<String>(name);
-    map['latitude'] = Variable<double>(latitude);
-    map['longitude'] = Variable<double>(longitude);
-    map['travel_mode'] = Variable<String>(travelMode);
-    if (!nullToAbsent || routeKey != null) {
-      map['route_key'] = Variable<String>(routeKey);
-    }
-    map['started_at'] = Variable<DateTime>(startedAt);
-    if (!nullToAbsent || endedAt != null) {
-      map['ended_at'] = Variable<DateTime>(endedAt);
-    }
-    return map;
-  }
-
-  SavedJourneysCompanion toCompanion(bool nullToAbsent) {
-    return SavedJourneysCompanion(
-      id: Value(id),
-      name: Value(name),
-      latitude: Value(latitude),
-      longitude: Value(longitude),
-      travelMode: Value(travelMode),
-      routeKey: routeKey == null && nullToAbsent
-          ? const Value.absent()
-          : Value(routeKey),
-      startedAt: Value(startedAt),
-      endedAt: endedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(endedAt),
-    );
-  }
-
-  factory SavedJourneyRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return SavedJourneyRow(
-      id: serializer.fromJson<String>(json['id']),
-      name: serializer.fromJson<String>(json['name']),
-      latitude: serializer.fromJson<double>(json['latitude']),
-      longitude: serializer.fromJson<double>(json['longitude']),
-      travelMode: serializer.fromJson<String>(json['travelMode']),
-      routeKey: serializer.fromJson<String?>(json['routeKey']),
-      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
-      endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'name': serializer.toJson<String>(name),
-      'latitude': serializer.toJson<double>(latitude),
-      'longitude': serializer.toJson<double>(longitude),
-      'travelMode': serializer.toJson<String>(travelMode),
-      'routeKey': serializer.toJson<String?>(routeKey),
-      'startedAt': serializer.toJson<DateTime>(startedAt),
-      'endedAt': serializer.toJson<DateTime?>(endedAt),
-    };
-  }
-
-  SavedJourneyRow copyWith({
-    String? id,
-    String? name,
-    double? latitude,
-    double? longitude,
-    String? travelMode,
-    Value<String?> routeKey = const Value.absent(),
-    DateTime? startedAt,
-    Value<DateTime?> endedAt = const Value.absent(),
-  }) => SavedJourneyRow(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    latitude: latitude ?? this.latitude,
-    longitude: longitude ?? this.longitude,
-    travelMode: travelMode ?? this.travelMode,
-    routeKey: routeKey.present ? routeKey.value : this.routeKey,
-    startedAt: startedAt ?? this.startedAt,
-    endedAt: endedAt.present ? endedAt.value : this.endedAt,
-  );
-  SavedJourneyRow copyWithCompanion(SavedJourneysCompanion data) {
-    return SavedJourneyRow(
-      id: data.id.present ? data.id.value : this.id,
-      name: data.name.present ? data.name.value : this.name,
-      latitude: data.latitude.present ? data.latitude.value : this.latitude,
-      longitude: data.longitude.present ? data.longitude.value : this.longitude,
-      travelMode: data.travelMode.present
-          ? data.travelMode.value
-          : this.travelMode,
-      routeKey: data.routeKey.present ? data.routeKey.value : this.routeKey,
-      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
-      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('SavedJourneyRow(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('latitude: $latitude, ')
-          ..write('longitude: $longitude, ')
-          ..write('travelMode: $travelMode, ')
-          ..write('routeKey: $routeKey, ')
-          ..write('startedAt: $startedAt, ')
-          ..write('endedAt: $endedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    name,
-    latitude,
-    longitude,
-    travelMode,
-    routeKey,
-    startedAt,
-    endedAt,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is SavedJourneyRow &&
-          other.id == this.id &&
-          other.name == this.name &&
-          other.latitude == this.latitude &&
-          other.longitude == this.longitude &&
-          other.travelMode == this.travelMode &&
-          other.routeKey == this.routeKey &&
-          other.startedAt == this.startedAt &&
-          other.endedAt == this.endedAt);
-}
-
-class SavedJourneysCompanion extends UpdateCompanion<SavedJourneyRow> {
-  final Value<String> id;
-  final Value<String> name;
-  final Value<double> latitude;
-  final Value<double> longitude;
-  final Value<String> travelMode;
-  final Value<String?> routeKey;
-  final Value<DateTime> startedAt;
-  final Value<DateTime?> endedAt;
-  final Value<int> rowid;
-  const SavedJourneysCompanion({
-    this.id = const Value.absent(),
-    this.name = const Value.absent(),
-    this.latitude = const Value.absent(),
-    this.longitude = const Value.absent(),
-    this.travelMode = const Value.absent(),
-    this.routeKey = const Value.absent(),
-    this.startedAt = const Value.absent(),
-    this.endedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  SavedJourneysCompanion.insert({
-    required String id,
-    required String name,
-    required double latitude,
-    required double longitude,
-    required String travelMode,
-    this.routeKey = const Value.absent(),
-    required DateTime startedAt,
-    this.endedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       name = Value(name),
-       latitude = Value(latitude),
-       longitude = Value(longitude),
-       travelMode = Value(travelMode),
-       startedAt = Value(startedAt);
-  static Insertable<SavedJourneyRow> custom({
-    Expression<String>? id,
-    Expression<String>? name,
-    Expression<double>? latitude,
-    Expression<double>? longitude,
-    Expression<String>? travelMode,
-    Expression<String>? routeKey,
-    Expression<DateTime>? startedAt,
-    Expression<DateTime>? endedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (name != null) 'name': name,
-      if (latitude != null) 'latitude': latitude,
-      if (longitude != null) 'longitude': longitude,
-      if (travelMode != null) 'travel_mode': travelMode,
-      if (routeKey != null) 'route_key': routeKey,
-      if (startedAt != null) 'started_at': startedAt,
-      if (endedAt != null) 'ended_at': endedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  SavedJourneysCompanion copyWith({
-    Value<String>? id,
-    Value<String>? name,
-    Value<double>? latitude,
-    Value<double>? longitude,
-    Value<String>? travelMode,
-    Value<String?>? routeKey,
-    Value<DateTime>? startedAt,
-    Value<DateTime?>? endedAt,
-    Value<int>? rowid,
-  }) {
-    return SavedJourneysCompanion(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
-      travelMode: travelMode ?? this.travelMode,
-      routeKey: routeKey ?? this.routeKey,
-      startedAt: startedAt ?? this.startedAt,
-      endedAt: endedAt ?? this.endedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (latitude.present) {
-      map['latitude'] = Variable<double>(latitude.value);
-    }
-    if (longitude.present) {
-      map['longitude'] = Variable<double>(longitude.value);
-    }
-    if (travelMode.present) {
-      map['travel_mode'] = Variable<String>(travelMode.value);
-    }
-    if (routeKey.present) {
-      map['route_key'] = Variable<String>(routeKey.value);
-    }
-    if (startedAt.present) {
-      map['started_at'] = Variable<DateTime>(startedAt.value);
-    }
-    if (endedAt.present) {
-      map['ended_at'] = Variable<DateTime>(endedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('SavedJourneysCompanion(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('latitude: $latitude, ')
-          ..write('longitude: $longitude, ')
-          ..write('travelMode: $travelMode, ')
-          ..write('routeKey: $routeKey, ')
-          ..write('startedAt: $startedAt, ')
-          ..write('endedAt: $endedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $ImportedRouteTracksTable extends ImportedRouteTracks
-    with TableInfo<$ImportedRouteTracksTable, ImportedRouteTrackRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $ImportedRouteTracksTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _importedAtMeta = const VerificationMeta(
-    'importedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> importedAt = GeneratedColumn<DateTime>(
-    'imported_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _pointsJsonMeta = const VerificationMeta(
-    'pointsJson',
-  );
-  @override
-  late final GeneratedColumn<String> pointsJson = GeneratedColumn<String>(
-    'points_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _distanceMetersMeta = const VerificationMeta(
-    'distanceMeters',
-  );
-  @override
-  late final GeneratedColumn<int> distanceMeters = GeneratedColumn<int>(
-    'distance_meters',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
-    'durationSeconds',
-  );
-  @override
-  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
-    'duration_seconds',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _durationEstimatedMeta = const VerificationMeta(
-    'durationEstimated',
-  );
-  @override
-  late final GeneratedColumn<bool> durationEstimated = GeneratedColumn<bool>(
-    'duration_estimated',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: true,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("duration_estimated" IN (0, 1))',
-    ),
-  );
-  static const VerificationMeta _ascentMetersMeta = const VerificationMeta(
-    'ascentMeters',
-  );
-  @override
-  late final GeneratedColumn<int> ascentMeters = GeneratedColumn<int>(
-    'ascent_meters',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _descentMetersMeta = const VerificationMeta(
-    'descentMeters',
-  );
-  @override
-  late final GeneratedColumn<int> descentMeters = GeneratedColumn<int>(
-    'descent_meters',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    name,
-    importedAt,
-    pointsJson,
-    distanceMeters,
-    durationSeconds,
-    durationEstimated,
-    ascentMeters,
-    descentMeters,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'imported_route_tracks';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<ImportedRouteTrackRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('imported_at')) {
-      context.handle(
-        _importedAtMeta,
-        importedAt.isAcceptableOrUnknown(data['imported_at']!, _importedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_importedAtMeta);
-    }
-    if (data.containsKey('points_json')) {
-      context.handle(
-        _pointsJsonMeta,
-        pointsJson.isAcceptableOrUnknown(data['points_json']!, _pointsJsonMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_pointsJsonMeta);
-    }
-    if (data.containsKey('distance_meters')) {
-      context.handle(
-        _distanceMetersMeta,
-        distanceMeters.isAcceptableOrUnknown(
-          data['distance_meters']!,
-          _distanceMetersMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_distanceMetersMeta);
-    }
-    if (data.containsKey('duration_seconds')) {
-      context.handle(
-        _durationSecondsMeta,
-        durationSeconds.isAcceptableOrUnknown(
-          data['duration_seconds']!,
-          _durationSecondsMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_durationSecondsMeta);
-    }
-    if (data.containsKey('duration_estimated')) {
-      context.handle(
-        _durationEstimatedMeta,
-        durationEstimated.isAcceptableOrUnknown(
-          data['duration_estimated']!,
-          _durationEstimatedMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_durationEstimatedMeta);
-    }
-    if (data.containsKey('ascent_meters')) {
-      context.handle(
-        _ascentMetersMeta,
-        ascentMeters.isAcceptableOrUnknown(
-          data['ascent_meters']!,
-          _ascentMetersMeta,
-        ),
-      );
-    }
-    if (data.containsKey('descent_meters')) {
-      context.handle(
-        _descentMetersMeta,
-        descentMeters.isAcceptableOrUnknown(
-          data['descent_meters']!,
-          _descentMetersMeta,
-        ),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  ImportedRouteTrackRow map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ImportedRouteTrackRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      importedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}imported_at'],
-      )!,
-      pointsJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}points_json'],
-      )!,
-      distanceMeters: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}distance_meters'],
-      )!,
-      durationSeconds: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}duration_seconds'],
-      )!,
-      durationEstimated: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}duration_estimated'],
-      )!,
-      ascentMeters: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}ascent_meters'],
-      ),
-      descentMeters: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}descent_meters'],
-      ),
-    );
-  }
-
-  @override
-  $ImportedRouteTracksTable createAlias(String alias) {
-    return $ImportedRouteTracksTable(attachedDatabase, alias);
-  }
-}
-
-class ImportedRouteTrackRow extends DataClass
-    implements Insertable<ImportedRouteTrackRow> {
-  final String id;
-  final String name;
-  final DateTime importedAt;
-  final String pointsJson;
-  final int distanceMeters;
-  final int durationSeconds;
-  final bool durationEstimated;
-  final int? ascentMeters;
-  final int? descentMeters;
-  const ImportedRouteTrackRow({
-    required this.id,
-    required this.name,
-    required this.importedAt,
-    required this.pointsJson,
-    required this.distanceMeters,
-    required this.durationSeconds,
-    required this.durationEstimated,
-    this.ascentMeters,
-    this.descentMeters,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['name'] = Variable<String>(name);
-    map['imported_at'] = Variable<DateTime>(importedAt);
-    map['points_json'] = Variable<String>(pointsJson);
-    map['distance_meters'] = Variable<int>(distanceMeters);
-    map['duration_seconds'] = Variable<int>(durationSeconds);
-    map['duration_estimated'] = Variable<bool>(durationEstimated);
-    if (!nullToAbsent || ascentMeters != null) {
-      map['ascent_meters'] = Variable<int>(ascentMeters);
-    }
-    if (!nullToAbsent || descentMeters != null) {
-      map['descent_meters'] = Variable<int>(descentMeters);
-    }
-    return map;
-  }
-
-  ImportedRouteTracksCompanion toCompanion(bool nullToAbsent) {
-    return ImportedRouteTracksCompanion(
-      id: Value(id),
-      name: Value(name),
-      importedAt: Value(importedAt),
-      pointsJson: Value(pointsJson),
-      distanceMeters: Value(distanceMeters),
-      durationSeconds: Value(durationSeconds),
-      durationEstimated: Value(durationEstimated),
-      ascentMeters: ascentMeters == null && nullToAbsent
-          ? const Value.absent()
-          : Value(ascentMeters),
-      descentMeters: descentMeters == null && nullToAbsent
-          ? const Value.absent()
-          : Value(descentMeters),
-    );
-  }
-
-  factory ImportedRouteTrackRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ImportedRouteTrackRow(
-      id: serializer.fromJson<String>(json['id']),
-      name: serializer.fromJson<String>(json['name']),
-      importedAt: serializer.fromJson<DateTime>(json['importedAt']),
-      pointsJson: serializer.fromJson<String>(json['pointsJson']),
-      distanceMeters: serializer.fromJson<int>(json['distanceMeters']),
-      durationSeconds: serializer.fromJson<int>(json['durationSeconds']),
-      durationEstimated: serializer.fromJson<bool>(json['durationEstimated']),
-      ascentMeters: serializer.fromJson<int?>(json['ascentMeters']),
-      descentMeters: serializer.fromJson<int?>(json['descentMeters']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'name': serializer.toJson<String>(name),
-      'importedAt': serializer.toJson<DateTime>(importedAt),
-      'pointsJson': serializer.toJson<String>(pointsJson),
-      'distanceMeters': serializer.toJson<int>(distanceMeters),
-      'durationSeconds': serializer.toJson<int>(durationSeconds),
-      'durationEstimated': serializer.toJson<bool>(durationEstimated),
-      'ascentMeters': serializer.toJson<int?>(ascentMeters),
-      'descentMeters': serializer.toJson<int?>(descentMeters),
-    };
-  }
-
-  ImportedRouteTrackRow copyWith({
-    String? id,
-    String? name,
-    DateTime? importedAt,
-    String? pointsJson,
-    int? distanceMeters,
-    int? durationSeconds,
-    bool? durationEstimated,
-    Value<int?> ascentMeters = const Value.absent(),
-    Value<int?> descentMeters = const Value.absent(),
-  }) => ImportedRouteTrackRow(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    importedAt: importedAt ?? this.importedAt,
-    pointsJson: pointsJson ?? this.pointsJson,
-    distanceMeters: distanceMeters ?? this.distanceMeters,
-    durationSeconds: durationSeconds ?? this.durationSeconds,
-    durationEstimated: durationEstimated ?? this.durationEstimated,
-    ascentMeters: ascentMeters.present ? ascentMeters.value : this.ascentMeters,
-    descentMeters: descentMeters.present
-        ? descentMeters.value
-        : this.descentMeters,
-  );
-  ImportedRouteTrackRow copyWithCompanion(ImportedRouteTracksCompanion data) {
-    return ImportedRouteTrackRow(
-      id: data.id.present ? data.id.value : this.id,
-      name: data.name.present ? data.name.value : this.name,
-      importedAt: data.importedAt.present
-          ? data.importedAt.value
-          : this.importedAt,
-      pointsJson: data.pointsJson.present
-          ? data.pointsJson.value
-          : this.pointsJson,
-      distanceMeters: data.distanceMeters.present
-          ? data.distanceMeters.value
-          : this.distanceMeters,
-      durationSeconds: data.durationSeconds.present
-          ? data.durationSeconds.value
-          : this.durationSeconds,
-      durationEstimated: data.durationEstimated.present
-          ? data.durationEstimated.value
-          : this.durationEstimated,
-      ascentMeters: data.ascentMeters.present
-          ? data.ascentMeters.value
-          : this.ascentMeters,
-      descentMeters: data.descentMeters.present
-          ? data.descentMeters.value
-          : this.descentMeters,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ImportedRouteTrackRow(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('importedAt: $importedAt, ')
-          ..write('pointsJson: $pointsJson, ')
-          ..write('distanceMeters: $distanceMeters, ')
-          ..write('durationSeconds: $durationSeconds, ')
-          ..write('durationEstimated: $durationEstimated, ')
-          ..write('ascentMeters: $ascentMeters, ')
-          ..write('descentMeters: $descentMeters')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    name,
-    importedAt,
-    pointsJson,
-    distanceMeters,
-    durationSeconds,
-    durationEstimated,
-    ascentMeters,
-    descentMeters,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ImportedRouteTrackRow &&
-          other.id == this.id &&
-          other.name == this.name &&
-          other.importedAt == this.importedAt &&
-          other.pointsJson == this.pointsJson &&
-          other.distanceMeters == this.distanceMeters &&
-          other.durationSeconds == this.durationSeconds &&
-          other.durationEstimated == this.durationEstimated &&
-          other.ascentMeters == this.ascentMeters &&
-          other.descentMeters == this.descentMeters);
-}
-
-class ImportedRouteTracksCompanion
-    extends UpdateCompanion<ImportedRouteTrackRow> {
-  final Value<String> id;
-  final Value<String> name;
-  final Value<DateTime> importedAt;
-  final Value<String> pointsJson;
-  final Value<int> distanceMeters;
-  final Value<int> durationSeconds;
-  final Value<bool> durationEstimated;
-  final Value<int?> ascentMeters;
-  final Value<int?> descentMeters;
-  final Value<int> rowid;
-  const ImportedRouteTracksCompanion({
-    this.id = const Value.absent(),
-    this.name = const Value.absent(),
-    this.importedAt = const Value.absent(),
-    this.pointsJson = const Value.absent(),
-    this.distanceMeters = const Value.absent(),
-    this.durationSeconds = const Value.absent(),
-    this.durationEstimated = const Value.absent(),
-    this.ascentMeters = const Value.absent(),
-    this.descentMeters = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  ImportedRouteTracksCompanion.insert({
-    required String id,
-    required String name,
-    required DateTime importedAt,
-    required String pointsJson,
-    required int distanceMeters,
-    required int durationSeconds,
-    required bool durationEstimated,
-    this.ascentMeters = const Value.absent(),
-    this.descentMeters = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       name = Value(name),
-       importedAt = Value(importedAt),
-       pointsJson = Value(pointsJson),
-       distanceMeters = Value(distanceMeters),
-       durationSeconds = Value(durationSeconds),
-       durationEstimated = Value(durationEstimated);
-  static Insertable<ImportedRouteTrackRow> custom({
-    Expression<String>? id,
-    Expression<String>? name,
-    Expression<DateTime>? importedAt,
-    Expression<String>? pointsJson,
-    Expression<int>? distanceMeters,
-    Expression<int>? durationSeconds,
-    Expression<bool>? durationEstimated,
-    Expression<int>? ascentMeters,
-    Expression<int>? descentMeters,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (name != null) 'name': name,
-      if (importedAt != null) 'imported_at': importedAt,
-      if (pointsJson != null) 'points_json': pointsJson,
-      if (distanceMeters != null) 'distance_meters': distanceMeters,
-      if (durationSeconds != null) 'duration_seconds': durationSeconds,
-      if (durationEstimated != null) 'duration_estimated': durationEstimated,
-      if (ascentMeters != null) 'ascent_meters': ascentMeters,
-      if (descentMeters != null) 'descent_meters': descentMeters,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  ImportedRouteTracksCompanion copyWith({
-    Value<String>? id,
-    Value<String>? name,
-    Value<DateTime>? importedAt,
-    Value<String>? pointsJson,
-    Value<int>? distanceMeters,
-    Value<int>? durationSeconds,
-    Value<bool>? durationEstimated,
-    Value<int?>? ascentMeters,
-    Value<int?>? descentMeters,
-    Value<int>? rowid,
-  }) {
-    return ImportedRouteTracksCompanion(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      importedAt: importedAt ?? this.importedAt,
-      pointsJson: pointsJson ?? this.pointsJson,
-      distanceMeters: distanceMeters ?? this.distanceMeters,
-      durationSeconds: durationSeconds ?? this.durationSeconds,
-      durationEstimated: durationEstimated ?? this.durationEstimated,
-      ascentMeters: ascentMeters ?? this.ascentMeters,
-      descentMeters: descentMeters ?? this.descentMeters,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (importedAt.present) {
-      map['imported_at'] = Variable<DateTime>(importedAt.value);
-    }
-    if (pointsJson.present) {
-      map['points_json'] = Variable<String>(pointsJson.value);
-    }
-    if (distanceMeters.present) {
-      map['distance_meters'] = Variable<int>(distanceMeters.value);
-    }
-    if (durationSeconds.present) {
-      map['duration_seconds'] = Variable<int>(durationSeconds.value);
-    }
-    if (durationEstimated.present) {
-      map['duration_estimated'] = Variable<bool>(durationEstimated.value);
-    }
-    if (ascentMeters.present) {
-      map['ascent_meters'] = Variable<int>(ascentMeters.value);
-    }
-    if (descentMeters.present) {
-      map['descent_meters'] = Variable<int>(descentMeters.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ImportedRouteTracksCompanion(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('importedAt: $importedAt, ')
-          ..write('pointsJson: $pointsJson, ')
-          ..write('distanceMeters: $distanceMeters, ')
-          ..write('durationSeconds: $durationSeconds, ')
-          ..write('durationEstimated: $durationEstimated, ')
-          ..write('ascentMeters: $ascentMeters, ')
-          ..write('descentMeters: $descentMeters, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
     with TableInfo<$ProfilePreferenceRecordsTable, ProfilePreferenceRow> {
   @override
@@ -2376,21 +1266,6 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
         type: DriftSqlType.double,
         requiredDuringInsert: true,
       );
-  static const VerificationMeta _shareAnonymousPhotographyFeedbackMeta =
-      const VerificationMeta('shareAnonymousPhotographyFeedback');
-  @override
-  late final GeneratedColumn<bool> shareAnonymousPhotographyFeedback =
-      GeneratedColumn<bool>(
-        'share_anonymous_photography_feedback',
-        aliasedName,
-        false,
-        type: DriftSqlType.bool,
-        requiredDuringInsert: false,
-        defaultConstraints: GeneratedColumn.constraintIsAlways(
-          'CHECK ("share_anonymous_photography_feedback" IN (0, 1))',
-        ),
-        defaultValue: const Constant(false),
-      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2404,7 +1279,6 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
     equipmentList,
     aiTone,
     recommendationIntensity,
-    shareAnonymousPhotographyFeedback,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2528,15 +1402,6 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
     } else if (isInserting) {
       context.missing(_recommendationIntensityMeta);
     }
-    if (data.containsKey('share_anonymous_photography_feedback')) {
-      context.handle(
-        _shareAnonymousPhotographyFeedbackMeta,
-        shareAnonymousPhotographyFeedback.isAcceptableOrUnknown(
-          data['share_anonymous_photography_feedback']!,
-          _shareAnonymousPhotographyFeedbackMeta,
-        ),
-      );
-    }
     return context;
   }
 
@@ -2590,10 +1455,6 @@ class $ProfilePreferenceRecordsTable extends ProfilePreferenceRecords
         DriftSqlType.double,
         data['${effectivePrefix}recommendation_intensity'],
       )!,
-      shareAnonymousPhotographyFeedback: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}share_anonymous_photography_feedback'],
-      )!,
     );
   }
 
@@ -2616,7 +1477,6 @@ class ProfilePreferenceRow extends DataClass
   final String equipmentList;
   final String aiTone;
   final double recommendationIntensity;
-  final bool shareAnonymousPhotographyFeedback;
   const ProfilePreferenceRow({
     required this.id,
     required this.ambientBackgroundEnabled,
@@ -2629,7 +1489,6 @@ class ProfilePreferenceRow extends DataClass
     required this.equipmentList,
     required this.aiTone,
     required this.recommendationIntensity,
-    required this.shareAnonymousPhotographyFeedback,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2651,9 +1510,6 @@ class ProfilePreferenceRow extends DataClass
     map['equipment_list'] = Variable<String>(equipmentList);
     map['ai_tone'] = Variable<String>(aiTone);
     map['recommendation_intensity'] = Variable<double>(recommendationIntensity);
-    map['share_anonymous_photography_feedback'] = Variable<bool>(
-      shareAnonymousPhotographyFeedback,
-    );
     return map;
   }
 
@@ -2670,9 +1526,6 @@ class ProfilePreferenceRow extends DataClass
       equipmentList: Value(equipmentList),
       aiTone: Value(aiTone),
       recommendationIntensity: Value(recommendationIntensity),
-      shareAnonymousPhotographyFeedback: Value(
-        shareAnonymousPhotographyFeedback,
-      ),
     );
   }
 
@@ -2701,9 +1554,6 @@ class ProfilePreferenceRow extends DataClass
       recommendationIntensity: serializer.fromJson<double>(
         json['recommendationIntensity'],
       ),
-      shareAnonymousPhotographyFeedback: serializer.fromJson<bool>(
-        json['shareAnonymousPhotographyFeedback'],
-      ),
     );
   }
   @override
@@ -2729,9 +1579,6 @@ class ProfilePreferenceRow extends DataClass
       'recommendationIntensity': serializer.toJson<double>(
         recommendationIntensity,
       ),
-      'shareAnonymousPhotographyFeedback': serializer.toJson<bool>(
-        shareAnonymousPhotographyFeedback,
-      ),
     };
   }
 
@@ -2747,7 +1594,6 @@ class ProfilePreferenceRow extends DataClass
     String? equipmentList,
     String? aiTone,
     double? recommendationIntensity,
-    bool? shareAnonymousPhotographyFeedback,
   }) => ProfilePreferenceRow(
     id: id ?? this.id,
     ambientBackgroundEnabled:
@@ -2764,9 +1610,6 @@ class ProfilePreferenceRow extends DataClass
     aiTone: aiTone ?? this.aiTone,
     recommendationIntensity:
         recommendationIntensity ?? this.recommendationIntensity,
-    shareAnonymousPhotographyFeedback:
-        shareAnonymousPhotographyFeedback ??
-        this.shareAnonymousPhotographyFeedback,
   );
   ProfilePreferenceRow copyWithCompanion(
     ProfilePreferenceRecordsCompanion data,
@@ -2801,10 +1644,6 @@ class ProfilePreferenceRow extends DataClass
       recommendationIntensity: data.recommendationIntensity.present
           ? data.recommendationIntensity.value
           : this.recommendationIntensity,
-      shareAnonymousPhotographyFeedback:
-          data.shareAnonymousPhotographyFeedback.present
-          ? data.shareAnonymousPhotographyFeedback.value
-          : this.shareAnonymousPhotographyFeedback,
     );
   }
 
@@ -2821,10 +1660,7 @@ class ProfilePreferenceRow extends DataClass
           ..write('activityPreferencesJson: $activityPreferencesJson, ')
           ..write('equipmentList: $equipmentList, ')
           ..write('aiTone: $aiTone, ')
-          ..write('recommendationIntensity: $recommendationIntensity, ')
-          ..write(
-            'shareAnonymousPhotographyFeedback: $shareAnonymousPhotographyFeedback',
-          )
+          ..write('recommendationIntensity: $recommendationIntensity')
           ..write(')'))
         .toString();
   }
@@ -2842,7 +1678,6 @@ class ProfilePreferenceRow extends DataClass
     equipmentList,
     aiTone,
     recommendationIntensity,
-    shareAnonymousPhotographyFeedback,
   );
   @override
   bool operator ==(Object other) =>
@@ -2858,9 +1693,7 @@ class ProfilePreferenceRow extends DataClass
           other.activityPreferencesJson == this.activityPreferencesJson &&
           other.equipmentList == this.equipmentList &&
           other.aiTone == this.aiTone &&
-          other.recommendationIntensity == this.recommendationIntensity &&
-          other.shareAnonymousPhotographyFeedback ==
-              this.shareAnonymousPhotographyFeedback);
+          other.recommendationIntensity == this.recommendationIntensity);
 }
 
 class ProfilePreferenceRecordsCompanion
@@ -2876,7 +1709,6 @@ class ProfilePreferenceRecordsCompanion
   final Value<String> equipmentList;
   final Value<String> aiTone;
   final Value<double> recommendationIntensity;
-  final Value<bool> shareAnonymousPhotographyFeedback;
   const ProfilePreferenceRecordsCompanion({
     this.id = const Value.absent(),
     this.ambientBackgroundEnabled = const Value.absent(),
@@ -2889,7 +1721,6 @@ class ProfilePreferenceRecordsCompanion
     this.equipmentList = const Value.absent(),
     this.aiTone = const Value.absent(),
     this.recommendationIntensity = const Value.absent(),
-    this.shareAnonymousPhotographyFeedback = const Value.absent(),
   });
   ProfilePreferenceRecordsCompanion.insert({
     this.id = const Value.absent(),
@@ -2903,7 +1734,6 @@ class ProfilePreferenceRecordsCompanion
     required String equipmentList,
     required String aiTone,
     required double recommendationIntensity,
-    this.shareAnonymousPhotographyFeedback = const Value.absent(),
   }) : ambientBackgroundEnabled = Value(ambientBackgroundEnabled),
        reduceMotion = Value(reduceMotion),
        reduceFlashing = Value(reduceFlashing),
@@ -2926,7 +1756,6 @@ class ProfilePreferenceRecordsCompanion
     Expression<String>? equipmentList,
     Expression<String>? aiTone,
     Expression<double>? recommendationIntensity,
-    Expression<bool>? shareAnonymousPhotographyFeedback,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -2944,9 +1773,6 @@ class ProfilePreferenceRecordsCompanion
       if (aiTone != null) 'ai_tone': aiTone,
       if (recommendationIntensity != null)
         'recommendation_intensity': recommendationIntensity,
-      if (shareAnonymousPhotographyFeedback != null)
-        'share_anonymous_photography_feedback':
-            shareAnonymousPhotographyFeedback,
     });
   }
 
@@ -2962,7 +1788,6 @@ class ProfilePreferenceRecordsCompanion
     Value<String>? equipmentList,
     Value<String>? aiTone,
     Value<double>? recommendationIntensity,
-    Value<bool>? shareAnonymousPhotographyFeedback,
   }) {
     return ProfilePreferenceRecordsCompanion(
       id: id ?? this.id,
@@ -2980,9 +1805,6 @@ class ProfilePreferenceRecordsCompanion
       aiTone: aiTone ?? this.aiTone,
       recommendationIntensity:
           recommendationIntensity ?? this.recommendationIntensity,
-      shareAnonymousPhotographyFeedback:
-          shareAnonymousPhotographyFeedback ??
-          this.shareAnonymousPhotographyFeedback,
     );
   }
 
@@ -3030,11 +1852,6 @@ class ProfilePreferenceRecordsCompanion
         recommendationIntensity.value,
       );
     }
-    if (shareAnonymousPhotographyFeedback.present) {
-      map['share_anonymous_photography_feedback'] = Variable<bool>(
-        shareAnonymousPhotographyFeedback.value,
-      );
-    }
     return map;
   }
 
@@ -3051,10 +1868,7 @@ class ProfilePreferenceRecordsCompanion
           ..write('activityPreferencesJson: $activityPreferencesJson, ')
           ..write('equipmentList: $equipmentList, ')
           ..write('aiTone: $aiTone, ')
-          ..write('recommendationIntensity: $recommendationIntensity, ')
-          ..write(
-            'shareAnonymousPhotographyFeedback: $shareAnonymousPhotographyFeedback',
-          )
+          ..write('recommendationIntensity: $recommendationIntensity')
           ..write(')'))
         .toString();
   }
@@ -5970,542 +4784,6 @@ class ShootingSessionResultsCompanion
   }
 }
 
-class $OfflinePhotographyPacksTable extends OfflinePhotographyPacks
-    with TableInfo<$OfflinePhotographyPacksTable, OfflinePhotographyPackRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $OfflinePhotographyPacksTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-    'name',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _dataTimestampMeta = const VerificationMeta(
-    'dataTimestamp',
-  );
-  @override
-  late final GeneratedColumn<DateTime> dataTimestamp =
-      GeneratedColumn<DateTime>(
-        'data_timestamp',
-        aliasedName,
-        false,
-        type: DriftSqlType.dateTime,
-        requiredDuringInsert: true,
-      );
-  static const VerificationMeta _routeJsonMeta = const VerificationMeta(
-    'routeJson',
-  );
-  @override
-  late final GeneratedColumn<String> routeJson = GeneratedColumn<String>(
-    'route_json',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _placesJsonMeta = const VerificationMeta(
-    'placesJson',
-  );
-  @override
-  late final GeneratedColumn<String> placesJson = GeneratedColumn<String>(
-    'places_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _windowsJsonMeta = const VerificationMeta(
-    'windowsJson',
-  );
-  @override
-  late final GeneratedColumn<String> windowsJson = GeneratedColumn<String>(
-    'windows_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _sessionJsonMeta = const VerificationMeta(
-    'sessionJson',
-  );
-  @override
-  late final GeneratedColumn<String> sessionJson = GeneratedColumn<String>(
-    'session_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    name,
-    createdAt,
-    dataTimestamp,
-    routeJson,
-    placesJson,
-    windowsJson,
-    sessionJson,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'offline_photography_packs';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<OfflinePhotographyPackRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-        _nameMeta,
-        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('data_timestamp')) {
-      context.handle(
-        _dataTimestampMeta,
-        dataTimestamp.isAcceptableOrUnknown(
-          data['data_timestamp']!,
-          _dataTimestampMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_dataTimestampMeta);
-    }
-    if (data.containsKey('route_json')) {
-      context.handle(
-        _routeJsonMeta,
-        routeJson.isAcceptableOrUnknown(data['route_json']!, _routeJsonMeta),
-      );
-    }
-    if (data.containsKey('places_json')) {
-      context.handle(
-        _placesJsonMeta,
-        placesJson.isAcceptableOrUnknown(data['places_json']!, _placesJsonMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_placesJsonMeta);
-    }
-    if (data.containsKey('windows_json')) {
-      context.handle(
-        _windowsJsonMeta,
-        windowsJson.isAcceptableOrUnknown(
-          data['windows_json']!,
-          _windowsJsonMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_windowsJsonMeta);
-    }
-    if (data.containsKey('session_json')) {
-      context.handle(
-        _sessionJsonMeta,
-        sessionJson.isAcceptableOrUnknown(
-          data['session_json']!,
-          _sessionJsonMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_sessionJsonMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  OfflinePhotographyPackRow map(
-    Map<String, dynamic> data, {
-    String? tablePrefix,
-  }) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return OfflinePhotographyPackRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      name: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}name'],
-      )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      dataTimestamp: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}data_timestamp'],
-      )!,
-      routeJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}route_json'],
-      ),
-      placesJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}places_json'],
-      )!,
-      windowsJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}windows_json'],
-      )!,
-      sessionJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}session_json'],
-      )!,
-    );
-  }
-
-  @override
-  $OfflinePhotographyPacksTable createAlias(String alias) {
-    return $OfflinePhotographyPacksTable(attachedDatabase, alias);
-  }
-}
-
-class OfflinePhotographyPackRow extends DataClass
-    implements Insertable<OfflinePhotographyPackRow> {
-  final String id;
-  final String name;
-  final DateTime createdAt;
-  final DateTime dataTimestamp;
-  final String? routeJson;
-  final String placesJson;
-  final String windowsJson;
-  final String sessionJson;
-  const OfflinePhotographyPackRow({
-    required this.id,
-    required this.name,
-    required this.createdAt,
-    required this.dataTimestamp,
-    this.routeJson,
-    required this.placesJson,
-    required this.windowsJson,
-    required this.sessionJson,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['name'] = Variable<String>(name);
-    map['created_at'] = Variable<DateTime>(createdAt);
-    map['data_timestamp'] = Variable<DateTime>(dataTimestamp);
-    if (!nullToAbsent || routeJson != null) {
-      map['route_json'] = Variable<String>(routeJson);
-    }
-    map['places_json'] = Variable<String>(placesJson);
-    map['windows_json'] = Variable<String>(windowsJson);
-    map['session_json'] = Variable<String>(sessionJson);
-    return map;
-  }
-
-  OfflinePhotographyPacksCompanion toCompanion(bool nullToAbsent) {
-    return OfflinePhotographyPacksCompanion(
-      id: Value(id),
-      name: Value(name),
-      createdAt: Value(createdAt),
-      dataTimestamp: Value(dataTimestamp),
-      routeJson: routeJson == null && nullToAbsent
-          ? const Value.absent()
-          : Value(routeJson),
-      placesJson: Value(placesJson),
-      windowsJson: Value(windowsJson),
-      sessionJson: Value(sessionJson),
-    );
-  }
-
-  factory OfflinePhotographyPackRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return OfflinePhotographyPackRow(
-      id: serializer.fromJson<String>(json['id']),
-      name: serializer.fromJson<String>(json['name']),
-      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
-      dataTimestamp: serializer.fromJson<DateTime>(json['dataTimestamp']),
-      routeJson: serializer.fromJson<String?>(json['routeJson']),
-      placesJson: serializer.fromJson<String>(json['placesJson']),
-      windowsJson: serializer.fromJson<String>(json['windowsJson']),
-      sessionJson: serializer.fromJson<String>(json['sessionJson']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'name': serializer.toJson<String>(name),
-      'createdAt': serializer.toJson<DateTime>(createdAt),
-      'dataTimestamp': serializer.toJson<DateTime>(dataTimestamp),
-      'routeJson': serializer.toJson<String?>(routeJson),
-      'placesJson': serializer.toJson<String>(placesJson),
-      'windowsJson': serializer.toJson<String>(windowsJson),
-      'sessionJson': serializer.toJson<String>(sessionJson),
-    };
-  }
-
-  OfflinePhotographyPackRow copyWith({
-    String? id,
-    String? name,
-    DateTime? createdAt,
-    DateTime? dataTimestamp,
-    Value<String?> routeJson = const Value.absent(),
-    String? placesJson,
-    String? windowsJson,
-    String? sessionJson,
-  }) => OfflinePhotographyPackRow(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    createdAt: createdAt ?? this.createdAt,
-    dataTimestamp: dataTimestamp ?? this.dataTimestamp,
-    routeJson: routeJson.present ? routeJson.value : this.routeJson,
-    placesJson: placesJson ?? this.placesJson,
-    windowsJson: windowsJson ?? this.windowsJson,
-    sessionJson: sessionJson ?? this.sessionJson,
-  );
-  OfflinePhotographyPackRow copyWithCompanion(
-    OfflinePhotographyPacksCompanion data,
-  ) {
-    return OfflinePhotographyPackRow(
-      id: data.id.present ? data.id.value : this.id,
-      name: data.name.present ? data.name.value : this.name,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      dataTimestamp: data.dataTimestamp.present
-          ? data.dataTimestamp.value
-          : this.dataTimestamp,
-      routeJson: data.routeJson.present ? data.routeJson.value : this.routeJson,
-      placesJson: data.placesJson.present
-          ? data.placesJson.value
-          : this.placesJson,
-      windowsJson: data.windowsJson.present
-          ? data.windowsJson.value
-          : this.windowsJson,
-      sessionJson: data.sessionJson.present
-          ? data.sessionJson.value
-          : this.sessionJson,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('OfflinePhotographyPackRow(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('dataTimestamp: $dataTimestamp, ')
-          ..write('routeJson: $routeJson, ')
-          ..write('placesJson: $placesJson, ')
-          ..write('windowsJson: $windowsJson, ')
-          ..write('sessionJson: $sessionJson')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    name,
-    createdAt,
-    dataTimestamp,
-    routeJson,
-    placesJson,
-    windowsJson,
-    sessionJson,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is OfflinePhotographyPackRow &&
-          other.id == this.id &&
-          other.name == this.name &&
-          other.createdAt == this.createdAt &&
-          other.dataTimestamp == this.dataTimestamp &&
-          other.routeJson == this.routeJson &&
-          other.placesJson == this.placesJson &&
-          other.windowsJson == this.windowsJson &&
-          other.sessionJson == this.sessionJson);
-}
-
-class OfflinePhotographyPacksCompanion
-    extends UpdateCompanion<OfflinePhotographyPackRow> {
-  final Value<String> id;
-  final Value<String> name;
-  final Value<DateTime> createdAt;
-  final Value<DateTime> dataTimestamp;
-  final Value<String?> routeJson;
-  final Value<String> placesJson;
-  final Value<String> windowsJson;
-  final Value<String> sessionJson;
-  final Value<int> rowid;
-  const OfflinePhotographyPacksCompanion({
-    this.id = const Value.absent(),
-    this.name = const Value.absent(),
-    this.createdAt = const Value.absent(),
-    this.dataTimestamp = const Value.absent(),
-    this.routeJson = const Value.absent(),
-    this.placesJson = const Value.absent(),
-    this.windowsJson = const Value.absent(),
-    this.sessionJson = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  OfflinePhotographyPacksCompanion.insert({
-    required String id,
-    required String name,
-    required DateTime createdAt,
-    required DateTime dataTimestamp,
-    this.routeJson = const Value.absent(),
-    required String placesJson,
-    required String windowsJson,
-    required String sessionJson,
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       name = Value(name),
-       createdAt = Value(createdAt),
-       dataTimestamp = Value(dataTimestamp),
-       placesJson = Value(placesJson),
-       windowsJson = Value(windowsJson),
-       sessionJson = Value(sessionJson);
-  static Insertable<OfflinePhotographyPackRow> custom({
-    Expression<String>? id,
-    Expression<String>? name,
-    Expression<DateTime>? createdAt,
-    Expression<DateTime>? dataTimestamp,
-    Expression<String>? routeJson,
-    Expression<String>? placesJson,
-    Expression<String>? windowsJson,
-    Expression<String>? sessionJson,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (name != null) 'name': name,
-      if (createdAt != null) 'created_at': createdAt,
-      if (dataTimestamp != null) 'data_timestamp': dataTimestamp,
-      if (routeJson != null) 'route_json': routeJson,
-      if (placesJson != null) 'places_json': placesJson,
-      if (windowsJson != null) 'windows_json': windowsJson,
-      if (sessionJson != null) 'session_json': sessionJson,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  OfflinePhotographyPacksCompanion copyWith({
-    Value<String>? id,
-    Value<String>? name,
-    Value<DateTime>? createdAt,
-    Value<DateTime>? dataTimestamp,
-    Value<String?>? routeJson,
-    Value<String>? placesJson,
-    Value<String>? windowsJson,
-    Value<String>? sessionJson,
-    Value<int>? rowid,
-  }) {
-    return OfflinePhotographyPacksCompanion(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      createdAt: createdAt ?? this.createdAt,
-      dataTimestamp: dataTimestamp ?? this.dataTimestamp,
-      routeJson: routeJson ?? this.routeJson,
-      placesJson: placesJson ?? this.placesJson,
-      windowsJson: windowsJson ?? this.windowsJson,
-      sessionJson: sessionJson ?? this.sessionJson,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
-    }
-    if (dataTimestamp.present) {
-      map['data_timestamp'] = Variable<DateTime>(dataTimestamp.value);
-    }
-    if (routeJson.present) {
-      map['route_json'] = Variable<String>(routeJson.value);
-    }
-    if (placesJson.present) {
-      map['places_json'] = Variable<String>(placesJson.value);
-    }
-    if (windowsJson.present) {
-      map['windows_json'] = Variable<String>(windowsJson.value);
-    }
-    if (sessionJson.present) {
-      map['session_json'] = Variable<String>(sessionJson.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('OfflinePhotographyPacksCompanion(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('dataTimestamp: $dataTimestamp, ')
-          ..write('routeJson: $routeJson, ')
-          ..write('placesJson: $placesJson, ')
-          ..write('windowsJson: $windowsJson, ')
-          ..write('sessionJson: $sessionJson, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $RegionBriefCachesTable extends RegionBriefCaches
     with TableInfo<$RegionBriefCachesTable, RegionBriefCache> {
   @override
@@ -8550,9 +6828,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RecentRouteDestinationsTable recentRouteDestinations =
       $RecentRouteDestinationsTable(this);
   late final $SavedRoutesTable savedRoutes = $SavedRoutesTable(this);
-  late final $SavedJourneysTable savedJourneys = $SavedJourneysTable(this);
-  late final $ImportedRouteTracksTable importedRouteTracks =
-      $ImportedRouteTracksTable(this);
   late final $ProfilePreferenceRecordsTable profilePreferenceRecords =
       $ProfilePreferenceRecordsTable(this);
   late final $BaseRegionsTable baseRegions = $BaseRegionsTable(this);
@@ -8567,8 +6842,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $WatchedShootingSessionsTable(this);
   late final $ShootingSessionResultsTable shootingSessionResults =
       $ShootingSessionResultsTable(this);
-  late final $OfflinePhotographyPacksTable offlinePhotographyPacks =
-      $OfflinePhotographyPacksTable(this);
   late final $RegionBriefCachesTable regionBriefCaches =
       $RegionBriefCachesTable(this);
   late final $RegionFamiliaritiesTable regionFamiliarities =
@@ -8587,8 +6860,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     savedPlaces,
     recentRouteDestinations,
     savedRoutes,
-    savedJourneys,
-    importedRouteTracks,
     profilePreferenceRecords,
     baseRegions,
     manualLocations,
@@ -8596,7 +6867,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     wildlifeMapLayerCaches,
     watchedShootingSessions,
     shootingSessionResults,
-    offlinePhotographyPacks,
     regionBriefCaches,
     regionFamiliarities,
     regionInsightImpressions,
@@ -9241,571 +7511,6 @@ typedef $$SavedRoutesTableProcessedTableManager =
       SavedRouteRow,
       PrefetchHooks Function()
     >;
-typedef $$SavedJourneysTableCreateCompanionBuilder =
-    SavedJourneysCompanion Function({
-      required String id,
-      required String name,
-      required double latitude,
-      required double longitude,
-      required String travelMode,
-      Value<String?> routeKey,
-      required DateTime startedAt,
-      Value<DateTime?> endedAt,
-      Value<int> rowid,
-    });
-typedef $$SavedJourneysTableUpdateCompanionBuilder =
-    SavedJourneysCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<double> latitude,
-      Value<double> longitude,
-      Value<String> travelMode,
-      Value<String?> routeKey,
-      Value<DateTime> startedAt,
-      Value<DateTime?> endedAt,
-      Value<int> rowid,
-    });
-
-class $$SavedJourneysTableFilterComposer
-    extends Composer<_$AppDatabase, $SavedJourneysTable> {
-  $$SavedJourneysTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get latitude => $composableBuilder(
-    column: $table.latitude,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get longitude => $composableBuilder(
-    column: $table.longitude,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get travelMode => $composableBuilder(
-    column: $table.travelMode,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get routeKey => $composableBuilder(
-    column: $table.routeKey,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get startedAt => $composableBuilder(
-    column: $table.startedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get endedAt => $composableBuilder(
-    column: $table.endedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$SavedJourneysTableOrderingComposer
-    extends Composer<_$AppDatabase, $SavedJourneysTable> {
-  $$SavedJourneysTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get latitude => $composableBuilder(
-    column: $table.latitude,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<double> get longitude => $composableBuilder(
-    column: $table.longitude,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get travelMode => $composableBuilder(
-    column: $table.travelMode,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get routeKey => $composableBuilder(
-    column: $table.routeKey,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
-    column: $table.startedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get endedAt => $composableBuilder(
-    column: $table.endedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$SavedJourneysTableAnnotationComposer
-    extends Composer<_$AppDatabase, $SavedJourneysTable> {
-  $$SavedJourneysTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<double> get latitude =>
-      $composableBuilder(column: $table.latitude, builder: (column) => column);
-
-  GeneratedColumn<double> get longitude =>
-      $composableBuilder(column: $table.longitude, builder: (column) => column);
-
-  GeneratedColumn<String> get travelMode => $composableBuilder(
-    column: $table.travelMode,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get routeKey =>
-      $composableBuilder(column: $table.routeKey, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get startedAt =>
-      $composableBuilder(column: $table.startedAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get endedAt =>
-      $composableBuilder(column: $table.endedAt, builder: (column) => column);
-}
-
-class $$SavedJourneysTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $SavedJourneysTable,
-          SavedJourneyRow,
-          $$SavedJourneysTableFilterComposer,
-          $$SavedJourneysTableOrderingComposer,
-          $$SavedJourneysTableAnnotationComposer,
-          $$SavedJourneysTableCreateCompanionBuilder,
-          $$SavedJourneysTableUpdateCompanionBuilder,
-          (
-            SavedJourneyRow,
-            BaseReferences<_$AppDatabase, $SavedJourneysTable, SavedJourneyRow>,
-          ),
-          SavedJourneyRow,
-          PrefetchHooks Function()
-        > {
-  $$SavedJourneysTableTableManager(_$AppDatabase db, $SavedJourneysTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$SavedJourneysTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$SavedJourneysTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$SavedJourneysTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<double> latitude = const Value.absent(),
-                Value<double> longitude = const Value.absent(),
-                Value<String> travelMode = const Value.absent(),
-                Value<String?> routeKey = const Value.absent(),
-                Value<DateTime> startedAt = const Value.absent(),
-                Value<DateTime?> endedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => SavedJourneysCompanion(
-                id: id,
-                name: name,
-                latitude: latitude,
-                longitude: longitude,
-                travelMode: travelMode,
-                routeKey: routeKey,
-                startedAt: startedAt,
-                endedAt: endedAt,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String name,
-                required double latitude,
-                required double longitude,
-                required String travelMode,
-                Value<String?> routeKey = const Value.absent(),
-                required DateTime startedAt,
-                Value<DateTime?> endedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => SavedJourneysCompanion.insert(
-                id: id,
-                name: name,
-                latitude: latitude,
-                longitude: longitude,
-                travelMode: travelMode,
-                routeKey: routeKey,
-                startedAt: startedAt,
-                endedAt: endedAt,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$SavedJourneysTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $SavedJourneysTable,
-      SavedJourneyRow,
-      $$SavedJourneysTableFilterComposer,
-      $$SavedJourneysTableOrderingComposer,
-      $$SavedJourneysTableAnnotationComposer,
-      $$SavedJourneysTableCreateCompanionBuilder,
-      $$SavedJourneysTableUpdateCompanionBuilder,
-      (
-        SavedJourneyRow,
-        BaseReferences<_$AppDatabase, $SavedJourneysTable, SavedJourneyRow>,
-      ),
-      SavedJourneyRow,
-      PrefetchHooks Function()
-    >;
-typedef $$ImportedRouteTracksTableCreateCompanionBuilder =
-    ImportedRouteTracksCompanion Function({
-      required String id,
-      required String name,
-      required DateTime importedAt,
-      required String pointsJson,
-      required int distanceMeters,
-      required int durationSeconds,
-      required bool durationEstimated,
-      Value<int?> ascentMeters,
-      Value<int?> descentMeters,
-      Value<int> rowid,
-    });
-typedef $$ImportedRouteTracksTableUpdateCompanionBuilder =
-    ImportedRouteTracksCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<DateTime> importedAt,
-      Value<String> pointsJson,
-      Value<int> distanceMeters,
-      Value<int> durationSeconds,
-      Value<bool> durationEstimated,
-      Value<int?> ascentMeters,
-      Value<int?> descentMeters,
-      Value<int> rowid,
-    });
-
-class $$ImportedRouteTracksTableFilterComposer
-    extends Composer<_$AppDatabase, $ImportedRouteTracksTable> {
-  $$ImportedRouteTracksTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get importedAt => $composableBuilder(
-    column: $table.importedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get pointsJson => $composableBuilder(
-    column: $table.pointsJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get distanceMeters => $composableBuilder(
-    column: $table.distanceMeters,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get durationSeconds => $composableBuilder(
-    column: $table.durationSeconds,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<bool> get durationEstimated => $composableBuilder(
-    column: $table.durationEstimated,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get ascentMeters => $composableBuilder(
-    column: $table.ascentMeters,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get descentMeters => $composableBuilder(
-    column: $table.descentMeters,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$ImportedRouteTracksTableOrderingComposer
-    extends Composer<_$AppDatabase, $ImportedRouteTracksTable> {
-  $$ImportedRouteTracksTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get importedAt => $composableBuilder(
-    column: $table.importedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get pointsJson => $composableBuilder(
-    column: $table.pointsJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get distanceMeters => $composableBuilder(
-    column: $table.distanceMeters,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get durationSeconds => $composableBuilder(
-    column: $table.durationSeconds,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<bool> get durationEstimated => $composableBuilder(
-    column: $table.durationEstimated,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get ascentMeters => $composableBuilder(
-    column: $table.ascentMeters,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get descentMeters => $composableBuilder(
-    column: $table.descentMeters,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$ImportedRouteTracksTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ImportedRouteTracksTable> {
-  $$ImportedRouteTracksTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get importedAt => $composableBuilder(
-    column: $table.importedAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get pointsJson => $composableBuilder(
-    column: $table.pointsJson,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get distanceMeters => $composableBuilder(
-    column: $table.distanceMeters,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get durationSeconds => $composableBuilder(
-    column: $table.durationSeconds,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<bool> get durationEstimated => $composableBuilder(
-    column: $table.durationEstimated,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get ascentMeters => $composableBuilder(
-    column: $table.ascentMeters,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get descentMeters => $composableBuilder(
-    column: $table.descentMeters,
-    builder: (column) => column,
-  );
-}
-
-class $$ImportedRouteTracksTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $ImportedRouteTracksTable,
-          ImportedRouteTrackRow,
-          $$ImportedRouteTracksTableFilterComposer,
-          $$ImportedRouteTracksTableOrderingComposer,
-          $$ImportedRouteTracksTableAnnotationComposer,
-          $$ImportedRouteTracksTableCreateCompanionBuilder,
-          $$ImportedRouteTracksTableUpdateCompanionBuilder,
-          (
-            ImportedRouteTrackRow,
-            BaseReferences<
-              _$AppDatabase,
-              $ImportedRouteTracksTable,
-              ImportedRouteTrackRow
-            >,
-          ),
-          ImportedRouteTrackRow,
-          PrefetchHooks Function()
-        > {
-  $$ImportedRouteTracksTableTableManager(
-    _$AppDatabase db,
-    $ImportedRouteTracksTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$ImportedRouteTracksTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$ImportedRouteTracksTableOrderingComposer(
-                $db: db,
-                $table: table,
-              ),
-          createComputedFieldComposer: () =>
-              $$ImportedRouteTracksTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<DateTime> importedAt = const Value.absent(),
-                Value<String> pointsJson = const Value.absent(),
-                Value<int> distanceMeters = const Value.absent(),
-                Value<int> durationSeconds = const Value.absent(),
-                Value<bool> durationEstimated = const Value.absent(),
-                Value<int?> ascentMeters = const Value.absent(),
-                Value<int?> descentMeters = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => ImportedRouteTracksCompanion(
-                id: id,
-                name: name,
-                importedAt: importedAt,
-                pointsJson: pointsJson,
-                distanceMeters: distanceMeters,
-                durationSeconds: durationSeconds,
-                durationEstimated: durationEstimated,
-                ascentMeters: ascentMeters,
-                descentMeters: descentMeters,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String name,
-                required DateTime importedAt,
-                required String pointsJson,
-                required int distanceMeters,
-                required int durationSeconds,
-                required bool durationEstimated,
-                Value<int?> ascentMeters = const Value.absent(),
-                Value<int?> descentMeters = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => ImportedRouteTracksCompanion.insert(
-                id: id,
-                name: name,
-                importedAt: importedAt,
-                pointsJson: pointsJson,
-                distanceMeters: distanceMeters,
-                durationSeconds: durationSeconds,
-                durationEstimated: durationEstimated,
-                ascentMeters: ascentMeters,
-                descentMeters: descentMeters,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$ImportedRouteTracksTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $ImportedRouteTracksTable,
-      ImportedRouteTrackRow,
-      $$ImportedRouteTracksTableFilterComposer,
-      $$ImportedRouteTracksTableOrderingComposer,
-      $$ImportedRouteTracksTableAnnotationComposer,
-      $$ImportedRouteTracksTableCreateCompanionBuilder,
-      $$ImportedRouteTracksTableUpdateCompanionBuilder,
-      (
-        ImportedRouteTrackRow,
-        BaseReferences<
-          _$AppDatabase,
-          $ImportedRouteTracksTable,
-          ImportedRouteTrackRow
-        >,
-      ),
-      ImportedRouteTrackRow,
-      PrefetchHooks Function()
-    >;
 typedef $$ProfilePreferenceRecordsTableCreateCompanionBuilder =
     ProfilePreferenceRecordsCompanion Function({
       Value<int> id,
@@ -9819,7 +7524,6 @@ typedef $$ProfilePreferenceRecordsTableCreateCompanionBuilder =
       required String equipmentList,
       required String aiTone,
       required double recommendationIntensity,
-      Value<bool> shareAnonymousPhotographyFeedback,
     });
 typedef $$ProfilePreferenceRecordsTableUpdateCompanionBuilder =
     ProfilePreferenceRecordsCompanion Function({
@@ -9834,7 +7538,6 @@ typedef $$ProfilePreferenceRecordsTableUpdateCompanionBuilder =
       Value<String> equipmentList,
       Value<String> aiTone,
       Value<double> recommendationIntensity,
-      Value<bool> shareAnonymousPhotographyFeedback,
     });
 
 class $$ProfilePreferenceRecordsTableFilterComposer
@@ -9900,12 +7603,6 @@ class $$ProfilePreferenceRecordsTableFilterComposer
     column: $table.recommendationIntensity,
     builder: (column) => ColumnFilters(column),
   );
-
-  ColumnFilters<bool> get shareAnonymousPhotographyFeedback =>
-      $composableBuilder(
-        column: $table.shareAnonymousPhotographyFeedback,
-        builder: (column) => ColumnFilters(column),
-      );
 }
 
 class $$ProfilePreferenceRecordsTableOrderingComposer
@@ -9971,12 +7668,6 @@ class $$ProfilePreferenceRecordsTableOrderingComposer
     column: $table.recommendationIntensity,
     builder: (column) => ColumnOrderings(column),
   );
-
-  ColumnOrderings<bool> get shareAnonymousPhotographyFeedback =>
-      $composableBuilder(
-        column: $table.shareAnonymousPhotographyFeedback,
-        builder: (column) => ColumnOrderings(column),
-      );
 }
 
 class $$ProfilePreferenceRecordsTableAnnotationComposer
@@ -10038,12 +7729,6 @@ class $$ProfilePreferenceRecordsTableAnnotationComposer
     column: $table.recommendationIntensity,
     builder: (column) => column,
   );
-
-  GeneratedColumn<bool> get shareAnonymousPhotographyFeedback =>
-      $composableBuilder(
-        column: $table.shareAnonymousPhotographyFeedback,
-        builder: (column) => column,
-      );
 }
 
 class $$ProfilePreferenceRecordsTableTableManager
@@ -10103,8 +7788,6 @@ class $$ProfilePreferenceRecordsTableTableManager
                 Value<String> equipmentList = const Value.absent(),
                 Value<String> aiTone = const Value.absent(),
                 Value<double> recommendationIntensity = const Value.absent(),
-                Value<bool> shareAnonymousPhotographyFeedback =
-                    const Value.absent(),
               }) => ProfilePreferenceRecordsCompanion(
                 id: id,
                 ambientBackgroundEnabled: ambientBackgroundEnabled,
@@ -10117,8 +7800,6 @@ class $$ProfilePreferenceRecordsTableTableManager
                 equipmentList: equipmentList,
                 aiTone: aiTone,
                 recommendationIntensity: recommendationIntensity,
-                shareAnonymousPhotographyFeedback:
-                    shareAnonymousPhotographyFeedback,
               ),
           createCompanionCallback:
               ({
@@ -10133,8 +7814,6 @@ class $$ProfilePreferenceRecordsTableTableManager
                 required String equipmentList,
                 required String aiTone,
                 required double recommendationIntensity,
-                Value<bool> shareAnonymousPhotographyFeedback =
-                    const Value.absent(),
               }) => ProfilePreferenceRecordsCompanion.insert(
                 id: id,
                 ambientBackgroundEnabled: ambientBackgroundEnabled,
@@ -10147,8 +7826,6 @@ class $$ProfilePreferenceRecordsTableTableManager
                 equipmentList: equipmentList,
                 aiTone: aiTone,
                 recommendationIntensity: recommendationIntensity,
-                shareAnonymousPhotographyFeedback:
-                    shareAnonymousPhotographyFeedback,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -11743,290 +9420,6 @@ typedef $$ShootingSessionResultsTableProcessedTableManager =
       ShootingSessionResultRow,
       PrefetchHooks Function()
     >;
-typedef $$OfflinePhotographyPacksTableCreateCompanionBuilder =
-    OfflinePhotographyPacksCompanion Function({
-      required String id,
-      required String name,
-      required DateTime createdAt,
-      required DateTime dataTimestamp,
-      Value<String?> routeJson,
-      required String placesJson,
-      required String windowsJson,
-      required String sessionJson,
-      Value<int> rowid,
-    });
-typedef $$OfflinePhotographyPacksTableUpdateCompanionBuilder =
-    OfflinePhotographyPacksCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<DateTime> createdAt,
-      Value<DateTime> dataTimestamp,
-      Value<String?> routeJson,
-      Value<String> placesJson,
-      Value<String> windowsJson,
-      Value<String> sessionJson,
-      Value<int> rowid,
-    });
-
-class $$OfflinePhotographyPacksTableFilterComposer
-    extends Composer<_$AppDatabase, $OfflinePhotographyPacksTable> {
-  $$OfflinePhotographyPacksTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get dataTimestamp => $composableBuilder(
-    column: $table.dataTimestamp,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get routeJson => $composableBuilder(
-    column: $table.routeJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get placesJson => $composableBuilder(
-    column: $table.placesJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get windowsJson => $composableBuilder(
-    column: $table.windowsJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get sessionJson => $composableBuilder(
-    column: $table.sessionJson,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$OfflinePhotographyPacksTableOrderingComposer
-    extends Composer<_$AppDatabase, $OfflinePhotographyPacksTable> {
-  $$OfflinePhotographyPacksTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get name => $composableBuilder(
-    column: $table.name,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get dataTimestamp => $composableBuilder(
-    column: $table.dataTimestamp,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get routeJson => $composableBuilder(
-    column: $table.routeJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get placesJson => $composableBuilder(
-    column: $table.placesJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get windowsJson => $composableBuilder(
-    column: $table.windowsJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get sessionJson => $composableBuilder(
-    column: $table.sessionJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$OfflinePhotographyPacksTableAnnotationComposer
-    extends Composer<_$AppDatabase, $OfflinePhotographyPacksTable> {
-  $$OfflinePhotographyPacksTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get dataTimestamp => $composableBuilder(
-    column: $table.dataTimestamp,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get routeJson =>
-      $composableBuilder(column: $table.routeJson, builder: (column) => column);
-
-  GeneratedColumn<String> get placesJson => $composableBuilder(
-    column: $table.placesJson,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get windowsJson => $composableBuilder(
-    column: $table.windowsJson,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get sessionJson => $composableBuilder(
-    column: $table.sessionJson,
-    builder: (column) => column,
-  );
-}
-
-class $$OfflinePhotographyPacksTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $OfflinePhotographyPacksTable,
-          OfflinePhotographyPackRow,
-          $$OfflinePhotographyPacksTableFilterComposer,
-          $$OfflinePhotographyPacksTableOrderingComposer,
-          $$OfflinePhotographyPacksTableAnnotationComposer,
-          $$OfflinePhotographyPacksTableCreateCompanionBuilder,
-          $$OfflinePhotographyPacksTableUpdateCompanionBuilder,
-          (
-            OfflinePhotographyPackRow,
-            BaseReferences<
-              _$AppDatabase,
-              $OfflinePhotographyPacksTable,
-              OfflinePhotographyPackRow
-            >,
-          ),
-          OfflinePhotographyPackRow,
-          PrefetchHooks Function()
-        > {
-  $$OfflinePhotographyPacksTableTableManager(
-    _$AppDatabase db,
-    $OfflinePhotographyPacksTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$OfflinePhotographyPacksTableFilterComposer(
-                $db: db,
-                $table: table,
-              ),
-          createOrderingComposer: () =>
-              $$OfflinePhotographyPacksTableOrderingComposer(
-                $db: db,
-                $table: table,
-              ),
-          createComputedFieldComposer: () =>
-              $$OfflinePhotographyPacksTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<DateTime> createdAt = const Value.absent(),
-                Value<DateTime> dataTimestamp = const Value.absent(),
-                Value<String?> routeJson = const Value.absent(),
-                Value<String> placesJson = const Value.absent(),
-                Value<String> windowsJson = const Value.absent(),
-                Value<String> sessionJson = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => OfflinePhotographyPacksCompanion(
-                id: id,
-                name: name,
-                createdAt: createdAt,
-                dataTimestamp: dataTimestamp,
-                routeJson: routeJson,
-                placesJson: placesJson,
-                windowsJson: windowsJson,
-                sessionJson: sessionJson,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String name,
-                required DateTime createdAt,
-                required DateTime dataTimestamp,
-                Value<String?> routeJson = const Value.absent(),
-                required String placesJson,
-                required String windowsJson,
-                required String sessionJson,
-                Value<int> rowid = const Value.absent(),
-              }) => OfflinePhotographyPacksCompanion.insert(
-                id: id,
-                name: name,
-                createdAt: createdAt,
-                dataTimestamp: dataTimestamp,
-                routeJson: routeJson,
-                placesJson: placesJson,
-                windowsJson: windowsJson,
-                sessionJson: sessionJson,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$OfflinePhotographyPacksTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $OfflinePhotographyPacksTable,
-      OfflinePhotographyPackRow,
-      $$OfflinePhotographyPacksTableFilterComposer,
-      $$OfflinePhotographyPacksTableOrderingComposer,
-      $$OfflinePhotographyPacksTableAnnotationComposer,
-      $$OfflinePhotographyPacksTableCreateCompanionBuilder,
-      $$OfflinePhotographyPacksTableUpdateCompanionBuilder,
-      (
-        OfflinePhotographyPackRow,
-        BaseReferences<
-          _$AppDatabase,
-          $OfflinePhotographyPacksTable,
-          OfflinePhotographyPackRow
-        >,
-      ),
-      OfflinePhotographyPackRow,
-      PrefetchHooks Function()
-    >;
 typedef $$RegionBriefCachesTableCreateCompanionBuilder =
     RegionBriefCachesCompanion Function({
       required String regionKey,
@@ -13199,10 +10592,6 @@ class $AppDatabaseManager {
       );
   $$SavedRoutesTableTableManager get savedRoutes =>
       $$SavedRoutesTableTableManager(_db, _db.savedRoutes);
-  $$SavedJourneysTableTableManager get savedJourneys =>
-      $$SavedJourneysTableTableManager(_db, _db.savedJourneys);
-  $$ImportedRouteTracksTableTableManager get importedRouteTracks =>
-      $$ImportedRouteTracksTableTableManager(_db, _db.importedRouteTracks);
   $$ProfilePreferenceRecordsTableTableManager get profilePreferenceRecords =>
       $$ProfilePreferenceRecordsTableTableManager(
         _db,
@@ -13228,11 +10617,6 @@ class $AppDatabaseManager {
       $$ShootingSessionResultsTableTableManager(
         _db,
         _db.shootingSessionResults,
-      );
-  $$OfflinePhotographyPacksTableTableManager get offlinePhotographyPacks =>
-      $$OfflinePhotographyPacksTableTableManager(
-        _db,
-        _db.offlinePhotographyPacks,
       );
   $$RegionBriefCachesTableTableManager get regionBriefCaches =>
       $$RegionBriefCachesTableTableManager(_db, _db.regionBriefCaches);

@@ -166,35 +166,6 @@ void main() {
     expect(store.value?.ambientMotionMode, AmbientMotionMode.energySaver);
   });
 
-  test(
-    'anonymous photography feedback is off until explicitly enabled',
-    () async {
-      final store = _FakeProfilePreferencesStore(null);
-      final privacyContainer = ProviderContainer(
-        overrides: [profilePreferencesStoreProvider.overrideWithValue(store)],
-      );
-      addTearDown(privacyContainer.dispose);
-
-      expect(
-        privacyContainer
-            .read(profilePreferencesProvider)
-            .shareAnonymousPhotographyFeedback,
-        isFalse,
-      );
-      privacyContainer
-          .read(profilePreferencesProvider.notifier)
-          .setShareAnonymousPhotographyFeedback(true);
-      await Future<void>.delayed(Duration.zero);
-
-      expect(
-        privacyContainer
-            .read(profilePreferencesProvider)
-            .shareAnonymousPhotographyFeedback,
-        isTrue,
-      );
-      expect(store.value?.shareAnonymousPhotographyFeedback, isTrue);
-    },
-  );
 
   test('restores persisted accessibility preferences', () async {
     final restoredContainer = ProviderContainer(

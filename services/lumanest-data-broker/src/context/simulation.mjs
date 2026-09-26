@@ -204,7 +204,6 @@ export class SimulationRegistry {
       activatedAt: previous?.activatedAt ?? null,
       lastDeliveredAt: previous?.lastDeliveredAt ?? null,
       deliveryCount: previous?.deliveryCount ?? 0,
-      suppressedFeedbackCount: previous?.suppressedFeedbackCount ?? 0,
       contractVersion: Number.isInteger(contractVersion) ? contractVersion : previous?.contractVersion ?? null,
       expiresAt: current + this.ttlMs,
     });
@@ -223,7 +222,6 @@ export class SimulationRegistry {
         activatedAt: entry.activatedAt == null ? null : new Date(entry.activatedAt).toISOString(),
         lastDeliveredAt: entry.lastDeliveredAt == null ? null : new Date(entry.lastDeliveredAt).toISOString(),
         deliveryCount: entry.deliveryCount,
-        suppressedFeedbackCount: entry.suppressedFeedbackCount,
         contractVersion: entry.contractVersion,
         expiresAt: new Date(entry.expiresAt).toISOString(),
       }));
@@ -258,14 +256,6 @@ export class SimulationRegistry {
       cleared += 1;
     }
     return { ok: true, cleared };
-  }
-
-  suppressFeedback(sessionId) {
-    this.#prune();
-    const entry = this.sessions.get(sessionId);
-    if (entry?.preset == null) return false;
-    entry.suppressedFeedbackCount += 1;
-    return true;
   }
 
   snapshot(sessionId, now = new Date()) {

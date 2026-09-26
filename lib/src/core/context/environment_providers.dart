@@ -14,7 +14,6 @@ import 'package:luma_nest/src/core/context/safety_detail.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/location/fixed_location_repository.dart';
 import 'package:luma_nest/src/core/monitoring/app_logger.dart';
-import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/solar/solar_service.dart';
 import 'package:luma_nest/src/core/wildlife/wildlife_repository.dart';
 import 'package:luma_nest/src/infrastructure/location/geolocator_repository.dart';
@@ -146,24 +145,6 @@ final remoteContextRepositoryProvider = Provider<RemoteContextRepository?>((
     ),
   );
 });
-
-final shootingTargetSessionRepositoryProvider =
-    Provider<ShootingTargetSessionRepository?>((ref) {
-      final repository = ref.watch(remoteContextRepositoryProvider);
-      return switch (repository) {
-        ShootingTargetSessionRepository value => value,
-        _ => null,
-      };
-    });
-
-final shootingFeedbackRepositoryProvider =
-    Provider<ShootingFeedbackRepository?>((ref) {
-      final repository = ref.watch(remoteContextRepositoryProvider);
-      return switch (repository) {
-        ShootingFeedbackRepository value => value,
-        _ => null,
-      };
-    });
 
 final safetyDetailRepositoryProvider = Provider<SafetyDetailRepository?>((ref) {
   final config = ref.watch(environmentConfigProvider);

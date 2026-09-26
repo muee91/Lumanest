@@ -22,14 +22,9 @@ import { opportunityCatalog } from './generated/opportunity-catalog.mjs';
 import {
   forwardContextSnapshot,
   fetchWildlifeLayers,
-  forwardShootingFeedback,
-  fetchShootingCalibration,
   importContextDataset,
   listContextSources,
-  resolveShootingTarget,
   validContextRequest,
-  validShootingFeedbackRequest,
-  validTargetSessionRequest,
 } from './context/proxy.mjs';
 import { forwardDiscovery, validDiscoveryRequest } from './discovery/proxy.mjs';
 import { forwardRegionBrief } from './discovery/region-brief-proxy.mjs';
@@ -360,8 +355,6 @@ const ratePolicies = [
   { path: '/v1/environment/site-facts', limit: 20, windowMs: 60 * 1_000, key: 'site-environment' },
   { path: '/v1/route/weather', limit: 12, windowMs: 60 * 1_000, key: 'route-weather' },
   { path: '/v1/context/snapshot', limit: 30, windowMs: 60 * 1_000, key: 'context' },
-  { path: '/v1/context/target-session', limit: 20, windowMs: 60 * 1_000, key: 'target-session' },
-  { path: '/v1/context/shooting-feedback', limit: 12, windowMs: 60 * 1_000, key: 'shooting-feedback' },
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
   { path: '/v1/sky-opportunities', limit: 12, windowMs: 60 * 1_000, key: 'sky-opportunity' },
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
@@ -1217,34 +1210,6 @@ export function createTokenBrokerServer({
       return;
     }
 
-    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/shooting-feedback') {
-      const body = await readJsonBody(request, 4 * 1024);
-      if (body == null || !validShootingFeedbackRequest(body)) {
-        writeJson(response, 400, { error: apiErrorCodes.invalidShootingFeedbackRequest });
-        return;
-      }
-      const simulationSession = request.headers['x-lumanest-debug-session'];
-      if (isSimulationSessionId(simulationSession) &&
-          simulationRegistry?.suppressFeedback(simulationSession)) {
-        writeJson(response, 202, { accepted: true });
-        return;
-      }
-      const result = await forwardShootingFeedback({
-        body,
-        serviceUrl: configuration.contextServiceUrl,
-        internalToken: configuration.contextInternalToken,
-        fetcher,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
-      if (!result.ok) {
-        const failure = contextProxyFailure(result);
-        writeJson(response, failure.status, { error: failure.code });
-        return;
-      }
-      writeJson(response, 202, { accepted: true });
-      return;
-    }
-
     const verifiedMediaMatch = requestUrl.pathname.match(
       /^\/v1\/explore\/media\/([A-Za-z0-9_-]{16,2800})$/,
     );
@@ -1851,90 +1816,6 @@ export function createTokenBrokerServer({
       return;
     }
 
-    if (request.method === 'POST' && requestUrl.pathname === '/v1/context/target-session') {
-      const body = await readJsonBody(request, 2 * 1024);
-      if (body == null || !validTargetSessionRequest(body)) {
-        writeJson(response, 400, { error: apiErrorCodes.invalidTargetSessionRequest });
-        return;
-      }
-      const resolved = await resolveShootingTarget({
-        targetId: body.targetId,
-        coordinate: body.targetCoordinate,
-        serviceUrl: configuration.contextServiceUrl,
-        internalToken: configuration.contextInternalToken,
-        fetcher,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
-      if (!resolved.ok) {
-        const status = resolved.error === 'not_found'
-          ? 404
-          : resolved.error === 'not_configured' ? 503 : 502;
-        writeJson(response, status, {
-          error: resolved.error === 'not_found'
-            ? 'shooting_target_unavailable'
-            : resolved.error === 'not_configured'
-              ? 'context_unconfigured'
-              : 'upstream_unavailable',
-        });
-        return;
-      }
-      const weather = await authoritativeWeather({
-        coordinate: resolved.target.coordinate,
-        apiHost: configuration.qweatherApiHost,
-        privateKey: configuration.privateKey,
-        keyId: configuration.keyId,
-        projectId: configuration.projectId,
-        cache: weatherCache,
-        fetcher,
-        now,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
-      if (!weather.ok) {
-        writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
-          error: weather.error === 'not_configured' ? apiErrorCodes.weatherUnconfigured : apiErrorCodes.upstreamUnavailable,
-        });
-        return;
-      }
-      const internalBody = {
-        contractVersion: 5,
-        coordinate: resolved.target.coordinate,
-        observedAt: body.observedAt,
-        locale: body.locale,
-        intent: 'photography',
-        route: { mode: 'none', stage: 'none' },
-        evidence: {
-          urban: false,
-          waterBody: true,
-          mountainous: false,
-          aridLand: false,
-          settlement: false,
-        },
-        weather: weather.body.weather,
-        forecast: weather.body.forecast,
-        officialWarnings: weather.body.officialWarnings.map((warning) => ({
-          id: warning.id,
-          observedAt: warning.observedAt,
-          expiresAt: warning.expiresAt,
-          severity: warning.severity,
-          title: warning.title,
-        })),
-      };
-      const result = await forwardContextSnapshot({
-        body: internalBody,
-        serviceUrl: configuration.contextServiceUrl,
-        internalToken: configuration.contextInternalToken,
-        fetcher,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
-      if (!result.ok) {
-        const failure = contextProxyFailure(result);
-        writeJson(response, failure.status, { error: failure.code });
-        return;
-      }
-      writeJson(response, 200, result.body);
-      return;
-    }
-
     if (request.method === 'POST' && requestUrl.pathname === '/v1/explore/brief') {
       const body = await readJsonBody(request, 8 * 1024);
       if (body == null || !validRegionBriefRequest(body)) {
@@ -2145,15 +2026,6 @@ export async function createBrokerServices(environment = process.env, {
     listContextSources: async () => {
       const snapshot = runtimeConfig.snapshot();
       return listContextSources({
-        serviceUrl: snapshot.contextServiceUrl,
-        internalToken: snapshot.contextInternalToken,
-      });
-    },
-    getShootingCalibration: async ({ days, minimumSamples }) => {
-      const snapshot = runtimeConfig.snapshot();
-      return fetchShootingCalibration({
-        days,
-        minimumSamples,
         serviceUrl: snapshot.contextServiceUrl,
         internalToken: snapshot.contextInternalToken,
       });

@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
+import 'package:flutter/services.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
 
 import 'v2_palette.dart';
@@ -104,8 +106,7 @@ class V2Pressable extends StatefulWidget {
     required this.child,
     this.color = V2Palette.paper,
     this.compact = false,
-    this.sound = LumaNestSound.click,
-    this.haptic = LumaNestHaptic.lightImpact,
+    this.haptic = HapticFeedback.lightImpact,
     this.semanticLabel,
   });
 
@@ -113,8 +114,7 @@ class V2Pressable extends StatefulWidget {
   final Widget child;
   final Color color;
   final bool compact;
-  final LumaNestSound sound;
-  final LumaNestHaptic haptic;
+  final Future<void> Function() haptic;
   final String? semanticLabel;
 
   @override
@@ -134,11 +134,7 @@ class _V2PressableState extends State<V2Pressable> {
       onTapCancel: () => setState(() => _pressed = false),
       onTapUp: (_) => setState(() => _pressed = false),
       onTap: () {
-        LumaNestFeedbackService.instance.play(
-          widget.sound,
-          volume: .18,
-          haptic: widget.haptic,
-        );
+        unawaited(widget.haptic());
         widget.onTap();
       },
       child: AnimatedScale(

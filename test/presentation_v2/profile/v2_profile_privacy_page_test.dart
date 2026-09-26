@@ -102,4 +102,11 @@ void main() {
 
     expect(controller.setEnabledCalls, isEmpty);
   });
+
+  testWidgets('匿名拍摄反馈开关不再出现在隐私页', (tester) async {
+    final controller = _FixtureNotificationController();
+    await _pumpPrivacyPage(tester, notificationController: controller);
+
+    expect(find.text('匿名拍摄反馈'), findsNothing);
+  });
 }

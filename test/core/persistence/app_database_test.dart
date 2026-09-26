@@ -108,7 +108,7 @@ void main() {
     );
   });
 
-  test('pre-release schemas rebuild to the schema 17 baseline', () async {
+  test('pre-release schemas rebuild to the schema 18 baseline', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-clean-schema-',
@@ -144,7 +144,7 @@ void main() {
       isEmpty,
     );
     expect(await current.select(current.shootingSessionResults).get(), isEmpty);
-    expect(current.schemaVersion, 17);
+    expect(current.schemaVersion, 18);
   });
 
   test('base region is a replaceable local singleton', () async {

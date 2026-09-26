@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
+import 'package:flutter/services.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
 
 import 'v2_palette.dart';
@@ -58,8 +58,7 @@ class V2OpportunityObject extends StatelessWidget {
         onTap: onTap,
         color: V2Palette.paper,
         semanticLabel: '$title，$actionLabel',
-        sound: LumaNestSound.changeCard,
-        haptic: LumaNestHaptic.mediumImpact,
+        haptic: HapticFeedback.mediumImpact,
         child: AnimatedContainer(
           duration: LumaNestMotion.containerTransform,
           curve: LumaNestMotion.emphasized,

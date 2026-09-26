@@ -11,7 +11,6 @@ import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/device/device_energy_providers.dart';
-import 'package:luma_nest/src/core/feedback/luma_nest_feedback_service.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -67,8 +66,6 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(LumaNestFeedbackService.instance.preload());
-    unawaited(ref.read(journeyRouteContextRestorerProvider).restore());
     _router = createLumaNestRouter(initialContext: widget.initialContext);
     unawaited(_loadAmbientPresets());
     configureShootingSessionNotificationNavigation(
@@ -95,7 +92,6 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     _router.routerDelegate.removeListener(_handleRouterChange);
     _environmentRefreshTimer?.cancel();
     _interactionSuppressed.dispose();
-    unawaited(LumaNestFeedbackService.instance.dispose());
     _router.dispose();
     super.dispose();
   }

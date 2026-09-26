@@ -101,21 +101,6 @@ class RouteScoutPlan {
     if (supportCount > 0) return '沿途信息已经整理好';
     return '路线已准备，沿途暂无额外重点';
   }
-
-  RouteScoutNode? nextAfter(double progress) {
-    final floor = (progress - .03).clamp(0.0, 1.0).toDouble();
-    return nodes.where((node) => node.routeProgress >= floor).firstOrNull;
-  }
-
-  static double progressForJourney({
-    required DateTime startedAt,
-    required int durationSeconds,
-    required DateTime now,
-  }) {
-    if (durationSeconds <= 0) return 0;
-    final elapsed = now.toUtc().difference(startedAt.toUtc()).inSeconds;
-    return (elapsed / durationSeconds).clamp(0.0, 1.0).toDouble();
-  }
 }
 
 class RouteScoutPlanBuilder {

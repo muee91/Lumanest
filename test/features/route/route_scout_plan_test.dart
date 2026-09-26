@@ -176,26 +176,6 @@ void main() {
       isEmpty,
     );
   });
-
-  test('journey progress is time based and bounded', () {
-    final start = DateTime.utc(2026, 8, 4, 2);
-    expect(
-      RouteScoutPlan.progressForJourney(
-        startedAt: start,
-        durationSeconds: 3600,
-        now: start.add(const Duration(minutes: 30)),
-      ),
-      .5,
-    );
-    expect(
-      RouteScoutPlan.progressForJourney(
-        startedAt: start,
-        durationSeconds: 3600,
-        now: start.add(const Duration(hours: 2)),
-      ),
-      1,
-    );
-  });
 }
 
 DrivingRoute _route() => DrivingRoute(

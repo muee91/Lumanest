@@ -49,7 +49,6 @@
         <button class="nav-item" data-page="runtime">运行设置</button>
         <p class="sidebar-label data-label">数据与质量</p>
         <button class="nav-item" data-page="observability">数据可观测</button>
-        <button class="nav-item" data-page="calibration">反馈校准</button>
         <p id="developer-tools-label" class="sidebar-label developer-label" hidden>开发工具</p>
         <button id="simulation-nav" class="nav-item" data-page="simulation" hidden>场景实验室</button>
         <p class="sidebar-label security-label">系统管理</p>
@@ -379,27 +378,6 @@
   </div>
 </section>
 
-        <section class="page" data-panel="calibration" hidden>
-          <div class="calibration-head">
-            <div>
-              <h3>匿名拍摄反馈</h3>
-              <p>只展示达到样本阈值的定性条件与因子聚合，不包含地点、机位、身份或原始反馈。读数仅供人工调权参考，不会自动改变线上规则。</p>
-            </div>
-            <form id="calibration-form" class="calibration-controls">
-              <label>观察周期<select name="days"><option value="30">30 天</option><option value="90" selected>90 天</option><option value="180">180 天</option><option value="365">365 天</option></select></label>
-              <label>最小样本<input name="minimumSamples" type="number" min="5" max="100" value="5" required></label>
-              <button type="submit" class="secondary">刷新读数</button>
-            </form>
-          </div>
-          <div id="calibration-summary" class="calibration-summary" aria-live="polite"></div>
-          <div class="calibration-table-wrap">
-            <table class="calibration-table">
-              <thead><tr><th>规则版本</th><th>条件档位</th><th>因子</th><th>作用</th><th>有效样本</th><th>拍到</th><th>条件未出现</th><th>拍到率</th></tr></thead>
-              <tbody id="calibration-rows"></tbody>
-            </table>
-            <p id="calibration-empty" class="calibration-empty" hidden>当前周期内还没有达到阈值的匿名样本。栖光不会用小样本推断规则效果。</p>
-          </div>
-        </section>
 
         <section class="page" data-panel="security" hidden>
           <form id="outbound-network-form" class="settings-card outbound-network-card">

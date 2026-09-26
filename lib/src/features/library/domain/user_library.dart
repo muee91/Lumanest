@@ -4,7 +4,6 @@ import 'package:crypto/crypto.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
-import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
 class SavedInspirationNote {
   const SavedInspirationNote({
@@ -193,69 +192,6 @@ class SavedRoute {
   final DateTime savedAt;
 }
 
-class SavedJourney {
-  const SavedJourney({
-    required this.id,
-    required this.destination,
-    required this.startedAt,
-    this.endedAt,
-    this.routeKey,
-  });
-
-  factory SavedJourney.start(
-    SavedRouteDestination destination, {
-    required DateTime startedAt,
-    String? routeKey,
-  }) {
-    final start = startedAt.toUtc();
-    return SavedJourney(
-      id: sha256
-          .convert(
-            utf8.encode(
-              '${SavedRoute.idFor(destination)}\u0000'
-              '${routeKey ?? ''}\u0000${start.microsecondsSinceEpoch}',
-            ),
-          )
-          .toString(),
-      destination: destination,
-      startedAt: start,
-      routeKey: routeKey,
-    );
-  }
-
-  final String id;
-  final SavedRouteDestination destination;
-  final DateTime startedAt;
-  final DateTime? endedAt;
-  final String? routeKey;
-
-  bool get isActive => endedAt == null;
-
-  bool matches(SavedRouteDestination value, {String? routeKey}) =>
-      SavedRoute.idFor(destination) == SavedRoute.idFor(value) &&
-      this.routeKey == routeKey;
-
-  SavedJourney end(DateTime value) => SavedJourney(
-    id: id,
-    destination: destination,
-    startedAt: startedAt,
-    endedAt: value.toUtc().isBefore(startedAt) ? startedAt : value.toUtc(),
-    routeKey: routeKey,
-  );
-}
-
-class ActiveJourneyConflict implements Exception {
-  const ActiveJourneyConflict(this.activeJourney);
-
-  final SavedJourney activeJourney;
-}
-
-class ActiveImportedTrackConflict implements Exception {
-  const ActiveImportedTrackConflict(this.activeJourney);
-
-  final SavedJourney activeJourney;
-}
-
 class WatchedShootingSession {
   const WatchedShootingSession({
     required this.id,
@@ -378,238 +314,43 @@ class ShootingSessionResult {
   };
 }
 
-class OfflinePhotographyWindow {
-  const OfflinePhotographyWindow({
-    required this.id,
-    required this.label,
-    required this.startsAt,
-    required this.endsAt,
-    this.peakAt,
-  });
-
-  final String id;
-  final String label;
-  final DateTime startsAt;
-  final DateTime endsAt;
-  final DateTime? peakAt;
-
-  Map<String, Object?> toJson() => {
-    'id': id,
-    'label': label,
-    'startsAt': startsAt.toUtc().toIso8601String(),
-    'endsAt': endsAt.toUtc().toIso8601String(),
-    if (peakAt != null) 'peakAt': peakAt!.toUtc().toIso8601String(),
-  };
-
-  static OfflinePhotographyWindow? fromJson(Object? raw) {
-    if (raw is! Map) return null;
-    final id = raw['id'];
-    final label = raw['label'];
-    final startsAt = raw['startsAt'];
-    final endsAt = raw['endsAt'];
-    final peakAt = raw['peakAt'];
-    final start = startsAt is String
-        ? DateTime.tryParse(startsAt)?.toUtc()
-        : null;
-    final end = endsAt is String ? DateTime.tryParse(endsAt)?.toUtc() : null;
-    final peak = peakAt == null
-        ? null
-        : peakAt is String
-        ? DateTime.tryParse(peakAt)?.toUtc()
-        : null;
-    if (id is! String ||
-        label is! String ||
-        start == null ||
-        end == null ||
-        !end.isAfter(start) ||
-        (peakAt != null && peak == null)) {
-      return null;
-    }
-    return OfflinePhotographyWindow(
-      id: id,
-      label: label,
-      startsAt: start,
-      endsAt: end,
-      peakAt: peak,
-    );
-  }
-}
-
-class OfflinePhotographyPack {
-  OfflinePhotographyPack._({
-    required this.id,
-    required this.name,
-    required this.createdAt,
-    required this.dataTimestamp,
-    required this.places,
-    required this.windows,
-    required this.sessionSnapshot,
-    this.route,
-  });
-
-  factory OfflinePhotographyPack.create({
-    required String name,
-    required DateTime createdAt,
-    required DateTime dataTimestamp,
-    required List<SavedPlace> places,
-    required List<OfflinePhotographyWindow> windows,
-    required Map<String, Object?> sessionSnapshot,
-    SavedRouteDestination? route,
-  }) {
-    final created = createdAt.toUtc();
-    final timestamp = dataTimestamp.toUtc();
-    if (timestamp.isAfter(created)) {
-      throw ArgumentError.value(
-        dataTimestamp,
-        'dataTimestamp',
-        'must not be after createdAt',
-      );
-    }
-    final normalizedName = name.trim();
-    if (normalizedName.isEmpty || normalizedName.length > 160) {
-      throw ArgumentError.value(
-        name,
-        'name',
-        'must contain 1 to 160 characters',
-      );
-    }
-    final snapshot = _immutableStructuredMap(sessionSnapshot);
-    final canonical = jsonEncode({
-      'name': normalizedName,
-      'dataTimestamp': timestamp.toIso8601String(),
-      'route': route?.toJson(),
-      'places': places.map((place) => place.toJson()).toList(growable: false),
-      'windows': windows
-          .map((window) => window.toJson())
-          .toList(growable: false),
-      'sessionSnapshot': snapshot,
-    });
-    return OfflinePhotographyPack._(
-      id: sha256.convert(utf8.encode(canonical)).toString(),
-      name: normalizedName,
-      createdAt: created,
-      dataTimestamp: timestamp,
-      route: route,
-      places: List.unmodifiable(places),
-      windows: List.unmodifiable(windows),
-      sessionSnapshot: snapshot,
-    );
-  }
-
-  factory OfflinePhotographyPack.restore({
-    required String id,
-    required String name,
-    required DateTime createdAt,
-    required DateTime dataTimestamp,
-    required List<SavedPlace> places,
-    required List<OfflinePhotographyWindow> windows,
-    required Map<String, Object?> sessionSnapshot,
-    SavedRouteDestination? route,
-  }) => OfflinePhotographyPack._(
-    id: id,
-    name: name,
-    createdAt: createdAt.toUtc(),
-    dataTimestamp: dataTimestamp.toUtc(),
-    route: route,
-    places: List.unmodifiable(places),
-    windows: List.unmodifiable(windows),
-    sessionSnapshot: _immutableStructuredMap(sessionSnapshot),
-  );
-
-  final String id;
-  final String name;
-  final DateTime createdAt;
-  final DateTime dataTimestamp;
-  final SavedRouteDestination? route;
-  final List<SavedPlace> places;
-  final List<OfflinePhotographyWindow> windows;
-  final Map<String, Object?> sessionSnapshot;
-
-  Map<String, Object?> toJson() => {
-    'id': id,
-    'name': name,
-    'createdAt': createdAt.toUtc().toIso8601String(),
-    'dataTimestamp': dataTimestamp.toUtc().toIso8601String(),
-    if (route != null) 'route': route!.toJson(),
-    'places': places.map((place) => place.toJson()).toList(growable: false),
-    'windows': windows.map((window) => window.toJson()).toList(growable: false),
-    'sessionSnapshot': sessionSnapshot,
-  };
-}
-
-Map<String, Object?> _immutableStructuredMap(Map<String, Object?> value) {
-  final encoded = jsonEncode(value);
-  final decoded = jsonDecode(encoded);
-  if (decoded is! Map) throw const FormatException('invalid_structured_map');
-  return Map.unmodifiable(
-    decoded.map((key, item) => MapEntry('$key', _freezeJson(item))),
-  );
-}
-
-Object? _freezeJson(Object? value) => switch (value) {
-  Map() => Map.unmodifiable(
-    value.map((key, item) => MapEntry('$key', _freezeJson(item))),
-  ),
-  List() => List.unmodifiable(value.map(_freezeJson)),
-  _ => value,
-};
-
 class UserLibraryState {
   const UserLibraryState({
     this.savedPlaces = const [],
     this.recentRoute,
     this.savedRoutes = const [],
-    this.journeys = const [],
-    this.importedTracks = const [],
     this.savedNotes = const [],
     this.watchedSessions = const [],
     this.sessionResults = const [],
-    this.offlinePhotographyPacks = const [],
   });
 
   final List<SavedPlace> savedPlaces;
   final SavedRouteDestination? recentRoute;
   final List<SavedRoute> savedRoutes;
-  final List<SavedJourney> journeys;
-  final List<ImportedRouteTrack> importedTracks;
   final List<SavedInspirationNote> savedNotes;
   final List<WatchedShootingSession> watchedSessions;
   final List<ShootingSessionResult> sessionResults;
-  final List<OfflinePhotographyPack> offlinePhotographyPacks;
 
   bool containsPlace(String id) => savedPlaces.any((place) => place.id == id);
-
-  ImportedRouteTrack? importedTrack(String id) =>
-      importedTracks.where((track) => track.id == id).firstOrNull;
 
   bool containsSavedRoute(SavedRouteDestination destination) =>
       savedRoutes.any((route) => route.id == SavedRoute.idFor(destination));
 
-  SavedJourney? get activeJourney =>
-      journeys.where((journey) => journey.isActive).firstOrNull;
-
   UserLibraryState copyWith({
     List<SavedPlace>? savedPlaces,
     SavedRouteDestination? recentRoute,
+    bool clearRecentRoute = false,
     List<SavedRoute>? savedRoutes,
-    List<SavedJourney>? journeys,
-    List<ImportedRouteTrack>? importedTracks,
     List<SavedInspirationNote>? savedNotes,
     List<WatchedShootingSession>? watchedSessions,
     List<ShootingSessionResult>? sessionResults,
-    List<OfflinePhotographyPack>? offlinePhotographyPacks,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
-    recentRoute: recentRoute ?? this.recentRoute,
+    recentRoute: clearRecentRoute ? null : (recentRoute ?? this.recentRoute),
     savedRoutes: List.unmodifiable(savedRoutes ?? this.savedRoutes),
-    journeys: List.unmodifiable(journeys ?? this.journeys),
-    importedTracks: List.unmodifiable(importedTracks ?? this.importedTracks),
     savedNotes: List.unmodifiable(savedNotes ?? this.savedNotes),
     watchedSessions: List.unmodifiable(watchedSessions ?? this.watchedSessions),
     sessionResults: List.unmodifiable(sessionResults ?? this.sessionResults),
-    offlinePhotographyPacks: List.unmodifiable(
-      offlinePhotographyPacks ?? this.offlinePhotographyPacks,
-    ),
   );
 
   /// Stable local-only payload for a future user-initiated file export.
@@ -619,9 +360,6 @@ class UserLibraryState {
         .map((value) => value.toJson())
         .toList(growable: false),
     'sessionResults': sessionResults
-        .map((value) => value.toJson())
-        .toList(growable: false),
-    'offlinePhotographyPacks': offlinePhotographyPacks
         .map((value) => value.toJson())
         .toList(growable: false),
   };

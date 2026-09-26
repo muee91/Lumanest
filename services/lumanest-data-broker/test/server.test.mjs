@@ -1112,7 +1112,7 @@ test('context snapshot rejects identity fields without contacting the context se
   assert.equal(calls, 0);
 });
 
-test('active debug simulation returns V5 sessions and never forwards simulated feedback', async () => {
+test('active debug simulation returns V5 sessions without contacting upstream services', async () => {
   const registry = new SimulationRegistry();
   registry.register('debugsession2345678', { contractVersion: 5 });
   const controlId = registry.list()[0].controlId;
@@ -1140,18 +1140,6 @@ test('active debug simulation returns V5 sessions and never forwards simulated f
     assert.equal(simulated.facts.shootingSessions.length, 1);
     assert.equal(simulated.facts.shootingSessions[0].kind, 'waterEvening');
 
-    const feedback = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
-      method: 'POST', headers,
-      body: JSON.stringify({
-        contractVersion: 2,
-        ruleVersion: simulated.facts.shootingSessions[0].ruleVersion,
-        conditionBand: simulated.facts.shootingSessions[0].conditionBand,
-        factors: simulated.facts.shootingSessions[0].factors.map(({ id, effect }) => ({ id, effect })),
-        outcome: 'captured', reasons: [], targetId: null,
-      }),
-    });
-    assert.equal(feedback.status, 202);
-    assert.deepEqual(await feedback.json(), { accepted: true });
   }, {
     simulationRegistry: registry,
     contextServiceUrl: 'http://context-service:8000',
@@ -1162,97 +1150,6 @@ test('active debug simulation returns V5 sessions and never forwards simulated f
     },
   });
   assert.equal(upstreamCalls, 0);
-  assert.equal(registry.list()[0].suppressedFeedbackCount, 1);
-});
-
-test('target session verifies the reviewed target before fetching target weather', async () => {
-  const target = {
-    id: 'target_0123456789abcdef01234567', name: '东岸审核湖岸', kind: 'lakeshore',
-    coordinate: { latitude: 30.251, longitude: 120.151, system: 'wgs84' },
-    supportedSessions: ['waterEvening'], viewBearingDegrees: 286,
-    bearingToleranceDegrees: 25, accessModes: ['driving'], leadTimeMinutes: 12,
-    arrivalRadiusMeters: 100, shorelineSide: 'east', reviewedAt: '2026-07-01T00:00:00Z',
-    reviewReference: 'https://review.example/targets/east-bank', sourceAttribution: '审核目录',
-    sourceLicense: 'CC-BY-4.0', sourceUrl: 'https://source.example/lakes/east-bank',
-  };
-  let evaluatedBody;
-  await withServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/v1/context/target-session`, {
-      method: 'POST',
-      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contractVersion: 1, targetId: target.id, targetCoordinate: target.coordinate,
-        observedAt: '2026-07-14T02:00:00Z', locale: 'zh-CN',
-      }),
-    });
-    assert.equal(response.status, 200);
-    assert.equal((await response.json()).facts.shootingSessions[0].conditionBand, 'good');
-  }, {
-    contextServiceUrl: 'http://context-service:8000',
-    contextInternalToken: 'internal-context-token',
-    now: () => new Date('2026-07-14T02:02:00Z'),
-    fetcher: async (url, options) => {
-      if (url.pathname === '/internal/v1/shooting-targets/resolve') {
-        assert.deepEqual(JSON.parse(options.body), { targetId: target.id, coordinate: target.coordinate });
-        return new Response(JSON.stringify(target), { status: 200 });
-      }
-      if (url.hostname.endsWith('.qweatherapi.com')) {
-        if (url.pathname === '/v7/weather/now') return new Response(JSON.stringify({
-          code: '200', now: { obsTime: '2026-07-14T10:00:00+08:00', temp: '26', icon: '101', windSpeed: '6.48', wind360: '90', vis: '20', precip: '0', cloud: '55' },
-        }), { status: 200 });
-        if (url.pathname === '/v7/weather/24h') return new Response(JSON.stringify({
-          code: '200', hourly: Array.from({ length: 24 }, (_, index) => ({
-            fxTime: new Date(Date.UTC(2026, 6, 14, 2 + index)).toISOString(), icon: '101',
-            windSpeed: '6.48', precip: '0', cloud: '55',
-          })),
-        }), { status: 200 });
-        if (url.pathname === '/v7/minutely/5m') return new Response(JSON.stringify({ code: '200', minutely: [] }), { status: 200 });
-        if (url.pathname === '/v7/warning/now') return new Response(JSON.stringify({ code: '200', warning: [] }), { status: 200 });
-        return new Response(JSON.stringify({ code: '404' }), { status: 200 });
-      }
-      assert.equal(url.pathname, '/internal/v1/evaluate');
-      evaluatedBody = JSON.parse(options.body);
-      return new Response(JSON.stringify(v5SnapshotBody()), { status: 200 });
-    },
-  });
-  assert.deepEqual(evaluatedBody.coordinate, target.coordinate);
-  assert.equal(evaluatedBody.evidence.waterBody, true);
-});
-
-test('shooting feedback accepts only the anonymous bounded contract', async () => {
-  let upstreamCalls = 0;
-  const body = {
-    contractVersion: 2, ruleVersion: 'water-evening.1', conditionBand: 'good',
-    factors: [{ id: 'wind', effect: 'limiting' }],
-    outcome: 'conditionsDidNotAppear', reasons: ['wind'], targetId: null,
-  };
-  await withServer(async (baseUrl) => {
-    const accepted = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
-      method: 'POST',
-      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    assert.equal(accepted.status, 202);
-    assert.deepEqual(await accepted.json(), { accepted: true });
-    for (const field of ['coordinate', 'deviceId', 'photo', 'exif']) {
-      const rejected = await fetch(`${baseUrl}/v1/context/shooting-feedback`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...body, [field]: 'forbidden' }),
-      });
-      assert.equal(rejected.status, 400);
-    }
-  }, {
-    contextServiceUrl: 'http://context-service:8000',
-    contextInternalToken: 'internal-context-token',
-    fetcher: async (url, options) => {
-      upstreamCalls += 1;
-      assert.equal(url.pathname, '/internal/v1/shooting-feedback');
-      assert.deepEqual(JSON.parse(options.body), body);
-      return new Response(JSON.stringify({ accepted: true }), { status: 200 });
-    },
-  });
-  assert.equal(upstreamCalls, 1);
 });
 
 test('discovery endpoint authenticates and only forwards the bounded contract', async () => {
@@ -1404,6 +1301,23 @@ test('removed client weather-token endpoint stays unavailable', async () => {
     });
     assert.equal(response.status, 404);
     assert.deepEqual(await response.json(), { error: 'not_found' });
+  }, { requestRateLimiter: new MemoryRequestRateLimiter() });
+});
+
+test('retired journey-era context endpoints stay unavailable', async () => {
+  await withServer(async (baseUrl) => {
+    for (const path of ['/v1/context/target-session', '/v1/context/shooting-feedback']) {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer test-service-token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ contractVersion: 5 }),
+      });
+      assert.equal(response.status, 404, path);
+      assert.deepEqual(await response.json(), { error: 'not_found' });
+    }
   }, { requestRateLimiter: new MemoryRequestRateLimiter() });
 });
 

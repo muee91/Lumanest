@@ -187,25 +187,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   @override
   Widget build(BuildContext context) {
     final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
-    final library = ref.watch(userLibraryProvider).asData?.value;
-    final active =
-        library?.activeJourney?.matches(
-          _savedDestination,
-          routeKey: _routeKey,
-        ) ==
-        true;
-    final quietMode = active;
-    final now = ref.watch(currentTimeProvider)();
     final scout = ref.watch(routeScoutPlanProvider(_scoutRequest));
-    final activeJourney = active ? library?.activeJourney : null;
-    final journeyProgress = activeJourney == null
-        ? 0.0
-        : RouteScoutPlan.progressForJourney(
-            startedAt: activeJourney.startedAt,
-            durationSeconds: widget.route.durationSeconds,
-            now: now,
-          );
-    final nextScout = scout.asData?.value.nextAfter(journeyProgress);
     final points = widget.route.polyline
         .map(ChinaCoordinateConverter.wgs84ToGcj02)
         .map((point) => LatLng(point.latitude, point.longitude))
@@ -274,8 +256,8 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
               : {
                   Polyline(
                     points: points,
-                    width: quietMode ? 12 : 10,
-                    color: quietMode ? V2Palette.moss : V2Palette.ink,
+                    width: 10,
+                    color: V2Palette.ink,
                     capType: CapType.round,
                     joinType: JoinType.round,
                   ),
@@ -296,25 +278,14 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
             route: widget.route,
             snapshot: snapshot,
             scout: scout.asData?.value,
-            quiet: quietMode,
           ),
         ),
-        AnimatedPositioned(
-          duration: const Duration(milliseconds: 420),
-          curve: Curves.easeOutCubic,
+        Positioned(
           left: 14,
           right: 14,
           bottom: MediaQuery.paddingOf(context).bottom + 80,
-          height: quietMode ? 194 : 286,
           child: _V2RouteActionObject(
-            route: widget.route,
             scout: scout,
-            nextScout: nextScout,
-            quiet: quietMode,
-            active: active,
-            nextInstruction: widget.route.instructions.firstOrNull,
-            onStart: _start,
-            onEnd: _end,
             onScout: _openScout,
             onNavigate: () => unawaited(_navigate()),
             onExplore: () => context.go('/explore'),
@@ -376,7 +347,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     );
   }
 
-  /// Keep the bounded, transient corridor alongside the route lifecycle.
+  /// Keep the bounded, transient corridor alongside the route presentation.
   /// It is deliberately reconstructed locally from the loaded route and never
   /// persisted: the environment request only needs three coarse arrival
   /// samples to align light and weather with this one route.
@@ -395,28 +366,6 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
       ),
     );
   }
-
-  Future<void> _start() async {
-    try {
-      await ref
-          .read(userLibraryProvider.notifier)
-          .startJourney(_savedDestination, routeKey: _routeKey);
-      _replaceCorridor(departureAt: DateTime.now());
-      ref.read(routeContextStateProvider.notifier).start();
-    } on ActiveJourneyConflict {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请先结束正在进行的另一条路线')));
-    }
-  }
-
-  Future<void> _end() async {
-    await ref
-        .read(userLibraryProvider.notifier)
-        .endJourney(_savedDestination, routeKey: _routeKey);
-    ref.read(routeContextStateProvider.notifier).end();
-  }
 }
 
 class _V2RouteVerdict extends StatelessWidget {
@@ -424,12 +373,10 @@ class _V2RouteVerdict extends StatelessWidget {
     required this.route,
     required this.snapshot,
     required this.scout,
-    required this.quiet,
   });
   final DrivingRoute route;
   final ContextSnapshot? snapshot;
   final RouteScoutPlan? scout;
-  final bool quiet;
 
   @override
   Widget build(BuildContext context) {
@@ -443,17 +390,15 @@ class _V2RouteVerdict extends StatelessWidget {
             now: DateTime.now(),
           );
     final canCatch = session == null || arrival.isBefore(session.endsAt);
-    final headline = quiet
-        ? '路线进行中'
-        : scout?.headline ??
-              (session == null
-                  ? '路线已经准备好'
-                  : canCatch
-                  ? '按当前路线赶得上'
-                  : '按当前路线已经赶不上');
+    final headline = scout?.headline ??
+        (session == null
+            ? '路线已经准备好'
+            : canCatch
+            ? '按当前路线赶得上'
+            : '按当前路线已经赶不上');
     final urgent = (scout?.criticalCount ?? 0) > 0 || !canCatch;
     return Material(
-      color: quiet ? V2Palette.night : V2Palette.paper,
+      color: V2Palette.paper,
       elevation: 10,
       shadowColor: Colors.black26,
       borderRadius: BorderRadius.circular(28),
@@ -465,11 +410,7 @@ class _V2RouteVerdict extends StatelessWidget {
               width: 11,
               height: 11,
               decoration: BoxDecoration(
-                color: quiet
-                    ? V2Palette.moss
-                    : urgent
-                    ? V2Palette.ember
-                    : V2Palette.moss,
+                color: urgent ? V2Palette.ember : V2Palette.moss,
                 shape: BoxShape.circle,
               ),
             ),
@@ -480,8 +421,8 @@ class _V2RouteVerdict extends StatelessWidget {
                 children: [
                   Text(
                     headline,
-                    style: TextStyle(
-                      color: quiet ? Colors.white : V2Palette.ink,
+                    style: const TextStyle(
+                      color: V2Palette.ink,
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -.4,
@@ -490,8 +431,8 @@ class _V2RouteVerdict extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${_duration(route.durationSeconds)} · ${_distance(route.distanceMeters)}',
-                    style: TextStyle(
-                      color: quiet ? Colors.white70 : V2Palette.mutedInk,
+                    style: const TextStyle(
+                      color: V2Palette.mutedInk,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -501,8 +442,8 @@ class _V2RouteVerdict extends StatelessWidget {
             ),
             Text(
               _time(arrival),
-              style: TextStyle(
-                color: quiet ? Colors.white : V2Palette.ink,
+              style: const TextStyle(
+                color: V2Palette.ink,
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
               ),
@@ -529,27 +470,13 @@ class _V2RouteVerdict extends StatelessWidget {
 
 class _V2RouteActionObject extends StatelessWidget {
   const _V2RouteActionObject({
-    required this.route,
     required this.scout,
-    required this.nextScout,
-    required this.quiet,
-    required this.active,
-    required this.nextInstruction,
-    required this.onStart,
-    required this.onEnd,
     required this.onScout,
     required this.onNavigate,
     required this.onExplore,
   });
 
-  final DrivingRoute route;
   final AsyncValue<RouteScoutPlan> scout;
-  final RouteScoutNode? nextScout;
-  final bool quiet;
-  final bool active;
-  final String? nextInstruction;
-  final VoidCallback onStart;
-  final VoidCallback onEnd;
   final VoidCallback onScout;
   final VoidCallback onNavigate;
   final VoidCallback onExplore;
@@ -557,31 +484,28 @@ class _V2RouteActionObject extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final plan = scout.asData?.value;
-    final headline = quiet
-        ? (nextScout?.title ?? nextInstruction ?? '沿路线继续前行')
-        : plan?.headline ?? (scout.isLoading ? '正在整理沿途信息' : '路线已准备好');
-    final detail = quiet
-        ? nextScout?.detail
-        : plan == null
+    final headline = plan?.headline ?? (scout.isLoading ? '正在整理沿途信息' : '路线已准备好');
+    final detail = plan == null
         ? '探路失败不会影响路线与外部导航。'
         : '${plan.criticalCount + plan.highCount} 条重点 · '
               '${plan.photographyCount} 个拍摄时间 · ${plan.supportCount} 个补给线索';
     return Material(
-      color: quiet ? V2Palette.night : V2Palette.paper,
+      color: V2Palette.paper,
       elevation: 18,
       shadowColor: Colors.black38,
       borderRadius: BorderRadius.circular(32),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(22, quiet ? 18 : 22, 22, 20),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Text(
-                  quiet ? '下一条重要节点' : '路线探路',
+                const Text(
+                  '路线探路',
                   style: TextStyle(
-                    color: quiet ? V2Palette.moss : V2Palette.moss,
+                    color: V2Palette.moss,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
@@ -591,8 +515,8 @@ class _V2RouteActionObject extends StatelessWidget {
                 if (plan != null)
                   Text(
                     plan.coverage == RouteScoutCoverage.full ? '数据完整' : '部分数据',
-                    style: TextStyle(
-                      color: quiet ? Colors.white54 : V2Palette.mutedInk,
+                    style: const TextStyle(
+                      color: V2Palette.mutedInk,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -604,29 +528,27 @@ class _V2RouteActionObject extends StatelessWidget {
               headline,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: quiet ? Colors.white : V2Palette.ink,
-                fontSize: quiet ? 19 : 22,
+              style: const TextStyle(
+                color: V2Palette.ink,
+                fontSize: 22,
                 height: 1.15,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -.6,
               ),
             ),
-            if (detail != null) ...[
-              const SizedBox(height: 7),
-              Text(
-                detail,
-                maxLines: quiet ? 2 : 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: quiet ? Colors.white60 : V2Palette.mutedInk,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                ),
+            const SizedBox(height: 7),
+            Text(
+              detail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: V2Palette.mutedInk,
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
               ),
-            ],
-            const Spacer(),
+            ),
+            const SizedBox(height: 18),
             Row(
               children: [
                 V2RoundAction(
@@ -636,24 +558,22 @@ class _V2RouteActionObject extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 V2RoundAction(
-                  icon: quiet
-                      ? CupertinoIcons.location_fill
-                      : CupertinoIcons.arrow_2_circlepath,
-                  label: quiet ? '导航' : '换地点',
-                  onTap: quiet ? onNavigate : onExplore,
+                  icon: CupertinoIcons.arrow_2_circlepath,
+                  label: '换地点',
+                  onTap: onExplore,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: V2Pressable(
-                    onTap: active ? onEnd : onStart,
-                    color: quiet ? V2Palette.paper : V2Palette.moss,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
+                    onTap: onNavigate,
+                    color: V2Palette.moss,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 15),
                       child: Text(
-                        active ? '结束行程' : '开始行程',
+                        '打开导航',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: quiet ? V2Palette.ink : Colors.white,
+                          color: Colors.white,
                           fontWeight: FontWeight.w900,
                         ),
                       ),

@@ -49,7 +49,7 @@ AI 是全局按需入口，不是常驻一级 Tab。它解释已知事实、回�
 - DEM 地平线遮挡、VIIRS 光污染：作为按需摄影增强，不成为常驻页面负担。
 - GBIF / iNaturalist：仅作为按需区域生态背景，不生成精确动物导航或概率。
 - **本机定时提醒**：仅针对用户显式守候的拍摄窗口，在窗口开始前 15 分钟发送一条系统通知；每窗口单条，stale 或窗口结束后取消。提醒只陈述窗口时间、成立条件与数据时间，不得出现成功率或概率表述。
-- **被动常驻表面**：桌面/锁屏 Widget 读取本地缓存并标注数据时间。它是缓存展示，不是后台执行通道；缓存过期时必须显示陈旧而不是伪装实时。
+- **被动常驻表面（contract-only，未交付）**：`context-v5.policy.json` 已允许 `widget` surface，Context Service 也有过期标记规则，但仓库当前没有任何 Android/iOS 原生 Widget 消费者。在有真实平台实现之前，Widget 不得作为已交付能力对外承诺；服务端不得为没有消费者的 surface 扩散行为。近期无实现计划时将从 Core 移出，只保留本机通知。
 
 ## 4. 冻结、退役或移出当前运行主线
 
@@ -58,21 +58,65 @@ AI 是全局按需入口，不是常驻一级 Tab。它解释已知事实、回�
 | 能力 | Core 1.0 状态 | 处理原则 |
 | --- | --- | --- |
 | Companion 自动 inventory/refresh | **已退役** | Flutter 与服务端 refresh/inventory/feedback 产品链、模型筛选器均已删除；AI/Region Brief 只保留独立的内部 `ContextSnapshotStore` 快照绑定 |
-| Route Journey start/end/active/progress | **冻结并准备删除** | Route 回归 scout + corridor + 外部导航 |
+| Route Journey start/end/active/progress | **已删除（2026-09-26）** | Route 回归 scout + corridor + 外部导航；SavedJourney、恢复器与持久化表均已移除 |
+| Shooting feedback/calibration | **已删除（2026-09-26）** | 隐私开关、`shareAnonymousPhotographyFeedback` 偏好、Broker `/v1/context/target-session` 与 `/v1/context/shooting-feedback` 路由、Context Service feedback/calibration 端点与数据表均已移除 |
 | 未守候窗口的自动提醒 | **分期待放开** | 只有 §「本机定时提醒」验证过兑现率后，才按开口许可契约逐级放开；不得先做抢占再做校准 |
 | 远程推送 / 真后台重算 | **冻结** | 前台提前排程本机通知已覆盖绝大部分主动场景；推送需要 APNs 后端、证书与配额，且在数据不准的时间尺度上开口正是同类产品的失败点 |
 | iOS Live Activity / Dynamic Island | **冻结** | 需要 entitlement 与扩展 target，成本最高收益最低 |
-| Offline Photography Pack | **P2 冻结** | 不继续扩展 |
-| GPX 导入/轨迹生命周期 | **P2 冻结** | 不继续扩展 |
-| Shooting feedback/calibration | **冻结** | 不作为落地前阻塞项 |
+| Offline Photography Pack | **已删除（2026-09-26）** | 生成链与 Library 展示已移除；schema 18 重建时本地残留数据一并清除 |
+| GPX 导入/轨迹生命周期 | **已删除（2026-09-26）** | 导入服务、解析器、`ImportedRouteTrack` 与存储表均已移除 |
 | 29 个 reserved opportunity | **移出当前产品范围** | 可保留历史规划，不得驱动运行时/UI 扩张 |
 | 大规模 Creative Prompt / Tag 目录 | **收缩候选** | 只保留实际能被用户消费的少量集合 |
 | 非核心科学 Provider | **默认关闭** | 只有明确用户价值链后再启用 |
-| 原生音效系统 | **准备删除** | 最多保留轻量系统触觉 |
+| 原生音效系统 | **已删除（2026-09-26）** | `assets/audio`、MethodChannel 音效链与原生 SoundPool/AVAudioPlayer 已移除；交互反馈只保留系统触觉 |
 | Ambient 渲染框架继续扩张 | **冻结** | 保留现有品牌氛围，不再平台化 |
 | 多模型 fallback/Agent 平台继续扩张 | **冻结** | Core 只要求一个当前模型 + 确定性降级 |
 
-## 5. Provider 范围
+## 5. 运行面清单（2026-09-26 基线）
+
+本节是当前真实运行面的权威清单。新增、删除或改名任何条目时必须同步更新本节，并让 CI 路由清单测试阻止冻结路径重新出现。
+
+### 5.1 Broker API
+
+**Core（常驻产品链）**
+
+- `POST /v1/context/snapshot` — 环境快照与 V5 entries
+- `POST /v1/context/safety-detail` — 安全事件详情
+- `GET /v1/sky-opportunities` — 当前天象机会
+- `GET /v1/sky-opportunities/daily` — 首页日级机会批量读取（独立 forecast 语义，与单次查询不是同义重复）
+- `POST /v1/explore/discover`、`POST /v1/explore/brief`、`GET /v1/explore/place-media`、`GET /v1/explore/media/:id`
+- `POST /v1/route/weather` — 路线走廊天气
+- `POST /v1/assistant`、`POST /v1/narrative` — 受约束的模型表达
+
+**地图/路线**
+
+- `POST /v1/amap/nearby`、`/v1/amap/search`、`/v1/amap/driving`、`/v1/amap/walking`、`/v1/amap/scene-evidence`
+
+**按需摄影增强（失败独立降级）**
+
+- `POST /v1/wildlife/nearby`、`/v1/wildlife/layers`
+- `POST /v1/elevation`、`/v1/elevation/profile`
+- `POST /v1/environment/site-facts`、`/v1/environment/provider-facts`、`/v1/environment/sky-windows`
+- `POST /v1/weather/7timer`
+
+**已删除（CI 阻止重新出现）**
+
+- `POST /v1/context/target-session`
+- `POST /v1/context/shooting-feedback`
+
+### 5.2 客户端路由
+
+- 常驻：`/today`、`/explore`、`/route`、`/profile`
+- 全局按需：`/intelligence`（`/inspiration` 仅作兼容深链映射）
+- 二级：`/environment`、`/sky-opportunity/:event/:dayOffset`、`/session/:id`、`/place/:id`、`/profile/style`、`/profile/library`、`/profile/privacy`
+- 仅 Debug：`/ambient-debug`、`/environment-lab`
+
+### 5.3 平台消费者
+
+- 本机通知（Android/iOS 系统通知，前台排程）：**已交付**
+- 桌面/锁屏 Widget：**contract-only，未交付**（无原生消费者，见 §3）
+
+## 6. Provider 范围
 
 ### 核心/默认链
 
@@ -86,7 +130,7 @@ SunsetBot、DEM、VIIRS、GBIF、iNaturalist。缺失时必须隐藏或独立降
 
 Sentinel-1、Sentinel-2、CAMS、AERONET、FIRMS、Copernicus Marine、JPL Horizons、NOAA SWPC、eBird。存在适配器不等于当前产品需要启用。
 
-## 6. Research Gateway
+## 7. Research Gateway
 
 Agent Reach 与 Crawl4AI 不作为新的常驻 Provider 集群。Core 收缩完成后，只允许通过统一 `ResearchGateway` 在以下情况触发：
 
@@ -97,7 +141,7 @@ Agent Reach 与 Crawl4AI 不作为新的常驻 Provider 集群。Core 收缩完�
 
 Crawl4AI 负责深读允许的网站；Agent Reach 负责按需跨渠道寻找资料。结果必须先经过 Evidence/来源边界，再进入 Region Brief 或 AI。
 
-## 7. 功能准入门槛
+## 8. 功能准入门槛
 
 新增 Provider、后台 worker、常驻页面、机会 family、路由生命周期、模型 fallback 或持久化类型前，必须回答：
 
@@ -111,7 +155,7 @@ Crawl4AI 负责深读允许的网站；Agent Reach 负责按需跨渠道寻找�
 
 提醒类能力不新增常驻一级入口，一律通过既有表面或系统通知送达。
 
-### 7.1 开口许可按证据时间尺度分级
+### 8.1 开口许可按证据时间尺度分级
 
 主动性的边界由数据本身的可信时间尺度决定，而不是由模型或供应商的能力决定：
 
@@ -123,7 +167,7 @@ Crawl4AI 负责深读允许的网站；Agent Reach 负责按需跨渠道寻找�
 
 这条分级是产品定位而不是合规负担：同类产品中唯一采用主动推送的，因为把多日概率说过头而失去口碑；数据最严谨的则完全不做提醒。栖光的位置是**只在数据真的准的时间尺度上开口**。服务端必须在生成 entry 时按此派生 `allowedSurfaces`，不得由客户端或模型自行判断能否打扰用户。
 
-## 8. “完成”的定义
+## 9. “完成”的定义
 
 一个功能只有同时满足以下条件才算完成：
 

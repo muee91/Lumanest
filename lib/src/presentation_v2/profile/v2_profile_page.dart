@@ -162,7 +162,7 @@ class _ProfileSettingsPanel extends StatelessWidget {
                   context,
                   icon: CupertinoIcons.lock_shield,
                   title: '隐私与感受',
-                  detail: '动态、高对比、匿名反馈和本地活动清理',
+                  detail: '动态、高对比、本机提醒和本地活动清理',
                   route: '/profile/privacy',
                 ),
                 _panelEntry(
@@ -522,8 +522,7 @@ class V2ProfileLibraryPage extends ConsumerWidget {
               title: '拍摄记录',
               child: Text(
                 '${value.sessionResults.length} 次结果 · '
-                '${value.watchedSessions.length} 个关注窗口 · '
-                '${value.offlinePhotographyPacks.length} 个离线包',
+                '${value.watchedSessions.length} 个关注窗口',
                 style: const TextStyle(color: V2Palette.mutedInk),
               ),
             ),
@@ -582,15 +581,6 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(height: 12),
-          _V2ToggleObject(
-            title: '匿名拍摄反馈',
-            detail: '仅上传规则结果与因素，不包含坐标、路线或照片。',
-            value: value.shareAnonymousPhotographyFeedback,
-            onTap: () => controller.setShareAnonymousPhotographyFeedback(
-              !value.shareAnonymousPhotographyFeedback,
-            ),
-          ),
           const SizedBox(height: 18),
           const _V2SectionObject(
             title: '问栖光与模型服务',
@@ -606,7 +596,7 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '删除关注窗口、拍摄结果和离线包，不影响收藏地点与纸条。',
+                  '删除关注窗口和拍摄结果，不影响收藏地点与纸条。',
                   style: TextStyle(color: V2Palette.mutedInk, height: 1.4),
                 ),
                 const SizedBox(height: 14),

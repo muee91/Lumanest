@@ -3,10 +3,8 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
-import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
-import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
 
 abstract interface class UserLibraryStore {
   Future<UserLibraryState> read();
@@ -35,12 +33,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final savedRouteQuery = _database.select(_database.savedRoutes)
         ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
       final savedRoutes = await savedRouteQuery.get();
-      final journeyQuery = _database.select(_database.savedJourneys)
-        ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]);
-      final journeys = await journeyQuery.get();
-      final trackQuery = _database.select(_database.importedRouteTracks)
-        ..orderBy([(row) => OrderingTerm.desc(row.importedAt)]);
-      final tracks = await trackQuery.get();
       final noteQuery = _database.select(_database.savedInspirationNotes)
         ..orderBy([(row) => OrderingTerm.desc(row.savedAt)]);
       final notes = await noteQuery.get();
@@ -50,9 +42,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final resultQuery = _database.select(_database.shootingSessionResults)
         ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]);
       final results = await resultQuery.get();
-      final packQuery = _database.select(_database.offlinePhotographyPacks)
-        ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]);
-      final packs = await packQuery.get();
       return UserLibraryState(
         savedPlaces: places
             .map(
@@ -86,26 +75,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 savedAt: row.savedAt.toUtc(),
               ),
             )
-            .toList(growable: false),
-        journeys: journeys
-            .map(
-              (row) => SavedJourney(
-                id: row.id,
-                destination: SavedRouteDestination(
-                  name: row.name,
-                  latitude: row.latitude,
-                  longitude: row.longitude,
-                  travelMode: row.travelMode,
-                ),
-                routeKey: row.routeKey,
-                startedAt: row.startedAt.toUtc(),
-                endedAt: row.endedAt?.toUtc(),
-              ),
-            )
-            .toList(growable: false),
-        importedTracks: tracks
-            .map(_decodeTrack)
-            .whereType<ImportedRouteTrack>()
             .toList(growable: false),
         savedNotes: notes
             .map(
@@ -149,10 +118,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 targetId: row.targetId,
               ),
             )
-            .toList(growable: false),
-        offlinePhotographyPacks: packs
-            .map(_decodeOfflinePhotographyPack)
-            .whereType<OfflinePhotographyPack>()
             .toList(growable: false),
       );
     });
@@ -204,54 +169,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 longitude: destination.longitude,
                 travelMode: destination.travelMode,
                 savedAt: route.savedAt.toUtc(),
-              ),
-            );
-      }
-
-      await _database.delete(_database.savedJourneys).go();
-      for (final journey in state.journeys.take(100)) {
-        final destination = journey.destination;
-        await _database
-            .into(_database.savedJourneys)
-            .insert(
-              SavedJourneysCompanion.insert(
-                id: journey.id,
-                name: destination.name,
-                latitude: destination.latitude,
-                longitude: destination.longitude,
-                travelMode: destination.travelMode,
-                routeKey: Value(journey.routeKey),
-                startedAt: journey.startedAt.toUtc(),
-                endedAt: Value(journey.endedAt?.toUtc()),
-              ),
-            );
-      }
-
-      await _database.delete(_database.importedRouteTracks).go();
-      for (final track in state.importedTracks) {
-        await _database
-            .into(_database.importedRouteTracks)
-            .insert(
-              ImportedRouteTracksCompanion.insert(
-                id: track.id,
-                name: track.name,
-                importedAt: track.importedAt,
-                pointsJson: jsonEncode({
-                  'points': track.points
-                      .map(
-                        (point) => {
-                          'latitude': point.latitude,
-                          'longitude': point.longitude,
-                        },
-                      )
-                      .toList(growable: false),
-                  'segmentBreakIndexes': track.segmentBreakIndexes,
-                }),
-                distanceMeters: track.distanceMeters,
-                durationSeconds: track.durationSeconds,
-                durationEstimated: track.durationEstimated,
-                ascentMeters: Value(track.ascentMeters),
-                descentMeters: Value(track.descentMeters),
               ),
             );
       }
@@ -316,120 +233,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
               ),
             );
       }
-
-      await _database.delete(_database.offlinePhotographyPacks).go();
-      for (final pack in state.offlinePhotographyPacks.take(50)) {
-        await _database
-            .into(_database.offlinePhotographyPacks)
-            .insert(
-              OfflinePhotographyPacksCompanion.insert(
-                id: pack.id,
-                name: pack.name,
-                createdAt: pack.createdAt.toUtc(),
-                dataTimestamp: pack.dataTimestamp.toUtc(),
-                routeJson: Value(
-                  pack.route == null ? null : jsonEncode(pack.route!.toJson()),
-                ),
-                placesJson: jsonEncode(
-                  pack.places
-                      .map((place) => place.toJson())
-                      .toList(growable: false),
-                ),
-                windowsJson: jsonEncode(
-                  pack.windows
-                      .map((window) => window.toJson())
-                      .toList(growable: false),
-                ),
-                sessionJson: jsonEncode(pack.sessionSnapshot),
-              ),
-            );
-      }
     });
-  }
-
-  OfflinePhotographyPack? _decodeOfflinePhotographyPack(
-    OfflinePhotographyPackRow row,
-  ) {
-    try {
-      final route = row.routeJson == null
-          ? null
-          : SavedRouteDestination.fromJson(jsonDecode(row.routeJson!));
-      final rawPlaces = jsonDecode(row.placesJson);
-      final rawWindows = jsonDecode(row.windowsJson);
-      final rawSession = jsonDecode(row.sessionJson);
-      if (rawPlaces is! List || rawWindows is! List || rawSession is! Map) {
-        return null;
-      }
-      final places = rawPlaces
-          .map(SavedPlace.fromJson)
-          .whereType<SavedPlace>()
-          .toList(growable: false);
-      if (places.length != rawPlaces.length) return null;
-      final windows = rawWindows
-          .map(OfflinePhotographyWindow.fromJson)
-          .whereType<OfflinePhotographyWindow>()
-          .toList(growable: false);
-      if (windows.length != rawWindows.length) return null;
-      return OfflinePhotographyPack.restore(
-        id: row.id,
-        name: row.name,
-        createdAt: row.createdAt.toUtc(),
-        dataTimestamp: row.dataTimestamp.toUtc(),
-        route: route,
-        places: places,
-        windows: windows,
-        sessionSnapshot: rawSession.map(
-          (key, value) => MapEntry('$key', value),
-        ),
-      );
-    } on Object {
-      return null;
-    }
-  }
-
-  ImportedRouteTrack? _decodeTrack(ImportedRouteTrackRow row) {
-    try {
-      final rawPoints = jsonDecode(row.pointsJson);
-      final pointList = rawPoints is Map ? rawPoints['points'] : rawPoints;
-      if (pointList is! List) return null;
-      final points = pointList
-          .map((raw) {
-            if (raw is! Map ||
-                raw['latitude'] is! num ||
-                raw['longitude'] is! num) {
-              throw const FormatException('invalid_track_point');
-            }
-            return GeoPoint(
-              latitude: (raw['latitude'] as num).toDouble(),
-              longitude: (raw['longitude'] as num).toDouble(),
-            ).validate();
-          })
-          .toList(growable: false);
-      if (points.length < 2) return null;
-      final rawBreaks = rawPoints is Map
-          ? rawPoints['segmentBreakIndexes']
-          : null;
-      final breaks = rawBreaks is List
-          ? rawBreaks
-                .whereType<int>()
-                .where((index) => index > 0 && index < points.length)
-                .toList(growable: false)
-          : const <int>[];
-      return ImportedRouteTrack(
-        id: row.id,
-        name: row.name,
-        importedAt: row.importedAt.toUtc(),
-        points: points,
-        segmentBreakIndexes: breaks,
-        distanceMeters: row.distanceMeters,
-        durationSeconds: row.durationSeconds,
-        durationEstimated: row.durationEstimated,
-        ascentMeters: row.ascentMeters,
-        descentMeters: row.descentMeters,
-      );
-    } on Object {
-      return null;
-    }
   }
 
   static Uri? _validAuthorityUri(String? value) {

@@ -85,7 +85,6 @@ flutter:
   assets:
     - assets/brand/lumanest-logo.png
     - assets/brand/lumanest-mark.svg
-    - assets/audio/
     - assets/ambient/
     - assets/icons/environment/
 

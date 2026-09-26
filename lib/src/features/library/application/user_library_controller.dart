@@ -2,9 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
-import 'package:luma_nest/src/features/route/domain/imported_route_track.dart';
-import 'package:luma_nest/src/core/context/route_context_state.dart';
-import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 
 class UserLibraryController extends AsyncNotifier<UserLibraryState> {
@@ -54,85 +51,8 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     );
   }
 
-  Future<SavedJourney> startJourney(
-    SavedRouteDestination destination, {
-    String? routeKey,
-  }) async {
-    final current = await future;
-    final active = current.activeJourney;
-    if (active != null) {
-      if (active.matches(destination, routeKey: routeKey)) return active;
-      throw ActiveJourneyConflict(active);
-    }
-    final journey = SavedJourney.start(
-      destination,
-      startedAt: DateTime.now(),
-      routeKey: routeKey,
-    );
-    await _save(
-      current.copyWith(
-        journeys: [journey, ...current.journeys].take(100).toList(),
-      ),
-    );
-    return journey;
-  }
-
-  Future<void> endJourney(
-    SavedRouteDestination destination, {
-    String? routeKey,
-  }) async {
-    final current = await future;
-    final active = current.activeJourney;
-    if (active == null || !active.matches(destination, routeKey: routeKey)) {
-      return;
-    }
-    final ended = active.end(DateTime.now());
-    await _save(
-      current.copyWith(
-        journeys: current.journeys
-            .map((journey) => journey.id == active.id ? ended : journey)
-            .toList(growable: false),
-      ),
-    );
-  }
-
-  Future<void> deleteJourney(String id) async {
-    final current = await future;
-    await _save(
-      current.copyWith(
-        journeys: current.journeys
-            .where((journey) => journey.id != id)
-            .toList(growable: false),
-      ),
-    );
-  }
-
-  Future<void> saveImportedTrack(ImportedRouteTrack track) async {
-    final current = await future;
-    final tracks = [
-      track,
-      ...current.importedTracks.where((candidate) => candidate.id != track.id),
-    ];
-    await _save(current.copyWith(importedTracks: tracks));
-  }
-
-  Future<void> deleteImportedTrack(String id) async {
-    final current = await future;
-    final active = current.activeJourney;
-    if (active?.routeKey == id) {
-      throw ActiveImportedTrackConflict(active!);
-    }
-    await _save(
-      current.copyWith(
-        importedTracks: current.importedTracks
-            .where((track) => track.id != id)
-            .toList(growable: false),
-      ),
-    );
-  }
-
   /// Each category is independently removable so clearing saved places never
-  /// erases a user's route history or imported GPX tracks.
+  /// erases a user's saved routes or shooting records.
   Future<void> clearSavedPlaces() async {
     final current = await future;
     await _save(current.copyWith(savedPlaces: const []));
@@ -140,37 +60,12 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
 
   Future<void> clearRecentRoute() async {
     final current = await future;
-    await _save(
-      UserLibraryState(
-        savedPlaces: current.savedPlaces,
-        savedRoutes: current.savedRoutes,
-        journeys: current.journeys,
-        importedTracks: current.importedTracks,
-        savedNotes: current.savedNotes,
-        watchedSessions: current.watchedSessions,
-        sessionResults: current.sessionResults,
-        offlinePhotographyPacks: current.offlinePhotographyPacks,
-      ),
-    );
+    await _save(current.copyWith(clearRecentRoute: true));
   }
 
   Future<void> clearSavedRoutes() async {
     final current = await future;
     await _save(current.copyWith(savedRoutes: const []));
-  }
-
-  Future<void> clearJourneys() async {
-    final current = await future;
-    await _save(current.copyWith(journeys: const []));
-  }
-
-  Future<void> clearImportedTracks() async {
-    final current = await future;
-    final active = current.activeJourney;
-    if (active?.routeKey != null) {
-      throw ActiveImportedTrackConflict(active!);
-    }
-    await _save(current.copyWith(importedTracks: const []));
   }
 
   Future<void> saveInspirationNote({
@@ -267,40 +162,14 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     );
   }
 
-  Future<void> saveOfflinePhotographyPack(OfflinePhotographyPack pack) async {
-    final current = await future;
-    await _save(
-      current.copyWith(
-        offlinePhotographyPacks: [
-          pack,
-          ...current.offlinePhotographyPacks.where(
-            (item) => item.id != pack.id,
-          ),
-        ].take(50).toList(),
-      ),
-    );
-  }
-
-  Future<void> deleteOfflinePhotographyPack(String id) async {
-    final current = await future;
-    await _save(
-      current.copyWith(
-        offlinePhotographyPacks: current.offlinePhotographyPacks
-            .where((item) => item.id != id)
-            .toList(growable: false),
-      ),
-    );
-  }
-
-  /// Local feedback and packs remain independently deletable. Future privacy
-  /// UI can call this without touching saved places, routes, or GPX tracks.
+  /// Watched windows and shooting records remain independently deletable.
+  /// Future privacy UI can call this without touching saved places or routes.
   Future<void> clearPhotographyActivity() async {
     final current = await future;
     await _save(
       current.copyWith(
         watchedSessions: const [],
         sessionResults: const [],
-        offlinePhotographyPacks: const [],
       ),
     );
   }
@@ -315,31 +184,3 @@ final userLibraryProvider =
     AsyncNotifierProvider<UserLibraryController, UserLibraryState>(
       UserLibraryController.new,
     );
-
-class JourneyRouteContextRestorer {
-  const JourneyRouteContextRestorer(this.ref);
-
-  final Ref ref;
-
-  Future<void> restore() async {
-    final active = (await ref.read(userLibraryProvider.future)).activeJourney;
-    if (active == null) return;
-    final mode = active.destination.travelMode == 'walking'
-        ? ContextRouteMode.hiking
-        : ContextRouteMode.driving;
-    final notifier = ref.read(routeContextStateProvider.notifier);
-    notifier.plan(
-      mode,
-      identity: RouteIdentity(
-        latitude: active.destination.latitude,
-        longitude: active.destination.longitude,
-        mode: mode,
-        routeKey: active.routeKey,
-      ),
-    );
-    notifier.start();
-  }
-}
-
-final journeyRouteContextRestorerProvider =
-    Provider<JourneyRouteContextRestorer>(JourneyRouteContextRestorer.new);

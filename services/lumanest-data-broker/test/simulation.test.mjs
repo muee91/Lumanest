@@ -17,11 +17,8 @@ test('simulation registry keeps only short-lived anonymous sessions', () => {
   assert.equal(session.contractVersion, 5);
   assert.equal(registry.activate(session.controlId, 'lake-sunset').ok, true);
   assert.equal(registry.snapshot('abcde12345678', new Date(0)).environment.scene, 'lake');
-  assert.equal(registry.suppressFeedback('abcde12345678'), true);
   assert.equal(registry.list()[0].deliveryCount, 1);
-  assert.equal(registry.list()[0].suppressedFeedbackCount, 1);
   assert.deepEqual(registry.clearAll(), { ok: true, cleared: 1 });
-  assert.equal(registry.suppressFeedback('abcde12345678'), false);
   now += 101;
   assert.deepEqual(registry.list(), []);
 });
