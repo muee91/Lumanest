@@ -57,13 +57,17 @@ class ActiveShootingIntent {
     );
   }
 
-  static bool _validSessionId(String value) =>
-      RegExp(r'^session_[a-f0-9]{24}
-}
-).hasMatch(value);
+  static bool _validSessionId(String value) => _validId(value);
 
-  static bool _validTargetId(String value) =>
-      RegExp(r'^target_[a-f0-9]{24}
+  static bool _validTargetId(String value) => _validId(value);
+
+  // Session/target IDs come from more than one current contract surface:
+  // production IDs may be hash-like while deterministic fixtures and legacy
+  // deep links still use dotted identifiers such as session.water.evening.
+  // Keep the accepted alphabet URL-safe and bounded instead of assuming one
+  // server-side ID shape.
+  static bool _validId(String value) =>
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}
 }
 ).hasMatch(value);
 }
