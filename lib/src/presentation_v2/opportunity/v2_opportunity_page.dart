@@ -9,6 +9,7 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
+import 'package:luma_nest/src/core/photography/field_environment_selector.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/photography/target_arrival_state.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
@@ -624,77 +625,17 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     ShootingSession session,
     ContextSnapshot? snapshot,
   ) {
-    if (snapshot == null) return const [];
-    final preferred = switch (session.kind) {
-      ShootingSessionKind.waterMorning ||
-      ShootingSessionKind.waterEvening => const [
-        'wind',
-        'precipitation',
-        'cloud',
-      ],
-      ShootingSessionKind.mountainMorning ||
-      ShootingSessionKind.mountainEvening => const [
-        'visibility',
-        'cloud',
-        'wind',
-      ],
-      ShootingSessionKind.cityAfterRain => const [
-        'precipitation',
-        'cloud',
-        'visibility',
-      ],
-      ShootingSessionKind.desertSideLight => const [
-        'visibility',
-        'wind',
-        'cloud',
-      ],
-      ShootingSessionKind.generalMorning ||
-      ShootingSessionKind.generalEvening ||
-      ShootingSessionKind.cityBlueHour => const [
-        'cloud',
-        'visibility',
-        'wind',
-      ],
-      ShootingSessionKind.routeLightWindow => const [
-        'cloud',
-        'wind',
-        'precipitation',
-      ],
-    };
-    final facts = <_V2FieldFact>[];
-    for (final id in preferred) {
-      final fact = switch (id) {
-        'cloud' when snapshot.cloudCoverPercent != null => _V2FieldFact(
-            label: '云量',
-            value: '${snapshot.cloudCoverPercent!.round()}%',
+    // Field Mode surfaces only factors already attached to the session. The
+    // selector owns the deterministic priority; [snapshot] is kept in the
+    // signature so callers can continue passing the evidence timestamp.
+    return FieldEnvironmentSelector.select(session)
+        .map(
+          (factor) => _V2FieldFact(
+            label: factor.label,
+            value: factor.value,
           ),
-        'wind' when snapshot.windSpeedMetersPerSecond != null => _V2FieldFact(
-            label: '风速',
-            value:
-                '${snapshot.windSpeedMetersPerSecond!.toStringAsFixed(1)}m/s',
-          ),
-        'precipitation'
-            when snapshot.precipitationMillimeters != null => _V2FieldFact(
-            label: '降水',
-            value:
-                '${snapshot.precipitationMillimeters!.toStringAsFixed(1)}mm',
-          ),
-        'visibility' when snapshot.visibilityKilometers != null => _V2FieldFact(
-            label: '能见度',
-            value: '${snapshot.visibilityKilometers!.round()}km',
-          ),
-        _ => null,
-      };
-      if (fact != null) facts.add(fact);
-    }
-    if (facts.length < 3) {
-      for (final factor in session.factors) {
-        if (facts.any((fact) => fact.label == factor.label)) continue;
-        facts.add(_V2FieldFact(label: factor.label, value: factor.value));
-        if (facts.length == 3) break;
-      }
-    }
-    return List.unmodifiable(facts.take(3));
+        )
+        .toList(growable: false);
   }
 
   static String _outcome(ShootingSessionOutcome value) => switch (value) {
