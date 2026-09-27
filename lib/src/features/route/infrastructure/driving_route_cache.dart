@@ -189,7 +189,7 @@ class PersistentDrivingRouteCache implements DrivingRouteCache {
     final system = CoordinateSystem.values.where(
       (value) => value.name == systemName,
     );
-    if (system.isEmpty) return null;
+    if (system.isEmpty || system.first == CoordinateSystem.unknown) return null;
     return GeoPoint(
       latitude: (raw['latitude'] as num).toDouble(),
       longitude: (raw['longitude'] as num).toDouble(),

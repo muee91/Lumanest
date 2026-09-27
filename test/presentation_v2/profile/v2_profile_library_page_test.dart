@@ -22,7 +22,6 @@ void main() {
       const UserLibraryState(
         savedNotes: [],
         savedPlaces: [],
-        sessionResults: [],
         watchedSessions: [],
       ),
     );

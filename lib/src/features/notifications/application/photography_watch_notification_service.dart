@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,10 +74,11 @@ class ShootingDeparturePlanInvalidationController
   void clear() => state = null;
 }
 
-final shootingDeparturePlanInvalidationProvider = NotifierProvider<
-  ShootingDeparturePlanInvalidationController,
-  ShootingDeparturePlanInvalidation?
->(ShootingDeparturePlanInvalidationController.new);
+final shootingDeparturePlanInvalidationProvider =
+    NotifierProvider<
+      ShootingDeparturePlanInvalidationController,
+      ShootingDeparturePlanInvalidation?
+    >(ShootingDeparturePlanInvalidationController.new);
 
 class ShootingDeparturePlanController extends Notifier<ShootingDeparturePlan?> {
   @override
@@ -121,6 +123,38 @@ abstract interface class ShootingSessionNotificationService {
     DateTime? departureDeadline,
   });
   Future<void> cancel(String watchId);
+}
+
+enum ShootingNotificationType { window, departure }
+
+/// Durable identity for one scheduled notification. The ledger stores this
+/// alongside the OS notification id so reconciliation can distinguish a
+/// target change or departure/window change even when the timestamp happens
+/// to stay the same.
+@immutable
+class WatchScheduleRecord {
+  const WatchScheduleRecord({
+    required this.watchId,
+    required this.sessionId,
+    required this.targetId,
+    required this.notifyAt,
+    required this.notificationType,
+    required this.payloadFingerprint,
+  });
+
+  final String watchId;
+  final String sessionId;
+  final String? targetId;
+  final DateTime notifyAt;
+  final ShootingNotificationType notificationType;
+  final String payloadFingerprint;
+
+  bool matches(WatchScheduleRecord other) =>
+      sessionId == other.sessionId &&
+      targetId == other.targetId &&
+      notifyAt.isAtSameMomentAs(other.notifyAt) &&
+      notificationType == other.notificationType &&
+      payloadFingerprint == other.payloadFingerprint;
 }
 
 class LocalShootingSessionNotificationService
@@ -353,11 +387,11 @@ class SharedPreferencesShootingSessionNotificationPreferenceStore
   Future<void> writeEnabled(bool value) => _prefs.setBool(_key, value);
 }
 
-/// A local schedule ledger. It stores notification timestamps only, never a
+/// A local schedule ledger. It stores scheduling identity only, never a
 /// location, evidence payload, or session content.
 abstract interface class ShootingSessionNotificationLedger {
-  Future<Map<String, DateTime>> read();
-  Future<void> write(Map<String, DateTime> scheduled);
+  Future<Map<String, WatchScheduleRecord>> read();
+  Future<void> write(Map<String, WatchScheduleRecord> scheduled);
 }
 
 class SharedPreferencesShootingSessionNotificationLedger
@@ -368,17 +402,63 @@ class SharedPreferencesShootingSessionNotificationLedger
   final SharedPreferencesAsync _prefs;
 
   @override
-  Future<Map<String, DateTime>> read() async {
+  Future<Map<String, WatchScheduleRecord>> read() async {
     final raw = await _prefs.getString(_key);
     if (raw == null) return const {};
     try {
       final values = jsonDecode(raw);
       if (values is! Map) return const {};
-      final result = <String, DateTime>{};
+      final result = <String, WatchScheduleRecord>{};
       values.forEach((key, value) {
-        if (key is! String || value is! String) return;
-        final parsed = DateTime.tryParse(value)?.toUtc();
-        if (parsed != null) result[key] = parsed;
+        if (key is! String) return;
+        // Read the v1 timestamp-only ledger once so an app upgrade can still
+        // cancel the old OS notification. It is intentionally treated as a
+        // departure reminder only when it predates the next generic window;
+        // the next reconciliation immediately writes the structured record.
+        if (value is String) {
+          final parsed = DateTime.tryParse(value)?.toUtc();
+          if (parsed != null) {
+            result[key] = WatchScheduleRecord(
+              watchId: key,
+              sessionId: '',
+              targetId: null,
+              notifyAt: parsed,
+              notificationType: ShootingNotificationType.departure,
+              payloadFingerprint: '',
+            );
+          }
+          return;
+        }
+        if (value is! Map) return;
+        final sessionId = value['sessionId'];
+        final targetId = value['targetId'];
+        final notifyAt = value['notifyAt'];
+        final type = value['notificationType'];
+        final fingerprint = value['payloadFingerprint'];
+        if (sessionId is! String ||
+            targetId != null && targetId is! String ||
+            notifyAt is! String ||
+            type is! String ||
+            fingerprint is! String) {
+          return;
+        }
+        final parsed = DateTime.tryParse(notifyAt)?.toUtc();
+        ShootingNotificationType? notificationType;
+        for (final candidate in ShootingNotificationType.values) {
+          if (candidate.name == type) {
+            notificationType = candidate;
+            break;
+          }
+        }
+        if (parsed == null || notificationType == null) return;
+        result[key] = WatchScheduleRecord(
+          watchId: key,
+          sessionId: sessionId,
+          targetId: targetId as String?,
+          notifyAt: parsed,
+          notificationType: notificationType,
+          payloadFingerprint: fingerprint,
+        );
       });
       return result;
     } on FormatException {
@@ -387,9 +467,15 @@ class SharedPreferencesShootingSessionNotificationLedger
   }
 
   @override
-  Future<void> write(Map<String, DateTime> scheduled) {
+  Future<void> write(Map<String, WatchScheduleRecord> scheduled) {
     final encoded = scheduled.map(
-      (key, value) => MapEntry(key, value.toUtc().toIso8601String()),
+      (key, value) => MapEntry(key, {
+        'sessionId': value.sessionId,
+        if (value.targetId != null) 'targetId': value.targetId,
+        'notifyAt': value.notifyAt.toUtc().toIso8601String(),
+        'notificationType': value.notificationType.name,
+        'payloadFingerprint': value.payloadFingerprint,
+      }),
     );
     return _prefs.setString(_key, jsonEncode(encoded));
   }
@@ -448,7 +534,8 @@ class ShootingSessionNotificationReconciler {
         final explicitlyInvalidated =
             departureInvalidation?.matches(watch) ?? false;
         final fallbackNotifyAt = _notificationTime(session, now, null);
-        final previousNotifyAt = existing[watch.id];
+        final previousRecord = existing[watch.id];
+        final previousNotifyAt = previousRecord?.notifyAt;
         // A route-derived deadline may already be scheduled by the OS. The
         // in-memory route plan intentionally does not survive process death;
         // when the app restarts without that transient plan, do not silently
@@ -469,12 +556,31 @@ class ShootingSessionNotificationReconciler {
                 now,
                 matchedDeparturePlan.departureDeadline,
               );
+        final notificationType =
+            matchedDeparturePlan != null || preservedDepartureNotifyAt != null
+            ? ShootingNotificationType.departure
+            : ShootingNotificationType.window;
+        final payload = shootingSessionNotificationPayloadFor(
+          session.id,
+          targetId: watch.targetId,
+        );
         valid[watch.id] = _WatchPlan(
           watch: watch,
           session: session,
           notifyAt: notifyAt,
           dataObservedAt: snapshot.observedAt,
-          departureDeadline: matchedDeparturePlan?.departureDeadline,
+          departureDeadline:
+              matchedDeparturePlan?.departureDeadline ??
+              preservedDepartureNotifyAt,
+          record: WatchScheduleRecord(
+            watchId: watch.id,
+            sessionId: session.id,
+            targetId: watch.targetId,
+            notifyAt: notifyAt,
+            notificationType: notificationType,
+            payloadFingerprint: _payloadFingerprint(payload),
+          ),
+          previousRecord: previousRecord,
         );
       }
     }
@@ -483,12 +589,11 @@ class ShootingSessionNotificationReconciler {
       await service.cancel(id);
     }
 
-    final next = <String, DateTime>{};
+    final next = <String, WatchScheduleRecord>{};
     for (final entry in valid.entries) {
-      final previous = existing[entry.key];
       final plan = entry.value;
-      if (previous == null ||
-          !previous.isAtSameMomentAs(plan.notifyAt)) {
+      final previous = plan.previousRecord;
+      if (previous == null || !previous.matches(plan.record)) {
         if (previous != null) await service.cancel(entry.key);
         await service.schedule(
           watch: plan.watch,
@@ -498,7 +603,7 @@ class ShootingSessionNotificationReconciler {
           departureDeadline: plan.departureDeadline,
         );
       }
-      next[entry.key] = plan.notifyAt;
+      next[entry.key] = plan.record;
     }
     await ledger.write(next);
   }
@@ -508,10 +613,14 @@ class ShootingSessionNotificationReconciler {
     DateTime now,
     DateTime? departureDeadline,
   ) {
-    final candidate = departureDeadline?.toUtc() ??
+    final candidate =
+        departureDeadline?.toUtc() ??
         session.startsAt.toUtc().subtract(const Duration(minutes: 15));
     return candidate.isAfter(now) ? candidate : now;
   }
+
+  static String _payloadFingerprint(String payload) =>
+      sha256.convert(utf8.encode(payload)).toString();
 }
 
 class _WatchPlan {
@@ -520,6 +629,8 @@ class _WatchPlan {
     required this.session,
     required this.notifyAt,
     required this.dataObservedAt,
+    required this.record,
+    required this.previousRecord,
     this.departureDeadline,
   });
 
@@ -527,6 +638,8 @@ class _WatchPlan {
   final ShootingSession session;
   final DateTime notifyAt;
   final DateTime dataObservedAt;
+  final WatchScheduleRecord record;
+  final WatchScheduleRecord? previousRecord;
   final DateTime? departureDeadline;
 }
 

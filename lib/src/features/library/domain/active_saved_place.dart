@@ -1,5 +1,6 @@
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
 import 'package:luma_nest/src/core/location/geo_distance.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 
@@ -43,6 +44,9 @@ abstract final class ActiveSavedPlaceMatcher {
 
     final matches = <ActiveSavedPlaceMatch>[];
     for (final place in places) {
+      // Schema-18 coordinates had no datum contract. They remain visible in
+      // the library, but cannot safely be promoted to a live reviewed target.
+      if (place.coordinateSystem == CoordinateSystem.unknown) continue;
       ActiveSavedPlaceMatch? best;
       for (final session in validSessions) {
         for (final target in session.targetCandidates) {

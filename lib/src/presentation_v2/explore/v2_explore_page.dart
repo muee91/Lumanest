@@ -1097,6 +1097,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
             category: place.category.name,
             latitude: canonicalPoint.latitude,
             longitude: canonicalPoint.longitude,
+            coordinateSystem: CoordinateSystem.wgs84,
           ),
         );
   }

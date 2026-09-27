@@ -116,34 +116,63 @@ void main() {
     expect(matches.single.target.id, gcjTarget.id);
   });
 
-  test('does not reactivate a target that does not support the session kind', () {
-    final unsupported = ShootingTarget(
-      id: 'target_unsupported_0123456789abcdef',
-      name: '不支持当前题材的机位',
-      coordinate: const GeoPoint(latitude: 30.251, longitude: 120.151),
-      supportedSessions: const [ShootingSessionKind.cityBlueHour],
-      viewBearingDegrees: 282,
-      bearingToleranceDegrees: 20,
-      accessModes: const [ShootingTravelMode.driving],
-      leadTimeMinutes: 10,
-      arrivalRadiusMeters: 120,
-      shorelineSide: ShootingShorelineSide.east,
-      reviewedAt: DateTime.utc(2026, 9, 1),
-      reviewReference: Uri.parse('https://review.example/targets/unsupported'),
-      sourceAttribution: '审核目录',
-      sourceLicense: 'CC-BY-4.0',
-      sourceUrl: Uri.parse('https://source.example/targets/unsupported'),
-    );
+  test(
+    'does not reactivate a target that does not support the session kind',
+    () {
+      final unsupported = ShootingTarget(
+        id: 'target_unsupported_0123456789abcdef',
+        name: '不支持当前题材的机位',
+        coordinate: const GeoPoint(latitude: 30.251, longitude: 120.151),
+        supportedSessions: const [ShootingSessionKind.cityBlueHour],
+        viewBearingDegrees: 282,
+        bearingToleranceDegrees: 20,
+        accessModes: const [ShootingTravelMode.driving],
+        leadTimeMinutes: 10,
+        arrivalRadiusMeters: 120,
+        shorelineSide: ShootingShorelineSide.east,
+        reviewedAt: DateTime.utc(2026, 9, 1),
+        reviewReference: Uri.parse(
+          'https://review.example/targets/unsupported',
+        ),
+        sourceAttribution: '审核目录',
+        sourceLicense: 'CC-BY-4.0',
+        sourceUrl: Uri.parse('https://source.example/targets/unsupported'),
+      );
+      final session = ContextFixtures.waterEveningSession(
+        observedAt: now,
+        targetCandidates: [unsupported],
+      );
+      const saved = SavedPlace(
+        id: 'saved-unsupported',
+        name: '收藏点',
+        category: 'viewpoint',
+        latitude: 30.251,
+        longitude: 120.151,
+      );
+
+      expect(
+        ActiveSavedPlaceMatcher.match(
+          places: const [saved],
+          sessions: [session],
+          now: now,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test('does not match a saved place with an unknown coordinate datum', () {
     final session = ContextFixtures.waterEveningSession(
       observedAt: now,
-      targetCandidates: [unsupported],
+      targetCandidates: [target],
     );
     const saved = SavedPlace(
-      id: 'saved-unsupported',
-      name: '收藏点',
+      id: 'saved-unknown-datum',
+      name: '旧版本地点',
       category: 'viewpoint',
       latitude: 30.251,
       longitude: 120.151,
+      coordinateSystem: CoordinateSystem.unknown,
     );
 
     expect(

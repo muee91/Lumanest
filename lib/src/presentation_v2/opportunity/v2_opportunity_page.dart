@@ -137,8 +137,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   }
 
   Future<void> _refreshFieldLocation() async {
-    if (_locationRefreshing ||
-        widget.activeShootingIntent?.targetId == null) {
+    if (_locationRefreshing || widget.activeShootingIntent?.targetId == null) {
       return;
     }
     _locationRefreshing = true;
@@ -171,8 +170,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
         ? null
         : ref.watch(environmentSnapshotProvider).asData?.value;
     final freshLiveSnapshot = _freshFieldSnapshot(liveSnapshot, now);
-    final fieldSnapshot = freshLiveSnapshot ??
-        _freshFieldSnapshot(widget.snapshot, now);
+    final fieldSnapshot =
+        freshLiveSnapshot ?? _freshFieldSnapshot(widget.snapshot, now);
     final refreshedSession = fieldSnapshot?.shootingSessions
         .where((candidate) => candidate.id == session.id)
         .firstOrNull;
@@ -222,17 +221,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             now: now,
             currentLocation: _locationReading?.point ?? fieldSnapshot.location,
           );
-    ShootingTarget? planBTarget;
-    if (planB != null) {
-      planBTarget = planB.targetCandidates
-          .where(
-            (candidate) =>
-                candidate.arrivalRadiusMeters > 0 &&
-                candidate.supportedSessions.contains(planB.kind),
-          )
-          .firstOrNull;
-    }
-    final selectedPlanBTarget = planBTarget;
+    final selectedPlanBTarget = planB?.target;
     final fieldFacts = _fieldFacts(executionSession, fieldSnapshot);
     final intentTargetId = widget.activeShootingIntent?.targetId;
     final library = ref.watch(userLibraryProvider).asData?.value;
@@ -244,13 +233,6 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
         )
         .firstOrNull;
     final watched = watchedEntry != null;
-    final hasResult =
-        library?.sessionResults.any(
-          (item) =>
-              item.sessionId == session.id &&
-              (intentTargetId == null || item.targetId == intentTargetId),
-        ) ==
-        true;
     final selectedPhase = executionSession.phases.isEmpty
         ? null
         : executionSession.phases[_selectedPhaseIndex.clamp(
@@ -331,16 +313,17 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     const SizedBox(height: 18),
                     _V2PlanBObject(
                       primary: executionSession,
-                      alternative: planB,
+                      alternative: planB.session,
                       onOpen: () {
                         final intent = ActiveShootingIntent(
-                          sessionId: planB.id,
+                          sessionId: planB.session.id,
                           targetId: selectedPlanBTarget.id,
                           createdAt: DateTime.now(),
                         );
                         context.push(
                           Uri(
-                            path: '/session/${Uri.encodeComponent(planB.id)}',
+                            path:
+                                '/session/${Uri.encodeComponent(planB.session.id)}',
                             queryParameters: intent.queryParameters,
                           ).toString(),
                           extra: fieldSnapshot ?? widget.snapshot,
@@ -398,8 +381,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
             child: Row(
               children: [
-                if (watched ||
-                    executionSession.canStartWatchingAt(now)) ...[
+                if (watched || executionSession.canStartWatchingAt(now)) ...[
                   V2Pressable(
                     key: const Key('v2-watch-session-action'),
                     onTap: () =>
@@ -438,22 +420,14 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                 ],
                 Expanded(
                   child: V2Pressable(
-                    onTap:
-                        hasResult ||
-                            decision.state == ShootingExecutionState.ended
-                        ? _recordResult
-                        : decision.state == ShootingExecutionState.observe
+                    onTap: decision.state == ShootingExecutionState.observe
                         ? () => setState(() => _evidenceOpen = !_evidenceOpen)
                         : () => _primaryAction(decision, target),
                     color: V2Palette.moss,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Text(
-                        hasResult
-                            ? '再次记录结果'
-                            : decision.state == ShootingExecutionState.ended
-                            ? '记录结果'
-                            : decision.state == ShootingExecutionState.observe
+                        decision.state == ShootingExecutionState.observe
                             ? _evidenceOpen
                                   ? '收起依据'
                                   : '查看依据'
@@ -475,10 +449,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     );
   }
 
-  Future<void> _toggleWatch(
-    String? watchedId,
-    ShootingSession session,
-  ) async {
+  Future<void> _toggleWatch(String? watchedId, ShootingSession session) async {
     if (watchedId == null) {
       // Permission is requested at the moment the user asks to be reminded, not
       // at launch. A denial still keeps the watch itself, so the failure mode is
@@ -506,9 +477,9 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     } else {
       await ref.read(userLibraryProvider.notifier).unwatchSession(watchedId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已取消守候提醒')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已取消守候提醒')));
     }
   }
 
@@ -549,65 +520,12 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     setState(() => _evidenceOpen = true);
   }
 
-  Future<void> _recordResult() async {
-    final outcome = await showModalBottomSheet<ShootingSessionOutcome>(
-      context: context,
-      backgroundColor: V2Palette.canvas,
-      showDragHandle: true,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(22, 10, 22, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              '这次发生了什么？',
-              style: TextStyle(
-                color: V2Palette.ink,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 18),
-            for (final value in ShootingSessionOutcome.values)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 9),
-                child: V2Pressable(
-                  onTap: () => Navigator.of(context).pop(value),
-                  compact: true,
-                  child: Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Text(
-                      _outcome(value),
-                      style: const TextStyle(
-                        color: V2Palette.ink,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (outcome == null) return;
-    await ref
-        .read(userLibraryProvider.notifier)
-        .recordShootingSessionResult(
-          session: widget.session,
-          snapshotId: widget.snapshot.id,
-          outcome: outcome,
-          targetId: _targetForIntent()?.id,
-        );
-  }
-
   ShootingTarget? _targetForIntent() {
     final targetId = widget.activeShootingIntent?.targetId;
-    if (targetId == null) return widget.session.targetCandidates.firstOrNull;
-    return widget.session.targetCandidates
-        .where((candidate) => candidate.id == targetId)
-        .firstOrNull;
+    return ShootingTargetSelector.selectForSession(
+      widget.session,
+      requestedId: targetId,
+    );
   }
 
   static ContextSnapshot? _freshFieldSnapshot(
@@ -630,21 +548,9 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     // selector owns the deterministic priority; [snapshot] is kept in the
     // signature so callers can continue passing the evidence timestamp.
     return FieldEnvironmentSelector.select(session)
-        .map(
-          (factor) => _V2FieldFact(
-            label: factor.label,
-            value: factor.value,
-          ),
-        )
+        .map((factor) => _V2FieldFact(label: factor.label, value: factor.value))
         .toList(growable: false);
   }
-
-  static String _outcome(ShootingSessionOutcome value) => switch (value) {
-    ShootingSessionOutcome.captured => '拍到了',
-    ShootingSessionOutcome.conditionsDidNotAppear => '条件没有出现',
-    ShootingSessionOutcome.arrivedLate => '到晚了',
-    ShootingSessionOutcome.didNotGo => '没有去',
-  };
 
   static String _eyebrow(ShootingSessionKind kind) => switch (kind) {
     ShootingSessionKind.generalMorning => '晨间光线',
@@ -1038,9 +944,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                   widget.atTarget
                       ? CupertinoIcons.location_fill
                       : CupertinoIcons.location,
-                  color: widget.atTarget
-                      ? V2Palette.moss
-                      : V2Palette.mutedInk,
+                  color: widget.atTarget ? V2Palette.moss : V2Palette.mutedInk,
                   size: 19,
                 ),
                 const SizedBox(width: 10),
@@ -1078,9 +982,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                   widget.atTarget
                       ? CupertinoIcons.checkmark_circle_fill
                       : CupertinoIcons.circle,
-                  color: widget.atTarget
-                      ? V2Palette.moss
-                      : V2Palette.mutedInk,
+                  color: widget.atTarget ? V2Palette.moss : V2Palette.mutedInk,
                 ),
               ],
             ),

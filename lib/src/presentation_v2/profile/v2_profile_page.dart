@@ -172,7 +172,7 @@ class _ProfileSettingsPanel extends StatelessWidget {
                   context,
                   icon: CupertinoIcons.archivebox,
                   title: '我留下的',
-                  detail: '地点、纸条和拍摄记录',
+                  detail: '地点、纸条和守候窗口',
                   route: '/profile/library',
                 ),
                 _panelEntry(
@@ -360,7 +360,7 @@ class _V2UnderstandingObject extends StatelessWidget {
                 Text(
                   '${library?.savedNotes.length ?? 0} 张纸条 · '
                   '${library?.savedPlaces.length ?? 0} 个地点 · '
-                  '${library?.sessionResults.length ?? 0} 次结果',
+                  '${library?.watchedSessions.length ?? 0} 个关注窗口',
                   style: const TextStyle(
                     color: V2Palette.moss,
                     fontSize: 12,
@@ -483,14 +483,13 @@ class V2ProfileLibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider);
-    final hasSavedPlaces =
-        library.asData?.value.savedPlaces.isNotEmpty == true;
+    final hasSavedPlaces = library.asData?.value.savedPlaces.isNotEmpty == true;
     final environment = hasSavedPlaces
         ? ref.watch(environmentSnapshotProvider).asData?.value
         : null;
     return _V2SecondaryPage(
       title: '我留下的',
-      subtitle: '地点、纸条和拍摄结果都保存在本机。',
+      subtitle: '地点、纸条和守候窗口都保存在本机。',
       child: library.when(
         loading: () => const V2LoadingObject(label: '正在读取本地内容'),
         error: (_, _) => const Center(child: Text('本地内容暂时不可读')),
@@ -563,16 +562,17 @@ class V2ProfileLibraryPage extends ConsumerWidget {
                 items: value.savedPlaces
                     .take(8)
                     .map(
-                      (item) =>
-                          _V2LibraryItem(title: item.name, detail: item.category),
+                      (item) => _V2LibraryItem(
+                        title: item.name,
+                        detail: item.category,
+                      ),
                     )
                     .toList(),
               ),
               const SizedBox(height: 16),
               _V2SectionObject(
-                title: '拍摄记录',
+                title: '守候窗口',
                 child: Text(
-                  '${value.sessionResults.length} 次结果 · '
                   '${value.watchedSessions.length} 个关注窗口',
                   style: const TextStyle(color: V2Palette.mutedInk),
                 ),
@@ -654,7 +654,7 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '删除关注窗口和拍摄结果，不影响收藏地点与纸条。',
+                  '删除关注窗口，不影响收藏地点与纸条。',
                   style: TextStyle(color: V2Palette.mutedInk, height: 1.4),
                 ),
                 const SizedBox(height: 14),
@@ -662,7 +662,7 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
                   onTap: () => unawaited(
                     ref
                         .read(userLibraryProvider.notifier)
-                        .clearPhotographyActivity(),
+                        .clearWatchedSessions(),
                   ),
                   compact: true,
                   color: V2Palette.dangerSoft,

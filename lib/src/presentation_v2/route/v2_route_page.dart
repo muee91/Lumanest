@@ -87,10 +87,7 @@ class V2RoutePage extends ConsumerWidget {
 }
 
 class _V2RouteStage extends ConsumerStatefulWidget {
-  const _V2RouteStage({
-    required this.destination,
-    this.activeShootingIntent,
-  });
+  const _V2RouteStage({required this.destination, this.activeShootingIntent});
   final RouteDestination destination;
   final ActiveShootingIntent? activeShootingIntent;
 
@@ -167,12 +164,11 @@ class _V2RouteStageState extends ConsumerState<_V2RouteStage> {
               ref.invalidate(drivingRouteProvider(widget.destination)),
         ),
       ),
-      data: (value) =>
-          _V2LiveRoute(
-            route: value,
-            destination: widget.destination,
-            activeShootingIntent: widget.activeShootingIntent,
-          ),
+      data: (value) => _V2LiveRoute(
+        route: value,
+        destination: widget.destination,
+        activeShootingIntent: widget.activeShootingIntent,
+      ),
     );
   }
 }
@@ -311,7 +307,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           left: 20,
           right: 20,
           top: MediaQuery.paddingOf(context).top + 12,
-          child: _V2RouteVerdict(
+          child: V2RouteVerdict(
             route: widget.route,
             destination: widget.destination,
             snapshot: snapshot,
@@ -463,49 +459,55 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   }
 }
 
-class _V2RouteVerdict extends StatelessWidget {
-  const _V2RouteVerdict({
+/// The action-first route conclusion. The class is public so the exact text
+/// hierarchy can be regression-tested without booting an AMap surface.
+class V2RouteVerdict extends StatelessWidget {
+  const V2RouteVerdict({
+    super.key,
     required this.route,
     required this.destination,
     required this.snapshot,
     required this.scout,
     this.activeShootingIntent,
+    this.now,
   });
   final DrivingRoute route;
   final RouteDestination destination;
   final ContextSnapshot? snapshot;
   final RouteScoutPlan? scout;
   final ActiveShootingIntent? activeShootingIntent;
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final arrival = now.add(Duration(seconds: route.durationSeconds));
-    final freshSnapshot = snapshot != null &&
-        !snapshot!.isStale &&
-        snapshot!.dataFreshness != ContextDataFreshness.stale &&
-        snapshot!.expiresAt.toUtc().isAfter(now.toUtc())
+    final currentTime = now ?? DateTime.now();
+    final arrival = currentTime.add(Duration(seconds: route.durationSeconds));
+    final freshSnapshot =
+        snapshot != null &&
+            !snapshot!.isStale &&
+            snapshot!.dataFreshness != ContextDataFreshness.stale &&
+            snapshot!.expiresAt.toUtc().isAfter(currentTime.toUtc())
         ? snapshot
         : null;
-    final candidateSession = freshSnapshot == null
+    final selection = freshSnapshot == null
         ? null
-        : _sessionForIntent(freshSnapshot, activeShootingIntent, now);
-    final target = candidateSession == null
-        ? null
-        : _targetForDestination(
-            candidateSession,
-            destination,
-            activeShootingIntent,
+        : ShootingSessionSelector.selectForDestination(
+            freshSnapshot.shootingSessions,
+            destination: destination.point,
+            now: currentTime,
+            requestedSessionId: activeShootingIntent?.sessionId,
+            requestedTargetId: activeShootingIntent?.targetId,
           );
     // A route to an arbitrary place must not inherit the current session's
     // timing verdict. Only a reviewed target tied to this destination can
     // produce a catchability or latest-departure statement.
-    final session = target == null ? null : candidateSession;
+    final session = selection?.session;
+    final target = selection?.target;
     final decision = session == null
         ? null
         : ShootingExecutionResolver.resolve(
             session: session,
-            now: now,
+            now: currentTime,
             target: target,
             routeDuration: Duration(seconds: route.durationSeconds),
           );
@@ -517,14 +519,15 @@ class _V2RouteVerdict extends StatelessWidget {
       ShootingExecutionState.tooLate => false,
       _ => null,
     };
-    final headline = scout?.headline ??
-        (session == null
-            ? '路线已经准备好'
-            : canCatch == true
-            ? '按当前路线赶得上'
-            : canCatch == false
-            ? '按当前路线已经赶不上'
-            : '当前条件不足以判断');
+    final headline = routeVerdictHeadline(
+      decision: decision,
+      hasReviewedTarget: target != null,
+      scoutHeadline: scout?.headline,
+      scoutCritical: (scout?.criticalCount ?? 0) > 0,
+    );
+    final criticalScoutHeadline = (scout?.criticalCount ?? 0) > 0
+        ? scout?.headline
+        : null;
     final urgent =
         (scout?.criticalCount ?? 0) > 0 ||
         canCatch == false ||
@@ -561,6 +564,20 @@ class _V2RouteVerdict extends StatelessWidget {
                       letterSpacing: -.4,
                     ),
                   ),
+                  if (criticalScoutHeadline != null &&
+                      criticalScoutHeadline != headline) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      criticalScoutHeadline,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: V2Palette.ember,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     '${_duration(route.durationSeconds)} · ${_distance(route.distanceMeters)}',
@@ -598,44 +615,6 @@ class _V2RouteVerdict extends StatelessWidget {
     );
   }
 
-  static ShootingSession? _sessionForIntent(
-    ContextSnapshot snapshot,
-    ActiveShootingIntent? intent,
-    DateTime now,
-  ) {
-    if (intent == null) {
-      return ShootingSessionSelector.select(
-        snapshot.shootingSessions,
-        now: now,
-      );
-    }
-    final session = snapshot.shootingSessions
-        .where((candidate) => candidate.id == intent.sessionId)
-        .firstOrNull;
-    return session != null && session.endsAt.isAfter(now) ? session : null;
-  }
-
-  static ShootingTarget? _targetForDestination(
-    ShootingSession session,
-    RouteDestination destination,
-    ActiveShootingIntent? intent,
-  ) {
-    final candidates = intent?.targetId == null
-        ? session.targetCandidates
-        : session.targetCandidates.where(
-            (target) => target.id == intent!.targetId,
-          );
-    return candidates
-        .where(
-          (target) =>
-              GeoDistance.metersBetween(
-                ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate),
-                destination.point,
-              ) <= target.arrivalRadiusMeters,
-        )
-        .firstOrNull;
-  }
-
   static String _duration(int seconds) {
     final minutes = (seconds / 60).ceil();
     if (minutes < 60) return '$minutes 分钟';
@@ -649,6 +628,35 @@ class _V2RouteVerdict extends StatelessWidget {
     final local = value.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Route conclusions are deliberately action-first. Scout is useful context,
+/// but its generic headline must never replace a verified departure verdict.
+@visibleForTesting
+String routeVerdictHeadline({
+  required ShootingExecutionDecision? decision,
+  required bool hasReviewedTarget,
+  required String? scoutHeadline,
+  required bool scoutCritical,
+}) {
+  switch (decision?.state) {
+    case ShootingExecutionState.tooLate:
+      return '按当前路线已经赶不上';
+    case ShootingExecutionState.departNow:
+      return '现在该出发';
+    case ShootingExecutionState.waitToDepart:
+    case ShootingExecutionState.waitAtTarget:
+    case ShootingExecutionState.shootNow:
+      return '按当前路线赶得上';
+    case ShootingExecutionState.observe:
+      return hasReviewedTarget ? '当前条件不足以判断' : (scoutHeadline ?? '路线已经准备好');
+    case ShootingExecutionState.planRoute:
+      return hasReviewedTarget ? '路线已经准备好' : (scoutHeadline ?? '路线已经准备好');
+    case ShootingExecutionState.ended:
+      return scoutHeadline ?? '路线已经准备好';
+    case null:
+      return scoutHeadline ?? '路线已经准备好';
   }
 }
 
@@ -668,7 +676,8 @@ class _V2RouteActionObject extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final plan = scout.asData?.value;
-    final headline = plan?.headline ?? (scout.isLoading ? '正在整理沿途信息' : '路线已准备好');
+    final headline =
+        plan?.headline ?? (scout.isLoading ? '正在整理沿途信息' : '路线已准备好');
     final detail = plan == null
         ? '探路失败不会影响路线与外部导航。'
         : '${plan.criticalCount + plan.highCount} 条重点 · '

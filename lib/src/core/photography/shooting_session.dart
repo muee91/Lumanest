@@ -58,15 +58,6 @@ enum ShootingShorelineSide {
   northwest,
 }
 
-enum ShootingSessionOutcome {
-  captured,
-  conditionsDidNotAppear,
-  arrivedLate,
-  didNotGo,
-}
-
-enum ShootingSessionOutcomeReason { wind, cloud, precipitation, target }
-
 class ShootingSessionFactor {
   const ShootingSessionFactor({
     required this.id,
@@ -259,16 +250,151 @@ abstract final class ShootingSessionSelector {
     });
     return available.firstOrNull;
   }
+
+  /// Selects the session and reviewed target that actually cover a route
+  /// destination. A route opened without an active intent must not first pick
+  /// a globally current session and only then try to fit its targets; doing so
+  /// can discard a different session that is the real match for this place.
+  static ShootingSessionTargetSelection? selectForDestination(
+    Iterable<ShootingSession> sessions, {
+    required GeoPoint destination,
+    required DateTime now,
+    String? requestedSessionId,
+    String? requestedTargetId,
+  }) {
+    final utcNow = now.toUtc();
+    final canonicalDestination = ChinaCoordinateConverter.gcj02ToWgs84(
+      destination,
+    );
+    final candidates = <ShootingSessionTargetSelection>[];
+    for (final session in sessions) {
+      if (!session.endsAt.toUtc().isAfter(utcNow) ||
+          session.isEvidenceExpiredAt(utcNow) ||
+          requestedSessionId != null && session.id != requestedSessionId) {
+        continue;
+      }
+      final targets = session.targetCandidates.where(
+        (target) =>
+            (requestedTargetId == null || target.id == requestedTargetId) &&
+            target.arrivalRadiusMeters > 0 &&
+            target.supportedSessions.contains(session.kind),
+      );
+      for (final target in targets) {
+        final targetPoint = ChinaCoordinateConverter.gcj02ToWgs84(
+          target.coordinate,
+        );
+        final distance = GeoDistance.metersBetween(
+          canonicalDestination,
+          targetPoint,
+        );
+        if (distance <= target.arrivalRadiusMeters) {
+          candidates.add(
+            ShootingSessionTargetSelection(
+              session: session,
+              target: target,
+              distanceMeters: distance,
+            ),
+          );
+        }
+      }
+    }
+    if (candidates.isEmpty) return null;
+    candidates.sort((left, right) {
+      final leftActive = _isActive(left.session, utcNow);
+      final rightActive = _isActive(right.session, utcNow);
+      if (leftActive != rightActive) return leftActive ? -1 : 1;
+
+      final condition = _conditionRank(
+        right.session.conditionBand,
+      ).compareTo(_conditionRank(left.session.conditionBand));
+      if (condition != 0) return condition;
+      final confidence = _confidenceRank(
+        right.session.confidenceBand,
+      ).compareTo(_confidenceRank(left.session.confidenceBand));
+      if (confidence != 0) return confidence;
+      final distance = left.distanceMeters.compareTo(right.distanceMeters);
+      if (distance != 0) return distance;
+      final time = left.session.presentationStartsAt.compareTo(
+        right.session.presentationStartsAt,
+      );
+      if (time != 0) return time;
+      final session = left.session.id.compareTo(right.session.id);
+      return session != 0 ? session : left.target.id.compareTo(right.target.id);
+    });
+    return candidates.first;
+  }
+
+  static bool _isActive(ShootingSession session, DateTime now) =>
+      !now.isBefore(session.startsAt.toUtc()) &&
+      now.isBefore(session.endsAt.toUtc());
+
+  static int _conditionRank(ShootingConditionBand value) => switch (value) {
+    ShootingConditionBand.good => 2,
+    ShootingConditionBand.fair => 1,
+    ShootingConditionBand.limited => 0,
+  };
+
+  static int _confidenceRank(ShootingConfidenceBand value) => switch (value) {
+    ShootingConfidenceBand.high => 2,
+    ShootingConfidenceBand.medium => 1,
+    ShootingConfidenceBand.limited => 0,
+  };
+}
+
+/// A route or fallback decision keeps the session and target bound together.
+/// This prevents a later presentation-layer `first` target lookup from
+/// silently opening a different reviewed location than the one that was
+/// ranked by the domain layer.
+class ShootingSessionTargetSelection {
+  const ShootingSessionTargetSelection({
+    required this.session,
+    required this.target,
+    required this.distanceMeters,
+  });
+
+  final ShootingSession session;
+  final ShootingTarget target;
+  final double distanceMeters;
+}
+
+abstract final class ShootingTargetSelector {
+  /// Returns a reviewed, session-compatible target in deterministic order.
+  /// Callers with an active intent must provide [requestedId]; an invalid id
+  /// intentionally returns null instead of silently switching locations.
+  static ShootingTarget? selectForSession(
+    ShootingSession session, {
+    String? requestedId,
+    ShootingTravelMode? travelMode,
+  }) {
+    final candidates = session.targetCandidates
+        .where(
+          (target) =>
+              target.arrivalRadiusMeters > 0 &&
+              target.supportedSessions.contains(session.kind) &&
+              (travelMode == null || target.accessModes.contains(travelMode)),
+        )
+        .toList(growable: false);
+    if (requestedId != null) {
+      for (final candidate in candidates) {
+        if (candidate.id == requestedId) return candidate;
+      }
+      return null;
+    }
+    candidates.sort((left, right) {
+      final reviewed = right.reviewedAt.compareTo(left.reviewedAt);
+      if (reviewed != 0) return reviewed;
+      final lead = left.leadTimeMinutes.compareTo(right.leadTimeMinutes);
+      return lead != 0 ? lead : left.id.compareTo(right.id);
+    });
+    return candidates.firstOrNull;
+  }
 }
 
 abstract final class ShootingSessionFallback {
   /// Existing secondary windows may be presented as a fallback only when the
   /// selected primary window is visibly weakening or limited. This is a copy
   /// and ranking signal; it never invents a new opportunity.
-  static bool shouldOfferPlanB(
-    ShootingSession? primary, {
-    DateTime? now,
-  }) {
+  static bool shouldOfferPlanB(ShootingSession? primary, {DateTime? now}) {
     if (primary == null) return false;
     final utcNow = (now ?? DateTime.now()).toUtc();
     return primary.conditionBand == ShootingConditionBand.limited ||
@@ -276,10 +402,28 @@ abstract final class ShootingSessionFallback {
         primary.isEvidenceExpiredAt(utcNow);
   }
 
+  /// Shared eligibility used by Today and the detail page. Keeping this in
+  /// the domain prevents the rail from drifting into a title-only Plan B.
+  static bool isUsablePlanBSession(
+    ShootingSession session, {
+    required DateTime now,
+  }) {
+    final utcNow = now.toUtc();
+    return session.endsAt.toUtc().isAfter(utcNow) &&
+        !session.isEvidenceExpiredAt(utcNow) &&
+        session.confidenceBand != ShootingConfidenceBand.limited &&
+        session.conditionBand != ShootingConditionBand.limited &&
+        session.targetCandidates.any(
+          (target) =>
+              target.arrivalRadiusMeters > 0 &&
+              target.supportedSessions.contains(session.kind),
+        );
+  }
+
   /// Chooses only from sessions that are already established by the current
   /// snapshot. The fallback layer never manufactures a new opportunity and
   /// never upgrades limited or expired evidence into an action.
-  static ShootingSession? selectPlanB(
+  static ShootingPlanBSelection? selectPlanB(
     Iterable<ShootingSession> sessions, {
     required ShootingSession primary,
     required DateTime now,
@@ -291,82 +435,96 @@ abstract final class ShootingSessionFallback {
         .where(
           (session) =>
               session.id != primary.id &&
-              session.endsAt.toUtc().isAfter(utcNow) &&
-              !session.isEvidenceExpiredAt(utcNow) &&
-              session.confidenceBand != ShootingConfidenceBand.limited &&
-              session.conditionBand != ShootingConditionBand.limited &&
-              session.targetCandidates.any(
-                (target) =>
-                    target.arrivalRadiusMeters > 0 &&
-                    target.supportedSessions.contains(session.kind),
-              ),
+              isUsablePlanBSession(session, now: utcNow),
         )
+        .expand((session) {
+          final target = _bestUsableTarget(session, currentLocation);
+          return target == null
+              ? const <ShootingPlanBSelection>[]
+              : <ShootingPlanBSelection>[target];
+        })
         .toList(growable: false);
     if (candidates.isEmpty) return null;
     candidates.sort((left, right) {
+      final leftSession = left.session;
+      final rightSession = right.session;
       final leftActive =
-          !utcNow.isBefore(left.startsAt.toUtc()) &&
-          utcNow.isBefore(left.endsAt.toUtc());
+          !utcNow.isBefore(leftSession.startsAt.toUtc()) &&
+          utcNow.isBefore(leftSession.endsAt.toUtc());
       final rightActive =
-          !utcNow.isBefore(right.startsAt.toUtc()) &&
-          utcNow.isBefore(right.endsAt.toUtc());
+          !utcNow.isBefore(rightSession.startsAt.toUtc()) &&
+          utcNow.isBefore(rightSession.endsAt.toUtc());
       if (leftActive != rightActive) return leftActive ? -1 : 1;
 
       final condition = _conditionRank(
-        right.conditionBand,
-      ).compareTo(_conditionRank(left.conditionBand));
+        rightSession.conditionBand,
+      ).compareTo(_conditionRank(leftSession.conditionBand));
       if (condition != 0) return condition;
 
       final trend = _trendRank(
-        right.trend,
-      ).compareTo(_trendRank(left.trend));
+        rightSession.trend,
+      ).compareTo(_trendRank(leftSession.trend));
       if (trend != 0) return trend;
 
-      // Quality and an active window still outrank travel convenience. When
-      // both candidates have a usable reviewed target distance, prefer the
-      // closer one so a fallback remains practical from the user's current
-      // location. Missing coordinates keep the existing deterministic order.
-      final leftDistance = _nearestTargetDistance(left, currentLocation);
-      final rightDistance = _nearestTargetDistance(right, currentLocation);
+      final leftDistance = left.distanceMeters;
+      final rightDistance = right.distanceMeters;
       if (leftDistance != null && rightDistance != null) {
         final distance = leftDistance.compareTo(rightDistance);
         if (distance != 0) return distance;
       }
 
-      final time = left.presentationStartsAt.compareTo(
-        right.presentationStartsAt,
+      final time = leftSession.presentationStartsAt.compareTo(
+        rightSession.presentationStartsAt,
       );
-      return time != 0 ? time : left.id.compareTo(right.id);
+      return time != 0 ? time : leftSession.id.compareTo(rightSession.id);
     });
     return candidates.first;
   }
 
-  static double? _nearestTargetDistance(
+  static ShootingPlanBSelection? _bestUsableTarget(
     ShootingSession session,
     GeoPoint? currentLocation,
   ) {
-    if (currentLocation == null) return null;
-    try {
-      final current = ChinaCoordinateConverter.gcj02ToWgs84(
-        currentLocation,
-      ).validate();
-      double? nearest;
-      for (final target in session.targetCandidates) {
-        if (target.arrivalRadiusMeters <= 0 ||
-            !target.supportedSessions.contains(session.kind)) {
-          continue;
-        }
-        final targetPoint = ChinaCoordinateConverter.gcj02ToWgs84(
-          target.coordinate,
-        ).validate();
-        final distance = GeoDistance.metersBetween(current, targetPoint);
-        if (nearest == null || distance < nearest) nearest = distance;
+    ShootingPlanBSelection? best;
+    for (final target in session.targetCandidates) {
+      if (target.arrivalRadiusMeters <= 0 ||
+          !target.supportedSessions.contains(session.kind)) {
+        continue;
       }
-      return nearest;
-    } on Object {
-      // An invalid coordinate must not make an otherwise usable Plan B fail.
-      return null;
+      double? distance;
+      if (currentLocation != null) {
+        try {
+          final current = ChinaCoordinateConverter.gcj02ToWgs84(
+            currentLocation,
+          ).validate();
+          final targetPoint = ChinaCoordinateConverter.gcj02ToWgs84(
+            target.coordinate,
+          ).validate();
+          distance = GeoDistance.metersBetween(current, targetPoint);
+        } on Object {
+          distance = null;
+        }
+      }
+      final candidate = ShootingPlanBSelection(
+        session: session,
+        target: target,
+        distanceMeters: distance,
+      );
+      if (best == null ||
+          _distanceSort(distance, best.distanceMeters) < 0 ||
+          _distanceSort(distance, best.distanceMeters) == 0 &&
+              target.id.compareTo(best.target.id) < 0) {
+        best = candidate;
+      }
     }
+    return best;
+  }
+
+  static int _distanceSort(double? left, double? right) {
+    if (left == null && right == null) return 0;
+    if (left == null) return 1;
+    if (right == null) return -1;
+    return left.compareTo(right);
   }
 
   static int _conditionRank(ShootingConditionBand value) => switch (value) {
@@ -380,6 +538,26 @@ abstract final class ShootingSessionFallback {
     ShootingTrend.stable => 1,
     ShootingTrend.weakening => 0,
   };
+}
+
+/// A Plan B selection returned by the domain layer with its reviewed target
+/// already bound to the chosen session.
+class ShootingPlanBSelection {
+  const ShootingPlanBSelection({
+    required this.session,
+    required this.target,
+    this.distanceMeters,
+  });
+
+  final ShootingSession session;
+  final ShootingTarget target;
+  final double? distanceMeters;
+
+  // Small forwarding getters keep callers that only need display metadata
+  // from having to unpack the selection again.
+  String get id => session.id;
+  ShootingSessionKind get kind => session.kind;
+  String get title => session.title;
 }
 
 enum ShootingExecutionState {
@@ -420,7 +598,7 @@ abstract final class ShootingExecutionResolver {
     if (!now.isBefore(session.endsAt)) {
       return const ShootingExecutionDecision(
         state: ShootingExecutionState.ended,
-        label: '记录结果',
+        label: '查看下次窗口',
         reason: '本次拍摄窗口已经结束。',
       );
     }

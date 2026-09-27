@@ -91,99 +91,109 @@ void main() {
     expect(service.scheduled.single.departureDeadline, isNull);
   });
 
-  test('does not apply a target-specific departure plan to a legacy targetless watch', () async {
-    final service = _FakeService();
-    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
-    final plan = ShootingDeparturePlan(
-      sessionId: session.id,
-      targetId: 'target-a',
-      departureDeadline: now.add(const Duration(minutes: 7)),
-      routeDuration: const Duration(minutes: 22),
-      createdAt: now,
-    );
-
-    await _reconciler(service, _MemoryLedger(), now).reconcile(
-      snapshot: _snapshot(now, session),
-      library: _library(now, session),
-      departurePlan: plan,
-    );
-
-    expect(
-      service.scheduled.single.notifyAt,
-      session.startsAt.subtract(const Duration(minutes: 15)),
-    );
-    expect(service.scheduled.single.departureDeadline, isNull);
-  });
-
-  test('keeps an earlier scheduled departure reminder after transient route state is lost', () async {
-    final service = _FakeService();
-    final ledger = _MemoryLedger();
-    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
-    final library = _library(now, session, targetId: 'target-a');
-    final deadline = now.add(const Duration(minutes: 7));
-    final plan = ShootingDeparturePlan(
-      sessionId: session.id,
-      targetId: 'target-a',
-      departureDeadline: deadline,
-      routeDuration: const Duration(minutes: 22),
-      createdAt: now,
-    );
-    final reconciler = _reconciler(service, ledger, now);
-
-    await reconciler.reconcile(
-      snapshot: _snapshot(now, session),
-      library: library,
-      departurePlan: plan,
-    );
-    await reconciler.reconcile(
-      snapshot: _snapshot(now, session),
-      library: library,
-    );
-
-    expect(service.scheduled, hasLength(1));
-    expect(service.cancelled, isEmpty);
-    expect(await ledger.read(), {
-      library.watchedSessions.single.id: deadline,
-    });
-  });
-
-  test('explicit departure invalidation downgrades an obsolete earlier reminder', () async {
-    final service = _FakeService();
-    final ledger = _MemoryLedger();
-    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
-    final library = _library(now, session, targetId: 'target-a');
-    final deadline = now.add(const Duration(minutes: 7));
-    final plan = ShootingDeparturePlan(
-      sessionId: session.id,
-      targetId: 'target-a',
-      departureDeadline: deadline,
-      routeDuration: const Duration(minutes: 22),
-      createdAt: now,
-    );
-    final reconciler = _reconciler(service, ledger, now);
-
-    await reconciler.reconcile(
-      snapshot: _snapshot(now, session),
-      library: library,
-      departurePlan: plan,
-    );
-    await reconciler.reconcile(
-      snapshot: _snapshot(now, session),
-      library: library,
-      departureInvalidation: ShootingDeparturePlanInvalidation(
+  test(
+    'does not apply a target-specific departure plan to a legacy targetless watch',
+    () async {
+      final service = _FakeService();
+      final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+      final plan = ShootingDeparturePlan(
         sessionId: session.id,
         targetId: 'target-a',
-      ),
-    );
+        departureDeadline: now.add(const Duration(minutes: 7)),
+        routeDuration: const Duration(minutes: 22),
+        createdAt: now,
+      );
 
-    expect(service.scheduled, hasLength(2));
-    expect(service.cancelled, [library.watchedSessions.single.id]);
-    expect(
-      service.scheduled.last.notifyAt,
-      session.startsAt.subtract(const Duration(minutes: 15)),
-    );
-    expect(service.scheduled.last.departureDeadline, isNull);
-  });
+      await _reconciler(service, _MemoryLedger(), now).reconcile(
+        snapshot: _snapshot(now, session),
+        library: _library(now, session),
+        departurePlan: plan,
+      );
+
+      expect(
+        service.scheduled.single.notifyAt,
+        session.startsAt.subtract(const Duration(minutes: 15)),
+      );
+      expect(service.scheduled.single.departureDeadline, isNull);
+    },
+  );
+
+  test(
+    'keeps an earlier scheduled departure reminder after transient route state is lost',
+    () async {
+      final service = _FakeService();
+      final ledger = _MemoryLedger();
+      final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+      final library = _library(now, session, targetId: 'target-a');
+      final deadline = now.add(const Duration(minutes: 7));
+      final plan = ShootingDeparturePlan(
+        sessionId: session.id,
+        targetId: 'target-a',
+        departureDeadline: deadline,
+        routeDuration: const Duration(minutes: 22),
+        createdAt: now,
+      );
+      final reconciler = _reconciler(service, ledger, now);
+
+      await reconciler.reconcile(
+        snapshot: _snapshot(now, session),
+        library: library,
+        departurePlan: plan,
+      );
+      await reconciler.reconcile(
+        snapshot: _snapshot(now, session),
+        library: library,
+      );
+
+      expect(service.scheduled, hasLength(1));
+      expect(service.cancelled, isEmpty);
+      final record = (await ledger.read()).values.single;
+      expect(record.watchId, library.watchedSessions.single.id);
+      expect(record.notifyAt, deadline);
+      expect(record.notificationType, ShootingNotificationType.departure);
+    },
+  );
+
+  test(
+    'explicit departure invalidation downgrades an obsolete earlier reminder',
+    () async {
+      final service = _FakeService();
+      final ledger = _MemoryLedger();
+      final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+      final library = _library(now, session, targetId: 'target-a');
+      final deadline = now.add(const Duration(minutes: 7));
+      final plan = ShootingDeparturePlan(
+        sessionId: session.id,
+        targetId: 'target-a',
+        departureDeadline: deadline,
+        routeDuration: const Duration(minutes: 22),
+        createdAt: now,
+      );
+      final reconciler = _reconciler(service, ledger, now);
+
+      await reconciler.reconcile(
+        snapshot: _snapshot(now, session),
+        library: library,
+        departurePlan: plan,
+      );
+      await reconciler.reconcile(
+        snapshot: _snapshot(now, session),
+        library: library,
+        departureInvalidation: ShootingDeparturePlanInvalidation(
+          sessionId: session.id,
+          targetId: 'target-a',
+        ),
+      );
+
+      expect(service.scheduled, hasLength(2));
+      expect(service.cancelled, [library.watchedSessions.single.id]);
+      expect(
+        service.scheduled.last.notifyAt,
+        session.startsAt.subtract(const Duration(minutes: 15)),
+      );
+      expect(service.scheduled.last.departureDeadline, isNull);
+    },
+  );
 
   test('uses one immediate notification for a current session', () async {
     final service = _FakeService();
@@ -250,6 +260,29 @@ void main() {
     expect(await ledger.read(), isEmpty);
   });
 
+  test('target changes replace the old watch notification identity', () async {
+    final service = _FakeService();
+    final ledger = _MemoryLedger();
+    final session = _sessionStarting(now.add(const Duration(minutes: 35)));
+    final first = _library(now, session, targetId: 'target-a');
+    final second = _library(now, session, targetId: 'target-b');
+    final reconciler = _reconciler(service, ledger, now);
+
+    await reconciler.reconcile(
+      snapshot: _snapshot(now, session),
+      library: first,
+    );
+    await reconciler.reconcile(
+      snapshot: _snapshot(now, session),
+      library: second,
+    );
+
+    expect(service.scheduled, hasLength(2));
+    expect(service.cancelled, [first.watchedSessions.single.id]);
+    expect((await ledger.read()).keys, [second.watchedSessions.single.id]);
+    expect(service.scheduled.last.watchTargetId, 'target-b');
+  });
+
   test('permission-denied preference cannot be enabled', () async {
     final service = _FakeService(permission: false);
     final preference = _MemoryPreference();
@@ -305,17 +338,16 @@ UserLibraryState _library(
   DateTime now,
   ShootingSession session, {
   String? targetId,
-}) =>
-    UserLibraryState(
-      watchedSessions: [
-        WatchedShootingSession.create(
-          session: session,
-          snapshotId: 'fresh-snapshot',
-          watchedAt: now.subtract(const Duration(minutes: 1)),
-          targetId: targetId,
-        ),
-      ],
-    );
+}) => UserLibraryState(
+  watchedSessions: [
+    WatchedShootingSession.create(
+      session: session,
+      snapshotId: 'fresh-snapshot',
+      watchedAt: now.subtract(const Duration(minutes: 1)),
+      targetId: targetId,
+    ),
+  ],
+);
 
 ShootingSessionNotificationReconciler _reconciler(
   _FakeService service,
@@ -333,11 +365,13 @@ class _Scheduled {
     required this.session,
     required this.notifyAt,
     required this.dataObservedAt,
+    required this.watchTargetId,
     this.departureDeadline,
   });
   final ShootingSession session;
   final DateTime notifyAt;
   final DateTime dataObservedAt;
+  final String? watchTargetId;
   final DateTime? departureDeadline;
 }
 
@@ -374,6 +408,7 @@ class _FakeService implements ShootingSessionNotificationService {
         session: session,
         notifyAt: notifyAt,
         dataObservedAt: dataObservedAt,
+        watchTargetId: watch.targetId,
         departureDeadline: departureDeadline,
       ),
     );
@@ -381,13 +416,14 @@ class _FakeService implements ShootingSessionNotificationService {
 }
 
 class _MemoryLedger implements ShootingSessionNotificationLedger {
-  Map<String, DateTime> value = {};
+  Map<String, WatchScheduleRecord> value = {};
 
   @override
-  Future<Map<String, DateTime>> read() async => Map.unmodifiable(value);
+  Future<Map<String, WatchScheduleRecord>> read() async =>
+      Map.unmodifiable(value);
 
   @override
-  Future<void> write(Map<String, DateTime> scheduled) async {
+  Future<void> write(Map<String, WatchScheduleRecord> scheduled) async {
     value = Map.of(scheduled);
   }
 }

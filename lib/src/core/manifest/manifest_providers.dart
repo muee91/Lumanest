@@ -13,9 +13,9 @@ final creativePersonalizationProvider = Provider<CreativePersonalization>((
   final base = ProfilePersonalization.fromPreferences(
     ref.watch(profilePreferencesProvider),
   );
-  // Session outcomes remain local history. They do not imply a durable
-  // creative preference: a missed window can reflect weather, timing or
-  // logistics rather than what the person wants to see next.
+  // Watching a session remains an action boundary only. It does not imply a
+  // durable creative preference: a missed window can reflect weather, timing
+  // or logistics rather than what the person wants to see next.
   return CreativePersonalization(
     photographyPreferences: base.photographyPreferences,
     activityPreferences: base.activityPreferences,

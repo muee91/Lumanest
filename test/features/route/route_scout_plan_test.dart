@@ -148,6 +148,58 @@ void main() {
     expect(plan.headline, contains('官方管制'));
   });
 
+  test(
+    'stale or expired photography evidence is not actionable scout content',
+    () {
+      final now = DateTime.utc(2026, 8, 5, 6);
+      final session = ShootingSession(
+        id: 'expired-photo',
+        kind: ShootingSessionKind.routeLightWindow,
+        title: '过期侧光',
+        startsAt: now.add(const Duration(minutes: 10)),
+        endsAt: now.add(const Duration(minutes: 40)),
+        primaryPhase: ShootingPhaseKind.shoot,
+        conditionBand: ShootingConditionBand.good,
+        confidenceBand: ShootingConfidenceBand.high,
+        trend: ShootingTrend.stable,
+        phases: [
+          ShootingSessionPhase(
+            kind: ShootingPhaseKind.shoot,
+            startsAt: now.add(const Duration(minutes: 10)),
+            peaksAt: now.add(const Duration(minutes: 20)),
+            endsAt: now.add(const Duration(minutes: 30)),
+            conditionBand: ShootingConditionBand.good,
+            directionDegrees: 180,
+          ),
+        ],
+        factors: const [],
+        trendSamples: const [],
+        targetCandidates: const [],
+        ruleVersion: 'expired.1',
+        expiresAt: now.subtract(const Duration(minutes: 1)),
+      );
+      final snapshot = ContextSnapshot(
+        id: 'stale-context',
+        observedAt: now.subtract(const Duration(minutes: 20)),
+        expiresAt: now.add(const Duration(minutes: 15)),
+        primaryScene: SceneType.city,
+        dayPhase: DayPhase.day,
+        weather: WeatherType.clear,
+        activeRoute: true,
+        shootingSessions: [session],
+      );
+
+      final plan = RouteScoutPlanBuilder.build(
+        routeId: 'r1',
+        route: _route(),
+        snapshot: snapshot,
+        now: now,
+      );
+
+      expect(plan.photographyCount, 0);
+    },
+  );
+
   test('noneObserved restriction state never becomes a safety claim', () {
     final now = DateTime.utc(2026, 8, 5, 6);
     final report = _routeReport(

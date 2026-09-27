@@ -73,15 +73,6 @@ void main() {
           watchedAt: observedAt,
         ),
       ],
-      sessionResults: [
-        ShootingSessionResult.record(
-          session: session,
-          snapshotId: 'snapshot-1',
-          outcome: ShootingSessionOutcome.captured,
-          recordedAt: observedAt.add(const Duration(hours: 2)),
-          reasons: const {ShootingSessionOutcomeReason.cloud},
-        ),
-      ],
     );
 
     await store.write(state);
@@ -96,13 +87,6 @@ void main() {
       restored.watchedSessions.single.kind,
       ShootingSessionKind.waterEvening,
     );
-    expect(
-      restored.sessionResults.single.outcome,
-      ShootingSessionOutcome.captured,
-    );
-    expect(restored.sessionResults.single.reasons, {
-      ShootingSessionOutcomeReason.cloud,
-    });
     expect(restored.toExportJson()['format'], 'lumanest-local-library-v4');
   });
 
@@ -126,6 +110,5 @@ void main() {
 
     expect(restored.savedPlaces, isEmpty);
     expect(restored.watchedSessions, isEmpty);
-    expect(restored.sessionResults, isEmpty);
   });
 }

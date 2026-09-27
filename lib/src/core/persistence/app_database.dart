@@ -16,6 +16,8 @@ class SavedPlaces extends Table {
   TextColumn get category => text()();
   RealColumn get latitude => real()();
   RealColumn get longitude => real()();
+  TextColumn get coordinateSystem =>
+      text().withDefault(const Constant('unknown'))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -24,6 +26,7 @@ class SavedPlaces extends Table {
   List<String> get customConstraints => const [
     'CHECK (latitude BETWEEN -90 AND 90)',
     'CHECK (longitude BETWEEN -180 AND 180)',
+    "CHECK (coordinate_system IN ('wgs84', 'gcj02', 'unknown'))",
   ];
 }
 
@@ -249,31 +252,6 @@ class WatchedShootingSessions extends Table {
   ];
 }
 
-@DataClassName('ShootingSessionResultRow')
-class ShootingSessionResults extends Table {
-  TextColumn get id => text()();
-  TextColumn get sessionId => text()();
-  TextColumn get snapshotId => text()();
-  TextColumn get kind => text()();
-  TextColumn get targetId => text().nullable()();
-  TextColumn get outcome => text()();
-  TextColumn get reasonsJson => text()();
-  DateTimeColumn get recordedAt => dateTime()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-
-  @override
-  List<String> get customConstraints => const [
-    'CHECK (length(id) = 64)',
-    'CHECK (length(session_id) BETWEEN 1 AND 160)',
-    'CHECK (length(snapshot_id) BETWEEN 1 AND 160)',
-    "CHECK (kind IN ('generalMorning', 'generalEvening', 'waterMorning', 'waterEvening', 'mountainMorning', 'mountainEvening', 'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow'))",
-    "CHECK (outcome IN ('captured', 'conditionsDidNotAppear', 'arrivedLate', 'didNotGo'))",
-    'CHECK (length(reasons_json) BETWEEN 2 AND 512)',
-  ];
-}
-
 /// Cached Region Brief payloads are local-only and keyed by a coarse region
 /// identity supplied by Broker. No raw current-location coordinate is stored
 /// in this table.
@@ -349,7 +327,6 @@ class RegionInsightImpressions extends Table {
     SavedInspirationNotes,
     WildlifeMapLayerCaches,
     WatchedShootingSessions,
-    ShootingSessionResults,
     RegionBriefCaches,
     RegionFamiliarities,
     RegionInsightImpressions,
@@ -364,21 +341,39 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
-      // Development baseline: schema 18 is the only supported local shape.
-      // Formal data-preserving migrations start when the first RC freezes this
-      // schema. Until then, rebuilding avoids carrying ambiguous pre-release
-      // models into the runtime or pretending to support partial old schemas.
-      // Schema 18 drops the retired Journey, GPX-track and offline-pack tables
-      // along with the never-shipped anonymous-feedback preference column.
-      for (final table in allTables.toList(growable: false).reversed) {
-        await customStatement('DROP TABLE IF EXISTS ${table.actualTableName}');
+      if (from < 18) {
+        // Pre-release schemas are still intentionally rebuilt. They contain
+        // retired Journey/GPX/offline/feedback shapes with no safe mapping.
+        for (final table in allTables.toList(growable: false).reversed) {
+          await customStatement(
+            'DROP TABLE IF EXISTS ${table.actualTableName}',
+          );
+        }
+        await migrator.createAll();
+        return;
       }
-      await migrator.createAll();
+      if (from < 19) {
+        // Schema 18 saved places were written after provider coordinates had
+        // already been normalized, but the database did not record that
+        // contract. Preserve them as unknown instead of guessing their datum.
+        await migrator.addColumn(savedPlaces, savedPlaces.coordinateSystem);
+        await customStatement(
+          "UPDATE saved_places SET coordinate_system = 'unknown' "
+          "WHERE coordinate_system IS NULL OR coordinate_system NOT IN "
+          "('wgs84', 'gcj02', 'unknown')",
+        );
+        // Shooting results are outside Core 1.0. Drop their local residue
+        // while retaining explicit watches and their notification boundary.
+        await customStatement('DROP TABLE IF EXISTS shooting_session_results');
+        // Keep partially created development databases usable while the
+        // first data-preserving migration is introduced.
+        await migrator.createAll();
+      }
     },
   );
 

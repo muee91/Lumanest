@@ -121,7 +121,11 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
       current.copyWith(
         watchedSessions: [
           watched,
-          ...current.watchedSessions.where((item) => item.id != watched.id),
+          // A user can watch one window once. Replacing the old target here
+          // ensures changing the reviewed target cannot leave two reminders.
+          ...current.watchedSessions.where(
+            (item) => item.sessionId != watched.sessionId,
+          ),
         ],
       ),
     );
@@ -138,40 +142,9 @@ class UserLibraryController extends AsyncNotifier<UserLibraryState> {
     );
   }
 
-  Future<void> recordShootingSessionResult({
-    required ShootingSession session,
-    required String snapshotId,
-    required ShootingSessionOutcome outcome,
-    Iterable<ShootingSessionOutcomeReason> reasons = const [],
-    String? targetId,
-    DateTime? recordedAt,
-  }) async {
+  Future<void> clearWatchedSessions() async {
     final current = await future;
-    final result = ShootingSessionResult.record(
-      session: session,
-      snapshotId: snapshotId,
-      outcome: outcome,
-      reasons: reasons,
-      targetId: targetId,
-      recordedAt: recordedAt ?? DateTime.now(),
-    );
-    await _save(
-      current.copyWith(
-        sessionResults: [result, ...current.sessionResults].take(200).toList(),
-      ),
-    );
-  }
-
-  /// Watched windows and shooting records remain independently deletable.
-  /// Future privacy UI can call this without touching saved places or routes.
-  Future<void> clearPhotographyActivity() async {
-    final current = await future;
-    await _save(
-      current.copyWith(
-        watchedSessions: const [],
-        sessionResults: const [],
-      ),
-    );
+    await _save(current.copyWith(watchedSessions: const []));
   }
 
   Future<void> _save(UserLibraryState value) async {

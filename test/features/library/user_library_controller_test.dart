@@ -6,7 +6,6 @@ import 'package:luma_nest/src/features/library/infrastructure/user_library_store
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
-import 'package:luma_nest/src/core/photography/shooting_session.dart';
 
 void main() {
   test('saved authority notes reject non-HTTPS action targets', () {
@@ -172,17 +171,11 @@ void main() {
       observedAt: DateTime.now(),
     );
     await controller.watchSession(session: session, snapshotId: 'snapshot-1');
-    await controller.recordShootingSessionResult(
-      session: session,
-      snapshotId: 'snapshot-1',
-      outcome: ShootingSessionOutcome.captured,
-    );
 
     await controller.clearRecentRoute();
     expect(store.value.recentRoute, isNull);
     expect(store.value.savedRoutes, hasLength(1));
     expect(store.value.watchedSessions, hasLength(1));
-    expect(store.value.sessionResults, hasLength(1));
 
     await controller.clearSavedRoutes();
     expect(store.value.savedRoutes, isEmpty);
@@ -230,7 +223,7 @@ void main() {
     },
   );
 
-  test('keeps explicit shooting records local and clearable', () async {
+  test('keeps one explicit watch per session and clears it', () async {
     final store = _FakeStore(const UserLibraryState());
     final container = ProviderContainer(
       overrides: [userLibraryStoreProvider.overrideWithValue(store)],
@@ -243,24 +236,20 @@ void main() {
       observedAt: DateTime.now(),
     );
     await controller.watchSession(session: session, snapshotId: 'snapshot-2');
-    await controller.recordShootingSessionResult(
+    await controller.watchSession(
       session: session,
-      snapshotId: 'snapshot-2',
-      outcome: ShootingSessionOutcome.arrivedLate,
-      reasons: const {ShootingSessionOutcomeReason.target},
+      snapshotId: 'snapshot-3',
+      targetId: 'target-b',
     );
 
     expect(store.value.watchedSessions.single.sessionId, session.id);
-    expect(
-      store.value.sessionResults.single.outcome,
-      ShootingSessionOutcome.arrivedLate,
-    );
+    expect(store.value.watchedSessions.single.snapshotId, 'snapshot-3');
+    expect(store.value.watchedSessions.single.targetId, 'target-b');
     expect(store.value.toExportJson()['format'], 'lumanest-local-library-v4');
 
-    await controller.clearPhotographyActivity();
+    await controller.clearWatchedSessions();
 
     expect(store.value.watchedSessions, isEmpty);
-    expect(store.value.sessionResults, isEmpty);
   });
 }
 

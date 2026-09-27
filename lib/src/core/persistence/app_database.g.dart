@@ -60,6 +60,18 @@ class $SavedPlacesTable extends SavedPlaces
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _coordinateSystemMeta = const VerificationMeta(
+    'coordinateSystem',
+  );
+  @override
+  late final GeneratedColumn<String> coordinateSystem = GeneratedColumn<String>(
+    'coordinate_system',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('unknown'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -67,6 +79,7 @@ class $SavedPlacesTable extends SavedPlaces
     category,
     latitude,
     longitude,
+    coordinateSystem,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -117,6 +130,15 @@ class $SavedPlacesTable extends SavedPlaces
     } else if (isInserting) {
       context.missing(_longitudeMeta);
     }
+    if (data.containsKey('coordinate_system')) {
+      context.handle(
+        _coordinateSystemMeta,
+        coordinateSystem.isAcceptableOrUnknown(
+          data['coordinate_system']!,
+          _coordinateSystemMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -146,6 +168,10 @@ class $SavedPlacesTable extends SavedPlaces
         DriftSqlType.double,
         data['${effectivePrefix}longitude'],
       )!,
+      coordinateSystem: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}coordinate_system'],
+      )!,
     );
   }
 
@@ -161,12 +187,14 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
   final String category;
   final double latitude;
   final double longitude;
+  final String coordinateSystem;
   const SavedPlaceRow({
     required this.id,
     required this.name,
     required this.category,
     required this.latitude,
     required this.longitude,
+    required this.coordinateSystem,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -176,6 +204,7 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
     map['category'] = Variable<String>(category);
     map['latitude'] = Variable<double>(latitude);
     map['longitude'] = Variable<double>(longitude);
+    map['coordinate_system'] = Variable<String>(coordinateSystem);
     return map;
   }
 
@@ -186,6 +215,7 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
       category: Value(category),
       latitude: Value(latitude),
       longitude: Value(longitude),
+      coordinateSystem: Value(coordinateSystem),
     );
   }
 
@@ -200,6 +230,7 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
       category: serializer.fromJson<String>(json['category']),
       latitude: serializer.fromJson<double>(json['latitude']),
       longitude: serializer.fromJson<double>(json['longitude']),
+      coordinateSystem: serializer.fromJson<String>(json['coordinateSystem']),
     );
   }
   @override
@@ -211,6 +242,7 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
       'category': serializer.toJson<String>(category),
       'latitude': serializer.toJson<double>(latitude),
       'longitude': serializer.toJson<double>(longitude),
+      'coordinateSystem': serializer.toJson<String>(coordinateSystem),
     };
   }
 
@@ -220,12 +252,14 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
     String? category,
     double? latitude,
     double? longitude,
+    String? coordinateSystem,
   }) => SavedPlaceRow(
     id: id ?? this.id,
     name: name ?? this.name,
     category: category ?? this.category,
     latitude: latitude ?? this.latitude,
     longitude: longitude ?? this.longitude,
+    coordinateSystem: coordinateSystem ?? this.coordinateSystem,
   );
   SavedPlaceRow copyWithCompanion(SavedPlacesCompanion data) {
     return SavedPlaceRow(
@@ -234,6 +268,9 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
       category: data.category.present ? data.category.value : this.category,
       latitude: data.latitude.present ? data.latitude.value : this.latitude,
       longitude: data.longitude.present ? data.longitude.value : this.longitude,
+      coordinateSystem: data.coordinateSystem.present
+          ? data.coordinateSystem.value
+          : this.coordinateSystem,
     );
   }
 
@@ -244,13 +281,15 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
           ..write('name: $name, ')
           ..write('category: $category, ')
           ..write('latitude: $latitude, ')
-          ..write('longitude: $longitude')
+          ..write('longitude: $longitude, ')
+          ..write('coordinateSystem: $coordinateSystem')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, category, latitude, longitude);
+  int get hashCode =>
+      Object.hash(id, name, category, latitude, longitude, coordinateSystem);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -259,7 +298,8 @@ class SavedPlaceRow extends DataClass implements Insertable<SavedPlaceRow> {
           other.name == this.name &&
           other.category == this.category &&
           other.latitude == this.latitude &&
-          other.longitude == this.longitude);
+          other.longitude == this.longitude &&
+          other.coordinateSystem == this.coordinateSystem);
 }
 
 class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
@@ -268,6 +308,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
   final Value<String> category;
   final Value<double> latitude;
   final Value<double> longitude;
+  final Value<String> coordinateSystem;
   final Value<int> rowid;
   const SavedPlacesCompanion({
     this.id = const Value.absent(),
@@ -275,6 +316,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
     this.category = const Value.absent(),
     this.latitude = const Value.absent(),
     this.longitude = const Value.absent(),
+    this.coordinateSystem = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SavedPlacesCompanion.insert({
@@ -283,6 +325,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
     required String category,
     required double latitude,
     required double longitude,
+    this.coordinateSystem = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -295,6 +338,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
     Expression<String>? category,
     Expression<double>? latitude,
     Expression<double>? longitude,
+    Expression<String>? coordinateSystem,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -303,6 +347,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
       if (category != null) 'category': category,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      if (coordinateSystem != null) 'coordinate_system': coordinateSystem,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -313,6 +358,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
     Value<String>? category,
     Value<double>? latitude,
     Value<double>? longitude,
+    Value<String>? coordinateSystem,
     Value<int>? rowid,
   }) {
     return SavedPlacesCompanion(
@@ -321,6 +367,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
       category: category ?? this.category,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      coordinateSystem: coordinateSystem ?? this.coordinateSystem,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -343,6 +390,9 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
     if (longitude.present) {
       map['longitude'] = Variable<double>(longitude.value);
     }
+    if (coordinateSystem.present) {
+      map['coordinate_system'] = Variable<String>(coordinateSystem.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -357,6 +407,7 @@ class SavedPlacesCompanion extends UpdateCompanion<SavedPlaceRow> {
           ..write('category: $category, ')
           ..write('latitude: $latitude, ')
           ..write('longitude: $longitude, ')
+          ..write('coordinateSystem: $coordinateSystem, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4257,533 +4308,6 @@ class WatchedShootingSessionsCompanion
   }
 }
 
-class $ShootingSessionResultsTable extends ShootingSessionResults
-    with TableInfo<$ShootingSessionResultsTable, ShootingSessionResultRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $ShootingSessionResultsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
-    'sessionId',
-  );
-  @override
-  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
-    'session_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _snapshotIdMeta = const VerificationMeta(
-    'snapshotId',
-  );
-  @override
-  late final GeneratedColumn<String> snapshotId = GeneratedColumn<String>(
-    'snapshot_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
-  @override
-  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
-    'kind',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _targetIdMeta = const VerificationMeta(
-    'targetId',
-  );
-  @override
-  late final GeneratedColumn<String> targetId = GeneratedColumn<String>(
-    'target_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _outcomeMeta = const VerificationMeta(
-    'outcome',
-  );
-  @override
-  late final GeneratedColumn<String> outcome = GeneratedColumn<String>(
-    'outcome',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _reasonsJsonMeta = const VerificationMeta(
-    'reasonsJson',
-  );
-  @override
-  late final GeneratedColumn<String> reasonsJson = GeneratedColumn<String>(
-    'reasons_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
-    'recordedAt',
-  );
-  @override
-  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
-    'recorded_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    sessionId,
-    snapshotId,
-    kind,
-    targetId,
-    outcome,
-    reasonsJson,
-    recordedAt,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'shooting_session_results';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<ShootingSessionResultRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('session_id')) {
-      context.handle(
-        _sessionIdMeta,
-        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_sessionIdMeta);
-    }
-    if (data.containsKey('snapshot_id')) {
-      context.handle(
-        _snapshotIdMeta,
-        snapshotId.isAcceptableOrUnknown(data['snapshot_id']!, _snapshotIdMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_snapshotIdMeta);
-    }
-    if (data.containsKey('kind')) {
-      context.handle(
-        _kindMeta,
-        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_kindMeta);
-    }
-    if (data.containsKey('target_id')) {
-      context.handle(
-        _targetIdMeta,
-        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
-      );
-    }
-    if (data.containsKey('outcome')) {
-      context.handle(
-        _outcomeMeta,
-        outcome.isAcceptableOrUnknown(data['outcome']!, _outcomeMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_outcomeMeta);
-    }
-    if (data.containsKey('reasons_json')) {
-      context.handle(
-        _reasonsJsonMeta,
-        reasonsJson.isAcceptableOrUnknown(
-          data['reasons_json']!,
-          _reasonsJsonMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_reasonsJsonMeta);
-    }
-    if (data.containsKey('recorded_at')) {
-      context.handle(
-        _recordedAtMeta,
-        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_recordedAtMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  ShootingSessionResultRow map(
-    Map<String, dynamic> data, {
-    String? tablePrefix,
-  }) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ShootingSessionResultRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      sessionId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}session_id'],
-      )!,
-      snapshotId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}snapshot_id'],
-      )!,
-      kind: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}kind'],
-      )!,
-      targetId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}target_id'],
-      ),
-      outcome: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}outcome'],
-      )!,
-      reasonsJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}reasons_json'],
-      )!,
-      recordedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}recorded_at'],
-      )!,
-    );
-  }
-
-  @override
-  $ShootingSessionResultsTable createAlias(String alias) {
-    return $ShootingSessionResultsTable(attachedDatabase, alias);
-  }
-}
-
-class ShootingSessionResultRow extends DataClass
-    implements Insertable<ShootingSessionResultRow> {
-  final String id;
-  final String sessionId;
-  final String snapshotId;
-  final String kind;
-  final String? targetId;
-  final String outcome;
-  final String reasonsJson;
-  final DateTime recordedAt;
-  const ShootingSessionResultRow({
-    required this.id,
-    required this.sessionId,
-    required this.snapshotId,
-    required this.kind,
-    this.targetId,
-    required this.outcome,
-    required this.reasonsJson,
-    required this.recordedAt,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['session_id'] = Variable<String>(sessionId);
-    map['snapshot_id'] = Variable<String>(snapshotId);
-    map['kind'] = Variable<String>(kind);
-    if (!nullToAbsent || targetId != null) {
-      map['target_id'] = Variable<String>(targetId);
-    }
-    map['outcome'] = Variable<String>(outcome);
-    map['reasons_json'] = Variable<String>(reasonsJson);
-    map['recorded_at'] = Variable<DateTime>(recordedAt);
-    return map;
-  }
-
-  ShootingSessionResultsCompanion toCompanion(bool nullToAbsent) {
-    return ShootingSessionResultsCompanion(
-      id: Value(id),
-      sessionId: Value(sessionId),
-      snapshotId: Value(snapshotId),
-      kind: Value(kind),
-      targetId: targetId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(targetId),
-      outcome: Value(outcome),
-      reasonsJson: Value(reasonsJson),
-      recordedAt: Value(recordedAt),
-    );
-  }
-
-  factory ShootingSessionResultRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ShootingSessionResultRow(
-      id: serializer.fromJson<String>(json['id']),
-      sessionId: serializer.fromJson<String>(json['sessionId']),
-      snapshotId: serializer.fromJson<String>(json['snapshotId']),
-      kind: serializer.fromJson<String>(json['kind']),
-      targetId: serializer.fromJson<String?>(json['targetId']),
-      outcome: serializer.fromJson<String>(json['outcome']),
-      reasonsJson: serializer.fromJson<String>(json['reasonsJson']),
-      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'sessionId': serializer.toJson<String>(sessionId),
-      'snapshotId': serializer.toJson<String>(snapshotId),
-      'kind': serializer.toJson<String>(kind),
-      'targetId': serializer.toJson<String?>(targetId),
-      'outcome': serializer.toJson<String>(outcome),
-      'reasonsJson': serializer.toJson<String>(reasonsJson),
-      'recordedAt': serializer.toJson<DateTime>(recordedAt),
-    };
-  }
-
-  ShootingSessionResultRow copyWith({
-    String? id,
-    String? sessionId,
-    String? snapshotId,
-    String? kind,
-    Value<String?> targetId = const Value.absent(),
-    String? outcome,
-    String? reasonsJson,
-    DateTime? recordedAt,
-  }) => ShootingSessionResultRow(
-    id: id ?? this.id,
-    sessionId: sessionId ?? this.sessionId,
-    snapshotId: snapshotId ?? this.snapshotId,
-    kind: kind ?? this.kind,
-    targetId: targetId.present ? targetId.value : this.targetId,
-    outcome: outcome ?? this.outcome,
-    reasonsJson: reasonsJson ?? this.reasonsJson,
-    recordedAt: recordedAt ?? this.recordedAt,
-  );
-  ShootingSessionResultRow copyWithCompanion(
-    ShootingSessionResultsCompanion data,
-  ) {
-    return ShootingSessionResultRow(
-      id: data.id.present ? data.id.value : this.id,
-      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
-      snapshotId: data.snapshotId.present
-          ? data.snapshotId.value
-          : this.snapshotId,
-      kind: data.kind.present ? data.kind.value : this.kind,
-      targetId: data.targetId.present ? data.targetId.value : this.targetId,
-      outcome: data.outcome.present ? data.outcome.value : this.outcome,
-      reasonsJson: data.reasonsJson.present
-          ? data.reasonsJson.value
-          : this.reasonsJson,
-      recordedAt: data.recordedAt.present
-          ? data.recordedAt.value
-          : this.recordedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ShootingSessionResultRow(')
-          ..write('id: $id, ')
-          ..write('sessionId: $sessionId, ')
-          ..write('snapshotId: $snapshotId, ')
-          ..write('kind: $kind, ')
-          ..write('targetId: $targetId, ')
-          ..write('outcome: $outcome, ')
-          ..write('reasonsJson: $reasonsJson, ')
-          ..write('recordedAt: $recordedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    sessionId,
-    snapshotId,
-    kind,
-    targetId,
-    outcome,
-    reasonsJson,
-    recordedAt,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ShootingSessionResultRow &&
-          other.id == this.id &&
-          other.sessionId == this.sessionId &&
-          other.snapshotId == this.snapshotId &&
-          other.kind == this.kind &&
-          other.targetId == this.targetId &&
-          other.outcome == this.outcome &&
-          other.reasonsJson == this.reasonsJson &&
-          other.recordedAt == this.recordedAt);
-}
-
-class ShootingSessionResultsCompanion
-    extends UpdateCompanion<ShootingSessionResultRow> {
-  final Value<String> id;
-  final Value<String> sessionId;
-  final Value<String> snapshotId;
-  final Value<String> kind;
-  final Value<String?> targetId;
-  final Value<String> outcome;
-  final Value<String> reasonsJson;
-  final Value<DateTime> recordedAt;
-  final Value<int> rowid;
-  const ShootingSessionResultsCompanion({
-    this.id = const Value.absent(),
-    this.sessionId = const Value.absent(),
-    this.snapshotId = const Value.absent(),
-    this.kind = const Value.absent(),
-    this.targetId = const Value.absent(),
-    this.outcome = const Value.absent(),
-    this.reasonsJson = const Value.absent(),
-    this.recordedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  ShootingSessionResultsCompanion.insert({
-    required String id,
-    required String sessionId,
-    required String snapshotId,
-    required String kind,
-    this.targetId = const Value.absent(),
-    required String outcome,
-    required String reasonsJson,
-    required DateTime recordedAt,
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       sessionId = Value(sessionId),
-       snapshotId = Value(snapshotId),
-       kind = Value(kind),
-       outcome = Value(outcome),
-       reasonsJson = Value(reasonsJson),
-       recordedAt = Value(recordedAt);
-  static Insertable<ShootingSessionResultRow> custom({
-    Expression<String>? id,
-    Expression<String>? sessionId,
-    Expression<String>? snapshotId,
-    Expression<String>? kind,
-    Expression<String>? targetId,
-    Expression<String>? outcome,
-    Expression<String>? reasonsJson,
-    Expression<DateTime>? recordedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (sessionId != null) 'session_id': sessionId,
-      if (snapshotId != null) 'snapshot_id': snapshotId,
-      if (kind != null) 'kind': kind,
-      if (targetId != null) 'target_id': targetId,
-      if (outcome != null) 'outcome': outcome,
-      if (reasonsJson != null) 'reasons_json': reasonsJson,
-      if (recordedAt != null) 'recorded_at': recordedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  ShootingSessionResultsCompanion copyWith({
-    Value<String>? id,
-    Value<String>? sessionId,
-    Value<String>? snapshotId,
-    Value<String>? kind,
-    Value<String?>? targetId,
-    Value<String>? outcome,
-    Value<String>? reasonsJson,
-    Value<DateTime>? recordedAt,
-    Value<int>? rowid,
-  }) {
-    return ShootingSessionResultsCompanion(
-      id: id ?? this.id,
-      sessionId: sessionId ?? this.sessionId,
-      snapshotId: snapshotId ?? this.snapshotId,
-      kind: kind ?? this.kind,
-      targetId: targetId ?? this.targetId,
-      outcome: outcome ?? this.outcome,
-      reasonsJson: reasonsJson ?? this.reasonsJson,
-      recordedAt: recordedAt ?? this.recordedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (sessionId.present) {
-      map['session_id'] = Variable<String>(sessionId.value);
-    }
-    if (snapshotId.present) {
-      map['snapshot_id'] = Variable<String>(snapshotId.value);
-    }
-    if (kind.present) {
-      map['kind'] = Variable<String>(kind.value);
-    }
-    if (targetId.present) {
-      map['target_id'] = Variable<String>(targetId.value);
-    }
-    if (outcome.present) {
-      map['outcome'] = Variable<String>(outcome.value);
-    }
-    if (reasonsJson.present) {
-      map['reasons_json'] = Variable<String>(reasonsJson.value);
-    }
-    if (recordedAt.present) {
-      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ShootingSessionResultsCompanion(')
-          ..write('id: $id, ')
-          ..write('sessionId: $sessionId, ')
-          ..write('snapshotId: $snapshotId, ')
-          ..write('kind: $kind, ')
-          ..write('targetId: $targetId, ')
-          ..write('outcome: $outcome, ')
-          ..write('reasonsJson: $reasonsJson, ')
-          ..write('recordedAt: $recordedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $RegionBriefCachesTable extends RegionBriefCaches
     with TableInfo<$RegionBriefCachesTable, RegionBriefCache> {
   @override
@@ -6840,8 +6364,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $WildlifeMapLayerCachesTable(this);
   late final $WatchedShootingSessionsTable watchedShootingSessions =
       $WatchedShootingSessionsTable(this);
-  late final $ShootingSessionResultsTable shootingSessionResults =
-      $ShootingSessionResultsTable(this);
   late final $RegionBriefCachesTable regionBriefCaches =
       $RegionBriefCachesTable(this);
   late final $RegionFamiliaritiesTable regionFamiliarities =
@@ -6866,7 +6388,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     savedInspirationNotes,
     wildlifeMapLayerCaches,
     watchedShootingSessions,
-    shootingSessionResults,
     regionBriefCaches,
     regionFamiliarities,
     regionInsightImpressions,
@@ -6882,6 +6403,7 @@ typedef $$SavedPlacesTableCreateCompanionBuilder =
       required String category,
       required double latitude,
       required double longitude,
+      Value<String> coordinateSystem,
       Value<int> rowid,
     });
 typedef $$SavedPlacesTableUpdateCompanionBuilder =
@@ -6891,6 +6413,7 @@ typedef $$SavedPlacesTableUpdateCompanionBuilder =
       Value<String> category,
       Value<double> latitude,
       Value<double> longitude,
+      Value<String> coordinateSystem,
       Value<int> rowid,
     });
 
@@ -6925,6 +6448,11 @@ class $$SavedPlacesTableFilterComposer
 
   ColumnFilters<double> get longitude => $composableBuilder(
     column: $table.longitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coordinateSystem => $composableBuilder(
+    column: $table.coordinateSystem,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6962,6 +6490,11 @@ class $$SavedPlacesTableOrderingComposer
     column: $table.longitude,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get coordinateSystem => $composableBuilder(
+    column: $table.coordinateSystem,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SavedPlacesTableAnnotationComposer
@@ -6987,6 +6520,11 @@ class $$SavedPlacesTableAnnotationComposer
 
   GeneratedColumn<double> get longitude =>
       $composableBuilder(column: $table.longitude, builder: (column) => column);
+
+  GeneratedColumn<String> get coordinateSystem => $composableBuilder(
+    column: $table.coordinateSystem,
+    builder: (column) => column,
+  );
 }
 
 class $$SavedPlacesTableTableManager
@@ -7025,6 +6563,7 @@ class $$SavedPlacesTableTableManager
                 Value<String> category = const Value.absent(),
                 Value<double> latitude = const Value.absent(),
                 Value<double> longitude = const Value.absent(),
+                Value<String> coordinateSystem = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SavedPlacesCompanion(
                 id: id,
@@ -7032,6 +6571,7 @@ class $$SavedPlacesTableTableManager
                 category: category,
                 latitude: latitude,
                 longitude: longitude,
+                coordinateSystem: coordinateSystem,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7041,6 +6581,7 @@ class $$SavedPlacesTableTableManager
                 required String category,
                 required double latitude,
                 required double longitude,
+                Value<String> coordinateSystem = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SavedPlacesCompanion.insert(
                 id: id,
@@ -7048,6 +6589,7 @@ class $$SavedPlacesTableTableManager
                 category: category,
                 latitude: latitude,
                 longitude: longitude,
+                coordinateSystem: coordinateSystem,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9138,288 +8680,6 @@ typedef $$WatchedShootingSessionsTableProcessedTableManager =
       WatchedShootingSessionRow,
       PrefetchHooks Function()
     >;
-typedef $$ShootingSessionResultsTableCreateCompanionBuilder =
-    ShootingSessionResultsCompanion Function({
-      required String id,
-      required String sessionId,
-      required String snapshotId,
-      required String kind,
-      Value<String?> targetId,
-      required String outcome,
-      required String reasonsJson,
-      required DateTime recordedAt,
-      Value<int> rowid,
-    });
-typedef $$ShootingSessionResultsTableUpdateCompanionBuilder =
-    ShootingSessionResultsCompanion Function({
-      Value<String> id,
-      Value<String> sessionId,
-      Value<String> snapshotId,
-      Value<String> kind,
-      Value<String?> targetId,
-      Value<String> outcome,
-      Value<String> reasonsJson,
-      Value<DateTime> recordedAt,
-      Value<int> rowid,
-    });
-
-class $$ShootingSessionResultsTableFilterComposer
-    extends Composer<_$AppDatabase, $ShootingSessionResultsTable> {
-  $$ShootingSessionResultsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get sessionId => $composableBuilder(
-    column: $table.sessionId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get snapshotId => $composableBuilder(
-    column: $table.snapshotId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get kind => $composableBuilder(
-    column: $table.kind,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get targetId => $composableBuilder(
-    column: $table.targetId,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get outcome => $composableBuilder(
-    column: $table.outcome,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get reasonsJson => $composableBuilder(
-    column: $table.reasonsJson,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
-    column: $table.recordedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-}
-
-class $$ShootingSessionResultsTableOrderingComposer
-    extends Composer<_$AppDatabase, $ShootingSessionResultsTable> {
-  $$ShootingSessionResultsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get sessionId => $composableBuilder(
-    column: $table.sessionId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get snapshotId => $composableBuilder(
-    column: $table.snapshotId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get kind => $composableBuilder(
-    column: $table.kind,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get targetId => $composableBuilder(
-    column: $table.targetId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get outcome => $composableBuilder(
-    column: $table.outcome,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get reasonsJson => $composableBuilder(
-    column: $table.reasonsJson,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
-    column: $table.recordedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-}
-
-class $$ShootingSessionResultsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ShootingSessionResultsTable> {
-  $$ShootingSessionResultsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get sessionId =>
-      $composableBuilder(column: $table.sessionId, builder: (column) => column);
-
-  GeneratedColumn<String> get snapshotId => $composableBuilder(
-    column: $table.snapshotId,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get kind =>
-      $composableBuilder(column: $table.kind, builder: (column) => column);
-
-  GeneratedColumn<String> get targetId =>
-      $composableBuilder(column: $table.targetId, builder: (column) => column);
-
-  GeneratedColumn<String> get outcome =>
-      $composableBuilder(column: $table.outcome, builder: (column) => column);
-
-  GeneratedColumn<String> get reasonsJson => $composableBuilder(
-    column: $table.reasonsJson,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
-    column: $table.recordedAt,
-    builder: (column) => column,
-  );
-}
-
-class $$ShootingSessionResultsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $ShootingSessionResultsTable,
-          ShootingSessionResultRow,
-          $$ShootingSessionResultsTableFilterComposer,
-          $$ShootingSessionResultsTableOrderingComposer,
-          $$ShootingSessionResultsTableAnnotationComposer,
-          $$ShootingSessionResultsTableCreateCompanionBuilder,
-          $$ShootingSessionResultsTableUpdateCompanionBuilder,
-          (
-            ShootingSessionResultRow,
-            BaseReferences<
-              _$AppDatabase,
-              $ShootingSessionResultsTable,
-              ShootingSessionResultRow
-            >,
-          ),
-          ShootingSessionResultRow,
-          PrefetchHooks Function()
-        > {
-  $$ShootingSessionResultsTableTableManager(
-    _$AppDatabase db,
-    $ShootingSessionResultsTable table,
-  ) : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$ShootingSessionResultsTableFilterComposer(
-                $db: db,
-                $table: table,
-              ),
-          createOrderingComposer: () =>
-              $$ShootingSessionResultsTableOrderingComposer(
-                $db: db,
-                $table: table,
-              ),
-          createComputedFieldComposer: () =>
-              $$ShootingSessionResultsTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> sessionId = const Value.absent(),
-                Value<String> snapshotId = const Value.absent(),
-                Value<String> kind = const Value.absent(),
-                Value<String?> targetId = const Value.absent(),
-                Value<String> outcome = const Value.absent(),
-                Value<String> reasonsJson = const Value.absent(),
-                Value<DateTime> recordedAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => ShootingSessionResultsCompanion(
-                id: id,
-                sessionId: sessionId,
-                snapshotId: snapshotId,
-                kind: kind,
-                targetId: targetId,
-                outcome: outcome,
-                reasonsJson: reasonsJson,
-                recordedAt: recordedAt,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String sessionId,
-                required String snapshotId,
-                required String kind,
-                Value<String?> targetId = const Value.absent(),
-                required String outcome,
-                required String reasonsJson,
-                required DateTime recordedAt,
-                Value<int> rowid = const Value.absent(),
-              }) => ShootingSessionResultsCompanion.insert(
-                id: id,
-                sessionId: sessionId,
-                snapshotId: snapshotId,
-                kind: kind,
-                targetId: targetId,
-                outcome: outcome,
-                reasonsJson: reasonsJson,
-                recordedAt: recordedAt,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
-              .toList(),
-          prefetchHooksCallback: null,
-        ),
-      );
-}
-
-typedef $$ShootingSessionResultsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $ShootingSessionResultsTable,
-      ShootingSessionResultRow,
-      $$ShootingSessionResultsTableFilterComposer,
-      $$ShootingSessionResultsTableOrderingComposer,
-      $$ShootingSessionResultsTableAnnotationComposer,
-      $$ShootingSessionResultsTableCreateCompanionBuilder,
-      $$ShootingSessionResultsTableUpdateCompanionBuilder,
-      (
-        ShootingSessionResultRow,
-        BaseReferences<
-          _$AppDatabase,
-          $ShootingSessionResultsTable,
-          ShootingSessionResultRow
-        >,
-      ),
-      ShootingSessionResultRow,
-      PrefetchHooks Function()
-    >;
 typedef $$RegionBriefCachesTableCreateCompanionBuilder =
     RegionBriefCachesCompanion Function({
       required String regionKey,
@@ -10612,11 +9872,6 @@ class $AppDatabaseManager {
       $$WatchedShootingSessionsTableTableManager(
         _db,
         _db.watchedShootingSessions,
-      );
-  $$ShootingSessionResultsTableTableManager get shootingSessionResults =>
-      $$ShootingSessionResultsTableTableManager(
-        _db,
-        _db.shootingSessionResults,
       );
   $$RegionBriefCachesTableTableManager get regionBriefCaches =>
       $$RegionBriefCachesTableTableManager(_db, _db.regionBriefCaches);

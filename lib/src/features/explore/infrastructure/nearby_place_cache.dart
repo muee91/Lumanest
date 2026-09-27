@@ -166,7 +166,8 @@ class PersistentNearbyPlaceCache implements NearbyPlaceCache {
         !latitude.isFinite ||
         longitude is! num ||
         !longitude.isFinite ||
-        system == null) {
+        system == null ||
+        system == CoordinateSystem.unknown) {
       return null;
     }
     return GeoPoint(

@@ -247,7 +247,9 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                     primaryId: sessionId,
                     now: now,
                     onOpen: (session) {
-                      final target = session.targetCandidates.firstOrNull;
+                      final target = ShootingTargetSelector.selectForSession(
+                        session,
+                      );
                       final intent = ActiveShootingIntent(
                         sessionId: session.id,
                         targetId: target?.id,
@@ -654,9 +656,7 @@ class _V2OpportunityRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final moment = now.toUtc();
-    final primary = sessions
-        .where((item) => item.id == primaryId)
-        .firstOrNull;
+    final primary = sessions.where((item) => item.id == primaryId).firstOrNull;
     final planB = ShootingSessionFallback.shouldOfferPlanB(primary);
     final items =
         sessions
@@ -666,14 +666,10 @@ class _V2OpportunityRail extends StatelessWidget {
                   !item.isEvidenceExpiredAt(moment) &&
                   item.canStartWatchingAt(moment) &&
                   (!planB ||
-                      item.conditionBand != ShootingConditionBand.limited &&
-                          item.confidenceBand !=
-                              ShootingConfidenceBand.limited &&
-                          item.targetCandidates.any(
-                            (target) =>
-                                target.arrivalRadiusMeters > 0 &&
-                                target.supportedSessions.contains(item.kind),
-                          )),
+                      ShootingSessionFallback.isUsablePlanBSession(
+                        item,
+                        now: moment,
+                      )),
             )
             .toList()
           ..sort((left, right) => left.startsAt.compareTo(right.startsAt));

@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 
@@ -39,9 +38,27 @@ class DriftUserLibraryStore implements UserLibraryStore {
       final watchedQuery = _database.select(_database.watchedShootingSessions)
         ..orderBy([(row) => OrderingTerm.desc(row.watchedAt)]);
       final watched = await watchedQuery.get();
-      final resultQuery = _database.select(_database.shootingSessionResults)
-        ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]);
-      final results = await resultQuery.get();
+      final watchedByStableId = <String, WatchedShootingSession>{};
+      for (final row in watched) {
+        final stableId = WatchedShootingSession.idFor(
+          sessionId: row.sessionId,
+          targetId: row.targetId,
+        );
+        final value = WatchedShootingSession(
+          id: stableId,
+          sessionId: row.sessionId,
+          snapshotId: row.snapshotId,
+          title: row.title,
+          kind: ShootingSessionKind.values.byName(row.kind),
+          watchedAt: row.watchedAt.toUtc(),
+          expiresAt: row.expiresAt.toUtc(),
+          targetId: row.targetId,
+        );
+        final previous = watchedByStableId[stableId];
+        if (previous == null || value.watchedAt.isAfter(previous.watchedAt)) {
+          watchedByStableId[stableId] = value;
+        }
+      }
       return UserLibraryState(
         savedPlaces: places
             .map(
@@ -51,6 +68,10 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 category: row.category,
                 latitude: row.latitude,
                 longitude: row.longitude,
+                coordinateSystem: CoordinateSystem.values.firstWhere(
+                  (value) => value.name == row.coordinateSystem,
+                  orElse: () => CoordinateSystem.unknown,
+                ),
               ),
             )
             .toList(growable: false),
@@ -91,34 +112,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
               ),
             )
             .toList(growable: false),
-        watchedSessions: watched
-            .map(
-              (row) => WatchedShootingSession(
-                id: row.id,
-                sessionId: row.sessionId,
-                snapshotId: row.snapshotId,
-                title: row.title,
-                kind: ShootingSessionKind.values.byName(row.kind),
-                watchedAt: row.watchedAt.toUtc(),
-                expiresAt: row.expiresAt.toUtc(),
-                targetId: row.targetId,
-              ),
-            )
-            .toList(growable: false),
-        sessionResults: results
-            .map(
-              (row) => ShootingSessionResult(
-                id: row.id,
-                sessionId: row.sessionId,
-                snapshotId: row.snapshotId,
-                kind: ShootingSessionKind.values.byName(row.kind),
-                outcome: ShootingSessionOutcome.values.byName(row.outcome),
-                recordedAt: row.recordedAt.toUtc(),
-                reasons: _decodeSessionReasons(row.reasonsJson),
-                targetId: row.targetId,
-              ),
-            )
-            .toList(growable: false),
+        watchedSessions: watchedByStableId.values.toList(growable: false),
       );
     });
   }
@@ -136,6 +130,7 @@ class DriftUserLibraryStore implements UserLibraryStore {
                 category: place.category,
                 latitude: place.latitude,
                 longitude: place.longitude,
+                coordinateSystem: Value(place.coordinateSystem.name),
               ),
             );
       }
@@ -211,28 +206,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
               ),
             );
       }
-
-      await _database.delete(_database.shootingSessionResults).go();
-      for (final result in state.sessionResults.take(200)) {
-        await _database
-            .into(_database.shootingSessionResults)
-            .insert(
-              ShootingSessionResultsCompanion.insert(
-                id: result.id,
-                sessionId: result.sessionId,
-                snapshotId: result.snapshotId,
-                kind: result.kind.name,
-                outcome: result.outcome.name,
-                reasonsJson: jsonEncode(
-                  result.reasons
-                      .map((value) => value.name)
-                      .toList(growable: false),
-                ),
-                recordedAt: result.recordedAt.toUtc(),
-                targetId: Value(result.targetId),
-              ),
-            );
-      }
     });
   }
 
@@ -241,19 +214,6 @@ class DriftUserLibraryStore implements UserLibraryStore {
     return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty
         ? uri
         : null;
-  }
-
-  Set<ShootingSessionOutcomeReason> _decodeSessionReasons(String raw) {
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const {};
-      return decoded
-          .whereType<String>()
-          .map(ShootingSessionOutcomeReason.values.byName)
-          .toSet();
-    } on Object {
-      return const {};
-    }
   }
 }
 

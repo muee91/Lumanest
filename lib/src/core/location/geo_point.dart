@@ -1,4 +1,10 @@
-enum CoordinateSystem { wgs84, gcj02 }
+/// Coordinate systems carried by external and persisted location values.
+///
+/// `unknown` is intentionally explicit. It is used for pre-schema-19 saved
+/// places whose old coordinates cannot be safely identified as WGS-84 or
+/// GCJ-02. Callers must not pass it to a provider or use it for distance
+/// matching until the user saves the place again from a canonical source.
+enum CoordinateSystem { wgs84, gcj02, unknown }
 
 class GeoPoint {
   const GeoPoint({

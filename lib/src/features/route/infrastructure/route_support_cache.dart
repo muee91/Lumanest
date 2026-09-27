@@ -132,6 +132,7 @@ class PersistentRouteSupportCache implements RouteSupportCache {
         !latitude.isFinite ||
         !longitude.isFinite ||
         system == null ||
+        system == CoordinateSystem.unknown ||
         distance is! int ||
         distance < 0 ||
         address != null && (address is! String || address.length > 300) ||

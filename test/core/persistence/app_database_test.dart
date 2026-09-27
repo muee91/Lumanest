@@ -108,7 +108,7 @@ void main() {
     );
   });
 
-  test('pre-release schemas rebuild to the schema 18 baseline', () async {
+  test('pre-release schemas rebuild to the schema 19 baseline', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-clean-schema-',
@@ -143,8 +143,42 @@ void main() {
       await current.select(current.watchedShootingSessions).get(),
       isEmpty,
     );
-    expect(await current.select(current.shootingSessionResults).get(), isEmpty);
-    expect(current.schemaVersion, 18);
+    expect(current.schemaVersion, 19);
+  });
+
+  test('schema 18 saved places migrate without guessing their datum', () async {
+    await database.close();
+    final directory = await Directory.systemTemp.createTemp(
+      'lumanest-coordinate-migration-',
+    );
+    final file = File('${directory.path}/lumanest.sqlite');
+    addTearDown(() async {
+      if (await file.exists()) await file.delete();
+      if (await directory.exists()) await directory.delete();
+    });
+
+    final old = sqlite.sqlite3.open(file.path);
+    old.execute('''
+      CREATE TABLE saved_places (
+        id TEXT NOT NULL PRIMARY KEY,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL
+      )
+    ''');
+    old.execute(
+      "INSERT INTO saved_places VALUES ('old', '旧机位', 'viewpoint', 30, 120)",
+    );
+    old.execute('PRAGMA user_version = 18');
+    old.close();
+
+    final current = AppDatabase(NativeDatabase(file));
+    addTearDown(current.close);
+
+    final row = (await current.select(current.savedPlaces).get()).single;
+    expect(row.coordinateSystem, 'unknown');
+    expect(current.schemaVersion, 19);
   });
 
   test('base region is a replaceable local singleton', () async {

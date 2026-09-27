@@ -680,7 +680,12 @@ class PersistentContextCache implements ContextCache {
       CoordinateSystem.values,
       raw['coordinateSystem'],
     );
-    if (latitude == null || longitude == null || system == null) return null;
+    if (latitude == null ||
+        longitude == null ||
+        system == null ||
+        system == CoordinateSystem.unknown) {
+      return null;
+    }
     return GeoPoint(
       latitude: latitude,
       longitude: longitude,

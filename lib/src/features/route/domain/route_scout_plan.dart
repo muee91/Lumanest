@@ -1,4 +1,5 @@
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/explore/domain/nearby_place.dart';
 import 'package:luma_nest/src/features/route/domain/driving_route.dart';
 import 'package:luma_nest/src/features/route/domain/route_support_stop.dart';
@@ -316,16 +317,35 @@ class RouteScoutPlanBuilder {
     DateTime routeEnd,
     int durationSeconds,
   ) {
+    // Photography nodes are action hints, so stale snapshots and limited
+    // evidence must disappear from the route scout instead of being rendered
+    // as a time overlap that the user could act on.
+    if (snapshot.isStale || !snapshot.expiresAt.toUtc().isAfter(now.toUtc())) {
+      return;
+    }
     for (final session in snapshot.shootingSessions.take(3)) {
-      if (!session.endsAt.isAfter(now) || session.startsAt.isAfter(routeEnd)) {
+      if (!session.endsAt.isAfter(now) ||
+          session.startsAt.isAfter(routeEnd) ||
+          session.isEvidenceExpiredAt(now) ||
+          session.conditionBand == ShootingConditionBand.limited ||
+          session.confidenceBand == ShootingConfidenceBand.limited) {
         continue;
       }
+      final actionablePhases = session.phases
+          .where(
+            (phase) =>
+                phase.conditionBand != ShootingConditionBand.limited &&
+                phase.endsAt.isAfter(now) &&
+                !phase.startsAt.isAfter(routeEnd),
+          )
+          .toList(growable: false);
       final primary =
-          session.phases
+          actionablePhases
               .where((phase) => phase.kind == session.primaryPhase)
               .firstOrNull ??
-          session.phases.firstOrNull;
-      final targetAt = primary?.peaksAt ?? session.startsAt;
+          actionablePhases.firstOrNull;
+      if (primary == null) continue;
+      final targetAt = primary.peaksAt.isAfter(now) ? primary.peaksAt : now;
       final seconds = targetAt.difference(now).inSeconds;
       final progress = durationSeconds <= 0
           ? 0.0

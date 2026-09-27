@@ -167,6 +167,7 @@ class PersistentLocationSearchCache implements LocationSearchCache {
         longitude is! num ||
         !longitude.isFinite ||
         system == null ||
+        system == CoordinateSystem.unknown ||
         distanceMeters != null &&
             (distanceMeters is! int || distanceMeters < 0) ||
         address != null && (address is! String || address.length > 300)) {

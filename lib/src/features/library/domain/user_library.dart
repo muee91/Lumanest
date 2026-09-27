@@ -86,6 +86,7 @@ class SavedPlace {
     required this.category,
     required this.latitude,
     required this.longitude,
+    this.coordinateSystem = CoordinateSystem.wgs84,
   });
 
   final String id;
@@ -93,15 +94,12 @@ class SavedPlace {
   final String category;
   final double latitude;
   final double longitude;
+  final CoordinateSystem coordinateSystem;
 
-  /// Saved places use the app's canonical WGS-84 coordinate contract.
-  ///
-  /// Explore normalizes provider/map coordinates before persistence so saved
-  /// places can be compared safely with reviewed shooting targets.
   GeoPoint get point => GeoPoint(
     latitude: latitude,
     longitude: longitude,
-    coordinateSystem: CoordinateSystem.wgs84,
+    coordinateSystem: coordinateSystem,
   );
 
   Map<String, Object?> toJson() => {
@@ -110,6 +108,7 @@ class SavedPlace {
     'category': category,
     'latitude': latitude,
     'longitude': longitude,
+    'coordinateSystem': coordinateSystem.name,
   };
 
   static SavedPlace? fromJson(Object? value) {
@@ -119,6 +118,9 @@ class SavedPlace {
     final category = value['category'];
     final latitude = value['latitude'];
     final longitude = value['longitude'];
+    final coordinateSystem = CoordinateSystem.values
+        .where((item) => item.name == value['coordinateSystem'])
+        .firstOrNull;
     if (id is! String ||
         name is! String ||
         category is! String ||
@@ -132,6 +134,9 @@ class SavedPlace {
       category: category,
       latitude: latitude.toDouble(),
       longitude: longitude.toDouble(),
+      // Old exports did not carry a coordinate contract. Preserve them as
+      // unknown instead of silently treating map coordinates as WGS-84.
+      coordinateSystem: coordinateSystem ?? CoordinateSystem.unknown,
     );
   }
 }
@@ -231,9 +236,7 @@ class WatchedShootingSession {
       );
     }
     return WatchedShootingSession(
-      id: sha256
-          .convert(utf8.encode('$snapshotId\u0000${session.id}'))
-          .toString(),
+      id: idFor(sessionId: session.id, targetId: targetId),
       sessionId: session.id,
       snapshotId: snapshotId,
       title: session.title,
@@ -243,6 +246,13 @@ class WatchedShootingSession {
       targetId: targetId,
     );
   }
+
+  /// A watch is the user's intent for one session/target window. Snapshot
+  /// identity records which evidence created it, but must not create another
+  /// watch for the same window after a refresh.
+  static String idFor({required String sessionId, String? targetId}) => sha256
+      .convert(utf8.encode('$sessionId\u0000${targetId ?? ''}'))
+      .toString();
 
   final String id;
   final String sessionId;
@@ -265,66 +275,6 @@ class WatchedShootingSession {
   };
 }
 
-class ShootingSessionResult {
-  ShootingSessionResult({
-    required this.id,
-    required this.sessionId,
-    required this.snapshotId,
-    required this.kind,
-    required this.outcome,
-    required this.recordedAt,
-    Iterable<ShootingSessionOutcomeReason> reasons = const [],
-    this.targetId,
-  }) : reasons = Set.unmodifiable(reasons);
-
-  factory ShootingSessionResult.record({
-    required ShootingSession session,
-    required String snapshotId,
-    required ShootingSessionOutcome outcome,
-    required DateTime recordedAt,
-    Iterable<ShootingSessionOutcomeReason> reasons = const [],
-    String? targetId,
-  }) {
-    final at = recordedAt.toUtc();
-    return ShootingSessionResult(
-      id: sha256
-          .convert(
-            utf8.encode(
-              '$snapshotId\u0000${session.id}\u0000${at.microsecondsSinceEpoch}',
-            ),
-          )
-          .toString(),
-      sessionId: session.id,
-      snapshotId: snapshotId,
-      kind: session.kind,
-      outcome: outcome,
-      recordedAt: at,
-      reasons: reasons,
-      targetId: targetId,
-    );
-  }
-
-  final String id;
-  final String sessionId;
-  final String snapshotId;
-  final ShootingSessionKind kind;
-  final ShootingSessionOutcome outcome;
-  final DateTime recordedAt;
-  final Set<ShootingSessionOutcomeReason> reasons;
-  final String? targetId;
-
-  Map<String, Object?> toJson() => {
-    'id': id,
-    'sessionId': sessionId,
-    'snapshotId': snapshotId,
-    'kind': kind.name,
-    'outcome': outcome.name,
-    'recordedAt': recordedAt.toUtc().toIso8601String(),
-    'reasons': reasons.map((value) => value.name).toList(growable: false),
-    if (targetId != null) 'targetId': targetId,
-  };
-}
-
 class UserLibraryState {
   const UserLibraryState({
     this.savedPlaces = const [],
@@ -332,7 +282,6 @@ class UserLibraryState {
     this.savedRoutes = const [],
     this.savedNotes = const [],
     this.watchedSessions = const [],
-    this.sessionResults = const [],
   });
 
   final List<SavedPlace> savedPlaces;
@@ -340,7 +289,6 @@ class UserLibraryState {
   final List<SavedRoute> savedRoutes;
   final List<SavedInspirationNote> savedNotes;
   final List<WatchedShootingSession> watchedSessions;
-  final List<ShootingSessionResult> sessionResults;
 
   bool containsPlace(String id) => savedPlaces.any((place) => place.id == id);
 
@@ -354,23 +302,18 @@ class UserLibraryState {
     List<SavedRoute>? savedRoutes,
     List<SavedInspirationNote>? savedNotes,
     List<WatchedShootingSession>? watchedSessions,
-    List<ShootingSessionResult>? sessionResults,
   }) => UserLibraryState(
     savedPlaces: List.unmodifiable(savedPlaces ?? this.savedPlaces),
     recentRoute: clearRecentRoute ? null : (recentRoute ?? this.recentRoute),
     savedRoutes: List.unmodifiable(savedRoutes ?? this.savedRoutes),
     savedNotes: List.unmodifiable(savedNotes ?? this.savedNotes),
     watchedSessions: List.unmodifiable(watchedSessions ?? this.watchedSessions),
-    sessionResults: List.unmodifiable(sessionResults ?? this.sessionResults),
   );
 
   /// Stable local-only payload for a future user-initiated file export.
   Map<String, Object?> toExportJson() => {
     'format': 'lumanest-local-library-v4',
     'watchedSessions': watchedSessions
-        .map((value) => value.toJson())
-        .toList(growable: false),
-    'sessionResults': sessionResults
         .map((value) => value.toJson())
         .toList(growable: false),
   };

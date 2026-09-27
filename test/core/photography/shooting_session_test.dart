@@ -142,6 +142,32 @@ void main() {
     );
   });
 
+  test(
+    'destination selector matches the destination before global session order',
+    () {
+      final evening = ContextFixtures.waterEveningSession(
+        observedAt: now,
+        targetCandidates: [target],
+      );
+      final morning =
+          _withTargets(ContextFixtures.waterMorningSession(observedAt: now), [
+            _reviewedTargetFor(
+              ShootingSessionKind.waterMorning,
+              coordinate: const GeoPoint(latitude: 31, longitude: 121),
+            ),
+          ]);
+
+      final selection = ShootingSessionSelector.selectForDestination(
+        [evening, morning],
+        destination: const GeoPoint(latitude: 31, longitude: 121),
+        now: now,
+      );
+
+      expect(selection?.session.id, morning.id);
+      expect(selection?.target.coordinate.latitude, 31);
+    },
+  );
+
   test('fallback copy is reserved for a weakening or limited primary', () {
     final stable = ContextFixtures.waterEveningSession(observedAt: now);
     final weakening = ContextFixtures.waterEveningSession(
@@ -153,22 +179,13 @@ void main() {
       conditionBand: ShootingConditionBand.limited,
     );
 
-    expect(
-      ShootingSessionFallback.shouldOfferPlanB(stable, now: now),
-      isFalse,
-    );
+    expect(ShootingSessionFallback.shouldOfferPlanB(stable, now: now), isFalse);
     expect(
       ShootingSessionFallback.shouldOfferPlanB(weakening, now: now),
       isTrue,
     );
-    expect(
-      ShootingSessionFallback.shouldOfferPlanB(limited, now: now),
-      isTrue,
-    );
-    expect(
-      ShootingSessionFallback.shouldOfferPlanB(null, now: now),
-      isFalse,
-    );
+    expect(ShootingSessionFallback.shouldOfferPlanB(limited, now: now), isTrue);
+    expect(ShootingSessionFallback.shouldOfferPlanB(null, now: now), isFalse);
   });
   test('plan B selects only an already-established usable session', () {
     final primary = ContextFixtures.waterEveningSession(
@@ -226,6 +243,7 @@ void main() {
       );
 
       expect(selected?.id, near.id);
+      expect(selected?.target.id, contains('near'));
     },
   );
 
@@ -252,29 +270,32 @@ void main() {
     );
   });
 
-  test('plan B ignores sessions without a reviewed target for that session kind', () {
-    final primary = ContextFixtures.waterEveningSession(
-      observedAt: now,
-      trend: ShootingTrend.weakening,
-    );
-    final targetless = ContextFixtures.waterMorningSession(observedAt: now);
+  test(
+    'plan B ignores sessions without a reviewed target for that session kind',
+    () {
+      final primary = ContextFixtures.waterEveningSession(
+        observedAt: now,
+        trend: ShootingTrend.weakening,
+      );
+      final targetless = ContextFixtures.waterMorningSession(observedAt: now);
 
-    expect(
-      ShootingSessionFallback.selectPlanB(
-        [primary, targetless],
-        primary: primary,
-        now: now,
-      ),
-      isNull,
-    );
-  });
+      expect(
+        ShootingSessionFallback.selectPlanB(
+          [primary, targetless],
+          primary: primary,
+          now: now,
+        ),
+        isNull,
+      );
+    },
+  );
 }
 
 ShootingSession _withTargets(
   ShootingSession source,
-  List<ShootingTarget> targets,
-  {String? id,}
-) => ShootingSession(
+  List<ShootingTarget> targets, {
+  String? id,
+}) => ShootingSession(
   id: id ?? source.id,
   kind: source.kind,
   title: source.title,
