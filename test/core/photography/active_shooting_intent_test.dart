@@ -20,6 +20,17 @@ void main() {
     expect(restored?.createdAt, original.createdAt);
   });
 
+  test('accepts bounded dotted ids used by current fixtures and legacy links', () {
+    final restored = ActiveShootingIntent.fromQueryParameters(
+      sessionId: 'session.water.evening',
+      targetId: 'target.water.east-bank',
+      createdAt: '2026-09-26T10:30:00Z',
+    );
+
+    expect(restored?.sessionId, 'session.water.evening');
+    expect(restored?.targetId, 'target.water.east-bank');
+  });
+
   test('plain session links remain legacy links without an intent', () {
     expect(
       ActiveShootingIntent.fromQueryParameters(
