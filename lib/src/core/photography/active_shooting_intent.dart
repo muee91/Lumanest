@@ -66,8 +66,26 @@ class ActiveShootingIntent {
   // deep links still use dotted identifiers such as session.water.evening.
   // Keep the accepted alphabet URL-safe and bounded instead of assuming one
   // server-side ID shape.
-  static bool _validId(String value) =>
-      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}
-}
-).hasMatch(value);
+  static bool _validId(String value) {
+    if (value.length < 3 || value.length > 128) return false;
+    final first = value.codeUnitAt(0);
+    if (!_isAsciiAlphaNumeric(first)) return false;
+    for (var index = 1; index < value.length; index++) {
+      final code = value.codeUnitAt(index);
+      if (_isAsciiAlphaNumeric(code) ||
+          code == 46 || // .
+          code == 95 || // _
+          code == 58 || // :
+          code == 45) { // -
+        continue;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  static bool _isAsciiAlphaNumeric(int code) =>
+      code >= 48 && code <= 57 ||
+      code >= 65 && code <= 90 ||
+      code >= 97 && code <= 122;
 }
