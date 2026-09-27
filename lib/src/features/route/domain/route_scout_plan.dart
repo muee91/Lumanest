@@ -19,6 +19,14 @@ enum RouteScoutNodeKind {
 
 enum RouteScoutPriority { critical, high, normal }
 
+/// Action semantics are deliberately separate from display priority.
+///
+/// A critical display node may be urgent weather or an actual blocking
+/// restriction, while stale evidence must remain advisory even when it is
+/// visually prominent. Presentation code consumes this contract instead of
+/// inferring safety from ids, kinds, or priority labels.
+enum RouteScoutActionSeverity { normal, advisory, urgent, blocking }
+
 enum RouteScoutCoverage { full, partial, localOnly }
 
 class RouteScoutNode {
@@ -26,6 +34,7 @@ class RouteScoutNode {
     required this.id,
     required this.kind,
     required this.priority,
+    required this.actionSeverity,
     required this.title,
     required this.detail,
     required this.routeProgress,
@@ -38,6 +47,7 @@ class RouteScoutNode {
   final String id;
   final RouteScoutNodeKind kind;
   final RouteScoutPriority priority;
+  final RouteScoutActionSeverity actionSeverity;
   final String title;
   final String detail;
 
@@ -71,6 +81,30 @@ class RouteScoutPlan {
       .where((node) => node.priority == RouteScoutPriority.critical)
       .length;
 
+  bool get hasBlockingSafety => nodes.any(
+    (node) => node.actionSeverity == RouteScoutActionSeverity.blocking,
+  );
+
+  bool get hasUrgentSafety => nodes.any(
+    (node) => node.actionSeverity == RouteScoutActionSeverity.urgent,
+  );
+
+  RouteScoutNode? get primaryBlockingNode => nodes
+      .where((node) => node.actionSeverity == RouteScoutActionSeverity.blocking)
+      .firstOrNull;
+
+  RouteScoutNode? get primaryUrgentNode => nodes
+      .where((node) => node.actionSeverity == RouteScoutActionSeverity.urgent)
+      .firstOrNull;
+
+  RouteScoutNode? get primaryAdvisorySafety => nodes
+      .where(
+        (node) =>
+            node.kind == RouteScoutNodeKind.safety &&
+            node.actionSeverity == RouteScoutActionSeverity.advisory,
+      )
+      .firstOrNull;
+
   int get highCount =>
       nodes.where((node) => node.priority == RouteScoutPriority.high).length;
 
@@ -91,12 +125,8 @@ class RouteScoutPlan {
       .length;
 
   String get headline {
-    if (criticalCount > 0) {
-      if (nodes.any((node) => node.id.startsWith('restriction-'))) {
-        return '沿途有需要优先确认的官方管制';
-      }
-      return '沿途有需要优先确认的天气风险';
-    }
+    if (hasBlockingSafety) return '沿途有官方管制，先确认再出发';
+    if (hasUrgentSafety) return '沿途有需要优先确认的天气风险';
     if (highCount > 0) return '路线可用，先看 $highCount 条重点';
     if (photographyCount > 0) return '路线与拍摄时间窗口有重合';
     if (supportCount > 0) return '沿途信息已经整理好';
@@ -124,6 +154,7 @@ class RouteScoutPlanBuilder {
           id: 'route-cache',
           kind: RouteScoutNodeKind.route,
           priority: RouteScoutPriority.high,
+          actionSeverity: RouteScoutActionSeverity.advisory,
           title: '路线来自离线缓存',
           detail: '道路和耗时可能已经变化；开始导航前请让地图重新确认。',
           routeProgress: 0,
@@ -183,12 +214,12 @@ class RouteScoutPlanBuilder {
           restrictions.kinds.isEmpty) {
         continue;
       }
-      final kind = restrictions.kinds.first;
-      final critical = const {
-        'closure',
-        'roadClosure',
-        'fireRestriction',
-      }.contains(kind);
+      const blockingKinds = {'closure', 'roadClosure', 'fireRestriction'};
+      final kind = restrictions.kinds.firstWhere(
+        blockingKinds.contains,
+        orElse: () => restrictions.kinds.first,
+      );
+      final critical = blockingKinds.contains(kind);
       final label = _segmentLabel(segment.progress);
       nodes.add(
         RouteScoutNode(
@@ -197,6 +228,9 @@ class RouteScoutPlanBuilder {
           priority: critical
               ? RouteScoutPriority.critical
               : RouteScoutPriority.high,
+          actionSeverity: critical
+              ? RouteScoutActionSeverity.blocking
+              : RouteScoutActionSeverity.advisory,
           title: _restrictionTitle(label, kind),
           detail:
               '服务端在该路线采样段检出仍有效的官方关闭、管制或限制证据；'
@@ -227,13 +261,21 @@ class RouteScoutPlanBuilder {
       final label = _segmentLabel(sample.progress);
       final weatherDetail = _weatherDetail(sample);
       if (sample.thunder) {
+        final fresh = !sample.stale;
         nodes.add(
           RouteScoutNode(
             id: 'weather-thunder-$index',
             kind: RouteScoutNodeKind.safety,
-            priority: RouteScoutPriority.critical,
-            title: '$label可能出现雷暴',
-            detail: '$weatherDetail；具体安全判断只看安全卡和官方预警。',
+            priority: fresh
+                ? RouteScoutPriority.critical
+                : RouteScoutPriority.high,
+            actionSeverity: fresh
+                ? RouteScoutActionSeverity.urgent
+                : RouteScoutActionSeverity.advisory,
+            title: fresh ? '$label可能出现雷暴' : '$label曾有雷暴风险，需要刷新确认',
+            detail: fresh
+                ? '$weatherDetail；具体安全判断只看安全卡和官方预警。'
+                : '$weatherDetail；这条数据来自缓存，不能作为当前风险结论。',
             routeProgress: sample.progress,
             expectedAt: sample.expectedAt,
             source: weather.source,
@@ -247,6 +289,7 @@ class RouteScoutPlanBuilder {
             id: 'weather-visibility-$index',
             kind: RouteScoutNodeKind.weather,
             priority: RouteScoutPriority.high,
+            actionSeverity: RouteScoutActionSeverity.advisory,
             title: '$label能见度偏低',
             detail: weatherDetail,
             routeProgress: sample.progress,
@@ -261,6 +304,7 @@ class RouteScoutPlanBuilder {
             id: 'weather-wind-$index',
             kind: RouteScoutNodeKind.weather,
             priority: RouteScoutPriority.high,
+            actionSeverity: RouteScoutActionSeverity.advisory,
             title: '$label风力较强',
             detail: weatherDetail,
             routeProgress: sample.progress,
@@ -280,6 +324,7 @@ class RouteScoutPlanBuilder {
             id: 'weather-condition-$index',
             kind: RouteScoutNodeKind.weather,
             priority: RouteScoutPriority.high,
+            actionSeverity: RouteScoutActionSeverity.advisory,
             title: '$label天气将发生变化',
             detail: weatherDetail,
             routeProgress: sample.progress,
@@ -297,6 +342,7 @@ class RouteScoutPlanBuilder {
             id: 'weather-transition-$index',
             kind: RouteScoutNodeKind.weather,
             priority: RouteScoutPriority.normal,
+            actionSeverity: RouteScoutActionSeverity.normal,
             title: '$label天气与前段不同',
             detail: weatherDetail,
             routeProgress: sample.progress,
@@ -355,6 +401,7 @@ class RouteScoutPlanBuilder {
           id: 'photo-${session.id}',
           kind: RouteScoutNodeKind.photography,
           priority: RouteScoutPriority.normal,
+          actionSeverity: RouteScoutActionSeverity.normal,
           title: '途中可能遇到「${session.title}」',
           detail: '时间与路线重合，不代表沿途已有验证机位；到点前再看现场与机会详情。',
           routeProgress: progress,
@@ -383,6 +430,7 @@ class RouteScoutPlanBuilder {
           id: 'support-${stop.place.id}',
           kind: kind,
           priority: RouteScoutPriority.normal,
+          actionSeverity: RouteScoutActionSeverity.normal,
           title: '${_supportLabel(kind)} · ${stop.place.name}',
           detail:
               '约在路线 ${(progress * 100).round()}% 附近，距采样点 ${_distance(stop.place.distanceMeters)}；'

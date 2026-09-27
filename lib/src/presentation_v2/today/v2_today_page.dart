@@ -657,7 +657,10 @@ class _V2OpportunityRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final moment = now.toUtc();
     final primary = sessions.where((item) => item.id == primaryId).firstOrNull;
-    final planB = ShootingSessionFallback.shouldOfferPlanB(primary);
+    final planB = ShootingSessionFallback.shouldOfferPlanB(
+      primary,
+      now: moment,
+    );
     final items =
         sessions
             .where(

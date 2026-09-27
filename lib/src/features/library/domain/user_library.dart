@@ -86,7 +86,7 @@ class SavedPlace {
     required this.category,
     required this.latitude,
     required this.longitude,
-    this.coordinateSystem = CoordinateSystem.wgs84,
+    required this.coordinateSystem,
   });
 
   final String id;
