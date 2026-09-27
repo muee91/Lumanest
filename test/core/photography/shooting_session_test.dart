@@ -56,6 +56,23 @@ void main() {
     );
   });
 
+  test('field mode resolves the active phase at the reviewed target', () {
+    final session = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      targetCandidates: [target],
+    );
+    final decision = ShootingExecutionResolver.resolve(
+      session: session,
+      now: session.phases.first.startsAt.add(const Duration(minutes: 1)),
+      target: target,
+      atTarget: true,
+    );
+
+    expect(decision.state, ShootingExecutionState.shootNow);
+    expect(decision.label, '现在拍摄');
+    expect(decision.phase, isNotNull);
+  });
+
   test('limited confidence stays observational even with a route', () {
     final session = ContextFixtures.waterEveningSession(
       observedAt: now,
@@ -124,4 +141,176 @@ void main() {
       evening.id,
     );
   });
+
+  test('fallback copy is reserved for a weakening or limited primary', () {
+    final stable = ContextFixtures.waterEveningSession(observedAt: now);
+    final weakening = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final limited = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      conditionBand: ShootingConditionBand.limited,
+    );
+
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(stable, now: now),
+      isFalse,
+    );
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(weakening, now: now),
+      isTrue,
+    );
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(limited, now: now),
+      isTrue,
+    );
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(null, now: now),
+      isFalse,
+    );
+  });
+  test('plan B selects only an already-established usable session', () {
+    final primary = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final alternative = _withTargets(
+      ContextFixtures.waterMorningSession(observedAt: now),
+      [_reviewedTargetFor(ShootingSessionKind.waterMorning)],
+    );
+
+    final selected = ShootingSessionFallback.selectPlanB(
+      [primary, alternative],
+      primary: primary,
+      now: now,
+    );
+
+    expect(selected?.id, alternative.id);
+  });
+
+  test(
+    'plan B prefers the closer reviewed target when evidence is otherwise tied',
+    () {
+      final primary = ContextFixtures.waterEveningSession(
+        observedAt: now,
+        trend: ShootingTrend.weakening,
+      );
+      final far = _withTargets(
+        ContextFixtures.waterMorningSession(observedAt: now),
+        [
+          _reviewedTargetFor(
+            ShootingSessionKind.waterMorning,
+            idSuffix: 'far',
+            coordinate: const GeoPoint(latitude: 31, longitude: 121),
+          ),
+        ],
+        id: 'session_plan_b_far_0123456789',
+      );
+      final near = _withTargets(
+        ContextFixtures.waterMorningSession(observedAt: now),
+        [
+          _reviewedTargetFor(
+            ShootingSessionKind.waterMorning,
+            idSuffix: 'near',
+          ),
+        ],
+        id: 'session_plan_b_near_0123456789',
+      );
+
+      final selected = ShootingSessionFallback.selectPlanB(
+        [primary, far, near],
+        primary: primary,
+        now: now,
+        currentLocation: const GeoPoint(latitude: 30.25, longitude: 120.15),
+      );
+
+      expect(selected?.id, near.id);
+    },
+  );
+
+  test('plan B never promotes limited evidence', () {
+    final primary = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final limited = _withTargets(
+      ContextFixtures.waterMorningSession(
+        observedAt: now,
+        confidenceBand: ShootingConfidenceBand.limited,
+      ),
+      [_reviewedTargetFor(ShootingSessionKind.waterMorning)],
+    );
+
+    expect(
+      ShootingSessionFallback.selectPlanB(
+        [primary, limited],
+        primary: primary,
+        now: now,
+      ),
+      isNull,
+    );
+  });
+
+  test('plan B ignores sessions without a reviewed target for that session kind', () {
+    final primary = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      trend: ShootingTrend.weakening,
+    );
+    final targetless = ContextFixtures.waterMorningSession(observedAt: now);
+
+    expect(
+      ShootingSessionFallback.selectPlanB(
+        [primary, targetless],
+        primary: primary,
+        now: now,
+      ),
+      isNull,
+    );
+  });
 }
+
+ShootingSession _withTargets(
+  ShootingSession source,
+  List<ShootingTarget> targets,
+  {String? id,}
+) => ShootingSession(
+  id: id ?? source.id,
+  kind: source.kind,
+  title: source.title,
+  startsAt: source.startsAt,
+  endsAt: source.endsAt,
+  primaryPhase: source.primaryPhase,
+  conditionBand: source.conditionBand,
+  confidenceBand: source.confidenceBand,
+  trend: source.trend,
+  phases: source.phases,
+  factors: source.factors,
+  trendSamples: source.trendSamples,
+  targetCandidates: targets,
+  recommendedCapabilities: source.recommendedCapabilities,
+  ruleVersion: source.ruleVersion,
+  expiresAt: source.expiresAt,
+);
+
+ShootingTarget _reviewedTargetFor(
+  ShootingSessionKind kind, {
+  GeoPoint coordinate = const GeoPoint(latitude: 30.251, longitude: 120.151),
+  String idSuffix = '0123456789',
+}) => ShootingTarget(
+  id: 'target_plan_b_${kind.name}_$idSuffix',
+  name: 'Plan B 审核机位',
+  coordinate: coordinate,
+  supportedSessions: [kind],
+  viewBearingDegrees: 76,
+  bearingToleranceDegrees: 20,
+  accessModes: const [ShootingTravelMode.driving],
+  leadTimeMinutes: 10,
+  arrivalRadiusMeters: 100,
+  shorelineSide: ShootingShorelineSide.east,
+  reviewedAt: DateTime.utc(2026, 7, 1),
+  reviewReference: Uri.parse('https://review.example/targets/plan-b'),
+  sourceAttribution: '审核目录',
+  sourceLicense: 'CC-BY-4.0',
+  sourceUrl: Uri.parse('https://source.example/targets/plan-b'),
+);

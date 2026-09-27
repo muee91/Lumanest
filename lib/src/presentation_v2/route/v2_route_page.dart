@@ -10,11 +10,14 @@ import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/route_corridor_context.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/features/route/application/driving_route_providers.dart';
 import 'package:luma_nest/src/features/route/application/route_navigation_launcher.dart';
 import 'package:luma_nest/src/features/route/application/route_scout_providers.dart';
@@ -30,13 +33,17 @@ class V2RoutePage extends ConsumerWidget {
     this.destinationName,
     this.destinationLatitude,
     this.destinationLongitude,
+    this.destinationCoordinateSystem = CoordinateSystem.wgs84,
     this.travelMode = RouteTravelMode.driving,
+    this.activeShootingIntent,
   });
 
   final String? destinationName;
   final double? destinationLatitude;
   final double? destinationLongitude;
+  final CoordinateSystem destinationCoordinateSystem;
   final RouteTravelMode travelMode;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,18 +63,36 @@ class V2RoutePage extends ConsumerWidget {
         ),
       );
     }
+    final coordinateSystem =
+        destinationLatitude != null && destinationLongitude != null
+        ? destinationCoordinateSystem
+        : CoordinateSystem.wgs84;
+    final rawPoint = GeoPoint(
+      latitude: latitude,
+      longitude: longitude,
+      coordinateSystem: coordinateSystem,
+    );
     final destination = RouteDestination(
       name: name,
-      point: GeoPoint(latitude: latitude, longitude: longitude),
+      // Route, target and weather contracts use WGS-84. Explore carries the
+      // coordinate system explicitly so AMap GCJ-02 values are converted once.
+      point: ChinaCoordinateConverter.gcj02ToWgs84(rawPoint),
       travelMode: travelMode,
     );
-    return _V2RouteStage(destination: destination);
+    return _V2RouteStage(
+      destination: destination,
+      activeShootingIntent: activeShootingIntent,
+    );
   }
 }
 
 class _V2RouteStage extends ConsumerStatefulWidget {
-  const _V2RouteStage({required this.destination});
+  const _V2RouteStage({
+    required this.destination,
+    this.activeShootingIntent,
+  });
   final RouteDestination destination;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   ConsumerState<_V2RouteStage> createState() => _V2RouteStageState();
@@ -143,15 +168,24 @@ class _V2RouteStageState extends ConsumerState<_V2RouteStage> {
         ),
       ),
       data: (value) =>
-          _V2LiveRoute(route: value, destination: widget.destination),
+          _V2LiveRoute(
+            route: value,
+            destination: widget.destination,
+            activeShootingIntent: widget.activeShootingIntent,
+          ),
     );
   }
 }
 
 class _V2LiveRoute extends ConsumerStatefulWidget {
-  const _V2LiveRoute({required this.route, required this.destination});
+  const _V2LiveRoute({
+    required this.route,
+    required this.destination,
+    this.activeShootingIntent,
+  });
   final DrivingRoute route;
   final RouteDestination destination;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   ConsumerState<_V2LiveRoute> createState() => _V2LiveRouteState();
@@ -165,6 +199,8 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   @override
   void dispose() {
     _controller?.disponse();
+    // Keep the latest route deadline in the foreground scope so leaving the
+    // route page does not silently downgrade an already scheduled reminder.
     super.dispose();
   }
 
@@ -211,6 +247,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _syncDeparturePlan(snapshot);
       if (_syncedRouteRevision != _routeRevision) {
         _syncedRouteRevision = _routeRevision;
         _replaceCorridor(departureAt: DateTime.now());
@@ -276,8 +313,10 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           top: MediaQuery.paddingOf(context).top + 12,
           child: _V2RouteVerdict(
             route: widget.route,
+            destination: widget.destination,
             snapshot: snapshot,
             scout: scout.asData?.value,
+            activeShootingIntent: widget.activeShootingIntent,
           ),
         ),
         Positioned(
@@ -328,6 +367,62 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     }
   }
 
+  void _syncDeparturePlan(ContextSnapshot? snapshot) {
+    final intent = widget.activeShootingIntent;
+    if (intent == null || snapshot == null) return;
+    final now = DateTime.now().toUtc();
+    if (snapshot.isStale ||
+        snapshot.dataFreshness == ContextDataFreshness.stale ||
+        !snapshot.expiresAt.toUtc().isAfter(now)) {
+      // A stale snapshot cannot create or replace a departure plan. Preserve
+      // any already scheduled reminder until a fresh reconciliation decides
+      // whether it remains valid.
+      return;
+    }
+    final session = snapshot.shootingSessions
+        .where((candidate) => candidate.id == intent.sessionId)
+        .firstOrNull;
+    final target = session?.targetCandidates
+        .where((candidate) => candidate.id == intent.targetId)
+        .firstOrNull;
+    if (session == null ||
+        target == null ||
+        GeoDistance.metersBetween(
+              ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate),
+              widget.destination.point,
+            ) >
+            target.arrivalRadiusMeters) {
+      ref
+          .read(shootingDeparturePlanProvider.notifier)
+          .clearFor(intent.sessionId, targetId: intent.targetId);
+      return;
+    }
+    final decision = ShootingExecutionResolver.resolve(
+      session: session,
+      now: DateTime.now(),
+      target: target,
+      routeDuration: Duration(seconds: widget.route.durationSeconds),
+    );
+    final deadline = decision.departureDeadline;
+    if (deadline == null) {
+      ref
+          .read(shootingDeparturePlanProvider.notifier)
+          .clearFor(intent.sessionId, targetId: intent.targetId);
+      return;
+    }
+    ref
+        .read(shootingDeparturePlanProvider.notifier)
+        .setPlan(
+          ShootingDeparturePlan(
+            sessionId: intent.sessionId,
+            targetId: intent.targetId,
+            departureDeadline: deadline,
+            routeDuration: Duration(seconds: widget.route.durationSeconds),
+            createdAt: intent.createdAt,
+          ),
+        );
+  }
+
   void _syncPlannedRoute() {
     final mode = widget.destination.travelMode == RouteTravelMode.walking
         ? ContextRouteMode.hiking
@@ -371,32 +466,70 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
 class _V2RouteVerdict extends StatelessWidget {
   const _V2RouteVerdict({
     required this.route,
+    required this.destination,
     required this.snapshot,
     required this.scout,
+    this.activeShootingIntent,
   });
   final DrivingRoute route;
+  final RouteDestination destination;
   final ContextSnapshot? snapshot;
   final RouteScoutPlan? scout;
+  final ActiveShootingIntent? activeShootingIntent;
 
   @override
   Widget build(BuildContext context) {
-    final arrival = DateTime.now().add(
-      Duration(seconds: route.durationSeconds),
-    );
-    final session = snapshot == null
+    final now = DateTime.now();
+    final arrival = now.add(Duration(seconds: route.durationSeconds));
+    final freshSnapshot = snapshot != null &&
+        !snapshot!.isStale &&
+        snapshot!.dataFreshness != ContextDataFreshness.stale &&
+        snapshot!.expiresAt.toUtc().isAfter(now.toUtc())
+        ? snapshot
+        : null;
+    final candidateSession = freshSnapshot == null
         ? null
-        : ShootingSessionSelector.select(
-            snapshot!.shootingSessions,
-            now: DateTime.now(),
+        : _sessionForIntent(freshSnapshot, activeShootingIntent, now);
+    final target = candidateSession == null
+        ? null
+        : _targetForDestination(
+            candidateSession,
+            destination,
+            activeShootingIntent,
           );
-    final canCatch = session == null || arrival.isBefore(session.endsAt);
+    // A route to an arbitrary place must not inherit the current session's
+    // timing verdict. Only a reviewed target tied to this destination can
+    // produce a catchability or latest-departure statement.
+    final session = target == null ? null : candidateSession;
+    final decision = session == null
+        ? null
+        : ShootingExecutionResolver.resolve(
+            session: session,
+            now: now,
+            target: target,
+            routeDuration: Duration(seconds: route.durationSeconds),
+          );
+    final canCatch = switch (decision?.state) {
+      ShootingExecutionState.waitToDepart ||
+      ShootingExecutionState.departNow ||
+      ShootingExecutionState.waitAtTarget ||
+      ShootingExecutionState.shootNow => true,
+      ShootingExecutionState.tooLate => false,
+      _ => null,
+    };
     final headline = scout?.headline ??
         (session == null
             ? '路线已经准备好'
-            : canCatch
+            : canCatch == true
             ? '按当前路线赶得上'
-            : '按当前路线已经赶不上');
-    final urgent = (scout?.criticalCount ?? 0) > 0 || !canCatch;
+            : canCatch == false
+            ? '按当前路线已经赶不上'
+            : '当前条件不足以判断');
+    final urgent =
+        (scout?.criticalCount ?? 0) > 0 ||
+        canCatch == false ||
+        decision?.state == ShootingExecutionState.departNow ||
+        decision?.state == ShootingExecutionState.tooLate;
     return Material(
       color: V2Palette.paper,
       elevation: 10,
@@ -437,11 +570,22 @@ class _V2RouteVerdict extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (decision?.departureDeadline != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      '最晚 ${_time(decision!.departureDeadline!)} 出发',
+                      style: TextStyle(
+                        color: urgent ? V2Palette.ember : V2Palette.moss,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             Text(
-              _time(arrival),
+              '${_time(arrival)} 抵达',
               style: const TextStyle(
                 color: V2Palette.ink,
                 fontSize: 17,
@@ -454,6 +598,44 @@ class _V2RouteVerdict extends StatelessWidget {
     );
   }
 
+  static ShootingSession? _sessionForIntent(
+    ContextSnapshot snapshot,
+    ActiveShootingIntent? intent,
+    DateTime now,
+  ) {
+    if (intent == null) {
+      return ShootingSessionSelector.select(
+        snapshot.shootingSessions,
+        now: now,
+      );
+    }
+    final session = snapshot.shootingSessions
+        .where((candidate) => candidate.id == intent.sessionId)
+        .firstOrNull;
+    return session != null && session.endsAt.isAfter(now) ? session : null;
+  }
+
+  static ShootingTarget? _targetForDestination(
+    ShootingSession session,
+    RouteDestination destination,
+    ActiveShootingIntent? intent,
+  ) {
+    final candidates = intent?.targetId == null
+        ? session.targetCandidates
+        : session.targetCandidates.where(
+            (target) => target.id == intent!.targetId,
+          );
+    return candidates
+        .where(
+          (target) =>
+              GeoDistance.metersBetween(
+                ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate),
+                destination.point,
+              ) <= target.arrivalRadiusMeters,
+        )
+        .firstOrNull;
+  }
+
   static String _duration(int seconds) {
     final minutes = (seconds / 60).ceil();
     if (minutes < 60) return '$minutes 分钟';
@@ -463,9 +645,11 @@ class _V2RouteVerdict extends StatelessWidget {
   static String _distance(int meters) =>
       meters >= 1000 ? '${(meters / 1000).toStringAsFixed(1)} km' : '$meters m';
 
-  static String _time(DateTime value) =>
-      '${value.hour.toString().padLeft(2, '0')}:'
-      '${value.minute.toString().padLeft(2, '0')} 抵达';
+  static String _time(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
 }
 
 class _V2RouteActionObject extends StatelessWidget {

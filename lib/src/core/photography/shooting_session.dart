@@ -1,3 +1,5 @@
+import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 
@@ -257,6 +259,127 @@ abstract final class ShootingSessionSelector {
     });
     return available.firstOrNull;
   }
+}
+
+abstract final class ShootingSessionFallback {
+  /// Existing secondary windows may be presented as a fallback only when the
+  /// selected primary window is visibly weakening or limited. This is a copy
+  /// and ranking signal; it never invents a new opportunity.
+  static bool shouldOfferPlanB(
+    ShootingSession? primary, {
+    DateTime? now,
+  }) {
+    if (primary == null) return false;
+    final utcNow = (now ?? DateTime.now()).toUtc();
+    return primary.conditionBand == ShootingConditionBand.limited ||
+        primary.trend == ShootingTrend.weakening ||
+        primary.isEvidenceExpiredAt(utcNow);
+  }
+
+  /// Chooses only from sessions that are already established by the current
+  /// snapshot. The fallback layer never manufactures a new opportunity and
+  /// never upgrades limited or expired evidence into an action.
+  static ShootingSession? selectPlanB(
+    Iterable<ShootingSession> sessions, {
+    required ShootingSession primary,
+    required DateTime now,
+    GeoPoint? currentLocation,
+  }) {
+    if (!shouldOfferPlanB(primary, now: now)) return null;
+    final utcNow = now.toUtc();
+    final candidates = sessions
+        .where(
+          (session) =>
+              session.id != primary.id &&
+              session.endsAt.toUtc().isAfter(utcNow) &&
+              !session.isEvidenceExpiredAt(utcNow) &&
+              session.confidenceBand != ShootingConfidenceBand.limited &&
+              session.conditionBand != ShootingConditionBand.limited &&
+              session.targetCandidates.any(
+                (target) =>
+                    target.arrivalRadiusMeters > 0 &&
+                    target.supportedSessions.contains(session.kind),
+              ),
+        )
+        .toList(growable: false);
+    if (candidates.isEmpty) return null;
+    candidates.sort((left, right) {
+      final leftActive =
+          !utcNow.isBefore(left.startsAt.toUtc()) &&
+          utcNow.isBefore(left.endsAt.toUtc());
+      final rightActive =
+          !utcNow.isBefore(right.startsAt.toUtc()) &&
+          utcNow.isBefore(right.endsAt.toUtc());
+      if (leftActive != rightActive) return leftActive ? -1 : 1;
+
+      final condition = _conditionRank(
+        right.conditionBand,
+      ).compareTo(_conditionRank(left.conditionBand));
+      if (condition != 0) return condition;
+
+      final trend = _trendRank(
+        right.trend,
+      ).compareTo(_trendRank(left.trend));
+      if (trend != 0) return trend;
+
+      // Quality and an active window still outrank travel convenience. When
+      // both candidates have a usable reviewed target distance, prefer the
+      // closer one so a fallback remains practical from the user's current
+      // location. Missing coordinates keep the existing deterministic order.
+      final leftDistance = _nearestTargetDistance(left, currentLocation);
+      final rightDistance = _nearestTargetDistance(right, currentLocation);
+      if (leftDistance != null && rightDistance != null) {
+        final distance = leftDistance.compareTo(rightDistance);
+        if (distance != 0) return distance;
+      }
+
+      final time = left.presentationStartsAt.compareTo(
+        right.presentationStartsAt,
+      );
+      return time != 0 ? time : left.id.compareTo(right.id);
+    });
+    return candidates.first;
+  }
+
+  static double? _nearestTargetDistance(
+    ShootingSession session,
+    GeoPoint? currentLocation,
+  ) {
+    if (currentLocation == null) return null;
+    try {
+      final current = ChinaCoordinateConverter.gcj02ToWgs84(
+        currentLocation,
+      ).validate();
+      double? nearest;
+      for (final target in session.targetCandidates) {
+        if (target.arrivalRadiusMeters <= 0 ||
+            !target.supportedSessions.contains(session.kind)) {
+          continue;
+        }
+        final targetPoint = ChinaCoordinateConverter.gcj02ToWgs84(
+          target.coordinate,
+        ).validate();
+        final distance = GeoDistance.metersBetween(current, targetPoint);
+        if (nearest == null || distance < nearest) nearest = distance;
+      }
+      return nearest;
+    } on Object {
+      // An invalid coordinate must not make an otherwise usable Plan B fail.
+      return null;
+    }
+  }
+
+  static int _conditionRank(ShootingConditionBand value) => switch (value) {
+    ShootingConditionBand.good => 2,
+    ShootingConditionBand.fair => 1,
+    ShootingConditionBand.limited => 0,
+  };
+
+  static int _trendRank(ShootingTrend value) => switch (value) {
+    ShootingTrend.improving => 2,
+    ShootingTrend.stable => 1,
+    ShootingTrend.weakening => 0,
+  };
 }
 
 enum ShootingExecutionState {

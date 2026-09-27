@@ -14,6 +14,7 @@ import 'package:luma_nest/src/core/environment/sky_window_providers.dart';
 import 'package:luma_nest/src/core/location/location_repository.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
 import 'package:luma_nest/src/core/entry/entry_payload.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/scenario/scenario_providers.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
@@ -245,10 +246,23 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                     sessions: snapshot.shootingSessions,
                     primaryId: sessionId,
                     now: now,
-                    onOpen: (session) => context.push(
-                      '/session/${Uri.encodeComponent(session.id)}',
-                      extra: snapshot,
-                    ),
+                    onOpen: (session) {
+                      final target = session.targetCandidates.firstOrNull;
+                      final intent = ActiveShootingIntent(
+                        sessionId: session.id,
+                        targetId: target?.id,
+                        createdAt: DateTime.now(),
+                      );
+                      final path =
+                          '/session/${Uri.encodeComponent(session.id)}';
+                      context.push(
+                        Uri(
+                          path: path,
+                          queryParameters: intent.queryParameters,
+                        ).toString(),
+                        extra: snapshot,
+                      );
+                    },
                   ),
                   if (widget.regionalHighlight case final highlight?) ...[
                     SizedBox(height: compact ? 12 : 16),
@@ -640,13 +654,26 @@ class _V2OpportunityRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final moment = now.toUtc();
+    final primary = sessions
+        .where((item) => item.id == primaryId)
+        .firstOrNull;
+    final planB = ShootingSessionFallback.shouldOfferPlanB(primary);
     final items =
         sessions
             .where(
               (item) =>
                   item.id != primaryId &&
                   !item.isEvidenceExpiredAt(moment) &&
-                  item.canStartWatchingAt(moment),
+                  item.canStartWatchingAt(moment) &&
+                  (!planB ||
+                      item.conditionBand != ShootingConditionBand.limited &&
+                          item.confidenceBand !=
+                              ShootingConfidenceBand.limited &&
+                          item.targetCandidates.any(
+                            (target) =>
+                                target.arrivalRadiusMeters > 0 &&
+                                target.supportedSessions.contains(item.kind),
+                          )),
             )
             .toList()
           ..sort((left, right) => left.startsAt.compareTo(right.startsAt));
@@ -658,8 +685,8 @@ class _V2OpportunityRail extends StatelessWidget {
         key: const Key('v2-secondary-opportunity-rail'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '接下来还可以看',
+          Text(
+            planB ? '主机会减弱时，可以转拍' : '接下来还可以看',
             style: TextStyle(
               color: V2Palette.mutedInk,
               fontSize: 12,

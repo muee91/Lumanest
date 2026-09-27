@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
@@ -92,6 +93,16 @@ class SavedPlace {
   final String category;
   final double latitude;
   final double longitude;
+
+  /// Saved places use the app's canonical WGS-84 coordinate contract.
+  ///
+  /// Explore normalizes provider/map coordinates before persistence so saved
+  /// places can be compared safely with reviewed shooting targets.
+  GeoPoint get point => GeoPoint(
+    latitude: latitude,
+    longitude: longitude,
+    coordinateSystem: CoordinateSystem.wgs84,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,

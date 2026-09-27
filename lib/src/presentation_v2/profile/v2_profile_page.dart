@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/library/domain/active_saved_place.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
@@ -480,56 +483,111 @@ class V2ProfileLibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider);
+    final hasSavedPlaces =
+        library.asData?.value.savedPlaces.isNotEmpty == true;
+    final environment = hasSavedPlaces
+        ? ref.watch(environmentSnapshotProvider).asData?.value
+        : null;
     return _V2SecondaryPage(
       title: '我留下的',
       subtitle: '地点、纸条和拍摄结果都保存在本机。',
       child: library.when(
         loading: () => const V2LoadingObject(label: '正在读取本地内容'),
         error: (_, _) => const Center(child: Text('本地内容暂时不可读')),
-        data: (value) => ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            _V2LibraryGroup(
-              title: '灵感纸条',
-              empty: '还没有收藏纸条',
-              items: value.savedNotes
-                  .take(8)
-                  .map(
-                    (item) => _V2LibraryItem(
-                      title: item.displayLabel,
-                      detail: item.detail,
-                      onDelete: () => ref
-                          .read(userLibraryProvider.notifier)
-                          .deleteSavedNote(item.id),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 16),
-            _V2LibraryGroup(
-              title: '收藏地点',
-              empty: '还没有收藏地点',
-              items: value.savedPlaces
-                  .take(8)
-                  .map(
-                    (item) =>
-                        _V2LibraryItem(title: item.name, detail: item.category),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 16),
-            _V2SectionObject(
-              title: '拍摄记录',
-              child: Text(
-                '${value.sessionResults.length} 次结果 · '
-                '${value.watchedSessions.length} 个关注窗口',
-                style: const TextStyle(color: V2Palette.mutedInk),
+        data: (value) {
+          final now = DateTime.now();
+          final freshEnvironment =
+              environment != null &&
+              !environment.isStale &&
+              environment.expiresAt.toUtc().isAfter(now.toUtc());
+          final activePlaces = freshEnvironment
+              ? ActiveSavedPlaceMatcher.match(
+                  places: value.savedPlaces,
+                  sessions: environment.shootingSessions,
+                  now: now,
+                )
+              : const <ActiveSavedPlaceMatch>[];
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              if (activePlaces.isNotEmpty) ...[
+                _V2LibraryGroup(
+                  title: '旧地方，新机会',
+                  empty: '',
+                  items: activePlaces
+                      .take(5)
+                      .map(
+                        (match) => _V2LibraryItem(
+                          title: match.place.name,
+                          detail:
+                              '${match.session.title} · ${_libraryTime(match.session.presentationStartsAt)}',
+                          onTap: () {
+                            final intent = ActiveShootingIntent(
+                              sessionId: match.session.id,
+                              targetId: match.target.id,
+                              createdAt: DateTime.now(),
+                            );
+                            final uri = Uri(
+                              path:
+                                  '/session/${Uri.encodeComponent(match.session.id)}',
+                              queryParameters: intent.queryParameters,
+                            );
+                            context.push(uri.toString(), extra: environment);
+                          },
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: 16),
+              ],
+              _V2LibraryGroup(
+                title: '灵感纸条',
+                empty: '还没有收藏纸条',
+                items: value.savedNotes
+                    .take(8)
+                    .map(
+                      (item) => _V2LibraryItem(
+                        title: item.displayLabel,
+                        detail: item.detail,
+                        onDelete: () => ref
+                            .read(userLibraryProvider.notifier)
+                            .deleteSavedNote(item.id),
+                      ),
+                    )
+                    .toList(),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: 16),
+              _V2LibraryGroup(
+                title: '收藏地点',
+                empty: '还没有收藏地点',
+                items: value.savedPlaces
+                    .take(8)
+                    .map(
+                      (item) =>
+                          _V2LibraryItem(title: item.name, detail: item.category),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              _V2SectionObject(
+                title: '拍摄记录',
+                child: Text(
+                  '${value.sessionResults.length} 次结果 · '
+                  '${value.watchedSessions.length} 个关注窗口',
+                  style: const TextStyle(color: V2Palette.mutedInk),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
+  }
+
+  static String _libraryTime(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -775,46 +833,64 @@ class _V2LibraryItem extends StatelessWidget {
   const _V2LibraryItem({
     required this.title,
     required this.detail,
+    this.onTap,
     this.onDelete,
   });
   final String title;
   final String detail;
+  final VoidCallback? onTap;
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 9),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: V2Palette.ink,
-                  fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.ink,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                detail,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: V2Palette.mutedInk, fontSize: 12),
-              ),
-            ],
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: V2Palette.mutedInk,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        if (onDelete != null)
-          IconButton(
-            onPressed: onDelete,
-            icon: const Icon(CupertinoIcons.trash, size: 18),
-          ),
-      ],
+          if (onTap != null)
+            const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(
+                CupertinoIcons.chevron_right,
+                color: V2Palette.mutedInk,
+                size: 16,
+              ),
+            ),
+          if (onDelete != null)
+            IconButton(
+              onPressed: onDelete,
+              icon: const Icon(CupertinoIcons.trash, size: 18),
+            ),
+        ],
+      ),
     ),
   );
 }

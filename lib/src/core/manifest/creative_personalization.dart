@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:luma_nest/src/core/photography/opportunity_catalog.dart';
 
-enum PhotographyPreference { landscape, humanities, astro, city }
+enum PhotographyPreference { landscape, humanities, astro, city, ecology }
 
 enum ActivityPreference { driving, lightHiking, backpacking, nicheExploration }
 
@@ -21,15 +21,13 @@ class CreativePersonalization {
     Set<ActivityPreference> activityPreferences = const {},
     this.tone = NarrativeTone.balanced,
     double recommendationIntensity = 0.5,
-    Map<String, double> localAffinity = const {},
   }) : photographyPreferences = UnmodifiableSetView(
          Set.of(photographyPreferences),
        ),
        activityPreferences = UnmodifiableSetView(Set.of(activityPreferences)),
        recommendationIntensity = recommendationIntensity
            .clamp(0.0, 1.0)
-           .toDouble(),
-       localAffinity = UnmodifiableMapView(Map.from(localAffinity));
+           .toDouble();
 
   static final neutral = CreativePersonalization();
 
@@ -37,12 +35,9 @@ class CreativePersonalization {
   final Set<ActivityPreference> activityPreferences;
   final NarrativeTone tone;
   final double recommendationIntensity;
-  final Map<String, double> localAffinity;
 
   bool get hasRecommendationPreferences =>
-      photographyPreferences.isNotEmpty ||
-      activityPreferences.isNotEmpty ||
-      localAffinity.values.any((value) => value > 0);
+      photographyPreferences.isNotEmpty || activityPreferences.isNotEmpty;
 
   late final String fingerprint = sha256
       .convert(utf8.encode(_canonicalFingerprintInput()))
@@ -50,9 +45,10 @@ class CreativePersonalization {
 
   bool matchesCreativeEvent(String eventId) {
     if (eventId == 'regional-wildlife') {
-      return activityPreferences.any(
-        (value) => value != ActivityPreference.driving,
-      );
+      return photographyPreferences.contains(PhotographyPreference.ecology) ||
+          activityPreferences.any(
+            (value) => value != ActivityPreference.driving,
+          );
     }
     final definition = OpportunityCatalog.current.byId[eventId];
     if (definition == null || !definition.isActiveCore) return false;
@@ -63,9 +59,6 @@ class CreativePersonalization {
         ) ||
         activityPreferences.any((value) => _matchesActivity(value, definition));
   }
-
-  double affinityForCreativeEvent(String eventId) =>
-      localAffinity[eventId] ?? 0;
 
   String _canonicalFingerprintInput() {
     final photography =
@@ -94,6 +87,9 @@ Set<PhotographyPreferenceId> _photographyAffinities(
   PhotographyPreference.astro => const {PhotographyPreferenceId.astroCelestial},
   PhotographyPreference.city => const {
     PhotographyPreferenceId.cityArchitecture,
+  },
+  PhotographyPreference.ecology => const {
+    PhotographyPreferenceId.wildlifeEcology,
   },
 };
 

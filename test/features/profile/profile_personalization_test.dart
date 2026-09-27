@@ -7,8 +7,8 @@ void main() {
   test('maps every persisted profile option to the typed contract', () {
     final personalization = ProfilePersonalization.fromPreferences(
       const ProfilePreferences(
-        photographyPreferences: {'风光', '人文', '星空', '城市'},
-        activityPreferences: {'自驾', '轻徒步', '重装徒步', '小众探索'},
+        photographyPreferences: {'风光', '人文', '星空', '城市', '生态'},
+        activityPreferences: {'自驾', '轻徒步', '重装徒步', '慢探索'},
         aiTone: AiTone.detailed,
         recommendationIntensity: 0.8,
       ),
@@ -19,6 +19,7 @@ void main() {
       PhotographyPreference.humanities,
       PhotographyPreference.astro,
       PhotographyPreference.city,
+      PhotographyPreference.ecology,
     });
     expect(personalization.activityPreferences, {
       ActivityPreference.driving,
