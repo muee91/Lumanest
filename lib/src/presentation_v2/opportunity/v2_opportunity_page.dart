@@ -1119,7 +1119,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                       const SizedBox(height: 3),
                       Text(
                         widget.atTarget
-                            ? '${widget.target.name} · 朝 ${widget.directionDegrees.round()}° 观察'
+                            ? '${widget.target.name} · ${_directionArrow(widget.directionDegrees)} ${widget.directionDegrees.round()}° 观察'
                             : distance == null
                             ? '由你确认已经抵达 ${widget.target.name}'
                             : '距 ${widget.target.name} $distance · 到达后进入现场模式',
@@ -1221,16 +1221,31 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
 
   static String _duration(Duration value) {
     final seconds = value.inSeconds;
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-    final remainder = seconds % 60;
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:'
-          '${minutes.toString().padLeft(2, '0')}:'
-          '${remainder.toString().padLeft(2, '0')}';
+    if (value > const Duration(minutes: 10)) {
+      final totalMinutes = (seconds / 60).ceil();
+      final hours = totalMinutes ~/ 60;
+      final minutes = totalMinutes % 60;
+      return hours == 0
+          ? '$totalMinutes 分钟'
+          : minutes == 0
+          ? '$hours 小时'
+          : '$hours 小时 $minutes 分钟';
     }
-    return '${minutes.toString().padLeft(2, '0')}:'
-        '${remainder.toString().padLeft(2, '0')}';
+    final minutes = seconds ~/ 60;
+    final remainder = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainder.toString().padLeft(2, '0')}';
+  }
+
+  static String _directionArrow(double degrees) {
+    final normalized = ((degrees % 360) + 360) % 360;
+    if (normalized < 22.5 || normalized >= 337.5) return '↑';
+    if (normalized < 67.5) return '↗';
+    if (normalized < 112.5) return '→';
+    if (normalized < 157.5) return '↘';
+    if (normalized < 202.5) return '↓';
+    if (normalized < 247.5) return '↙';
+    if (normalized < 292.5) return '←';
+    return '↖';
   }
 
   static String _time(DateTime value) {
