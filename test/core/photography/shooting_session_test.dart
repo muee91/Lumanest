@@ -189,6 +189,46 @@ void main() {
     expect(selected?.id, alternative.id);
   });
 
+  test(
+    'plan B prefers the closer reviewed target when evidence is otherwise tied',
+    () {
+      final primary = ContextFixtures.waterEveningSession(
+        observedAt: now,
+        trend: ShootingTrend.weakening,
+      );
+      final far = _withTargets(
+        ContextFixtures.waterMorningSession(observedAt: now),
+        [
+          _reviewedTargetFor(
+            ShootingSessionKind.waterMorning,
+            idSuffix: 'far',
+            coordinate: const GeoPoint(latitude: 31, longitude: 121),
+          ),
+        ],
+        id: 'session_plan_b_far_0123456789',
+      );
+      final near = _withTargets(
+        ContextFixtures.waterMorningSession(observedAt: now),
+        [
+          _reviewedTargetFor(
+            ShootingSessionKind.waterMorning,
+            idSuffix: 'near',
+          ),
+        ],
+        id: 'session_plan_b_near_0123456789',
+      );
+
+      final selected = ShootingSessionFallback.selectPlanB(
+        [primary, far, near],
+        primary: primary,
+        now: now,
+        currentLocation: const GeoPoint(latitude: 30.25, longitude: 120.15),
+      );
+
+      expect(selected?.id, near.id);
+    },
+  );
+
   test('plan B never promotes limited evidence', () {
     final primary = ContextFixtures.waterEveningSession(
       observedAt: now,
@@ -233,8 +273,9 @@ void main() {
 ShootingSession _withTargets(
   ShootingSession source,
   List<ShootingTarget> targets,
+  {String? id,}
 ) => ShootingSession(
-  id: source.id,
+  id: id ?? source.id,
   kind: source.kind,
   title: source.title,
   startsAt: source.startsAt,
@@ -252,10 +293,14 @@ ShootingSession _withTargets(
   expiresAt: source.expiresAt,
 );
 
-ShootingTarget _reviewedTargetFor(ShootingSessionKind kind) => ShootingTarget(
-  id: 'target_plan_b_${kind.name}_0123456789',
+ShootingTarget _reviewedTargetFor(
+  ShootingSessionKind kind, {
+  GeoPoint coordinate = const GeoPoint(latitude: 30.251, longitude: 120.151),
+  String idSuffix = '0123456789',
+}) => ShootingTarget(
+  id: 'target_plan_b_${kind.name}_$idSuffix',
   name: 'Plan B 审核机位',
-  coordinate: const GeoPoint(latitude: 30.251, longitude: 120.151),
+  coordinate: coordinate,
   supportedSessions: [kind],
   viewBearingDegrees: 76,
   bearingToleranceDegrees: 20,

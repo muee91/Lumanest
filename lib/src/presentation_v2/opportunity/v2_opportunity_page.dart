@@ -220,6 +220,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             fieldSnapshot.shootingSessions,
             primary: executionSession,
             now: now,
+            currentLocation: _locationReading?.point ?? fieldSnapshot.location,
           );
     ShootingTarget? planBTarget;
     if (planB != null) {
