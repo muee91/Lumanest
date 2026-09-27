@@ -57,20 +57,27 @@ class ActiveShootingIntent {
     );
   }
 
-  static bool _validSessionId(String value) => _validId(value);
+  static bool _validSessionId(String value) =>
+      _validTypedId(value, 'session');
 
-  static bool _validTargetId(String value) => _validId(value);
+  static bool _validTargetId(String value) =>
+      _validTypedId(value, 'target');
 
-  // Session/target IDs come from more than one current contract surface:
-  // production IDs may be hash-like while deterministic fixtures and legacy
-  // deep links still use dotted identifiers such as session.water.evening.
-  // Keep the accepted alphabet URL-safe and bounded instead of assuming one
-  // server-side ID shape.
-  static bool _validId(String value) {
-    if (value.length < 3 || value.length > 128) return false;
-    final first = value.codeUnitAt(0);
-    if (!_isAsciiAlphaNumeric(first)) return false;
-    for (var index = 1; index < value.length; index++) {
+  // Current contracts use typed, URL-safe stable IDs with several historical
+  // separators: session_..., session...., session-... (and target variants).
+  // Preserve those forms while rejecting untyped or path-like values.
+  static bool _validTypedId(String value, String prefix) {
+    if (value.length < prefix.length + 2 || value.length > 128) return false;
+    if (!value.startsWith(prefix)) return false;
+    final separatorIndex = prefix.length;
+    final separator = value.codeUnitAt(separatorIndex);
+    if (separator != 46 && // .
+        separator != 95 && // _
+        separator != 58 && // :
+        separator != 45) { // -
+      return false;
+    }
+    for (var index = separatorIndex + 1; index < value.length; index++) {
       final code = value.codeUnitAt(index);
       if (_isAsciiAlphaNumeric(code) ||
           code == 46 || // .
