@@ -153,10 +153,22 @@ void main() {
       conditionBand: ShootingConditionBand.limited,
     );
 
-    expect(ShootingSessionFallback.shouldOfferPlanB(stable), isFalse);
-    expect(ShootingSessionFallback.shouldOfferPlanB(weakening), isTrue);
-    expect(ShootingSessionFallback.shouldOfferPlanB(limited), isTrue);
-    expect(ShootingSessionFallback.shouldOfferPlanB(null), isFalse);
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(stable, now: now),
+      isFalse,
+    );
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(weakening, now: now),
+      isTrue,
+    );
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(limited, now: now),
+      isTrue,
+    );
+    expect(
+      ShootingSessionFallback.shouldOfferPlanB(null, now: now),
+      isFalse,
+    );
   });
   test('plan B selects only an already-established usable session', () {
     final primary = ContextFixtures.waterEveningSession(
