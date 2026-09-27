@@ -263,10 +263,16 @@ abstract final class ShootingSessionFallback {
   /// Existing secondary windows may be presented as a fallback only when the
   /// selected primary window is visibly weakening or limited. This is a copy
   /// and ranking signal; it never invents a new opportunity.
-  static bool shouldOfferPlanB(ShootingSession? primary) =>
-      primary != null &&
-      (primary.conditionBand == ShootingConditionBand.limited ||
-          primary.trend == ShootingTrend.weakening);
+  static bool shouldOfferPlanB(
+    ShootingSession? primary, {
+    DateTime? now,
+  }) {
+    if (primary == null) return false;
+    final utcNow = (now ?? DateTime.now()).toUtc();
+    return primary.conditionBand == ShootingConditionBand.limited ||
+        primary.trend == ShootingTrend.weakening ||
+        primary.isEvidenceExpiredAt(utcNow);
+  }
 
   /// Chooses only from sessions that are already established by the current
   /// snapshot. The fallback layer never manufactures a new opportunity and
@@ -276,7 +282,7 @@ abstract final class ShootingSessionFallback {
     required ShootingSession primary,
     required DateTime now,
   }) {
-    if (!shouldOfferPlanB(primary)) return null;
+    if (!shouldOfferPlanB(primary, now: now)) return null;
     final utcNow = now.toUtc();
     final candidates = sessions
         .where(
