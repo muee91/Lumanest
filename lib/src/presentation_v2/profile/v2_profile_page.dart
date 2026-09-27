@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/active_saved_place.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -521,15 +522,15 @@ class V2ProfileLibraryPage extends ConsumerWidget {
                           detail:
                               '${match.session.title} · ${_libraryTime(match.session.presentationStartsAt)}',
                           onTap: () {
+                            final intent = ActiveShootingIntent(
+                              sessionId: match.session.id,
+                              targetId: match.target.id,
+                              createdAt: DateTime.now(),
+                            );
                             final uri = Uri(
                               path:
                                   '/session/${Uri.encodeComponent(match.session.id)}',
-                              queryParameters: {
-                                'target': match.target.id,
-                                'intentAt': DateTime.now()
-                                    .toUtc()
-                                    .toIso8601String(),
-                              },
+                              queryParameters: intent.queryParameters,
                             );
                             context.push(uri.toString(), extra: environment);
                           },
