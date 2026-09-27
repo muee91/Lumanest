@@ -210,11 +210,16 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
             target: target,
             atTarget: atTarget,
           );
-    final planB = ShootingSessionFallback.selectPlanB(
-      fieldSnapshot?.shootingSessions ?? widget.snapshot.shootingSessions,
-      primary: executionSession,
-      now: now,
-    );
+    // Plan B is valid only when the current snapshot is fresh. The route
+    // detail may still render the selected session from its navigation extra,
+    // but an expired snapshot must never promote an old alternative.
+    final planB = fieldSnapshot == null
+        ? null
+        : ShootingSessionFallback.selectPlanB(
+            fieldSnapshot.shootingSessions,
+            primary: executionSession,
+            now: now,
+          );
     ShootingTarget? planBTarget;
     if (planB != null) {
       planBTarget = planB.targetCandidates
@@ -303,7 +308,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                       target: target,
                     ),
                   ],
-                  if (target != null) ...[
+                  if (target != null && requestedTargetId != null) ...[
                     const SizedBox(height: 18),
                     _V2FieldModeObject(
                       atTarget: atTarget,
