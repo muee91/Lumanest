@@ -370,6 +370,15 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   void _syncDeparturePlan(ContextSnapshot? snapshot) {
     final intent = widget.activeShootingIntent;
     if (intent == null || snapshot == null) return;
+    final now = DateTime.now().toUtc();
+    if (snapshot.isStale ||
+        snapshot.dataFreshness == ContextDataFreshness.stale ||
+        !snapshot.expiresAt.toUtc().isAfter(now)) {
+      // A stale snapshot cannot create or replace a departure plan. Preserve
+      // any already scheduled reminder until a fresh reconciliation decides
+      // whether it remains valid.
+      return;
+    }
     final session = snapshot.shootingSessions
         .where((candidate) => candidate.id == intent.sessionId)
         .firstOrNull;
@@ -472,9 +481,15 @@ class _V2RouteVerdict extends StatelessWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final arrival = now.add(Duration(seconds: route.durationSeconds));
-    final candidateSession = snapshot == null
+    final freshSnapshot = snapshot != null &&
+        !snapshot!.isStale &&
+        snapshot!.dataFreshness != ContextDataFreshness.stale &&
+        snapshot!.expiresAt.toUtc().isAfter(now.toUtc())
+        ? snapshot
+        : null;
+    final candidateSession = freshSnapshot == null
         ? null
-        : _sessionForIntent(snapshot!, activeShootingIntent, now);
+        : _sessionForIntent(freshSnapshot, activeShootingIntent, now);
     final target = candidateSession == null
         ? null
         : _targetForDestination(
