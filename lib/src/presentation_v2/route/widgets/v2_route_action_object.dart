@@ -24,7 +24,7 @@ class _V2RouteActionObject extends StatelessWidget {
         : '${plan.criticalCount + plan.highCount} 条重点 · '
               '${plan.photographyCount} 个拍摄时间 · ${plan.supportCount} 个补给线索';
     return Material(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       elevation: 18,
       shadowColor: Colors.black38,
       borderRadius: BorderRadius.circular(32),
@@ -36,10 +36,10 @@ class _V2RouteActionObject extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text(
+                Text(
                   '路线探路',
                   style: TextStyle(
-                    color: V2Palette.moss,
+                    color: context.v2Moss,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
@@ -49,8 +49,8 @@ class _V2RouteActionObject extends StatelessWidget {
                 if (plan != null)
                   Text(
                     plan.coverage == RouteScoutCoverage.full ? '数据完整' : '部分数据',
-                    style: const TextStyle(
-                      color: V2Palette.mutedInk,
+                    style: TextStyle(
+                      color: context.v2MutedInk,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -62,8 +62,8 @@ class _V2RouteActionObject extends StatelessWidget {
               headline,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: V2Palette.ink,
+              style: TextStyle(
+                color: context.v2Ink,
                 fontSize: 22,
                 height: 1.15,
                 fontWeight: FontWeight.w900,
@@ -75,8 +75,8 @@ class _V2RouteActionObject extends StatelessWidget {
               detail,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 12,
                 height: 1.35,
                 fontWeight: FontWeight.w600,
@@ -89,8 +89,8 @@ class _V2RouteActionObject extends StatelessWidget {
                   Expanded(
                     child: V2Pressable(
                       onTap: onScout,
-                      color: V2Palette.ember,
-                      child: const Padding(
+                      color: context.v2Ember,
+                      child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 15),
                         child: Text(
                           '查看管制',
@@ -125,8 +125,8 @@ class _V2RouteActionObject extends StatelessWidget {
                   Expanded(
                     child: V2Pressable(
                       onTap: onNavigate,
-                      color: V2Palette.moss,
-                      child: const Padding(
+                      color: context.v2Moss,
+                      child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 15),
                         child: Text(
                           '打开导航',

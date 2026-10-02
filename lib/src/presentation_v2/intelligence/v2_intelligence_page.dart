@@ -44,7 +44,7 @@ class V2IntelligencePage extends ConsumerWidget {
     return Scaffold(
       key: const Key('v2-intelligence-page'),
       resizeToAvoidBottomInset: false,
-      backgroundColor: V2Palette.paper,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: snapshot.when(
         loading: () => const V2LoadingObject(label: '正在准备此刻灵感'),
         error: (_, _) => SafeArea(
@@ -154,7 +154,9 @@ class _IntelligenceWorkspaceState
     return SafeArea(
       bottom: false,
       child: AnimatedPadding(
-        duration: const Duration(milliseconds: 220),
+        duration: V2MotionScope.of(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.only(bottom: keyboardHeight),
         child: Column(
@@ -177,6 +179,7 @@ class _IntelligenceWorkspaceState
                 inputFocus: _inputFocus,
                 scrollController: _conversationScroll,
                 bottomSafe: bottomSafe,
+                colors: Theme.of(context).colorScheme,
                 onSubmit: _submitText,
                 onSelectNote: _selectNote,
                 onSaveSelectedNote: _selectedNote == null
@@ -216,11 +219,11 @@ class _IntelligenceWorkspaceState
             },
           ),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
               '栖光',
               style: TextStyle(
-                color: V2Palette.ink,
+                color: context.v2Ink,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -.35,
@@ -248,8 +251,8 @@ class _IntelligenceWorkspaceState
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: SizedBox.square(
-        dimension: 40,
-        child: Icon(icon, color: V2Palette.ink, size: 20),
+        dimension: 48,
+        child: Icon(icon, color: context.v2Ink, size: 20),
       ),
     ),
   );
@@ -581,7 +584,9 @@ class _IntelligenceWorkspaceState
       unawaited(
         _conversationScroll.animateTo(
           _conversationScroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 220),
+          duration: V2MotionScope.of(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
         ),
       );
@@ -629,6 +634,7 @@ class _AssistantStage extends StatelessWidget {
     required this.inputFocus,
     required this.scrollController,
     required this.bottomSafe,
+    required this.colors,
     required this.onSubmit,
     required this.onSelectNote,
     required this.onSaveSelectedNote,
@@ -650,6 +656,7 @@ class _AssistantStage extends StatelessWidget {
   final FocusNode inputFocus;
   final ScrollController scrollController;
   final double bottomSafe;
+  final ColorScheme colors;
   final VoidCallback onSubmit;
   final ValueChanged<InspirationNote> onSelectNote;
   final VoidCallback? onSaveSelectedNote;
@@ -659,7 +666,7 @@ class _AssistantStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     key: const Key('v2-intelligence-assistant-stage'),
-    color: V2Palette.paper,
+    color: colors.surfaceContainerLow,
     child: Column(
       children: [
         if (conversation.turns.isNotEmpty || pendingIntent != null)
@@ -678,12 +685,12 @@ class _AssistantStage extends StatelessWidget {
     margin: const EdgeInsets.fromLTRB(20, 4, 20, 0),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
-      color: V2Palette.mossSoft,
+      color: colors.primaryContainer,
       borderRadius: BorderRadius.circular(14),
     ),
     child: Row(
       children: [
-        const Icon(CupertinoIcons.scope, color: V2Palette.moss, size: 14),
+        Icon(CupertinoIcons.scope, color: colors.primary, size: 14),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -692,8 +699,8 @@ class _AssistantStage extends StatelessWidget {
                 : '已带入「${selectedNote!.label}」和当前环境',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: V2Palette.mutedInk,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
@@ -709,16 +716,16 @@ class _AssistantStage extends StatelessWidget {
                   : CupertinoIcons.bookmark,
               size: 17,
             ),
-            color: V2Palette.moss,
-            disabledColor: V2Palette.moss,
+            color: colors.primary,
+            disabledColor: colors.primary,
             visualDensity: VisualDensity.compact,
           ),
           if (onOpenSelectedNote != null)
             IconButton(
               tooltip: '打开相关内容',
               onPressed: onOpenSelectedNote,
-              icon: const Icon(CupertinoIcons.arrow_up_right, size: 17),
-              color: V2Palette.moss,
+              icon: Icon(CupertinoIcons.arrow_up_right, size: 17),
+              color: colors.primary,
               visualDensity: VisualDensity.compact,
             ),
         ],
@@ -733,8 +740,8 @@ class _AssistantStage extends StatelessWidget {
       children: [
         Text(
           _environmentSignature,
-          style: const TextStyle(
-            color: V2Palette.moss,
+          style: TextStyle(
+            color: colors.primary,
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: .7,
@@ -745,15 +752,15 @@ class _AssistantStage extends StatelessWidget {
           width: 28,
           height: 3,
           decoration: BoxDecoration(
-            color: V2Palette.moss,
+            color: colors.primary,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(height: 18),
         Text(
           selectedNote == null ? '现在，想拍什么？' : '围绕「${selectedNote!.label}」聊聊。',
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: colors.onSurface,
             fontSize: 28,
             height: 1.15,
             letterSpacing: -1.1,
@@ -765,8 +772,8 @@ class _AssistantStage extends StatelessWidget {
           selectedNote == null
               ? '栖光会结合当前环境、区域简报、路线与可用数据源回答。'
               : '灵感来自当前环境；继续问，我会把它变成可执行的拍摄思路。',
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: colors.onSurfaceVariant,
             fontSize: 14,
             height: 1.45,
           ),
@@ -775,10 +782,10 @@ class _AssistantStage extends StatelessWidget {
           const SizedBox(height: 28),
           Row(
             children: [
-              const Text(
+              Text(
                 '此刻灵感',
                 style: TextStyle(
-                  color: V2Palette.moss,
+                  color: colors.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .8,
@@ -787,10 +794,10 @@ class _AssistantStage extends StatelessWidget {
               const Spacer(),
               TextButton.icon(
                 onPressed: onShuffleNotes,
-                icon: const Icon(CupertinoIcons.shuffle, size: 14),
-                label: const Text('换一组'),
+                icon: Icon(CupertinoIcons.shuffle, size: 14),
+                label: Text('换一组'),
                 style: TextButton.styleFrom(
-                  foregroundColor: V2Palette.mutedInk,
+                  foregroundColor: colors.onSurfaceVariant,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                 ),
               ),
@@ -842,7 +849,9 @@ class _AssistantStage extends StatelessWidget {
                   : const [Color(0xFFF1F5F1), Color(0xFFF4F1E9)],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: V2Palette.line.withValues(alpha: .7)),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(alpha: .7),
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -858,7 +867,7 @@ class _AssistantStage extends StatelessWidget {
                   ),
                   child: Icon(
                     _inspirationIcon(note.category),
-                    color: V2Palette.moss,
+                    color: colors.primary,
                     size: 15,
                   ),
                 ),
@@ -867,10 +876,10 @@ class _AssistantStage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '灵感纸条',
                         style: TextStyle(
-                          color: V2Palette.mutedInk,
+                          color: colors.onSurfaceVariant,
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
                         ),
@@ -878,8 +887,8 @@ class _AssistantStage extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         note.label,
-                        style: const TextStyle(
-                          color: V2Palette.ink,
+                        style: TextStyle(
+                          color: colors.onSurface,
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
                         ),
@@ -891,13 +900,13 @@ class _AssistantStage extends StatelessWidget {
                   width: 28,
                   height: 28,
                   alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: V2Palette.paper,
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerLow,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.arrow_up_right,
-                    color: V2Palette.moss,
+                    color: colors.primary,
                     size: 14,
                   ),
                 ),
@@ -929,11 +938,11 @@ class _AssistantStage extends StatelessWidget {
           phase: pendingPhase,
         ),
       if (lastFailure != null)
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 39, bottom: 10),
           child: Text(
             '模型暂时不可用，已保留基于当前数据的回答。',
-            style: TextStyle(color: V2Palette.mutedInk, fontSize: 10.5),
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 10.5),
           ),
         ),
     ],
@@ -951,8 +960,8 @@ class _AssistantStage extends StatelessWidget {
             child: Container(
               key: const Key('v2-intelligence-user-message'),
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-              decoration: const BoxDecoration(
-                color: V2Palette.skySoft,
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(18),
                   topRight: Radius.circular(18),
@@ -962,8 +971,8 @@ class _AssistantStage extends StatelessWidget {
               ),
               child: Text(
                 turn.intent.normalizedQuestion,
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: colors.onSurface,
                   fontSize: 13,
                   height: 1.4,
                   fontWeight: FontWeight.w700,
@@ -997,8 +1006,8 @@ class _AssistantStage extends StatelessWidget {
             widthFactor: .84,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-              decoration: const BoxDecoration(
-                color: V2Palette.skySoft,
+              decoration: BoxDecoration(
+                color: colors.secondaryContainer,
                 borderRadius: BorderRadius.all(Radius.circular(18)),
               ),
               child: Text(intent.normalizedQuestion),
@@ -1034,14 +1043,14 @@ class _AssistantStage extends StatelessWidget {
           key: const Key('v2-intelligence-assistant-message'),
           padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
           decoration: BoxDecoration(
-            color: V2Palette.canvas,
+            color: colors.surfaceContainer,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(5),
               topRight: Radius.circular(18),
               bottomLeft: Radius.circular(18),
               bottomRight: Radius.circular(18),
             ),
-            border: Border.all(color: V2Palette.line),
+            border: Border.all(color: colors.outlineVariant),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1051,11 +1060,11 @@ class _AssistantStage extends StatelessWidget {
               Row(
                 children: [
                   if (loading) ...[
-                    const SizedBox.square(
+                    SizedBox.square(
                       dimension: 11,
                       child: CircularProgressIndicator(
                         strokeWidth: 1.4,
-                        color: V2Palette.moss,
+                        color: colors.primary,
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -1066,8 +1075,8 @@ class _AssistantStage extends StatelessWidget {
                         : source == 'template'
                         ? '栖光规则 · 当前数据'
                         : source,
-                    style: const TextStyle(
-                      color: V2Palette.mutedInk,
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1102,29 +1111,29 @@ class _AssistantStage extends StatelessWidget {
     width: 30,
     height: 30,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: V2Palette.mossSoft,
+    decoration: BoxDecoration(
+      color: colors.primaryContainer,
       shape: BoxShape.circle,
     ),
-    child: const Icon(CupertinoIcons.sparkles, color: V2Palette.moss, size: 15),
+    child: Icon(CupertinoIcons.sparkles, color: colors.primary, size: 15),
   );
 
   Widget _composer() {
     return Container(
       key: const Key('v2-intelligence-composer'),
       padding: EdgeInsets.fromLTRB(16, 8, 16, 10 + bottomSafe),
-      color: V2Palette.paper,
+      color: colors.surfaceContainerLow,
       child: Container(
         key: const Key('v2-intelligence-composer-surface'),
         constraints: const BoxConstraints(minHeight: 52),
         padding: const EdgeInsets.fromLTRB(14, 4, 5, 4),
         decoration: BoxDecoration(
-          color: V2Palette.canvas,
+          color: colors.surfaceContainer,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: V2Palette.line),
+          border: Border.all(color: colors.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: V2Palette.ink.withValues(alpha: .06),
+              color: colors.onSurface.withValues(alpha: .06),
               blurRadius: 14,
               offset: const Offset(0, 5),
             ),
@@ -1133,11 +1142,11 @@ class _AssistantStage extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(right: 9, bottom: 12),
               child: Icon(
                 CupertinoIcons.scope,
-                color: V2Palette.moss,
+                color: colors.primary,
                 size: 17,
               ),
             ),
@@ -1150,16 +1159,16 @@ class _AssistantStage extends StatelessWidget {
                 onSubmitted: (_) => onSubmit(),
                 minLines: 1,
                 maxLines: 3,
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: colors.onSurface,
                   fontSize: 15,
                   height: 1.35,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '问栖光任何拍摄问题',
-                  hintStyle: TextStyle(color: V2Palette.mutedInk),
+                  hintStyle: TextStyle(color: colors.onSurfaceVariant),
                   filled: true,
-                  fillColor: V2Palette.canvas,
+                  fillColor: colors.surfaceContainer,
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -1174,17 +1183,17 @@ class _AssistantStage extends StatelessWidget {
                 tooltip: '发送',
                 onPressed: value.text.trim().isNotEmpty ? onSubmit : null,
                 style: IconButton.styleFrom(
-                  minimumSize: const Size.square(42),
-                  maximumSize: const Size.square(42),
+                  minimumSize: const Size.square(48),
+                  maximumSize: const Size.square(48),
                   padding: EdgeInsets.zero,
-                  backgroundColor: V2Palette.moss,
+                  backgroundColor: colors.primary,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: V2Palette.paper,
-                  disabledForegroundColor: V2Palette.line,
+                  disabledBackgroundColor: colors.surfaceContainerLow,
+                  disabledForegroundColor: colors.outlineVariant,
                 ),
                 icon: child!,
               ),
-              child: const Icon(CupertinoIcons.arrow_up, size: 18),
+              child: Icon(CupertinoIcons.arrow_up, size: 18),
             ),
           ],
         ),

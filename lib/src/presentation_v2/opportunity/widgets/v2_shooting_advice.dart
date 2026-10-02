@@ -15,10 +15,10 @@ class _V2ShootingAdvice extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text(
+      Text(
         '拍摄建议',
         style: TextStyle(
-          color: V2Palette.ink,
+          color: context.v2Ink,
           fontSize: 19,
           fontWeight: FontWeight.w900,
         ),
@@ -27,9 +27,9 @@ class _V2ShootingAdvice extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: V2Palette.paper,
+          color: context.v2Paper,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: V2Palette.line),
+          border: Border.all(color: context.v2Line),
         ),
         child: Column(
           children: [
@@ -91,8 +91,8 @@ class _V2AdviceRow extends StatelessWidget {
         width: 72,
         child: Text(
           label,
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -103,8 +103,8 @@ class _V2AdviceRow extends StatelessWidget {
         child: Text(
           value,
           textAlign: TextAlign.right,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 13,
             fontWeight: FontWeight.w900,
           ),

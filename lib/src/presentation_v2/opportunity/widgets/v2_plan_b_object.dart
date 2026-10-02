@@ -15,26 +15,22 @@ class _V2PlanBObject extends StatelessWidget {
   Widget build(BuildContext context) => V2Pressable(
     key: const Key('v2-opportunity-plan-b'),
     onTap: onOpen,
-    color: V2Palette.paper,
+    color: context.v2Paper,
     semanticLabel: '查看备选拍摄机会 ${alternative.title}',
     child: Padding(
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
       child: Row(
         children: [
-          const Icon(
-            CupertinoIcons.arrow_right,
-            color: V2Palette.ember,
-            size: 20,
-          ),
+          Icon(CupertinoIcons.arrow_right, color: context.v2Ember, size: 20),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '条件变化 · 有备选',
                   style: TextStyle(
-                    color: V2Palette.ember,
+                    color: context.v2Ember,
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
@@ -42,8 +38,8 @@ class _V2PlanBObject extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   alternative.title,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontSize: 15,
                     fontWeight: FontWeight.w900,
                   ),
@@ -51,8 +47,8 @@ class _V2PlanBObject extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   '${primary.title}正在减弱；这个窗口仍有已成立依据。',
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
+                  style: TextStyle(
+                    color: context.v2MutedInk,
                     fontSize: 11,
                     height: 1.35,
                   ),
@@ -60,9 +56,9 @@ class _V2PlanBObject extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(
+          Icon(
             CupertinoIcons.chevron_right,
-            color: V2Palette.mutedInk,
+            color: context.v2MutedInk,
             size: 17,
           ),
         ],

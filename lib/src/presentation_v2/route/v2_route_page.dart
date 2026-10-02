@@ -155,8 +155,8 @@ class _V2RouteStageState extends ConsumerState<_V2RouteStage> {
     }
     final route = ref.watch(drivingRouteProvider(widget.destination));
     return route.when(
-      loading: () => const ColoredBox(
-        color: V2Palette.canvas,
+      loading: () => ColoredBox(
+        color: context.v2Canvas,
         child: V2LoadingObject(label: '正在把路线变成行动计划'),
       ),
       error: (_, _) => V2PageStage(
@@ -232,6 +232,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
     final destination = ChinaCoordinateConverter.wgs84ToGcj02(
       widget.destination.point,
     );
+    final reduceMotion = V2MotionScope.of(context);
     final scoutMarkers = <Marker>{};
     for (final node in scout.asData?.value.nodes ?? const <RouteScoutNode>[]) {
       final place = node.place;
@@ -269,7 +270,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
       unawaited(
         _controller!.moveCamera(
           CameraUpdate.newLatLngBounds(bounds, 70),
-          duration: 620,
+          duration: reduceMotion ? 0 : 620,
         ),
       );
     });
@@ -295,7 +296,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
                   Polyline(
                     points: points,
                     width: 10,
-                    color: V2Palette.ink,
+                    color: context.v2Ink,
                     capType: CapType.round,
                     joinType: JoinType.round,
                   ),

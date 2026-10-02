@@ -26,9 +26,9 @@ class _V2SessionSummary extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
         decoration: BoxDecoration(
-          color: V2Palette.paper,
+          color: context.v2Paper,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: V2Palette.line.withValues(alpha: .72)),
+          border: Border.all(color: context.v2Line.withValues(alpha: .72)),
           boxShadow: const [
             BoxShadow(
               color: Color(0x10000000),
@@ -53,8 +53,8 @@ class _V2SessionSummary extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   eyebrow,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
+                  style: TextStyle(
+                    color: context.v2MutedInk,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
@@ -66,8 +66,8 @@ class _V2SessionSummary extends StatelessWidget {
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: V2Palette.ink,
+              style: TextStyle(
+                color: context.v2Ink,
                 fontSize: 30,
                 height: 1.08,
                 fontWeight: FontWeight.w900,
@@ -77,8 +77,8 @@ class _V2SessionSummary extends StatelessWidget {
             const SizedBox(height: 9),
             Text(
               detail,
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 14,
                 height: 1.4,
                 fontWeight: FontWeight.w500,
@@ -91,8 +91,8 @@ class _V2SessionSummary extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   timeLabel,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),

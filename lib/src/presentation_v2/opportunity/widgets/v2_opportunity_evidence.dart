@@ -10,28 +10,25 @@ class _V2EvidenceToggle extends StatelessWidget {
     key: const Key('v2-evidence-toggle'),
     onTap: onTap,
     compact: true,
-    color: V2Palette.paper,
+    color: context.v2Paper,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             CupertinoIcons.checkmark_shield,
-            color: V2Palette.moss,
+            color: context.v2Moss,
             size: 18,
           ),
           const SizedBox(width: 9),
           Text(
             open ? '收起判断依据' : '查看判断依据',
-            style: const TextStyle(
-              color: V2Palette.ink,
-              fontWeight: FontWeight.w800,
-            ),
+            style: TextStyle(color: context.v2Ink, fontWeight: FontWeight.w800),
           ),
           const Spacer(),
           Icon(
             open ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
-            color: V2Palette.mutedInk,
+            color: context.v2MutedInk,
             size: 16,
           ),
         ],
@@ -49,17 +46,17 @@ class _V2FactorObject extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
     decoration: BoxDecoration(
       color: switch (factor.effect) {
-        ShootingFactorEffect.supporting => V2Palette.mossSoft,
-        ShootingFactorEffect.neutral => V2Palette.paper,
-        ShootingFactorEffect.limiting => V2Palette.emberSoft,
+        ShootingFactorEffect.supporting => context.v2MossSoft,
+        ShootingFactorEffect.neutral => context.v2Paper,
+        ShootingFactorEffect.limiting => context.v2EmberSoft,
       },
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Text(
       '${factor.label} ${factor.value}',
-      style: const TextStyle(
-        color: V2Palette.ink,
+      style: TextStyle(
+        color: context.v2Ink,
         fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
@@ -75,15 +72,15 @@ class _V2TargetObject extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: target == null ? V2Palette.canvas : V2Palette.skySoft,
+      color: target == null ? context.v2Canvas : context.v2SkySoft,
       borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Row(
       children: [
         Icon(
           target == null ? CupertinoIcons.location_slash : CupertinoIcons.scope,
-          color: target == null ? V2Palette.mutedInk : V2Palette.sky,
+          color: target == null ? context.v2MutedInk : context.v2Sky,
         ),
         const SizedBox(width: 13),
         Expanded(
@@ -92,15 +89,15 @@ class _V2TargetObject extends StatelessWidget {
             children: [
               Text(
                 target?.name ?? '暂无经过审核的推荐机位',
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 target == null ? '只展示时间与条件，不绑定最近 POI。' : '方向、到场提前量与来源已通过审核。',
-                style: const TextStyle(color: V2Palette.mutedInk, fontSize: 12),
+                style: TextStyle(color: context.v2MutedInk, fontSize: 12),
               ),
             ],
           ),

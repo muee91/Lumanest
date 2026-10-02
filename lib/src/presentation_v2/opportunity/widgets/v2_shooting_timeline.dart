@@ -14,10 +14,10 @@ class _V2Timeline extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Text(
+      Text(
         '拍摄时间轴',
         style: TextStyle(
-          color: V2Palette.ink,
+          color: context.v2Ink,
           fontSize: 19,
           fontWeight: FontWeight.w900,
         ),
@@ -43,7 +43,7 @@ class _V2Timeline extends StatelessWidget {
                       left: lineInset,
                       right: lineInset,
                       top: 11,
-                      child: Container(height: 2, color: V2Palette.line),
+                      child: Container(height: 2, color: context.v2Line),
                     ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,13 +92,15 @@ class _V2PhaseNode extends StatelessWidget {
       child: Column(
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
+            duration: V2MotionScope.of(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
             width: selected ? 24 : 20,
             height: selected ? 24 : 20,
             decoration: BoxDecoration(
-              color: _color(phase.conditionBand),
+              color: _color(context, phase.conditionBand),
               shape: BoxShape.circle,
-              border: Border.all(color: V2Palette.canvas, width: 3),
+              border: Border.all(color: context.v2Canvas, width: 3),
               boxShadow: selected
                   ? const [
                       BoxShadow(
@@ -117,7 +119,7 @@ class _V2PhaseNode extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: V2Palette.ink,
+              color: context.v2Ink,
               fontSize: 11,
               height: 1.2,
               fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
@@ -126,18 +128,19 @@ class _V2PhaseNode extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             _time(phase.startsAt),
-            style: const TextStyle(color: V2Palette.mutedInk, fontSize: 10),
+            style: TextStyle(color: context.v2MutedInk, fontSize: 10),
           ),
         ],
       ),
     ),
   );
 
-  static Color _color(ShootingConditionBand value) => switch (value) {
-    ShootingConditionBand.good => V2Palette.moss,
-    ShootingConditionBand.fair => V2Palette.ember,
-    ShootingConditionBand.limited => V2Palette.line,
-  };
+  static Color _color(BuildContext context, ShootingConditionBand value) =>
+      switch (value) {
+        ShootingConditionBand.good => context.v2Moss,
+        ShootingConditionBand.fair => context.v2Ember,
+        ShootingConditionBand.limited => context.v2Line,
+      };
 
   static String _time(DateTime value) =>
       '${value.toLocal().hour.toString().padLeft(2, '0')}:'

@@ -20,6 +20,7 @@ import 'package:luma_nest/src/features/sky_opportunity/application/sky_opportuni
 import 'package:luma_nest/src/features/sky_opportunity/domain/sky_opportunity.dart';
 import 'package:luma_nest/src/features/sky_opportunity/presentation/sky_opportunity_ambient.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/intelligence_overlay_state.dart';
+import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_canvas.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_field_parameters.dart';
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_composer.dart';
@@ -207,6 +208,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         final ambientVisualState = _ambientVisualState(
           ambientSnapshot,
           skyOpportunity,
+          brightness: Theme.of(context).brightness,
         );
         final ambientComposition =
             previewOverride?.composition ??
@@ -216,7 +218,13 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
               quality: ambientRendering.quality,
               conserveEnergy: conserveDeviceEnergy ?? false,
             );
-        final darkStage = _routeLocation.startsWith('/inspiration');
+        final theme = Theme.of(context);
+        final systemDark = theme.brightness == Brightness.dark;
+        final darkStage =
+            systemDark || _routeLocation.startsWith('/inspiration');
+        final surfaceColor = darkStage
+            ? const Color(0xFF17201D)
+            : theme.colorScheme.surface;
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
@@ -224,47 +232,48 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
                 ? Brightness.light
                 : Brightness.dark,
             statusBarBrightness: darkStage ? Brightness.dark : Brightness.light,
-            systemNavigationBarColor: darkStage
-                ? const Color(0xFF17201D)
-                : const Color(0xFFF5F5F1),
+            systemNavigationBarColor: surfaceColor,
             systemNavigationBarIconBrightness: darkStage
                 ? Brightness.light
                 : Brightness.dark,
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: Color(0xFFF5F5F1)),
-              if (preferences.ambientBackgroundEnabled &&
-                  !intelligenceOverlayVisible &&
-                  _routeLocation == '/today')
-                _TodayAmbientLayer(
-                  debugLabel: previewOverride?.label,
-                  child: AmbientCanvas(
-                    visualState: ambientVisualState,
-                    composition: ambientComposition,
-                    reduceMotion:
-                        ambientRendering.reduceMotion ||
-                        systemDisablesAnimations,
-                    reduceFlashing: ambientRendering.reduceFlashing,
-                    showWeatherTexture: ambientRendering.showWeatherTexture,
-                    renderer: ambientRendering.renderer,
-                    intensity: ambientRendering.intensity,
-                    interactionSuppressed: _interactionSuppressed,
+          child: V2MotionScope(
+            reduceMotion: preferences.reduceMotion || systemDisablesAnimations,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: surfaceColor),
+                if (preferences.ambientBackgroundEnabled &&
+                    !intelligenceOverlayVisible &&
+                    _routeLocation == '/today')
+                  _TodayAmbientLayer(
+                    debugLabel: previewOverride?.label,
+                    child: AmbientCanvas(
+                      visualState: ambientVisualState,
+                      composition: ambientComposition,
+                      reduceMotion:
+                          ambientRendering.reduceMotion ||
+                          systemDisablesAnimations,
+                      reduceFlashing: ambientRendering.reduceFlashing,
+                      showWeatherTexture: ambientRendering.showWeatherTexture,
+                      renderer: ambientRendering.renderer,
+                      intensity: ambientRendering.intensity,
+                      interactionSuppressed: _interactionSuppressed,
+                    ),
                   ),
+                NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    if (notification is ScrollStartNotification) {
+                      _interactionSuppressed.value = true;
+                    } else if (notification is ScrollEndNotification) {
+                      _interactionSuppressed.value = false;
+                    }
+                    return false;
+                  },
+                  child: child ?? const SizedBox.shrink(),
                 ),
-              NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  if (notification is ScrollStartNotification) {
-                    _interactionSuppressed.value = true;
-                  } else if (notification is ScrollEndNotification) {
-                    _interactionSuppressed.value = false;
-                  }
-                  return false;
-                },
-                child: child ?? const SizedBox.shrink(),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -273,12 +282,13 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
 
   AmbientVisualState? _ambientVisualState(
     ContextSnapshot? snapshot,
-    SkyOpportunityForecast? skyOpportunity,
-  ) {
+    SkyOpportunityForecast? skyOpportunity, {
+    required Brightness brightness,
+  }) {
     if (snapshot == null) return null;
     final base = const AmbientVisualMapper().resolveSnapshot(
       snapshot,
-      Brightness.light,
+      brightness,
     );
     return const SkyOpportunityAmbientMapper().apply(
       base: base,

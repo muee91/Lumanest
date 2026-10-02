@@ -78,7 +78,7 @@ class V2RouteVerdict extends StatelessWidget {
         decision?.state == ShootingExecutionState.departNow ||
         decision?.state == ShootingExecutionState.tooLate;
     return Material(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       elevation: 10,
       shadowColor: Colors.black26,
       borderRadius: BorderRadius.circular(28),
@@ -90,7 +90,7 @@ class V2RouteVerdict extends StatelessWidget {
               width: 11,
               height: 11,
               decoration: BoxDecoration(
-                color: urgent ? V2Palette.ember : V2Palette.moss,
+                color: urgent ? context.v2Ember : context.v2Moss,
                 shape: BoxShape.circle,
               ),
             ),
@@ -101,8 +101,8 @@ class V2RouteVerdict extends StatelessWidget {
                 children: [
                   Text(
                     headline,
-                    style: const TextStyle(
-                      color: V2Palette.ink,
+                    style: TextStyle(
+                      color: context.v2Ink,
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -.4,
@@ -114,8 +114,8 @@ class V2RouteVerdict extends StatelessWidget {
                       safetyNode.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: V2Palette.ember,
+                      style: TextStyle(
+                        color: context.v2Ember,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
@@ -124,8 +124,8 @@ class V2RouteVerdict extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${_duration(route.durationSeconds)} · ${_distance(route.distanceMeters)}',
-                    style: const TextStyle(
-                      color: V2Palette.mutedInk,
+                    style: TextStyle(
+                      color: context.v2MutedInk,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -135,7 +135,7 @@ class V2RouteVerdict extends StatelessWidget {
                     Text(
                       '最晚 ${_time(decision!.departureDeadline!)} 出发',
                       style: TextStyle(
-                        color: urgent ? V2Palette.ember : V2Palette.moss,
+                        color: urgent ? context.v2Ember : context.v2Moss,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
@@ -144,12 +144,20 @@ class V2RouteVerdict extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              '${_time(arrival)} 抵达',
-              style: const TextStyle(
-                color: V2Palette.ink,
-                fontSize: 17,
-                fontWeight: FontWeight.w900,
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(
+                  '${_time(arrival)} 抵达',
+                  textAlign: TextAlign.right,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.v2Ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
             ),
           ],

@@ -42,7 +42,7 @@ class V2OpportunityPage extends ConsumerWidget {
         ? ref.watch(environmentSnapshotProvider)
         : AsyncData(initialSnapshot!);
     return Scaffold(
-      backgroundColor: V2Palette.canvas,
+      backgroundColor: context.v2Canvas,
       body: snapshot.when(
         loading: () => const V2LoadingObject(label: '正在展开同一个机会'),
         error: (_, _) => V2PageStage(
@@ -258,8 +258,8 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                 const Spacer(),
                 Text(
                   _condition(executionSession.conditionBand),
-                  style: const TextStyle(
-                    color: V2Palette.moss,
+                  style: TextStyle(
+                    color: context.v2Moss,
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                   ),
@@ -282,7 +282,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     timeLabel:
                         '${_time(executionSession.presentationStartsAt)}—'
                         '${_time(executionSession.presentationEndsAt)}',
-                    accent: _accent(executionSession.conditionBand),
+                    accent: _accent(context, executionSession.conditionBand),
                   ),
                   const SizedBox(height: 20),
                   if (selectedPhase != null) ...[
@@ -348,16 +348,18 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     const SizedBox(height: 14),
                   ],
                   AnimatedSize(
-                    duration: const Duration(milliseconds: 360),
+                    duration: V2MotionScope.of(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 360),
                     curve: Curves.easeOutCubic,
                     child: _evidenceOpen
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 '判断依据',
                                 style: TextStyle(
-                                  color: V2Palette.ink,
+                                  color: context.v2Ink,
                                   fontSize: 19,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -394,7 +396,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     onTap: () =>
                         _toggleWatch(watchedEntry?.id, executionSession),
                     compact: true,
-                    color: watched ? V2Palette.mossSoft : V2Palette.paper,
+                    color: watched ? context.v2MossSoft : context.v2Paper,
                     semanticLabel: watched ? '取消守候提醒' : '开启守候提醒',
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -408,14 +410,14 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                             watched
                                 ? CupertinoIcons.bell_fill
                                 : CupertinoIcons.bell,
-                            color: watched ? V2Palette.moss : V2Palette.ink,
+                            color: watched ? context.v2Moss : context.v2Ink,
                             size: 18,
                           ),
                           const SizedBox(width: 7),
                           Text(
                             watched ? '已守候' : '守候提醒',
-                            style: const TextStyle(
-                              color: V2Palette.ink,
+                            style: TextStyle(
+                              color: context.v2Ink,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -430,7 +432,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                     onTap: decision.state == ShootingExecutionState.observe
                         ? () => setState(() => _evidenceOpen = !_evidenceOpen)
                         : () => _primaryAction(decision, target),
-                    color: V2Palette.moss,
+                    color: context.v2Moss,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Text(
@@ -440,7 +442,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
                                   : '查看依据'
                             : decision.label,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
                         ),
@@ -578,11 +580,12 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
     ShootingConditionBand.limited => '条件有限',
   };
 
-  static Color _accent(ShootingConditionBand value) => switch (value) {
-    ShootingConditionBand.good => V2Palette.moss,
-    ShootingConditionBand.fair => V2Palette.ember,
-    ShootingConditionBand.limited => V2Palette.mutedInk,
-  };
+  static Color _accent(BuildContext context, ShootingConditionBand value) =>
+      switch (value) {
+        ShootingConditionBand.good => context.v2Moss,
+        ShootingConditionBand.fair => context.v2Ember,
+        ShootingConditionBand.limited => context.v2MutedInk,
+      };
 
   static String _time(DateTime value) =>
       '${value.toLocal().hour.toString().padLeft(2, '0')}:'

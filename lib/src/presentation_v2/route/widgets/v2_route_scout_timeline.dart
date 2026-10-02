@@ -8,13 +8,13 @@ class _V2RouteScoutTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (plan.nodes.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(28),
           child: Text(
             '沿途暂无需要额外打断行程的信息。',
             style: TextStyle(
-              color: V2Palette.mutedInk,
+              color: context.v2MutedInk,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -28,7 +28,7 @@ class _V2RouteScoutTimeline extends StatelessWidget {
       itemBuilder: (context, index) {
         final node = plan.nodes[index];
         return Material(
-          color: V2Palette.paper,
+          color: context.v2Paper,
           borderRadius: BorderRadius.circular(24),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -39,12 +39,12 @@ class _V2RouteScoutTimeline extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: _nodeColor(node).withValues(alpha: .12),
+                    color: _nodeColor(context, node).withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     _nodeIcon(node.kind),
-                    color: _nodeColor(node),
+                    color: _nodeColor(context, node),
                     size: 21,
                   ),
                 ),
@@ -58,8 +58,8 @@ class _V2RouteScoutTimeline extends StatelessWidget {
                           Expanded(
                             child: Text(
                               node.title,
-                              style: const TextStyle(
-                                color: V2Palette.ink,
+                              style: TextStyle(
+                                color: context.v2Ink,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -68,8 +68,8 @@ class _V2RouteScoutTimeline extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             '${(node.routeProgress * 100).round()}% · ${_time(node.expectedAt)}',
-                            style: const TextStyle(
-                              color: V2Palette.mutedInk,
+                            style: TextStyle(
+                              color: context.v2MutedInk,
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
@@ -79,8 +79,8 @@ class _V2RouteScoutTimeline extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         node.detail,
-                        style: const TextStyle(
-                          color: V2Palette.mutedInk,
+                        style: TextStyle(
+                          color: context.v2MutedInk,
                           fontSize: 12,
                           height: 1.45,
                           fontWeight: FontWeight.w600,
@@ -90,7 +90,10 @@ class _V2RouteScoutTimeline extends StatelessWidget {
                       Text(
                         '${node.source}${node.isStale ? ' · 缓存' : ''}',
                         style: TextStyle(
-                          color: _nodeColor(node).withValues(alpha: .8),
+                          color: _nodeColor(
+                            context,
+                            node,
+                          ).withValues(alpha: .8),
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                         ),
@@ -110,12 +113,13 @@ class _V2RouteScoutTimeline extends StatelessWidget {
       '${value.toLocal().hour.toString().padLeft(2, '0')}:'
       '${value.toLocal().minute.toString().padLeft(2, '0')}';
 
-  static Color _nodeColor(RouteScoutNode node) => switch (node.actionSeverity) {
-    RouteScoutActionSeverity.blocking ||
-    RouteScoutActionSeverity.urgent ||
-    RouteScoutActionSeverity.advisory => V2Palette.ember,
-    RouteScoutActionSeverity.normal => V2Palette.moss,
-  };
+  static Color _nodeColor(BuildContext context, RouteScoutNode node) =>
+      switch (node.actionSeverity) {
+        RouteScoutActionSeverity.blocking ||
+        RouteScoutActionSeverity.urgent ||
+        RouteScoutActionSeverity.advisory => context.v2Ember,
+        RouteScoutActionSeverity.normal => context.v2Moss,
+      };
 
   static IconData _nodeIcon(RouteScoutNodeKind kind) => switch (kind) {
     RouteScoutNodeKind.safety => Icons.warning_amber_rounded,

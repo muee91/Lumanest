@@ -10,7 +10,7 @@ class _V2RouteScoutSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scout = ref.watch(routeScoutPlanProvider(request));
     return Material(
-      color: V2Palette.canvas,
+      color: context.v2Canvas,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
       clipBehavior: Clip.antiAlias,
       child: SafeArea(
@@ -22,7 +22,7 @@ class _V2RouteScoutSheet extends ConsumerWidget {
               width: 42,
               height: 5,
               decoration: BoxDecoration(
-                color: V2Palette.mutedInk.withValues(alpha: .25),
+                color: context.v2MutedInk.withValues(alpha: .25),
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -30,14 +30,14 @@ class _V2RouteScoutSheet extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '路线探路',
                           style: TextStyle(
-                            color: V2Palette.ink,
+                            color: context.v2Ink,
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -.7,
@@ -47,7 +47,7 @@ class _V2RouteScoutSheet extends ConsumerWidget {
                         Text(
                           '只展示会影响行动的沿途信息，不替代地图导航。',
                           style: TextStyle(
-                            color: V2Palette.mutedInk,
+                            color: context.v2MutedInk,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -56,8 +56,9 @@ class _V2RouteScoutSheet extends ConsumerWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: '关闭路线探路',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                    icon: Icon(CupertinoIcons.xmark_circle_fill),
                   ),
                 ],
               ),
@@ -66,14 +67,14 @@ class _V2RouteScoutSheet extends ConsumerWidget {
               child: scout.when(
                 loading: () =>
                     const Center(child: V2LoadingObject(label: '正在读取沿途天气与补给')),
-                error: (_, _) => const Center(
+                error: (_, _) => Center(
                   child: Padding(
                     padding: EdgeInsets.all(28),
                     child: Text(
                       '探路数据暂时不可用，路线和外部导航仍可正常使用。',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: V2Palette.mutedInk,
+                        color: context.v2MutedInk,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -86,8 +87,8 @@ class _V2RouteScoutSheet extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: V2Pressable(
                 onTap: onNavigate,
-                color: V2Palette.moss,
-                child: const Padding(
+                color: context.v2Moss,
+                child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,

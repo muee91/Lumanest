@@ -97,7 +97,7 @@ class V2EnvironmentWorkbenchPage extends ConsumerWidget {
   Widget _surface(BuildContext context, Widget child) {
     if (embedded) return child;
     return Scaffold(
-      backgroundColor: V2Palette.canvas,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(child: child),
     );
   }
@@ -154,10 +154,10 @@ class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
           ),
           const SizedBox(height: 22),
         ],
-        const Text(
+        Text(
           '摄影环境工作台',
           style: TextStyle(
-            color: V2Palette.ink,
+            color: context.v2Ink,
             fontSize: 31,
             height: 1,
             fontWeight: FontWeight.w900,
@@ -167,8 +167,8 @@ class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
         const SizedBox(height: 10),
         Text(
           current ? '先看结论，再决定是否值得出发' : '以下结论基于最近一次有效数据',
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 13,
             height: 1.4,
           ),
@@ -211,7 +211,7 @@ class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
           const SizedBox(height: 14),
           TextButton.icon(
             onPressed: () => context.push('/environment-lab'),
-            icon: const Icon(CupertinoIcons.lab_flask),
+            icon: Icon(CupertinoIcons.lab_flask),
             label: const Text('打开环境验收实验室'),
           ),
         ],
@@ -220,7 +220,7 @@ class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
 
     if (widget.onRefresh == null) return content;
     return RefreshIndicator(
-      color: V2Palette.moss,
+      color: context.v2Moss,
       onRefresh: widget.onRefresh!,
       child: content,
     );
@@ -231,8 +231,8 @@ class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
     children: [
       Text(
         title,
-        style: const TextStyle(
-          color: V2Palette.ink,
+        style: TextStyle(
+          color: context.v2Ink,
           fontSize: 17,
           fontWeight: FontWeight.w900,
         ),
@@ -240,11 +240,7 @@ class _EnvironmentWorkbenchBodyState extends State<_EnvironmentWorkbenchBody> {
       const SizedBox(height: 3),
       Text(
         detail,
-        style: const TextStyle(
-          color: V2Palette.mutedInk,
-          fontSize: 11,
-          height: 1.35,
-        ),
+        style: TextStyle(color: context.v2MutedInk, fontSize: 11, height: 1.35),
       ),
     ],
   );
@@ -270,7 +266,7 @@ class _EnvironmentSummary extends StatelessWidget {
       key: const Key('v2-environment-summary'),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: V2Palette.night,
+        color: context.v2Night,
         borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
@@ -278,11 +274,11 @@ class _EnvironmentSummary extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(CupertinoIcons.viewfinder, color: V2Palette.moss),
+              Icon(CupertinoIcons.viewfinder, color: context.v2Moss),
               const SizedBox(width: 8),
               Text(
                 _sceneLabel(snapshot.primaryScene),
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -291,7 +287,7 @@ class _EnvironmentSummary extends StatelessWidget {
               const Spacer(),
               Text(
                 _freshness(snapshot),
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white54,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -303,7 +299,7 @@ class _EnvironmentSummary extends StatelessWidget {
           Text(
             headline,
             key: const Key('v2-environment-summary-headline'),
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 24,
               height: 1.12,
@@ -314,11 +310,7 @@ class _EnvironmentSummary extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             detail,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
-              height: 1.45,
-            ),
+            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.45),
           ),
           if (best != null) ...[
             const SizedBox(height: 17),
@@ -361,7 +353,7 @@ class _SummaryDatum extends StatelessWidget {
     children: [
       Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white54,
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -372,7 +364,7 @@ class _SummaryDatum extends StatelessWidget {
         value,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
           fontSize: 14,
           height: 1.25,
@@ -477,7 +469,7 @@ class _FactCard extends StatelessWidget {
     decoration: BoxDecoration(
       gradient: V2EnvironmentGradients.forMetric(card.type),
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: V2Palette.line.withValues(alpha: .7)),
+      border: Border.all(color: context.v2Line.withValues(alpha: .7)),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,8 +493,8 @@ class _FactCard extends StatelessWidget {
             const Spacer(),
             Text(
               card.label,
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
@@ -512,10 +504,8 @@ class _FactCard extends StatelessWidget {
         const SizedBox(height: 11),
         Text(
           card.value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 18,
             fontWeight: FontWeight.w900,
           ),
@@ -523,10 +513,8 @@ class _FactCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           card.summary,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 10,
             height: 1.3,
             fontWeight: FontWeight.w600,
@@ -589,12 +577,12 @@ class _TrendMetricSelector extends StatelessWidget {
               label: Text(metric.label),
               selected: metric == selected,
               onSelected: (_) => onChanged(metric),
-              selectedColor: V2Palette.moss,
+              selectedColor: context.v2Moss,
               labelStyle: TextStyle(
-                color: metric == selected ? Colors.white : V2Palette.ink,
+                color: metric == selected ? Colors.white : context.v2Ink,
                 fontWeight: FontWeight.w800,
               ),
-              side: const BorderSide(color: V2Palette.line),
+              side: BorderSide(color: context.v2Line),
             ),
           ),
       ],
@@ -647,13 +635,21 @@ class _WindowSampleChart extends StatelessWidget {
         .where((sample) => metric.read(sample.assessment) != null)
         .toList(growable: false);
     if (available.length < 2) return const SizedBox.shrink();
+    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
+    final chartDescription = available
+        .map(
+          (sample) =>
+              '${sample.label} ${_time(sample.assessment.observedAt)}，'
+              '${metric.read(sample.assessment)!.round()}${metric.unit}',
+        )
+        .join('；');
     return Container(
       key: const Key('v2-window-sample-chart'),
       padding: const EdgeInsets.fromLTRB(14, 17, 14, 12),
       decoration: BoxDecoration(
-        color: V2Palette.paper,
+        color: context.v2Paper,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: V2Palette.line),
+        border: Border.all(color: context.v2Line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -662,8 +658,8 @@ class _WindowSampleChart extends StatelessWidget {
             children: [
               Text(
                 metric.label,
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
                 ),
@@ -671,8 +667,8 @@ class _WindowSampleChart extends StatelessWidget {
               const Spacer(),
               Text(
                 metric.unit,
-                style: const TextStyle(
-                  color: V2Palette.mutedInk,
+                style: TextStyle(
+                  color: context.v2MutedInk,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                 ),
@@ -680,18 +676,29 @@ class _WindowSampleChart extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 188,
-            child: CustomPaint(
-              painter: _SampleChartPainter(metric: metric, samples: available),
-              child: const SizedBox.expand(),
+          Semantics(
+            container: true,
+            label: '${metric.label}趋势图，单位${metric.unit}。$chartDescription',
+            child: ExcludeSemantics(
+              child: SizedBox(
+                height: 188 + (textScale - 1) * 32,
+                child: CustomPaint(
+                  painter: _SampleChartPainter(
+                    metric: metric,
+                    samples: available,
+                    textScale: textScale,
+                    colors: Theme.of(context).colorScheme,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '只对比当前与候选窗口峰值，不代表中间时段连续变化。',
             style: TextStyle(
-              color: V2Palette.mutedInk,
+              color: context.v2MutedInk,
               fontSize: 10,
               height: 1.35,
             ),
@@ -703,10 +710,17 @@ class _WindowSampleChart extends StatelessWidget {
 }
 
 class _SampleChartPainter extends CustomPainter {
-  _SampleChartPainter({required this.metric, required this.samples});
+  _SampleChartPainter({
+    required this.metric,
+    required this.samples,
+    required this.colors,
+    this.textScale = 1,
+  });
 
   final _TrendMetric metric;
   final List<_ForecastSample> samples;
+  final ColorScheme colors;
+  final double textScale;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -729,12 +743,12 @@ class _SampleChartPainter extends CustomPainter {
       _TrendMetric.visibility => math.max(20, values.reduce(math.max) * 1.1),
     };
     final gridPaint = Paint()
-      ..color = V2Palette.line.withValues(alpha: .7)
+      ..color = colors.outlineVariant.withValues(alpha: .7)
       ..strokeWidth = 1;
     final stemPaint = Paint()
-      ..color = V2Palette.moss.withValues(alpha: .45)
+      ..color = colors.primary.withValues(alpha: .45)
       ..strokeWidth = 2;
-    final pointPaint = Paint()..color = V2Palette.moss;
+    final pointPaint = Paint()..color = colors.primary;
     final baseline = plot.bottom;
 
     for (var step = 0; step <= 4; step += 1) {
@@ -744,8 +758,8 @@ class _SampleChartPainter extends CustomPainter {
         canvas,
         '${(fixedMaximum * step / 4).round()}',
         Offset(0, y - 6),
-        9,
-        V2Palette.mutedInk,
+        9 * textScale,
+        colors.onSurfaceVariant,
       );
     }
 
@@ -761,22 +775,22 @@ class _SampleChartPainter extends CustomPainter {
         canvas,
         values[index].round().toString(),
         Offset(x - 9, y - 20),
-        9,
-        V2Palette.ink,
+        9 * textScale,
+        colors.onSurface,
       );
       _text(
         canvas,
         samples[index].label,
         Offset(x - 12, baseline + 5),
-        8,
-        V2Palette.mutedInk,
+        8 * textScale,
+        colors.onSurfaceVariant,
       );
       _text(
         canvas,
         _time(samples[index].assessment.observedAt),
         Offset(x - 16, baseline + 17),
-        9,
-        V2Palette.mutedInk,
+        9 * textScale,
+        colors.onSurfaceVariant,
       );
     }
   }
@@ -804,7 +818,10 @@ class _SampleChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SampleChartPainter oldDelegate) =>
-      oldDelegate.metric != metric || oldDelegate.samples != samples;
+      oldDelegate.metric != metric ||
+      oldDelegate.samples != samples ||
+      oldDelegate.colors != colors ||
+      oldDelegate.textScale != textScale;
 }
 
 class _MetricExplanation extends StatelessWidget {
@@ -825,9 +842,9 @@ class _MetricExplanation extends StatelessWidget {
       key: Key('v2-metric-explanation-${fact.type.name}'),
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        color: V2Palette.paper,
+        color: context.v2Paper,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: V2Palette.line),
+        border: Border.all(color: context.v2Line),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -844,8 +861,8 @@ class _MetricExplanation extends StatelessWidget {
               children: [
                 Text(
                   '${fact.label} · ${fact.value}',
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -856,8 +873,8 @@ class _MetricExplanation extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 5),
                     child: Text(
                       '· $note',
-                      style: const TextStyle(
-                        color: V2Palette.mutedInk,
+                      style: TextStyle(
+                        color: context.v2MutedInk,
                         fontSize: 12,
                         height: 1.42,
                       ),
@@ -923,17 +940,17 @@ class _ProvenanceCard extends StatelessWidget {
       key: const Key('v2-environment-provenance'),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: V2Palette.paper.withValues(alpha: .82),
+        color: context.v2Paper.withValues(alpha: .82),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: V2Palette.line),
+        border: Border.all(color: context.v2Line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '这份判断有多可靠',
             style: TextStyle(
-              color: V2Palette.ink,
+              color: context.v2Ink,
               fontSize: 15,
               fontWeight: FontWeight.w900,
             ),
@@ -941,8 +958,8 @@ class _ProvenanceCard extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             '数据状态：${current ? '有效' : '已过期'} · 更新于 ${_dateTime(snapshot.observedAt)}',
-            style: const TextStyle(
-              color: V2Palette.mutedInk,
+            style: TextStyle(
+              color: context.v2MutedInk,
               fontSize: 11,
               height: 1.45,
             ),
@@ -952,28 +969,28 @@ class _ProvenanceCard extends StatelessWidget {
             forecast == null
                 ? '未来窗口暂不可用，因此这里只展示当前观测。'
                 : '窗口可信度：${_confidenceLabel(confidence!.band)}。依据公开天气、天文几何、地形与可用的光污染数据；7Timer 只用于交叉核对。',
-            style: const TextStyle(
-              color: V2Palette.mutedInk,
+            style: TextStyle(
+              color: context.v2MutedInk,
               fontSize: 11,
               height: 1.45,
             ),
           ),
           if (confidence != null && confidence.missingSources.isNotEmpty) ...[
             const SizedBox(height: 5),
-            const Text(
+            Text(
               '部分辅助来源未返回，系统已降低可信度，不会用缺失值补齐。',
               style: TextStyle(
-                color: V2Palette.mutedInk,
+                color: context.v2MutedInk,
                 fontSize: 11,
                 height: 1.45,
               ),
             ),
           ],
           const SizedBox(height: 5),
-          const Text(
+          Text(
             '局地雾、临时遮挡与短时天气变化仍需在出发前确认。',
             style: TextStyle(
-              color: V2Palette.mutedInk,
+              color: context.v2MutedInk,
               fontSize: 11,
               height: 1.45,
             ),
@@ -994,15 +1011,15 @@ class _EmptyPanel extends StatelessWidget {
     height: 116,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Text(
       label,
       textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: V2Palette.mutedInk,
+      style: TextStyle(
+        color: context.v2MutedInk,
         fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
@@ -1115,17 +1132,17 @@ class _V2EnvironmentLabPageState extends State<V2EnvironmentLabPage> {
                 children: [
                   IconButton.filledTonal(
                     onPressed: () => context.pop(),
-                    icon: const Icon(CupertinoIcons.back),
+                    icon: Icon(CupertinoIcons.back),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '环境验收实验室',
                           style: TextStyle(
-                            color: V2Palette.ink,
+                            color: context.v2Ink,
                             fontSize: 20,
                             fontWeight: FontWeight.w900,
                           ),
@@ -1133,7 +1150,7 @@ class _V2EnvironmentLabPageState extends State<V2EnvironmentLabPage> {
                         Text(
                           '场景、宽度和字体缩放即时检查',
                           style: TextStyle(
-                            color: V2Palette.mutedInk,
+                            color: context.v2MutedInk,
                             fontSize: 11,
                           ),
                         ),
@@ -1197,7 +1214,7 @@ class _V2EnvironmentLabPageState extends State<V2EnvironmentLabPage> {
                       width: _deviceWidth,
                       height: double.infinity,
                       decoration: BoxDecoration(
-                        color: V2Palette.canvas,
+                        color: context.v2Canvas,
                         borderRadius: BorderRadius.circular(28),
                         boxShadow: [
                           BoxShadow(

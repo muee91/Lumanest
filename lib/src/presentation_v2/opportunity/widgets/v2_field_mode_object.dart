@@ -78,7 +78,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
     return V2Pressable(
       key: const Key('v2-arrived-at-target'),
       onTap: widget.onToggle,
-      color: widget.atTarget ? V2Palette.mossSoft : V2Palette.paper,
+      color: widget.atTarget ? context.v2MossSoft : context.v2Paper,
       semanticLabel: widget.atTarget ? '已到达机位，关闭现场模式' : '已到达机位，进入现场模式',
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -91,7 +91,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                   widget.atTarget
                       ? CupertinoIcons.location_fill
                       : CupertinoIcons.location,
-                  color: widget.atTarget ? V2Palette.moss : V2Palette.mutedInk,
+                  color: widget.atTarget ? context.v2Moss : context.v2MutedInk,
                   size: 19,
                 ),
                 const SizedBox(width: 10),
@@ -103,8 +103,8 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                         widget.atTarget
                             ? '现场模式 · ${widget.decision.label}'
                             : '到达机位后再判断',
-                        style: const TextStyle(
-                          color: V2Palette.ink,
+                        style: TextStyle(
+                          color: context.v2Ink,
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
                         ),
@@ -116,8 +116,8 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                             : distance == null
                             ? '由你确认已经抵达 ${widget.target.name}'
                             : '距 ${widget.target.name} $distance · 到达后进入现场模式',
-                        style: const TextStyle(
-                          color: V2Palette.mutedInk,
+                        style: TextStyle(
+                          color: context.v2MutedInk,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
@@ -129,7 +129,7 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                   widget.atTarget
                       ? CupertinoIcons.checkmark_circle_fill
                       : CupertinoIcons.circle,
-                  color: widget.atTarget ? V2Palette.moss : V2Palette.mutedInk,
+                  color: widget.atTarget ? context.v2Moss : context.v2MutedInk,
                 ),
               ],
             ),
@@ -137,8 +137,8 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
               const SizedBox(height: 13),
               Text(
                 countdown,
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -.5,
@@ -158,14 +158,14 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: V2Palette.paper,
+                        color: context.v2Paper,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: V2Palette.line),
+                        border: Border.all(color: context.v2Line),
                       ),
                       child: Text(
                         '${fact.label} ${fact.value}',
-                        style: const TextStyle(
-                          color: V2Palette.ink,
+                        style: TextStyle(
+                          color: context.v2Ink,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
@@ -182,8 +182,8 @@ class _V2FieldModeObjectState extends State<_V2FieldModeObject> {
                   if (widget.dataObservedAt != null)
                     '环境 ${_time(widget.dataObservedAt!)} 更新',
                 ].join(' · '),
-                style: const TextStyle(
-                  color: V2Palette.mutedInk,
+                style: TextStyle(
+                  color: context.v2MutedInk,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
