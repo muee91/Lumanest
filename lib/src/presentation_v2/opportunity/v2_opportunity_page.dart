@@ -111,10 +111,12 @@ class _V2OpportunityStage extends ConsumerStatefulWidget {
       _V2OpportunityStageState();
 }
 
-class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
+class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
+    with WidgetsBindingObserver {
   bool _evidenceOpen = false;
   bool? _arrivalOverride;
   bool _locationRefreshing = false;
+  bool _fieldModeForeground = true;
   int _selectedPhaseIndex = 0;
   DateTime _fieldNow = DateTime.now();
   LocationReading? _locationReading;
@@ -124,27 +126,69 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
   @override
   void initState() {
     super.initState();
-    if (widget.activeShootingIntent?.targetId == null) return;
-    unawaited(_refreshFieldLocation());
-    _locationTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (mounted) unawaited(_refreshFieldLocation());
+    WidgetsBinding.instance.addObserver(this);
+    _startFieldModePolling();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_fieldModeForeground == foreground) return;
+    _fieldModeForeground = foreground;
+    if (!foreground) {
+      _stopFieldModePolling();
+      // A foreground fix must be reacquired after returning. Do not carry a
+      // manually confirmed arrival or an old reading across a background
+      // interval into Field Mode.
+      _arrivalOverride = null;
+      _locationReading = null;
+      return;
+    }
+    if (!mounted || widget.activeShootingIntent?.targetId == null) return;
+    setState(() => _fieldNow = DateTime.now());
+    _startFieldModePolling(refreshImmediately: true);
+  }
+
+  void _startFieldModePolling({bool refreshImmediately = false}) {
+    if (!_fieldModeForeground ||
+        widget.activeShootingIntent?.targetId == null) {
+      return;
+    }
+    _locationTimer ??= Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted && _fieldModeForeground) {
+        unawaited(_refreshFieldLocation());
+      }
     });
-    _fieldClock = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) {
+    _fieldClock ??= Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted && _fieldModeForeground) {
         setState(() => _fieldNow = DateTime.now());
       }
     });
+    if (refreshImmediately) {
+      unawaited(_refreshFieldLocation());
+    } else if (_locationReading == null) {
+      unawaited(_refreshFieldLocation());
+    }
+  }
+
+  void _stopFieldModePolling() {
+    _fieldClock?.cancel();
+    _fieldClock = null;
+    _locationTimer?.cancel();
+    _locationTimer = null;
   }
 
   @override
   void dispose() {
-    _fieldClock?.cancel();
-    _locationTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _stopFieldModePolling();
     super.dispose();
   }
 
   Future<void> _refreshFieldLocation() async {
-    if (_locationRefreshing || widget.activeShootingIntent?.targetId == null) {
+    if (!_fieldModeForeground ||
+        _locationRefreshing ||
+        widget.activeShootingIntent?.targetId == null) {
       return;
     }
     _locationRefreshing = true;
@@ -153,7 +197,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage> {
       // fallbacks are valid for environment lookup but must never auto-confirm
       // physical arrival at a reviewed shooting target.
       final reading = await ref.read(locationRepositoryProvider).current();
-      if (!mounted) return;
+      if (!mounted || !_fieldModeForeground) return;
       setState(() {
         _locationReading = reading;
         _fieldNow = DateTime.now();

@@ -359,6 +359,8 @@ class V2EmptyObject extends StatelessWidget {
     required this.detail,
     required this.action,
     required this.onAction,
+    this.secondaryAction,
+    this.onSecondaryAction,
   });
 
   final IconData icon;
@@ -366,6 +368,8 @@ class V2EmptyObject extends StatelessWidget {
   final String detail;
   final String action;
   final VoidCallback onAction;
+  final String? secondaryAction;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -410,6 +414,13 @@ class V2EmptyObject extends StatelessWidget {
             ),
           ),
         ),
+        if (secondaryAction != null && onSecondaryAction != null) ...[
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: onSecondaryAction,
+            child: Text(secondaryAction!),
+          ),
+        ],
       ],
     ),
   );

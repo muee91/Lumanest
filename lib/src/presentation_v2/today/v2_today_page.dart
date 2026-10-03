@@ -19,6 +19,7 @@ import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/scenario/scenario_providers.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
+import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
 import 'package:luma_nest/src/features/explore/application/region_discovery_highlight.dart';
@@ -37,7 +38,13 @@ class V2TodayPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (initialSnapshot == null && !ref.watch(environmentConsentProvider)) {
+    final consentGranted = ref.watch(environmentConsentProvider);
+    final manualLocation = ref.watch(manualLocationProvider);
+    final hasManualLocation = manualLocation.asData?.value != null;
+    // An explicit manual place is a valid, privacy-preserving entry path. It
+    // must not be blocked by automatic-location consent because the user has
+    // already chosen the location used for the environment snapshot.
+    if (initialSnapshot == null && !consentGranted && !hasManualLocation) {
       return V2PageStage(
         child: V2EmptyObject(
           icon: CupertinoIcons.location,
@@ -45,6 +52,8 @@ class V2TodayPage extends ConsumerWidget {
           detail: '位置只用来理解附近天气与光线，不会形成服务端轨迹。',
           action: '允许位置并继续',
           onAction: () => ref.read(environmentConsentProvider.notifier).grant(),
+          secondaryAction: '先选择一个地点',
+          onSecondaryAction: () => _openManualLocation(context),
         ),
       );
     }
