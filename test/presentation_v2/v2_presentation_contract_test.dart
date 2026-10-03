@@ -73,4 +73,21 @@ void main() {
     expect(find.byKey(const Key('v2-moving-selection-lens')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
+
+  testWidgets('V2 uses an expanded side rail on wide windows', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 768));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      LumaNestApp(
+        initialContext: ContextFixtures.lakeSunset(observedAt: DateTime.now()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('v2-bottom-navigation')), findsNothing);
+    expect(find.byKey(const Key('v2-object-navigation-rail')), findsOneWidget);
+    expect(find.bySemanticsLabel('今日'), findsOneWidget);
+    expect(find.bySemanticsLabel('栖光：问问题或抽取灵感'), findsOneWidget);
+  });
 }

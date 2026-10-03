@@ -7,6 +7,7 @@ import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/explore/application/explore_intent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/explore/application/nearby_place_providers.dart';
@@ -52,7 +53,10 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: V2ExplorePage()),
+          child: MaterialApp(
+            theme: LumaNestTheme.light,
+            home: const V2ExplorePage(),
+          ),
         ),
       );
       await tester.pump();
@@ -104,7 +108,10 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: V2ExplorePage()),
+          child: MaterialApp(
+            theme: LumaNestTheme.light,
+            home: const V2ExplorePage(),
+          ),
         ),
       );
       await tester.pump();
@@ -155,7 +162,10 @@ void main() {
           matching: find.byType(Material),
         ),
       );
-      expect(selectedMaterial.color, V2Palette.mossSoft);
+      expect(
+        selectedMaterial.color,
+        LumaNestTheme.light.colorScheme.primaryContainer,
+      );
       expect(selectedMaterial.color, isNot(V2Palette.night));
 
       await tester.tap(find.byKey(const Key('v2-explore-theme-food')));

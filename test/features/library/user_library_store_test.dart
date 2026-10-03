@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/persistence/app_database.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
@@ -30,6 +31,7 @@ void main() {
           category: 'viewpoint',
           latitude: 30,
           longitude: 120,
+          coordinateSystem: CoordinateSystem.wgs84,
         ),
       ],
       recentRoute: const SavedRouteDestination(
@@ -100,6 +102,7 @@ void main() {
             category: 'viewpoint',
             latitude: 30,
             longitude: 120,
+            coordinateSystem: CoordinateSystem.wgs84,
           ),
         ],
       ),

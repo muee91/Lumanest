@@ -33,7 +33,7 @@ abstract final class EntryCardRegistry {
       detail: entry.presentation.detail,
       timeLabel: entry.presentation.timeLabel,
       actionLabel: entry.presentation.actionLabel,
-      accent: _accent(entry.presentation.accent),
+      accent: _accent(context, entry.presentation.accent),
       onTap: () =>
           EntryActionDispatcher.dispatch(context, entry, snapshot: snapshot),
     );
@@ -47,14 +47,15 @@ abstract final class EntryCardRegistry {
     return entry.sourceId;
   }
 
-  static Color _accent(EntryAccent value) => switch (value) {
-    EntryAccent.sky => V2Palette.sky,
-    EntryAccent.moss => V2Palette.moss,
-    EntryAccent.ember => V2Palette.ember,
-    EntryAccent.mutedInk => V2Palette.mutedInk,
-    EntryAccent.night => V2Palette.night,
-    EntryAccent.danger => V2Palette.danger,
-  };
+  static Color _accent(BuildContext context, EntryAccent value) =>
+      switch (value) {
+        EntryAccent.sky => context.v2Sky,
+        EntryAccent.moss => context.v2Moss,
+        EntryAccent.ember => context.v2Ember,
+        EntryAccent.mutedInk => context.v2MutedInk,
+        EntryAccent.night => context.v2Night,
+        EntryAccent.danger => context.v2Danger,
+      };
 }
 
 class _SafetyEntryCard extends StatelessWidget {
@@ -72,7 +73,7 @@ class _SafetyEntryCard extends StatelessWidget {
   Widget build(BuildContext context) => V2Pressable(
     key: const Key('v2-safety-object'),
     onTap: onTap,
-    color: V2Palette.dangerSoft,
+    color: context.v2DangerSoft,
     child: Stack(
       children: [
         Padding(
@@ -80,16 +81,16 @@ class _SafetyEntryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
+              Icon(
                 CupertinoIcons.shield_lefthalf_fill,
-                color: V2Palette.danger,
+                color: context.v2Danger,
                 size: 34,
               ),
               const Spacer(),
               Text(
                 entry.presentation.eyebrow,
-                style: const TextStyle(
-                  color: V2Palette.danger,
+                style: TextStyle(
+                  color: context.v2Danger,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -98,8 +99,8 @@ class _SafetyEntryCard extends StatelessWidget {
                 entry.presentation.title,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontSize: 29,
                   height: 1.1,
                   fontWeight: FontWeight.w900,
@@ -107,10 +108,10 @@ class _SafetyEntryCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 '查看官方依据与行动建议  →',
                 style: TextStyle(
-                  color: V2Palette.ink,
+                  color: context.v2Ink,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
@@ -126,7 +127,7 @@ class _SafetyEntryCard extends StatelessWidget {
               key: const Key('v2-safety-collapse'),
               onPressed: onCollapse,
               style: TextButton.styleFrom(
-                foregroundColor: V2Palette.danger,
+                foregroundColor: context.v2Danger,
                 padding: EdgeInsets.zero,
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,

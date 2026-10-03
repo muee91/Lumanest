@@ -7,13 +7,14 @@ Future<void> showV2RegionBriefSourcesSheet(
   BuildContext context,
   List<InsightEvidence> sources,
 ) async {
-  final ordered = [...sources]..sort((left, right) {
-    final tier = _tierRank(left.qualityTier).compareTo(
-      _tierRank(right.qualityTier),
-    );
-    if (tier != 0) return tier;
-    return right.observedAt.compareTo(left.observedAt);
-  });
+  final ordered = [...sources]
+    ..sort((left, right) {
+      final tier = _tierRank(
+        left.qualityTier,
+      ).compareTo(_tierRank(right.qualityTier));
+      if (tier != 0) return tier;
+      return right.observedAt.compareTo(left.observedAt);
+    });
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -22,8 +23,8 @@ Future<void> showV2RegionBriefSourcesSheet(
       heightFactor: .78,
       child: Container(
         key: const Key('v2-region-brief-sources-sheet'),
-        decoration: const BoxDecoration(
-          color: V2Palette.canvas,
+        decoration: BoxDecoration(
+          color: context.v2Canvas,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: SafeArea(
@@ -35,7 +36,7 @@ Future<void> showV2RegionBriefSourcesSheet(
                 width: 38,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: V2Palette.line,
+                  color: context.v2Line,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -43,14 +44,14 @@ Future<void> showV2RegionBriefSourcesSheet(
                 padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             '区域资料依据',
                             style: TextStyle(
-                              color: V2Palette.ink,
+                              color: context.v2Ink,
                               fontSize: 21,
                               fontWeight: FontWeight.w900,
                             ),
@@ -59,7 +60,7 @@ Future<void> showV2RegionBriefSourcesSheet(
                           Text(
                             '按来源等级与采集时间排序',
                             style: TextStyle(
-                              color: V2Palette.mutedInk,
+                              color: context.v2MutedInk,
                               fontSize: 12,
                             ),
                           ),
@@ -69,17 +70,17 @@ Future<void> showV2RegionBriefSourcesSheet(
                     IconButton(
                       tooltip: '关闭',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                      icon: Icon(CupertinoIcons.xmark_circle_fill),
                     ),
                   ],
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: Text(
                   '来源证明资料从哪里取得，不自动证明地点当前开放、安全或可达；管制与安全结论仍以独立官方链为准。',
                   style: TextStyle(
-                    color: V2Palette.mutedInk,
+                    color: context.v2MutedInk,
                     fontSize: 12,
                     height: 1.45,
                   ),
@@ -87,17 +88,16 @@ Future<void> showV2RegionBriefSourcesSheet(
               ),
               Expanded(
                 child: ordered.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           '当前简报没有可展示的资料依据',
-                          style: TextStyle(color: V2Palette.mutedInk),
+                          style: TextStyle(color: context.v2MutedInk),
                         ),
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                         itemCount: ordered.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: 10),
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
                         itemBuilder: (context, index) =>
                             _RegionBriefSourceCard(source: ordered[index]),
                       ),
@@ -119,9 +119,9 @@ class _RegionBriefSourceCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,8 +134,8 @@ class _RegionBriefSourceCard extends StatelessWidget {
             _SourceTierBadge(tier: source.qualityTier),
             Text(
               source.publisher,
-              style: const TextStyle(
-                color: V2Palette.moss,
+              style: TextStyle(
+                color: context.v2Moss,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
@@ -145,8 +145,8 @@ class _RegionBriefSourceCard extends StatelessWidget {
         const SizedBox(height: 9),
         Text(
           source.title,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 15,
             fontWeight: FontWeight.w900,
             height: 1.35,
@@ -155,8 +155,8 @@ class _RegionBriefSourceCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '${source.url.host} · 采集于 ${_dateTime(source.observedAt)}',
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 12,
             height: 1.4,
           ),
@@ -164,8 +164,8 @@ class _RegionBriefSourceCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           '策略 ${source.sourcePolicyId} · 版本 ${source.version}',
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 11,
             height: 1.4,
           ),
@@ -184,7 +184,7 @@ class _SourceTierBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
     decoration: BoxDecoration(
-      color: V2Palette.mossSoft,
+      color: context.v2MossSoft,
       borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
@@ -194,8 +194,8 @@ class _SourceTierBadge extends StatelessWidget {
         InsightQualityTier.b => 'B · 审核参考',
         InsightQualityTier.c => 'C · 辅助参考',
       },
-      style: const TextStyle(
-        color: V2Palette.moss,
+      style: TextStyle(
+        color: context.v2Moss,
         fontSize: 11,
         fontWeight: FontWeight.w900,
       ),
