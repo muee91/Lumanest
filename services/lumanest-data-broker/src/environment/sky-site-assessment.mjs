@@ -39,7 +39,7 @@ export function equatorialToHorizontal({
   try {
     const observer = new Astronomy.Observer(latitude, longitude, 0);
     const horizontal = Astronomy.Horizon(
-      observedAt, observer, rightAscensionDegrees / 15, declinationDegrees, 'none',
+      observedAt, observer, rightAscensionDegrees / 15, declinationDegrees,
     );
     return {
       azimuthDegrees: normalizeDegrees(horizontal.azimuth),
