@@ -4,6 +4,7 @@ import * as Astronomy from 'astronomy-engine';
 
 import {
   equatorialToHorizontal,
+  horizontalBody,
   interpolateTerrainHorizon,
 } from './sky-site-assessment.mjs';
 
@@ -29,21 +30,6 @@ function angularSeparation(a, b) {
   const cosine = Math.sin(altitudeA) * Math.sin(altitudeB) +
     Math.cos(altitudeA) * Math.cos(altitudeB) * Math.cos(azimuthDifference);
   return Math.acos(Math.max(-1, Math.min(1, cosine))) * radiansToDegrees;
-}
-
-function horizontalBody(body, observedAt, observer) {
-  const equatorial = Astronomy.Equator(body, observedAt, observer, true, true);
-  const horizontal = Astronomy.Horizon(
-    observedAt,
-    observer,
-    equatorial.ra,
-    equatorial.dec,
-    'normal',
-  );
-  return {
-    azimuthDegrees: normalizeDegrees(horizontal.azimuth),
-    altitudeDegrees: horizontal.altitude,
-  };
 }
 
 function moonInterferenceBand({ illuminationFraction, altitudeDegrees, separationDegrees, terrainBlocked }) {

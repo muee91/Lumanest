@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { skyEphemeris } from '../src/environment/sky-ephemeris.mjs';
+
 import {
   astronomicalGeometry,
   createSkySiteAssessment,
@@ -87,4 +89,30 @@ test('assessment reports terrain blocking without inventing a probability', () =
   assert.equal(assessment.conditionBand, 'unavailable');
   assert.ok(assessment.limitations.includes('galactic_center_terrain_blocked'));
   assert.equal(Object.hasOwn(assessment, 'probability'), false);
+});
+
+test('site and moon ephemeris share the same solar/horizon implementation', () => {
+  const observedAt = new Date('2026-07-23T16:00:00Z');
+  const latitude = 30.25;
+  const longitude = 120.15;
+  const site = astronomicalGeometry({ latitude, longitude, observedAt });
+  const ephemeris = skyEphemeris({ latitude, longitude, elevationMeters: 0, observedAt });
+  assert.ok(site);
+  assert.ok(ephemeris);
+  assert.equal(site.sun.modelVersion, 'astronomy-engine-2.1.19');
+  assert.ok(Math.abs(site.sun.altitudeDegrees - ephemeris.sun.altitudeDegrees) < 1e-8);
+  assert.ok(Math.abs(site.sun.azimuthDegrees - ephemeris.sun.azimuthDegrees) < 1e-8);
+  assert.ok(Math.abs(
+    site.galacticCenter.altitudeDegrees - ephemeris.galacticCenter.altitudeDegrees,
+  ) < 1e-8);
+  assert.equal(site.astronomicalNight, ephemeris.astronomicalNight);
+});
+
+test('astronomical geometry rejects invalid coordinates and dates', () => {
+  assert.equal(astronomicalGeometry({
+    latitude: 95, longitude: 120, observedAt: new Date('2026-07-23T16:00:00Z'),
+  }), null);
+  assert.equal(astronomicalGeometry({
+    latitude: 30, longitude: 120, observedAt: new Date('invalid'),
+  }), null);
 });

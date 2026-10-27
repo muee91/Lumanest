@@ -1,10 +1,10 @@
-const degreesToRadians = Math.PI / 180;
-const radiansToDegrees = 180 / Math.PI;
+import * as Astronomy from 'astronomy-engine';
+
 const galacticCenterRightAscensionDegrees = 266.41683;
 const galacticCenterDeclinationDegrees = -29.00781;
-const assessmentAlgorithmVersion = 'sky-site-assessment.1';
+const assessmentAlgorithmVersion = 'sky-site-assessment.2';
 const galacticModelVersion = 'iau-galactic-center-j2000.1';
-const solarModelVersion = 'solar-position-low-precision.1';
+const solarModelVersion = 'astronomy-engine-2.1.19';
 
 function finite(value, minimum = -Infinity, maximum = Infinity) {
   return typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum;
@@ -24,19 +24,8 @@ function angularSeparationDegrees(a, b) {
   return Math.abs(signedDegrees(a - b));
 }
 
-function julianDate(value) {
-  return value.getTime() / 86_400_000 + 2_440_587.5;
-}
-
-function greenwichMeanSiderealDegrees(value) {
-  const jd = julianDate(value);
-  const centuries = (jd - 2_451_545.0) / 36_525;
-  return normalizeDegrees(
-    280.46061837 + 360.98564736629 * (jd - 2_451_545.0) +
-    0.000387933 * centuries * centuries - centuries * centuries * centuries / 38_710_000,
-  );
-}
-
+// Astronomy Engine is the sole owner of sidereal time and horizontal geometry.
+// Galactic-center coordinates remain the fixed J2000 catalog values in this contract.
 export function equatorialToHorizontal({
   rightAscensionDegrees,
   declinationDegrees,
@@ -47,78 +36,63 @@ export function equatorialToHorizontal({
   if (!finite(rightAscensionDegrees, 0, 360) || !finite(declinationDegrees, -90, 90) ||
       !finite(latitude, -90, 90) || !finite(longitude, -180, 180) ||
       !(observedAt instanceof Date) || !Number.isFinite(observedAt.getTime())) return null;
-  const latitudeRadians = latitude * degreesToRadians;
-  const declinationRadians = declinationDegrees * degreesToRadians;
-  const hourAngleDegrees = signedDegrees(
-    greenwichMeanSiderealDegrees(observedAt) + longitude - rightAscensionDegrees,
-  );
-  const hourAngleRadians = hourAngleDegrees * degreesToRadians;
-  const altitudeRadians = Math.asin(
-    Math.sin(latitudeRadians) * Math.sin(declinationRadians) +
-    Math.cos(latitudeRadians) * Math.cos(declinationRadians) * Math.cos(hourAngleRadians),
-  );
-  const azimuthRadians = Math.atan2(
-    Math.sin(hourAngleRadians),
-    Math.cos(hourAngleRadians) * Math.sin(latitudeRadians) -
-      Math.tan(declinationRadians) * Math.cos(latitudeRadians),
-  );
-  return {
-    azimuthDegrees: normalizeDegrees(azimuthRadians * radiansToDegrees + 180),
-    altitudeDegrees: altitudeRadians * radiansToDegrees,
-    hourAngleDegrees,
-  };
+  try {
+    const observer = new Astronomy.Observer(latitude, longitude, 0);
+    const horizontal = Astronomy.Horizon(
+      observedAt, observer, rightAscensionDegrees / 15, declinationDegrees,
+    );
+    return {
+      azimuthDegrees: normalizeDegrees(horizontal.azimuth),
+      altitudeDegrees: horizontal.altitude,
+      hourAngleDegrees: signedDegrees(
+        Astronomy.SiderealTime(observedAt) * 15 + longitude - rightAscensionDegrees,
+      ),
+    };
+  } catch {
+    return null;
+  }
 }
 
-function solarEquatorial(observedAt) {
-  const days = julianDate(observedAt) - 2_451_545.0;
-  const meanAnomaly = normalizeDegrees(357.5291 + 0.98560028 * days);
-  const meanAnomalyRadians = meanAnomaly * degreesToRadians;
-  const equationOfCenter = 1.9148 * Math.sin(meanAnomalyRadians) +
-    0.0200 * Math.sin(2 * meanAnomalyRadians) +
-    0.0003 * Math.sin(3 * meanAnomalyRadians);
-  const eclipticLongitude = normalizeDegrees(meanAnomaly + equationOfCenter + 180 + 102.9372);
-  const longitudeRadians = eclipticLongitude * degreesToRadians;
-  const obliquity = (23.4393 - 3.563e-7 * days) * degreesToRadians;
+export function horizontalBody(body, observedAt, observer) {
+  const equatorial = Astronomy.Equator(body, observedAt, observer, true, true);
+  const horizontal = Astronomy.Horizon(
+    observedAt, observer, equatorial.ra, equatorial.dec, 'normal',
+  );
   return {
-    rightAscensionDegrees: normalizeDegrees(
-      Math.atan2(Math.sin(longitudeRadians) * Math.cos(obliquity), Math.cos(longitudeRadians)) *
-        radiansToDegrees,
-    ),
-    declinationDegrees: Math.asin(
-      Math.sin(obliquity) * Math.sin(longitudeRadians),
-    ) * radiansToDegrees,
+    azimuthDegrees: normalizeDegrees(horizontal.azimuth),
+    altitudeDegrees: horizontal.altitude,
   };
 }
 
 export function astronomicalGeometry({ latitude, longitude, observedAt }) {
-  const galacticCenter = equatorialToHorizontal({
-    rightAscensionDegrees: galacticCenterRightAscensionDegrees,
-    declinationDegrees: galacticCenterDeclinationDegrees,
-    latitude,
-    longitude,
-    observedAt,
-  });
-  const sunEquatorial = solarEquatorial(observedAt);
-  const sun = equatorialToHorizontal({
-    ...sunEquatorial,
-    latitude,
-    longitude,
-    observedAt,
-  });
-  if (galacticCenter == null || sun == null) return null;
-  return {
-    galacticCenter: {
-      azimuthDegrees: galacticCenter.azimuthDegrees,
-      altitudeDegrees: galacticCenter.altitudeDegrees,
-      modelVersion: galacticModelVersion,
-    },
-    sun: {
-      azimuthDegrees: sun.azimuthDegrees,
-      altitudeDegrees: sun.altitudeDegrees,
-      modelVersion: solarModelVersion,
-    },
-    astronomicalNight: sun.altitudeDegrees <= -18,
-  };
+  if (!finite(latitude, -90, 90) || !finite(longitude, -180, 180) ||
+      !(observedAt instanceof Date) || !Number.isFinite(observedAt.getTime())) return null;
+  try {
+    const observer = new Astronomy.Observer(latitude, longitude, 0);
+    const galacticCenter = equatorialToHorizontal({
+      rightAscensionDegrees: galacticCenterRightAscensionDegrees,
+      declinationDegrees: galacticCenterDeclinationDegrees,
+      latitude,
+      longitude,
+      observedAt,
+    });
+    const sun = horizontalBody(Astronomy.Body.Sun, observedAt, observer);
+    if (galacticCenter == null) return null;
+    return {
+      galacticCenter: {
+        azimuthDegrees: galacticCenter.azimuthDegrees,
+        altitudeDegrees: galacticCenter.altitudeDegrees,
+        modelVersion: galacticModelVersion,
+      },
+      sun: {
+        ...sun,
+        modelVersion: solarModelVersion,
+      },
+      astronomicalNight: sun.altitudeDegrees <= -18,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function interpolatedValue(a, b, fraction) {
