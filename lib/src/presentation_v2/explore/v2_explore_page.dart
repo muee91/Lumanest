@@ -163,7 +163,7 @@ class _V2ExploreBrief extends StatelessWidget {
         )
         .toList(growable: false);
     return Scaffold(
-      backgroundColor: V2Palette.canvas,
+      backgroundColor: context.v2Canvas,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async => onRefresh(),
@@ -177,8 +177,8 @@ class _V2ExploreBrief extends StatelessWidget {
                       brief.regionName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: V2Palette.ink,
+                      style: TextStyle(
+                        color: context.v2Ink,
                         fontSize: 27,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -0.8,
@@ -188,7 +188,7 @@ class _V2ExploreBrief extends StatelessWidget {
                   IconButton(
                     tooltip: '打开地图',
                     onPressed: onOpenMap,
-                    icon: const Icon(CupertinoIcons.map),
+                    icon: Icon(CupertinoIcons.map),
                   ),
                 ],
               ),
@@ -200,10 +200,7 @@ class _V2ExploreBrief extends StatelessWidget {
                       : state.isExpanding
                       ? '正在扩展区域资料'
                       : '正在更新区域资料',
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: context.v2MutedInk, fontSize: 12),
                 ),
               ],
               const SizedBox(height: 18),
@@ -245,25 +242,25 @@ class _V2ExploreBrief extends StatelessWidget {
               const SizedBox(height: 18),
               V2Pressable(
                 onTap: onOpenMap,
-                color: V2Palette.mossSoft,
-                child: const Padding(
+                color: context.v2MossSoft,
+                child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(
                     children: [
-                      Icon(CupertinoIcons.map, color: V2Palette.moss, size: 18),
+                      Icon(CupertinoIcons.map, color: context.v2Moss, size: 18),
                       SizedBox(width: 9),
                       Expanded(
                         child: Text(
                           '打开地图与附近地点',
                           style: TextStyle(
-                            color: V2Palette.ink,
+                            color: context.v2Ink,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
                       Icon(
                         CupertinoIcons.chevron_right,
-                        color: V2Palette.moss,
+                        color: context.v2Moss,
                         size: 16,
                       ),
                     ],
@@ -293,17 +290,17 @@ class _V2BriefCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           eyebrow,
-          style: const TextStyle(
-            color: V2Palette.moss,
+          style: TextStyle(
+            color: context.v2Moss,
             fontSize: 12,
             fontWeight: FontWeight.w900,
           ),
@@ -311,8 +308,8 @@ class _V2BriefCard extends StatelessWidget {
         const SizedBox(height: 7),
         Text(
           title,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 17,
             height: 1.35,
             fontWeight: FontWeight.w800,
@@ -322,8 +319,8 @@ class _V2BriefCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             detail,
-            style: const TextStyle(
-              color: V2Palette.mutedInk,
+            style: TextStyle(
+              color: context.v2MutedInk,
               fontSize: 13,
               height: 1.45,
             ),
@@ -344,35 +341,35 @@ class _V2BriefThemeCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '区域题材',
           style: TextStyle(
-            color: V2Palette.moss,
+            color: context.v2Moss,
             fontSize: 12,
             fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           '点击题材查看附近线索',
           style: TextStyle(
-            color: V2Palette.ink,
+            color: context.v2Ink,
             fontSize: 17,
             fontWeight: FontWeight.w800,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           '题材来自场景和已验证区域资料，不替代具体机位。',
           style: TextStyle(
-            color: V2Palette.mutedInk,
+            color: context.v2MutedInk,
             fontSize: 13,
             height: 1.45,
           ),
@@ -410,7 +407,7 @@ class _V2BriefThemeAction extends StatelessWidget {
     button: true,
     label: '查看${theme.label}附近线索',
     child: Material(
-      color: V2Palette.mossSoft,
+      color: context.v2MossSoft,
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -422,16 +419,16 @@ class _V2BriefThemeAction extends StatelessWidget {
             children: [
               Text(
                 theme.label,
-                style: const TextStyle(
-                  color: V2Palette.moss,
+                style: TextStyle(
+                  color: context.v2Moss,
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(width: 5),
-              const Icon(
+              Icon(
                 CupertinoIcons.arrow_up_right,
-                color: V2Palette.moss,
+                color: context.v2Moss,
                 size: 14,
               ),
             ],
@@ -606,8 +603,8 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
   Widget build(BuildContext context) {
     final snapshot = ref.watch(environmentSnapshotProvider);
     return snapshot.when(
-      loading: () => const ColoredBox(
-        color: V2Palette.canvas,
+      loading: () => ColoredBox(
+        color: context.v2Canvas,
         child: V2LoadingObject(label: '正在展开附近地图'),
       ),
       error: (_, _) => V2PageStage(
@@ -799,7 +796,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
               ),
             AnimatedPositioned(
               key: const Key('v2-explore-results-panel'),
-              duration: _panelDragging
+              duration: V2MotionScope.of(context) || _panelDragging
                   ? Duration.zero
                   : const Duration(milliseconds: 260),
               curve: Curves.easeOutCubic,
@@ -962,7 +959,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
               zoom: 13,
             ),
           ),
-          duration: 520,
+          duration: V2MotionScope.of(context) ? 0 : 520,
         ),
       );
     }
@@ -1070,7 +1067,7 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
         CameraUpdate.newCameraPosition(
           CameraPosition(target: LatLng(gcj.latitude, gcj.longitude), zoom: 15),
         ),
-        duration: 520,
+        duration: V2MotionScope.of(context) ? 0 : 520,
       ),
     );
   }
@@ -1127,7 +1124,7 @@ class _V2SearchObject extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: V2Palette.paper,
+    color: context.v2Paper,
     elevation: 10,
     shadowColor: Colors.black26,
     borderRadius: BorderRadius.circular(24),
@@ -1138,14 +1135,16 @@ class _V2SearchObject extends StatelessWidget {
       decoration: InputDecoration(
         hintText: '搜索地点',
         prefixIcon: IconButton(
+          tooltip: '返回',
           onPressed: onClose,
-          icon: const Icon(CupertinoIcons.chevron_left, color: V2Palette.ink),
+          icon: Icon(CupertinoIcons.chevron_left, color: context.v2Ink),
         ),
         suffixIcon: controller.text.isEmpty
             ? null
             : IconButton(
+                tooltip: '清除搜索',
                 onPressed: onClear,
-                icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                icon: Icon(CupertinoIcons.xmark_circle_fill),
               ),
         border: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(vertical: 17),
@@ -1169,7 +1168,7 @@ class _V2SearchShortcutObject extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: V2Palette.paper.withValues(alpha: .94),
+    color: context.v2Paper.withValues(alpha: .94),
     elevation: 14,
     shadowColor: Colors.black26,
     borderRadius: BorderRadius.circular(24),
@@ -1182,19 +1181,19 @@ class _V2SearchShortcutObject extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '快捷服务',
               style: TextStyle(
-                color: V2Palette.ink,
+                color: context.v2Ink,
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 3),
-            const Text(
+            Text(
               '搜索具体地点，或直接查看当前位置附近服务',
               style: TextStyle(
-                color: V2Palette.mutedInk,
+                color: context.v2MutedInk,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -1213,7 +1212,7 @@ class _V2SearchShortcutObject extends StatelessWidget {
                         child: V2Pressable(
                           onTap: () => onSelect(intent),
                           compact: true,
-                          color: V2Palette.canvas,
+                          color: context.v2Canvas,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -1223,7 +1222,7 @@ class _V2SearchShortcutObject extends StatelessWidget {
                               children: [
                                 Icon(
                                   _intentIcon(intent.category),
-                                  color: V2Palette.moss,
+                                  color: context.v2Moss,
                                   size: 18,
                                 ),
                                 const SizedBox(width: 8),
@@ -1232,8 +1231,8 @@ class _V2SearchShortcutObject extends StatelessWidget {
                                     label,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: V2Palette.ink,
+                                    style: TextStyle(
+                                      color: context.v2Ink,
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -1339,12 +1338,12 @@ class _V2ThemeChip extends StatelessWidget {
     selected: selected,
     label: '探索主题：$label',
     child: Material(
-      color: selected ? V2Palette.mossSoft : V2Palette.paper,
+      color: selected ? context.v2MossSoft : context.v2Paper,
       elevation: selected ? 7 : 4,
       shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: selected ? V2Palette.moss : V2Palette.line),
+        side: BorderSide(color: selected ? context.v2Moss : context.v2Line),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1356,14 +1355,14 @@ class _V2ThemeChip extends StatelessWidget {
             children: [
               Icon(
                 _intentIcon(category),
-                color: selected ? V2Palette.moss : V2Palette.mutedInk,
+                color: selected ? context.v2Moss : context.v2MutedInk,
                 size: 14,
               ),
               const SizedBox(width: 5),
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? V2Palette.moss : V2Palette.ink,
+                  color: selected ? context.v2Moss : context.v2Ink,
                   fontSize: 11,
                   fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
                 ),
@@ -1395,7 +1394,7 @@ class _V2MapControlButton extends StatelessWidget {
     child: Tooltip(
       message: label,
       child: Material(
-        color: V2Palette.paper,
+        color: context.v2Paper,
         elevation: 11,
         shadowColor: Colors.black26,
         shape: const CircleBorder(),
@@ -1403,9 +1402,9 @@ class _V2MapControlButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
-            width: 46,
-            height: 46,
-            child: Icon(icon, color: V2Palette.ink, size: 21),
+            width: 48,
+            height: 48,
+            child: Icon(icon, color: context.v2Ink, size: 21),
           ),
         ),
       ),
@@ -1422,18 +1421,18 @@ class _V2SearchMapAreaObject extends StatelessWidget {
   Widget build(BuildContext context) => V2Pressable(
     onTap: onTap,
     compact: true,
-    color: V2Palette.paper,
-    child: const Padding(
+    color: context.v2Paper,
+    child: Padding(
       padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(CupertinoIcons.search, color: V2Palette.ink, size: 15),
+          Icon(CupertinoIcons.search, color: context.v2Ink, size: 15),
           SizedBox(width: 7),
           Text(
             '搜索此区域',
             style: TextStyle(
-              color: V2Palette.ink,
+              color: context.v2Ink,
               fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
@@ -1562,7 +1561,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: V2Palette.paper.withValues(alpha: .88),
+              color: context.v2Paper.withValues(alpha: .88),
               border: Border(
                 top: BorderSide(color: Colors.white.withValues(alpha: .82)),
               ),
@@ -1572,55 +1571,62 @@ class _V2ExploreResultObject extends ConsumerWidget {
               child: SizedBox(
                 height: 72,
                 width: double.infinity,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onToggle,
-                  onVerticalDragStart: (_) => onDragStart(),
-                  onVerticalDragUpdate: (details) =>
-                      onDragUpdate(details.delta.dy),
-                  onVerticalDragEnd: onDragEnd,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 9, 20, 9),
-                    child: Column(
-                      children: [
-                        const V2GrabHandle(),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                headerTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: V2Palette.ink,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
+                child: Semantics(
+                  container: true,
+                  button: true,
+                  expanded: false,
+                  label: headerTitle,
+                  hint: '双击展开地点列表，也可向上拖动',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onToggle,
+                    onVerticalDragStart: (_) => onDragStart(),
+                    onVerticalDragUpdate: (details) =>
+                        onDragUpdate(details.delta.dy),
+                    onVerticalDragEnd: onDragEnd,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 9, 20, 9),
+                      child: Column(
+                        children: [
+                          const V2GrabHandle(),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  headerTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: context.v2Ink,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (candidateCount != null) ...[
+                              if (candidateCount != null) ...[
+                                Text(
+                                  '$candidateCount 处',
+                                  style: TextStyle(
+                                    color: context.v2Moss,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
                               Text(
-                                '$candidateCount 处',
-                                style: const TextStyle(
-                                  color: V2Palette.moss,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
+                                '上拉查看',
+                                style: TextStyle(
+                                  color: context.v2MutedInk,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(width: 10),
                             ],
-                            const Text(
-                              '上拉查看',
-                              style: TextStyle(
-                                color: V2Palette.mutedInk,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1640,52 +1646,59 @@ class _V2ExploreResultObject extends ConsumerWidget {
         filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: V2Palette.paper.withValues(alpha: .88),
+            color: context.v2Paper.withValues(alpha: .88),
             border: Border(
               top: BorderSide(color: Colors.white.withValues(alpha: .82)),
             ),
           ),
           child: Column(
             children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onToggle,
-                onVerticalDragStart: (_) => onDragStart(),
-                onVerticalDragUpdate: (details) =>
-                    onDragUpdate(details.delta.dy),
-                onVerticalDragEnd: onDragEnd,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 11, 20, 8),
-                  child: Column(
-                    children: [
-                      const V2GrabHandle(),
-                      const SizedBox(height: 9),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              headerTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: V2Palette.ink,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -.4,
+              Semantics(
+                container: true,
+                button: true,
+                expanded: true,
+                label: headerTitle,
+                hint: '双击收起地点列表，也可向下拖动',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onToggle,
+                  onVerticalDragStart: (_) => onDragStart(),
+                  onVerticalDragUpdate: (details) =>
+                      onDragUpdate(details.delta.dy),
+                  onVerticalDragEnd: onDragEnd,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 11, 20, 8),
+                    child: Column(
+                      children: [
+                        const V2GrabHandle(),
+                        const SizedBox(height: 9),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                headerTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: context.v2Ink,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -.4,
+                                ),
                               ),
                             ),
-                          ),
-                          const Text(
-                            '下拉收起',
-                            style: TextStyle(
-                              color: V2Palette.moss,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
+                            Text(
+                              '下拉收起',
+                              style: TextStyle(
+                                color: context.v2Moss,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1779,9 +1792,9 @@ class _V2ExploreResultObject extends ConsumerWidget {
       error: (_, _) => Center(
         child: V2Pressable(
           onTap: onSearchMapArea,
-          color: V2Palette.mossSoft,
+          color: context.v2MossSoft,
           compact: true,
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             child: Text('搜索当前地图区域'),
           ),
@@ -1825,13 +1838,13 @@ class _V2ExploreResultObject extends ConsumerWidget {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: V2Palette.mossSoft,
+                  color: context.v2MossSoft,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Text(
+                child: Text(
                   '行政区＋50公里＋驾车时间综合排序 · 有来源的AI资料仅加权',
                   style: TextStyle(
-                    color: V2Palette.ink,
+                    color: context.v2Ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1849,7 +1862,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
                   color: const Color(0xFFEAF2F0),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
@@ -1862,7 +1875,7 @@ class _V2ExploreResultObject extends ConsumerWidget {
                       child: Text(
                         '这里只表示附近有水岸地点；是否适合倒影，还需结合风、光线和明确主体。',
                         style: TextStyle(
-                          color: V2Palette.ink,
+                          color: context.v2Ink,
                           fontSize: 11.5,
                           height: 1.35,
                           fontWeight: FontWeight.w700,
@@ -1932,9 +1945,9 @@ class _V2NoNearbyResults extends StatelessWidget {
         Container(
           padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
           decoration: BoxDecoration(
-            color: V2Palette.canvas,
+            color: context.v2Canvas,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: V2Palette.line),
+            border: Border.all(color: context.v2Line),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1942,11 +1955,11 @@ class _V2NoNearbyResults extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(
-                  color: V2Palette.mossSoft,
+                decoration: BoxDecoration(
+                  color: context.v2MossSoft,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(_intentIcon(category), color: V2Palette.moss),
+                child: Icon(_intentIcon(category), color: context.v2Moss),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1955,17 +1968,17 @@ class _V2NoNearbyResults extends StatelessWidget {
                   children: [
                     Text(
                       '$regionLabel还没有${_categoryTitle(category)}',
-                      style: const TextStyle(
-                        color: V2Palette.ink,
+                      style: TextStyle(
+                        color: context.v2Ink,
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       '这只说明当前主题的地点与资料线索不足，不等于这里没有值得看的内容。',
                       style: TextStyle(
-                        color: V2Palette.mutedInk,
+                        color: context.v2MutedInk,
                         fontSize: 11.5,
                         height: 1.35,
                         fontWeight: FontWeight.w600,
@@ -1984,8 +1997,8 @@ class _V2NoNearbyResults extends StatelessWidget {
               child: V2Pressable(
                 onTap: onSearchArea,
                 compact: true,
-                color: V2Palette.mossSoft,
-                child: const Padding(
+                color: context.v2MossSoft,
+                child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 11),
                   child: Center(
                     child: Text(
@@ -2020,9 +2033,9 @@ class _ExploreDiscoveryLead extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
     decoration: BoxDecoration(
-      color: V2Palette.canvas,
+      color: context.v2Canvas,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Row(
       children: [
@@ -2034,8 +2047,8 @@ class _ExploreDiscoveryLead extends StatelessWidget {
                 regionLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
                 ),
@@ -2046,7 +2059,7 @@ class _ExploreDiscoveryLead extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: V2Palette.mutedInk,
+                  color: context.v2MutedInk,
                   fontSize: 10.5,
                   height: 1.3,
                 ),
@@ -2139,7 +2152,7 @@ class _V2ResultListItem<T> extends StatelessWidget {
           if (rankedCandidates)
             _V2CandidateRankBadge(rank: index + 1)
           else
-            const Icon(CupertinoIcons.location_solid, color: V2Palette.moss),
+            Icon(CupertinoIcons.location_solid, color: context.v2Moss),
           const SizedBox(width: 13),
           Expanded(
             child: Column(
@@ -2147,8 +2160,8 @@ class _V2ResultListItem<T> extends StatelessWidget {
               children: [
                 Text(
                   title(item),
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -2157,15 +2170,12 @@ class _V2ResultListItem<T> extends StatelessWidget {
                   detail(item),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: context.v2MutedInk, fontSize: 12),
                 ),
               ],
             ),
           ),
-          const Icon(CupertinoIcons.chevron_right, size: 16),
+          Icon(CupertinoIcons.chevron_right, size: 16),
         ],
       ),
     ),
@@ -2182,16 +2192,13 @@ class _V2CandidateRankBadge extends StatelessWidget {
     width: 30,
     height: 30,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: V2Palette.mossSoft,
+    decoration: BoxDecoration(
+      color: context.v2MossSoft,
       shape: BoxShape.circle,
     ),
     child: Text(
       '$rank',
-      style: const TextStyle(
-        color: V2Palette.moss,
-        fontWeight: FontWeight.w900,
-      ),
+      style: TextStyle(color: context.v2Moss, fontWeight: FontWeight.w900),
     ),
   );
 }
@@ -2233,12 +2240,14 @@ class _V2SelectedPlace extends StatelessWidget {
         if (onBack != null)
           TextButton.icon(
             onPressed: onBack,
-            style: TextButton.styleFrom(foregroundColor: V2Palette.moss),
-            icon: const Icon(CupertinoIcons.chevron_left, size: 16),
+            style: TextButton.styleFrom(foregroundColor: context.v2Moss),
+            icon: Icon(CupertinoIcons.chevron_left, size: 16),
             label: Text(backLabel),
           ),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 320),
+          duration: V2MotionScope.of(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 320),
           switchInCurve: Curves.easeOutCubic,
           switchOutCurve: Curves.easeInCubic,
           child: switch ((mediaLoading, media.isNotEmpty)) {
@@ -2255,15 +2264,15 @@ class _V2SelectedPlace extends StatelessWidget {
         if (eyebrow case final label?) ...[
           DecoratedBox(
             decoration: BoxDecoration(
-              color: V2Palette.mossSoft,
+              color: context.v2MossSoft,
               borderRadius: BorderRadius.circular(99),
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               child: Text(
                 label,
-                style: const TextStyle(
-                  color: V2Palette.moss,
+                style: TextStyle(
+                  color: context.v2Moss,
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .4,
@@ -2277,8 +2286,8 @@ class _V2SelectedPlace extends StatelessWidget {
           name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 26,
             height: 1.1,
             fontWeight: FontWeight.w900,
@@ -2288,8 +2297,8 @@ class _V2SelectedPlace extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           detail,
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 13,
             height: 1.45,
           ),
@@ -2310,7 +2319,7 @@ class _V2SelectedPlace extends StatelessWidget {
             Expanded(
               child: V2Pressable(
                 onTap: onRoute,
-                color: V2Palette.moss,
+                color: context.v2Moss,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
@@ -2339,20 +2348,20 @@ class _V2PlacePhotoLoading extends StatelessWidget {
     key: const ValueKey('place-photo-loading'),
     height: 112,
     decoration: BoxDecoration(
-      color: V2Palette.canvas,
+      color: context.v2Canvas,
       borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
-    child: const Center(
+    child: Center(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(CupertinoIcons.photo, color: V2Palette.mutedInk, size: 19),
+          Icon(CupertinoIcons.photo, color: context.v2MutedInk, size: 19),
           SizedBox(width: 9),
           Text(
             '正在核对地点图片',
             style: TextStyle(
-              color: V2Palette.mutedInk,
+              color: context.v2MutedInk,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -2412,7 +2421,7 @@ class _V2PlaceDetailGalleryState extends State<_V2PlaceDetailGallery> {
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                 child: Text(
                   '${_index + 1}/${widget.media.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
@@ -2480,12 +2489,12 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
                   '${_activeMedia.title ?? '候选地点'}地点资料照片，来源${_activeMedia.attribution}',
               loadingBuilder: (context, child, progress) => progress == null
                   ? child
-                  : const ColoredBox(
-                      color: V2Palette.canvas,
+                  : ColoredBox(
+                      color: context.v2Canvas,
                       child: Center(
                         child: Icon(
                           CupertinoIcons.photo,
-                          color: V2Palette.line,
+                          color: context.v2Line,
                           size: 24,
                         ),
                       ),
@@ -2528,8 +2537,8 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
                       'amapPoiId' => '已按高德 POI 绑定',
                       _ => '平台资料图 · 仅供辨认',
                     },
-                    style: const TextStyle(
-                      color: V2Palette.ink,
+                    style: TextStyle(
+                      color: context.v2Ink,
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
                     ),
@@ -2554,7 +2563,7 @@ class _V2PlaceDetailPhotoState extends State<_V2PlaceDetailPhoto> {
                     _activeMedia.sourceTier == 'supplemental'
                         ? '同 POI 附图 · ${_activeMedia.attribution}'
                         : '地点资料图 · ${_activeMedia.attribution}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 9,
                       fontWeight: FontWeight.w800,

@@ -187,6 +187,29 @@ void main() {
     expect(ShootingSessionFallback.shouldOfferPlanB(limited, now: now), isTrue);
     expect(ShootingSessionFallback.shouldOfferPlanB(null, now: now), isFalse);
   });
+
+  test(
+    'plan B evidence expiry uses the injected time at the exact boundary',
+    () {
+      final primary = ContextFixtures.waterEveningSession(observedAt: now);
+
+      expect(
+        ShootingSessionFallback.shouldOfferPlanB(
+          primary,
+          now: now.add(const Duration(minutes: 14, seconds: 59)),
+        ),
+        isFalse,
+      );
+      expect(
+        ShootingSessionFallback.shouldOfferPlanB(
+          primary,
+          now: now.add(const Duration(minutes: 15)),
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test('plan B selects only an already-established usable session', () {
     final primary = ContextFixtures.waterEveningSession(
       observedAt: now,

@@ -27,10 +27,13 @@ jobs:
         with:
           script: |
             const targetUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const targetSha = context.eventName === 'pull_request'
+              ? context.payload.pull_request.head.sha
+              : context.sha;
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: context.sha,
+              sha: targetSha,
               state: 'pending',
               context: 'LumaNest / verification',
               description: 'Flutter and service verification is running',
@@ -257,11 +260,14 @@ jobs:
               ? 'Flutter and service verification passed'
               : `Verification failed: ${failed.join(', ')}`.slice(0, 140);
             const targetUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const targetSha = context.eventName === 'pull_request'
+              ? context.payload.pull_request.head.sha
+              : context.sha;
 
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: context.sha,
+              sha: targetSha,
               state,
               context: 'LumaNest / verification',
               description,

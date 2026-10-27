@@ -5,6 +5,7 @@ import 'package:luma_nest/src/core/assistant/assistant_model.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -78,7 +79,10 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [assistantModelProvider.overrideWithValue(null)],
-        child: MaterialApp(home: V2IntelligencePage(initialSnapshot: snapshot)),
+        child: MaterialApp(
+          theme: LumaNestTheme.light,
+          home: V2IntelligencePage(initialSnapshot: snapshot),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -111,7 +115,7 @@ void main() {
       find.byKey(const Key('v2-intelligence-composer-surface')),
     );
     final decoration = surface.decoration! as BoxDecoration;
-    expect(decoration.color, const Color(0xFFF5F5F1));
+    expect(decoration.color, LumaNestTheme.light.colorScheme.surfaceContainer);
   });
 }
 
@@ -134,6 +138,7 @@ Future<void> _pump(WidgetTester tester) async {
     ProviderScope(
       overrides: [assistantModelProvider.overrideWithValue(null)],
       child: MaterialApp(
+        theme: LumaNestTheme.light,
         home: MediaQuery(
           data: const MediaQueryData(size: Size(390, 844)),
           child: V2IntelligencePage(initialSnapshot: snapshot),

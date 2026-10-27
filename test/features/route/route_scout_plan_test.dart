@@ -113,6 +113,8 @@ void main() {
 
     expect(plan.nodes.first.priority, RouteScoutPriority.critical);
     expect(plan.nodes.first.kind, RouteScoutNodeKind.safety);
+    expect(plan.nodes.first.actionSeverity, RouteScoutActionSeverity.urgent);
+    expect(plan.hasUrgentSafety, isTrue);
     expect(plan.photographyCount, 1);
     expect(plan.supportCount, 1);
     expect(plan.headline, contains('天气风险'));
@@ -123,7 +125,7 @@ void main() {
     final report = _routeReport(
       now,
       restrictionStatus: RouteRestrictionStatus.present,
-      kinds: const ['roadClosure'],
+      kinds: const ['eventChange', 'roadClosure'],
       authoritative: true,
       factIds: const ['notice-1'],
       evidenceStatus: RouteEvidenceStatus.verified,
@@ -142,6 +144,9 @@ void main() {
     );
     expect(node.kind, RouteScoutNodeKind.safety);
     expect(node.priority, RouteScoutPriority.critical);
+    expect(node.actionSeverity, RouteScoutActionSeverity.blocking);
+    expect(plan.hasBlockingSafety, isTrue);
+    expect(plan.primaryBlockingNode?.id, node.id);
     expect(node.title, contains('官方道路关闭'));
     expect(node.detail, contains('不替代官方原文和地图导航'));
     expect(node.source, 'Road authority');
@@ -228,6 +233,36 @@ void main() {
       isEmpty,
     );
   });
+
+  test('stale thunder remains advisory and asks for refresh', () {
+    final now = DateTime.utc(2026, 8, 5, 6);
+    final plan = RouteScoutPlanBuilder.build(
+      routeId: 'r1',
+      route: _route(),
+      snapshot: _snapshot(now),
+      now: now,
+      weather: _routeReport(
+        now,
+        thunder: true,
+        weatherStale: true,
+        restrictionStatus: RouteRestrictionStatus.noneObserved,
+        kinds: const [],
+        authoritative: false,
+        factIds: const [],
+        evidenceStatus: RouteEvidenceStatus.unavailable,
+        evidenceFactIds: const [],
+      ),
+    );
+
+    final node = plan.nodes.singleWhere(
+      (item) => item.id.startsWith('weather-thunder-'),
+    );
+    expect(node.actionSeverity, RouteScoutActionSeverity.advisory);
+    expect(node.priority, RouteScoutPriority.high);
+    expect(node.title, contains('需要刷新确认'));
+    expect(plan.hasUrgentSafety, isFalse);
+    expect(plan.primaryAdvisorySafety?.id, node.id);
+  });
 }
 
 DrivingRoute _route() => DrivingRoute(
@@ -253,6 +288,8 @@ ContextSnapshot _snapshot(DateTime now) => ContextSnapshot(
 
 RouteWeatherReport _routeReport(
   DateTime now, {
+  bool thunder = false,
+  bool weatherStale = false,
   required RouteRestrictionStatus restrictionStatus,
   required List<String> kinds,
   required bool authoritative,
@@ -276,8 +313,8 @@ RouteWeatherReport _routeReport(
       windSpeedMps: 2,
       precipitationMm: 0,
       visibilityKm: 30,
-      thunder: false,
-      stale: false,
+      thunder: thunder,
+      stale: weatherStale,
     ),
     RouteWeatherSample(
       progress: 1,

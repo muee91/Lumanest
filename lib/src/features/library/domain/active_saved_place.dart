@@ -47,17 +47,19 @@ abstract final class ActiveSavedPlaceMatcher {
       // Schema-18 coordinates had no datum contract. They remain visible in
       // the library, but cannot safely be promoted to a live reviewed target.
       if (place.coordinateSystem == CoordinateSystem.unknown) continue;
+      final placePoint = ChinaCoordinateConverter.gcj02ToWgs84(place.point);
       ActiveSavedPlaceMatch? best;
       for (final session in validSessions) {
         for (final target in session.targetCandidates) {
           if (target.arrivalRadiusMeters <= 0 ||
+              target.coordinate.coordinateSystem == CoordinateSystem.unknown ||
               !target.supportedSessions.contains(session.kind)) {
             continue;
           }
           final targetPoint = ChinaCoordinateConverter.gcj02ToWgs84(
             target.coordinate,
           );
-          final distance = GeoDistance.metersBetween(place.point, targetPoint);
+          final distance = GeoDistance.metersBetween(placePoint, targetPoint);
           if (distance > target.arrivalRadiusMeters) continue;
           final candidate = ActiveSavedPlaceMatch(
             place: place,

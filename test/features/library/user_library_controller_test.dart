@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/library/infrastructure/user_library_store.dart';
@@ -40,6 +41,7 @@ void main() {
             category: 'viewpoint',
             latitude: 30,
             longitude: 120,
+            coordinateSystem: CoordinateSystem.wgs84,
           ),
         ],
       ),
@@ -61,6 +63,7 @@ void main() {
             category: 'humanity',
             latitude: 31,
             longitude: 121,
+            coordinateSystem: CoordinateSystem.wgs84,
           ),
         );
     expect(
@@ -136,6 +139,7 @@ void main() {
             category: 'viewpoint',
             latitude: 30,
             longitude: 120,
+            coordinateSystem: CoordinateSystem.wgs84,
           ),
         ],
         recentRoute: const SavedRouteDestination(

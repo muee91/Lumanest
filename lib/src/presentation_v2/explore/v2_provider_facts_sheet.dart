@@ -40,21 +40,21 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
       key: const Key('v2-provider-facts-summary'),
       semanticLabel: '查看环境与地区线索',
       onTap: onTap,
-      color: V2Palette.skySoft,
+      color: context.v2SkySoft,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(CupertinoIcons.layers, color: V2Palette.sky, size: 18),
+                Icon(CupertinoIcons.layers, color: context.v2Sky, size: 18),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '环境与地区线索',
                     style: TextStyle(
-                      color: V2Palette.ink,
+                      color: context.v2Ink,
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
                     ),
@@ -62,7 +62,7 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
                 ),
                 Icon(
                   CupertinoIcons.chevron_right,
-                  color: V2Palette.sky,
+                  color: context.v2Sky,
                   size: 16,
                 ),
               ],
@@ -75,8 +75,8 @@ class V2ProviderFactsSummaryCard extends StatelessWidget {
                   '• ${_displaySignalTitle(signal)}：${_displaySignalSummary(signal)}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
+                  style: TextStyle(
+                    color: context.v2MutedInk,
                     height: 1.35,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -109,7 +109,7 @@ class _V2ProviderFactsSheet extends StatelessWidget {
       maxChildSize: .94,
       expand: false,
       builder: (context, controller) => Material(
-        color: V2Palette.canvas,
+        color: context.v2Canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         clipBehavior: Clip.antiAlias,
         child: SafeArea(
@@ -124,7 +124,7 @@ class _V2ProviderFactsSheet extends StatelessWidget {
                   width: 42,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: V2Palette.line,
+                    color: context.v2Line,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -132,11 +132,11 @@ class _V2ProviderFactsSheet extends StatelessWidget {
               const SizedBox(height: 18),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       '环境与地区线索',
                       style: TextStyle(
-                        color: V2Palette.ink,
+                        color: context.v2Ink,
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -.5,
@@ -146,14 +146,14 @@ class _V2ProviderFactsSheet extends StatelessWidget {
                   IconButton(
                     tooltip: '关闭',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(CupertinoIcons.xmark_circle_fill),
+                    icon: Icon(CupertinoIcons.xmark_circle_fill),
                   ),
                 ],
               ),
               Text(
                 '覆盖半径 ${bundle.radiusKm} 公里 · ${_time(bundle.generatedAt)} 更新。数据源相互独立，缺失不会阻断探索。',
-                style: const TextStyle(
-                  color: V2Palette.mutedInk,
+                style: TextStyle(
+                  color: context.v2MutedInk,
                   fontSize: 12,
                   height: 1.4,
                 ),
@@ -171,10 +171,10 @@ class _V2ProviderFactsSheet extends StatelessWidget {
                 (provider) => _ProviderStateRow(provider: provider),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '卫星目录、地图、百科和生态记录只提供观测或参考线索；道路开放、安全、活动时间和现场状态仍需官方来源或多来源复核。',
                 style: TextStyle(
-                  color: V2Palette.mutedInk,
+                  color: context.v2MutedInk,
                   fontSize: 11,
                   height: 1.45,
                 ),
@@ -194,8 +194,8 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     text,
-    style: const TextStyle(
-      color: V2Palette.ink,
+    style: TextStyle(
+      color: context.v2Ink,
       fontSize: 15,
       fontWeight: FontWeight.w900,
     ),
@@ -211,9 +211,9 @@ class _SignalCard extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 9),
     padding: const EdgeInsets.all(15),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,15 +222,15 @@ class _SignalCard extends StatelessWidget {
           children: [
             Icon(
               _categoryIcon(signal.category),
-              color: V2Palette.moss,
+              color: context.v2Moss,
               size: 17,
             ),
             const SizedBox(width: 7),
             Expanded(
               child: Text(
                 _displaySignalTitle(signal),
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontWeight: FontWeight.w900,
                   fontSize: 14,
                 ),
@@ -238,8 +238,8 @@ class _SignalCard extends StatelessWidget {
             ),
             Text(
               _verificationLabel(signal.verification),
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
               ),
@@ -249,8 +249,8 @@ class _SignalCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           _displaySignalSummary(signal),
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             height: 1.45,
             fontSize: 12,
           ),
@@ -258,7 +258,7 @@ class _SignalCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '观测 ${_time(signal.observedAt)} · 有效至 ${_time(signal.expiresAt)}',
-          style: const TextStyle(color: V2Palette.mutedInk, fontSize: 10),
+          style: TextStyle(color: context.v2MutedInk, fontSize: 10),
         ),
       ],
     ),
@@ -275,15 +275,15 @@ class _ProviderStateRow extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 7),
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Row(
       children: [
         Icon(
           _statusIcon(provider.status),
-          color: _statusColor(provider.status),
+          color: _statusColor(context, provider.status),
           size: 16,
         ),
         const SizedBox(width: 9),
@@ -293,8 +293,8 @@ class _ProviderStateRow extends StatelessWidget {
             children: [
               Text(
                 _providerLabel(provider.id),
-                style: const TextStyle(
-                  color: V2Palette.ink,
+                style: TextStyle(
+                  color: context.v2Ink,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
@@ -304,10 +304,7 @@ class _ProviderStateRow extends StatelessWidget {
                   provider.source!.publisher,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: context.v2MutedInk, fontSize: 10),
                 ),
             ],
           ),
@@ -315,7 +312,7 @@ class _ProviderStateRow extends StatelessWidget {
         Text(
           _statusLabel(provider.status),
           style: TextStyle(
-            color: _statusColor(provider.status),
+            color: _statusColor(context, provider.status),
             fontSize: 10,
             fontWeight: FontWeight.w800,
           ),
@@ -372,12 +369,13 @@ IconData _statusIcon(ProviderStatus value) => switch (value) {
   ProviderStatus.unavailable => CupertinoIcons.exclamationmark_circle,
 };
 
-Color _statusColor(ProviderStatus value) => switch (value) {
-  ProviderStatus.ready => V2Palette.moss,
-  ProviderStatus.noData => V2Palette.mutedInk,
-  ProviderStatus.unconfigured => V2Palette.sky,
-  ProviderStatus.unavailable => V2Palette.ember,
-};
+Color _statusColor(BuildContext context, ProviderStatus value) =>
+    switch (value) {
+      ProviderStatus.ready => context.v2Moss,
+      ProviderStatus.noData => context.v2MutedInk,
+      ProviderStatus.unconfigured => context.v2Sky,
+      ProviderStatus.unavailable => context.v2Ember,
+    };
 
 IconData _categoryIcon(ProviderCategory value) => switch (value) {
   ProviderCategory.surface => Icons.satellite_alt_outlined,

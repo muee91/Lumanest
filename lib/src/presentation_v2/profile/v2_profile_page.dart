@@ -35,11 +35,11 @@ class V2ProfilePage extends ConsumerWidget {
               onTap: () => showProfileSettingsPanel(context),
               compact: true,
               semanticLabel: '打开设置',
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.all(10),
                 child: Icon(
                   CupertinoIcons.gear,
-                  color: V2Palette.ink,
+                  color: context.v2Ink,
                   size: 20,
                 ),
               ),
@@ -57,23 +57,23 @@ class V2ProfilePage extends ConsumerWidget {
           const SizedBox(height: 18),
           V2Pressable(
             onTap: () => context.push('/profile/library'),
-            color: V2Palette.paper,
-            child: const Padding(
+            color: context.v2Paper,
+            child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.archivebox, color: V2Palette.moss),
+                  Icon(CupertinoIcons.archivebox, color: context.v2Moss),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       '我留下的',
                       style: TextStyle(
-                        color: V2Palette.ink,
+                        color: context.v2Ink,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
-                  Icon(CupertinoIcons.chevron_right, color: V2Palette.mutedInk),
+                  Icon(CupertinoIcons.chevron_right, color: context.v2MutedInk),
                 ],
               ),
             ),
@@ -84,33 +84,37 @@ class V2ProfilePage extends ConsumerWidget {
   }
 }
 
-Future<void> showProfileSettingsPanel(BuildContext context) =>
-    showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '关闭设置',
-      barrierColor: Colors.black.withValues(alpha: .52),
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          const _ProfileSettingsPanel(),
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1, 0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          ),
-        );
-      },
-    );
+Future<void> showProfileSettingsPanel(BuildContext context) {
+  final reduceMotion = V2MotionScope.of(context);
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: '关闭设置',
+    barrierColor: Colors.black.withValues(alpha: .52),
+    transitionDuration: reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 280),
+    pageBuilder: (context, animation, secondaryAnimation) =>
+        const _ProfileSettingsPanel(),
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 class _ProfileSettingsPanel extends StatelessWidget {
   const _ProfileSettingsPanel();
@@ -118,13 +122,14 @@ class _ProfileSettingsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final panelWidth = (width * .9).clamp(0.0, 390.0);
     return Align(
       alignment: Alignment.centerRight,
       child: SizedBox(
-        width: (width * .82).clamp(300, 390),
+        width: panelWidth,
         height: double.infinity,
         child: Material(
-          color: V2Palette.paper,
+          color: context.v2Paper,
           borderRadius: const BorderRadius.horizontal(
             left: Radius.circular(30),
           ),
@@ -233,12 +238,12 @@ class _ProfileSettingsPanel extends StatelessWidget {
         },
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: V2Palette.line)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.v2Line)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: V2Palette.ink, size: 23),
+          Icon(icon, color: context.v2Ink, size: 23),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -246,8 +251,8 @@ class _ProfileSettingsPanel extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
@@ -257,20 +262,13 @@ class _ProfileSettingsPanel extends StatelessWidget {
                   detail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: context.v2MutedInk, fontSize: 11),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(
-            CupertinoIcons.chevron_right,
-            color: V2Palette.line,
-            size: 19,
-          ),
+          Icon(CupertinoIcons.chevron_right, color: context.v2Line, size: 19),
         ],
       ),
     ),
@@ -296,7 +294,7 @@ class _V2UnderstandingObject extends StatelessWidget {
         ? '留下作品、选择风格后，判断会慢慢贴近你。'
         : '行动方式偏向${activities.take(2).join('、')}；推荐只在条件成立时出现。';
     return Material(
-      color: V2Palette.night,
+      color: context.v2Night,
       borderRadius: BorderRadius.circular(36),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -308,7 +306,7 @@ class _V2UnderstandingObject extends StatelessWidget {
               width: 150,
               height: 150,
               decoration: BoxDecoration(
-                color: V2Palette.moss.withValues(alpha: .22),
+                color: context.v2Moss.withValues(alpha: .22),
                 shape: BoxShape.circle,
               ),
             ),
@@ -318,9 +316,9 @@ class _V2UnderstandingObject extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(CupertinoIcons.eye, color: V2Palette.moss, size: 20),
+                    Icon(CupertinoIcons.eye, color: context.v2Moss, size: 20),
                     SizedBox(width: 9),
                     Text(
                       '栖光如何理解我',
@@ -337,7 +335,7 @@ class _V2UnderstandingObject extends StatelessWidget {
                   headline,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 30,
                     height: 1.1,
@@ -350,7 +348,7 @@ class _V2UnderstandingObject extends StatelessWidget {
                   detail,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white60,
                     fontSize: 14,
                     height: 1.4,
@@ -361,8 +359,8 @@ class _V2UnderstandingObject extends StatelessWidget {
                   '${library?.savedNotes.length ?? 0} 张纸条 · '
                   '${library?.savedPlaces.length ?? 0} 个地点 · '
                   '${library?.watchedSessions.length ?? 0} 个关注窗口',
-                  style: const TextStyle(
-                    color: V2Palette.moss,
+                  style: TextStyle(
+                    color: context.v2Moss,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
@@ -450,8 +448,8 @@ class _V2ProfileStylePageState extends ConsumerState<V2ProfileStylePage> {
                         onTap: () => controller.setAiTone(tone),
                         compact: true,
                         color: value.aiTone == tone
-                            ? V2Palette.moss
-                            : V2Palette.canvas,
+                            ? context.v2Moss
+                            : context.v2Canvas,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Text(
@@ -460,7 +458,7 @@ class _V2ProfileStylePageState extends ConsumerState<V2ProfileStylePage> {
                             style: TextStyle(
                               color: value.aiTone == tone
                                   ? Colors.white
-                                  : V2Palette.ink,
+                                  : context.v2Ink,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -574,7 +572,7 @@ class V2ProfileLibraryPage extends ConsumerWidget {
                 title: '守候窗口',
                 child: Text(
                   '${value.watchedSessions.length} 个关注窗口',
-                  style: const TextStyle(color: V2Palette.mutedInk),
+                  style: TextStyle(color: context.v2MutedInk),
                 ),
               ),
             ],
@@ -640,11 +638,11 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 18),
-          const _V2SectionObject(
+          _V2SectionObject(
             title: '问栖光与模型服务',
             child: Text(
               '允许模型改写的问题只会发送问题正文、最多 8 轮对话和确定性模板答案给已配置的模型供应商。精确坐标、位置衍生地点、天气事实和野生动物资料不会进入普通模型提示。天气安全、风险和附近推荐保持本地或服务端确定性回答。助手联网搜索默认关闭；管理员开启后，搜索词会发送给已配置的审核来源搜索服务。',
-              style: TextStyle(color: V2Palette.mutedInk, height: 1.5),
+              style: TextStyle(color: context.v2MutedInk, height: 1.5),
             ),
           ),
           const SizedBox(height: 18),
@@ -653,9 +651,9 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '删除关注窗口，不影响收藏地点与纸条。',
-                  style: TextStyle(color: V2Palette.mutedInk, height: 1.4),
+                  style: TextStyle(color: context.v2MutedInk, height: 1.4),
                 ),
                 const SizedBox(height: 14),
                 V2Pressable(
@@ -665,13 +663,13 @@ class V2ProfilePrivacyPage extends ConsumerWidget {
                         .clearWatchedSessions(),
                   ),
                   compact: true,
-                  color: V2Palette.dangerSoft,
-                  child: const Padding(
+                  color: context.v2DangerSoft,
+                  child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                     child: Text(
                       '清理拍摄活动',
                       style: TextStyle(
-                        color: V2Palette.danger,
+                        color: context.v2Danger,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -698,7 +696,7 @@ class _V2SecondaryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: V2Palette.canvas,
+    backgroundColor: Theme.of(context).colorScheme.surface,
     body: SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
@@ -709,8 +707,8 @@ class _V2SecondaryPage extends StatelessWidget {
             const SizedBox(height: 24),
             Text(
               title,
-              style: const TextStyle(
-                color: V2Palette.ink,
+              style: TextStyle(
+                color: context.v2Ink,
                 fontSize: 32,
                 height: 1,
                 fontWeight: FontWeight.w900,
@@ -720,8 +718,8 @@ class _V2SecondaryPage extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 14,
                 height: 1.4,
               ),
@@ -758,9 +756,13 @@ class _V2PreferenceField extends StatelessWidget {
           V2Pressable(
             onTap: () => onToggle(option),
             compact: true,
+            semanticLabel: option,
+            semanticValue: selected.contains(option) ? '已选择' : '未选择',
+            toggled: selected.contains(option),
+            onTapHint: selected.contains(option) ? '取消选择' : '选择',
             color: selected.contains(option)
-                ? V2Palette.moss
-                : V2Palette.canvas,
+                ? context.v2Moss
+                : context.v2Canvas,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               child: Text(
@@ -768,7 +770,7 @@ class _V2PreferenceField extends StatelessWidget {
                 style: TextStyle(
                   color: selected.contains(option)
                       ? Colors.white
-                      : V2Palette.ink,
+                      : context.v2Ink,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -788,17 +790,17 @@ class _V2SectionObject extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 17,
             fontWeight: FontWeight.w900,
           ),
@@ -824,7 +826,7 @@ class _V2LibraryGroup extends StatelessWidget {
   Widget build(BuildContext context) => _V2SectionObject(
     title: title,
     child: items.isEmpty
-        ? Text(empty, style: const TextStyle(color: V2Palette.mutedInk))
+        ? Text(empty, style: TextStyle(color: context.v2MutedInk))
         : Column(children: items),
   );
 }
@@ -855,39 +857,33 @@ class _V2LibraryItem extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   detail,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: context.v2MutedInk, fontSize: 12),
                 ),
               ],
             ),
           ),
           if (onTap != null)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 8),
               child: Icon(
                 CupertinoIcons.chevron_right,
-                color: V2Palette.mutedInk,
+                color: context.v2MutedInk,
                 size: 16,
               ),
             ),
           if (onDelete != null)
             IconButton(
+              tooltip: '删除 $title',
               onPressed: onDelete,
-              icon: const Icon(CupertinoIcons.trash, size: 18),
+              icon: Icon(CupertinoIcons.trash, size: 18),
             ),
         ],
       ),
@@ -908,60 +904,72 @@ class _V2ToggleObject extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => V2Pressable(
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) {
+    final reduceMotion = V2MotionScope.of(context);
+    final stateLabel = value ? '已开启' : '已关闭';
+    return V2Pressable(
+      onTap: onTap,
+      semanticLabel: title,
+      semanticValue: stateLabel,
+      toggled: value,
+      onTapHint: value ? '关闭' : '开启',
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: context.v2Ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  detail,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
-                    fontSize: 12,
-                    height: 1.4,
+                  const SizedBox(height: 6),
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      color: context.v2MutedInk,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 15),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            width: 48,
-            height: 28,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: value ? V2Palette.moss : V2Palette.line,
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 220),
-              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-              child: const DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: SizedBox.square(dimension: 22),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 15),
+            AnimatedContainer(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
+              width: 48,
+              height: 28,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: value ? context.v2Moss : context.v2Line,
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: AnimatedAlign(
+                duration: reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: const DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: SizedBox.square(dimension: 22),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

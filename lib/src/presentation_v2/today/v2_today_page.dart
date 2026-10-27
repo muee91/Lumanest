@@ -19,6 +19,7 @@ import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/scenario/scenario_providers.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
+import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
 import 'package:luma_nest/src/features/explore/application/region_brief_providers.dart';
 import 'package:luma_nest/src/features/explore/application/region_discovery_highlight.dart';
@@ -37,7 +38,13 @@ class V2TodayPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (initialSnapshot == null && !ref.watch(environmentConsentProvider)) {
+    final consentGranted = ref.watch(environmentConsentProvider);
+    final manualLocation = ref.watch(manualLocationProvider);
+    final hasManualLocation = manualLocation.asData?.value != null;
+    // An explicit manual place is a valid, privacy-preserving entry path. It
+    // must not be blocked by automatic-location consent because the user has
+    // already chosen the location used for the environment snapshot.
+    if (initialSnapshot == null && !consentGranted && !hasManualLocation) {
       return V2PageStage(
         child: V2EmptyObject(
           icon: CupertinoIcons.location,
@@ -45,6 +52,8 @@ class V2TodayPage extends ConsumerWidget {
           detail: '位置只用来理解附近天气与光线，不会形成服务端轨迹。',
           action: '允许位置并继续',
           onAction: () => ref.read(environmentConsentProvider.notifier).grant(),
+          secondaryAction: '先选择一个地点',
+          onSecondaryAction: () => _openManualLocation(context),
         ),
       );
     }
@@ -169,8 +178,8 @@ class _V2TodayContentState extends State<_V2TodayContent> {
       builder: (context, constraints) {
         final compact = constraints.maxHeight < 670;
         return RefreshIndicator(
-          color: V2Palette.moss,
-          backgroundColor: V2Palette.paper,
+          color: context.v2Moss,
+          backgroundColor: context.v2Paper,
           edgeOffset: 8,
           onRefresh: widget.onRefresh ?? () async {},
           child: SingleChildScrollView(
@@ -200,7 +209,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                   Text(
                     '栖光此刻看到',
                     style: TextStyle(
-                      color: V2Palette.moss.withValues(alpha: .9),
+                      color: context.v2Moss.withValues(alpha: .9),
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.2,
@@ -218,7 +227,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                         maxLines: 1,
                         softWrap: false,
                         style: TextStyle(
-                          color: V2Palette.ink,
+                          color: context.v2Ink,
                           fontSize: compact ? 27 : 32,
                           height: 1.12,
                           fontWeight: FontWeight.w900,
@@ -324,8 +333,8 @@ class _V2CurrentConditions extends StatelessWidget {
             children: [
               Text(
                 current ? '此刻条件' : '最近条件',
-                style: const TextStyle(
-                  color: V2Palette.mutedInk,
+                style: TextStyle(
+                  color: context.v2MutedInk,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: .4,
@@ -334,8 +343,8 @@ class _V2CurrentConditions extends StatelessWidget {
               const Spacer(),
               Text(
                 '${_time(snapshot.observedAt)} 更新',
-                style: const TextStyle(
-                  color: V2Palette.mutedInk,
+                style: TextStyle(
+                  color: context.v2MutedInk,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
@@ -419,7 +428,9 @@ class _V2ConditionFactState extends State<_V2ConditionFact> {
         onTapUp: onTap == null ? null : (_) => setState(() => _pressed = false),
         child: AnimatedScale(
           scale: _pressed ? .97 : 1,
-          duration: const Duration(milliseconds: 140),
+          duration: V2MotionScope.of(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 140),
           child: Container(
             key: Key('v2-condition-${fact.type.name}'),
             constraints: const BoxConstraints(minHeight: 84),
@@ -427,7 +438,7 @@ class _V2ConditionFactState extends State<_V2ConditionFact> {
             decoration: BoxDecoration(
               gradient: V2EnvironmentGradients.forMetric(fact.type),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: V2Palette.line.withValues(alpha: .75)),
+              border: Border.all(color: context.v2Line.withValues(alpha: .75)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: .045),
@@ -463,17 +474,17 @@ class _V2ConditionFactState extends State<_V2ConditionFact> {
                           Expanded(
                             child: Text(
                               fact.label,
-                              style: const TextStyle(
-                                color: V2Palette.mutedInk,
+                              style: TextStyle(
+                                color: context.v2MutedInk,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                           ),
                           if (onTap != null)
-                            const Icon(
+                            Icon(
                               CupertinoIcons.chevron_right,
-                              color: V2Palette.mutedInk,
+                              color: context.v2MutedInk,
                               size: 12,
                             ),
                         ],
@@ -481,10 +492,8 @@ class _V2ConditionFactState extends State<_V2ConditionFact> {
                       const SizedBox(height: 2),
                       Text(
                         fact.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: V2Palette.ink,
+                        style: TextStyle(
+                          color: context.v2Ink,
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
                         ),
@@ -492,10 +501,8 @@ class _V2ConditionFactState extends State<_V2ConditionFact> {
                       const SizedBox(height: 3),
                       Text(
                         fact.summary,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: V2Palette.mutedInk,
+                        style: TextStyle(
+                          color: context.v2MutedInk,
                           fontSize: 9.5,
                           height: 1.25,
                           fontWeight: FontWeight.w600,
@@ -528,7 +535,7 @@ class _V2RegionalDiscoveryCard extends StatelessWidget {
     semanticLabel: '查看${highlight.regionName}区域发现：${highlight.title}',
     onTap: onTap,
     compact: true,
-    color: V2Palette.paper.withValues(alpha: .88),
+    color: context.v2Paper.withValues(alpha: .88),
     child: Padding(
       padding: const EdgeInsets.fromLTRB(15, 13, 13, 13),
       child: Row(
@@ -536,13 +543,13 @@ class _V2RegionalDiscoveryCard extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: const BoxDecoration(
-              color: V2Palette.mossSoft,
+            decoration: BoxDecoration(
+              color: context.v2MossSoft,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.sparkles,
-              color: V2Palette.moss,
+              color: context.v2Moss,
               size: 18,
             ),
           ),
@@ -555,8 +562,8 @@ class _V2RegionalDiscoveryCard extends StatelessWidget {
                   '栖光发现 · ${highlight.regionName}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.moss,
+                  style: TextStyle(
+                    color: context.v2Moss,
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
@@ -566,8 +573,8 @@ class _V2RegionalDiscoveryCard extends StatelessWidget {
                   highlight.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.ink,
+                  style: TextStyle(
+                    color: context.v2Ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -577,8 +584,8 @@ class _V2RegionalDiscoveryCard extends StatelessWidget {
                   highlight.summary,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: V2Palette.mutedInk,
+                  style: TextStyle(
+                    color: context.v2MutedInk,
                     fontSize: 11,
                     height: 1.3,
                   ),
@@ -587,9 +594,9 @@ class _V2RegionalDiscoveryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(
+          Icon(
             CupertinoIcons.chevron_right,
-            color: V2Palette.mutedInk,
+            color: context.v2MutedInk,
             size: 16,
           ),
         ],
@@ -613,22 +620,22 @@ class _V2SafetyAlertButton extends StatelessWidget {
       semanticLabel: '查看当前预警：${entry.presentation.title}',
       onTap: onTap,
       compact: true,
-      color: V2Palette.dangerSoft,
-      child: const Padding(
+      color: context.v2DangerSoft,
+      child: Padding(
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               CupertinoIcons.exclamationmark_triangle_fill,
-              color: V2Palette.danger,
+              color: context.v2Danger,
               size: 16,
             ),
             SizedBox(width: 6),
             Text(
               '预警',
               style: TextStyle(
-                color: V2Palette.danger,
+                color: context.v2Danger,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
               ),
@@ -657,7 +664,10 @@ class _V2OpportunityRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final moment = now.toUtc();
     final primary = sessions.where((item) => item.id == primaryId).firstOrNull;
-    final planB = ShootingSessionFallback.shouldOfferPlanB(primary);
+    final planB = ShootingSessionFallback.shouldOfferPlanB(
+      primary,
+      now: moment,
+    );
     final items =
         sessions
             .where(
@@ -684,7 +694,7 @@ class _V2OpportunityRail extends StatelessWidget {
           Text(
             planB ? '主机会减弱时，可以转拍' : '接下来还可以看',
             style: TextStyle(
-              color: V2Palette.mutedInk,
+              color: context.v2MutedInk,
               fontSize: 12,
               fontWeight: FontWeight.w800,
               letterSpacing: .4,
@@ -703,7 +713,7 @@ class _V2OpportunityRail extends StatelessWidget {
                   key: Key('v2-secondary-session-${item.id}'),
                   onTap: () => onOpen(item),
                   compact: true,
-                  color: V2Palette.paper.withValues(alpha: .82),
+                  color: context.v2Paper.withValues(alpha: .82),
                   child: SizedBox(
                     width: 216,
                     child: Padding(
@@ -719,8 +729,8 @@ class _V2OpportunityRail extends StatelessWidget {
                             item.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: V2Palette.ink,
+                            style: TextStyle(
+                              color: context.v2Ink,
                               fontSize: 13,
                               fontWeight: FontWeight.w900,
                             ),
@@ -729,8 +739,8 @@ class _V2OpportunityRail extends StatelessWidget {
                           Text(
                             _phaseNames(item),
                             maxLines: 1,
-                            style: const TextStyle(
-                              color: V2Palette.mutedInk,
+                            style: TextStyle(
+                              color: context.v2MutedInk,
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
@@ -748,8 +758,8 @@ class _V2OpportunityRail extends StatelessWidget {
                                 ),
                                 maxLines: 1,
                                 softWrap: false,
-                                style: const TextStyle(
-                                  color: V2Palette.mutedInk,
+                                style: TextStyle(
+                                  color: context.v2MutedInk,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                 ),

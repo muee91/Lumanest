@@ -37,6 +37,7 @@ void main() {
       category: 'viewpoint',
       latitude: 30.251,
       longitude: 120.151,
+      coordinateSystem: CoordinateSystem.wgs84,
     );
 
     final matches = ActiveSavedPlaceMatcher.match(
@@ -63,6 +64,7 @@ void main() {
       category: 'viewpoint',
       latitude: 30.30,
       longitude: 120.30,
+      coordinateSystem: CoordinateSystem.wgs84,
     );
 
     expect(
@@ -104,6 +106,7 @@ void main() {
       category: 'viewpoint',
       latitude: 30.251,
       longitude: 120.151,
+      coordinateSystem: CoordinateSystem.wgs84,
     );
 
     final matches = ActiveSavedPlaceMatcher.match(
@@ -148,6 +151,7 @@ void main() {
         category: 'viewpoint',
         latitude: 30.251,
         longitude: 120.151,
+        coordinateSystem: CoordinateSystem.wgs84,
       );
 
       expect(
@@ -183,5 +187,31 @@ void main() {
       ),
       isEmpty,
     );
+  });
+
+  test('normalizes a saved GCJ-02 place against a WGS84 target', () {
+    const canonical = GeoPoint(latitude: 30.251, longitude: 120.151);
+    final gcj = ChinaCoordinateConverter.wgs84ToGcj02(canonical);
+    final saved = SavedPlace(
+      id: 'saved-gcj02',
+      name: '高德收藏点',
+      category: 'viewpoint',
+      latitude: gcj.latitude,
+      longitude: gcj.longitude,
+      coordinateSystem: CoordinateSystem.gcj02,
+    );
+    final session = ContextFixtures.waterEveningSession(
+      observedAt: now,
+      targetCandidates: [target],
+    );
+
+    final matches = ActiveSavedPlaceMatcher.match(
+      places: [saved],
+      sessions: [session],
+      now: now,
+    );
+
+    expect(matches, hasLength(1));
+    expect(matches.single.distanceMeters, lessThan(1));
   });
 }

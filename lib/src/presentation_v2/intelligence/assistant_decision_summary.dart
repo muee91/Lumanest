@@ -130,7 +130,7 @@ class AssistantDecisionSummary extends StatelessWidget {
     if (loading) {
       return Text(
         text,
-        style: const TextStyle(color: V2Palette.ink, fontSize: 14, height: 1.5),
+        style: TextStyle(color: context.v2Ink, fontSize: 14, height: 1.5),
       );
     }
 
@@ -144,8 +144,8 @@ class AssistantDecisionSummary extends StatelessWidget {
           Text(
             summary.conclusion,
             key: const Key('assistant-decision-conclusion'),
-            style: const TextStyle(
-              color: V2Palette.ink,
+            style: TextStyle(
+              color: context.v2Ink,
               fontSize: 17,
               height: 1.32,
               fontWeight: FontWeight.w900,
@@ -170,7 +170,7 @@ class AssistantDecisionSummary extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: V2Palette.paper,
+                color: context.v2Paper,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -183,8 +183,8 @@ class AssistantDecisionSummary extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 2),
                       child: Text(
                         item,
-                        style: const TextStyle(
-                          color: V2Palette.mutedInk,
+                        style: TextStyle(
+                          color: context.v2MutedInk,
                           fontSize: 12,
                           height: 1.42,
                         ),
@@ -201,17 +201,17 @@ class AssistantDecisionSummary extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
-                color: V2Palette.mossSoft,
+                color: context.v2MossSoft,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 1),
                     child: Icon(
                       CupertinoIcons.arrow_right_circle_fill,
-                      color: V2Palette.moss,
+                      color: context.v2Moss,
                       size: 15,
                     ),
                   ),
@@ -219,8 +219,8 @@ class AssistantDecisionSummary extends StatelessWidget {
                   Expanded(
                     child: Text(
                       action,
-                      style: const TextStyle(
-                        color: V2Palette.ink,
+                      style: TextStyle(
+                        color: context.v2Ink,
                         fontSize: 12.5,
                         height: 1.42,
                         fontWeight: FontWeight.w700,
@@ -245,8 +245,8 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     label,
-    style: const TextStyle(
-      color: V2Palette.moss,
+    style: TextStyle(
+      color: context.v2Moss,
       fontSize: 10.5,
       fontWeight: FontWeight.w900,
       letterSpacing: .5,
@@ -269,19 +269,15 @@ class _PointRow extends StatelessWidget {
           width: 5,
           height: 5,
           margin: const EdgeInsets.only(top: 7, right: 8),
-          decoration: const BoxDecoration(
-            color: V2Palette.moss,
+          decoration: BoxDecoration(
+            color: context.v2Moss,
             shape: BoxShape.circle,
           ),
         ),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
-              color: V2Palette.ink,
-              fontSize: 13,
-              height: 1.45,
-            ),
+            style: TextStyle(color: context.v2Ink, fontSize: 13, height: 1.45),
           ),
         ),
       ],

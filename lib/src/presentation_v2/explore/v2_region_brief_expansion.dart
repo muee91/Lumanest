@@ -48,9 +48,9 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
       key: const Key('v2-region-brief-expansion'),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: V2Palette.paper,
+        color: context.v2Paper,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: V2Palette.line),
+        border: Border.all(color: context.v2Line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,12 +62,12 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: V2Palette.mossSoft,
+                  color: context.v2MossSoft,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.search,
-                  color: V2Palette.moss,
+                  color: context.v2Moss,
                   size: 19,
                 ),
               ),
@@ -82,8 +82,8 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                           : state.isExpanding
                           ? '正在扩展探索'
                           : '扩展探索',
-                      style: const TextStyle(
-                        color: V2Palette.ink,
+                      style: TextStyle(
+                        color: context.v2Ink,
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
                       ),
@@ -93,8 +93,8 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                       state.isVerifying
                           ? '仅核对候选、冲突和时效性单一来源，不重写已经成立的事实。'
                           : _scenePromise(brief.profile),
-                      style: const TextStyle(
-                        color: V2Palette.mutedInk,
+                      style: TextStyle(
+                        color: context.v2MutedInk,
                         fontSize: 13,
                         height: 1.45,
                       ),
@@ -114,8 +114,8 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                         ? '正在检索官方或独立来源，核对弱证据。'
                         : '正在检索审核来源并核对区域事实。'
                   : '正在处理：${brief.refresh.refreshingMissions.join('、')}',
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -144,8 +144,8 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               _errorCopy(state.errorCode!),
-              style: const TextStyle(
-                color: V2Palette.mutedInk,
+              style: TextStyle(
+                color: context.v2MutedInk,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -165,13 +165,13 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
               ),
               label: Text(state.isBusy ? '正在核对资料' : '主动扩展区域资料'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: V2Palette.moss,
-                side: const BorderSide(color: V2Palette.moss),
+                foregroundColor: context.v2Moss,
+                side: BorderSide(color: context.v2Moss),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                textStyle: TextStyle(fontWeight: FontWeight.w900),
               ),
             ),
           ),
@@ -182,18 +182,16 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
               child: FilledButton.tonalIcon(
                 key: const Key('v2-verify-region-brief'),
                 onPressed: state.isBusy ? null : onVerify,
-                icon: const Icon(CupertinoIcons.check_mark_circled, size: 17),
-                label: Text(
-                  state.isVerifying ? '正在核验区域信息' : '核验候选与冲突信息',
-                ),
+                icon: Icon(CupertinoIcons.check_mark_circled, size: 17),
+                label: Text(state.isVerifying ? '正在核验区域信息' : '核验候选与冲突信息'),
                 style: FilledButton.styleFrom(
-                  foregroundColor: V2Palette.moss,
-                  backgroundColor: V2Palette.mossSoft,
+                  foregroundColor: context.v2Moss,
+                  backgroundColor: context.v2MossSoft,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  textStyle: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
             ),
@@ -206,21 +204,21 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
                 key: const Key('v2-region-brief-sources'),
                 onPressed: () =>
                     showV2RegionBriefSourcesSheet(context, brief.sources),
-                icon: const Icon(CupertinoIcons.doc_text_search, size: 16),
-                label: const Text('查看资料依据'),
+                icon: Icon(CupertinoIcons.doc_text_search, size: 16),
+                label: Text('查看资料依据'),
                 style: TextButton.styleFrom(
-                  foregroundColor: V2Palette.moss,
+                  foregroundColor: context.v2Moss,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                  textStyle: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
             ),
           ],
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '扩展会扩大资料范围；核验只针对弱证据。只有新增来源或证据等级真实改善时才替换现有简报。',
             style: TextStyle(
-              color: V2Palette.mutedInk,
+              color: context.v2MutedInk,
               fontSize: 11,
               height: 1.45,
             ),
@@ -249,10 +247,11 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
     }
     return switch (profile.physicalScene) {
       PrimaryScene.mountain => '继续核对山体身份、观景方向、步行入口、开放状态与补给线索。',
-      PrimaryScene.plateau || PrimaryScene.desert =>
-        '继续核对地貌、开放道路、合法停靠、通信与补给线索。',
-      PrimaryScene.inlandWater || PrimaryScene.coast || PrimaryScene.wetland =>
-        '继续核对岸线题材、当地活动、进入方式与环境限制。',
+      PrimaryScene.plateau ||
+      PrimaryScene.desert => '继续核对地貌、开放道路、合法停靠、通信与补给线索。',
+      PrimaryScene.inlandWater ||
+      PrimaryScene.coast ||
+      PrimaryScene.wetland => '继续核对岸线题材、当地活动、进入方式与环境限制。',
       PrimaryScene.forest => '继续核对林地题材、步道入口、季节变化与开放限制。',
       _ => '继续检索人文背景、摄影题材、正在发生的活动、地方味道与实用信息。',
     };
@@ -279,10 +278,7 @@ class V2RegionBriefExpansionCard extends StatelessWidget {
 }
 
 class V2RegionBriefInsightSections extends StatelessWidget {
-  const V2RegionBriefInsightSections({
-    super.key,
-    required this.insights,
-  });
+  const V2RegionBriefInsightSections({super.key, required this.insights});
 
   final List<RegionInsight> insights;
 
@@ -292,43 +288,59 @@ class V2RegionBriefInsightSections extends StatelessWidget {
       _InsightGroup(
         title: '适合拍什么',
         icon: CupertinoIcons.camera,
-        items: insights.where((item) => const {
-          RegionInsightType.architecture,
-          RegionInsightType.naturalFeature,
-          RegionInsightType.photographyTheme,
-          RegionInsightType.seasonalSignal,
-        }.contains(item.type)).toList(growable: false),
+        items: insights
+            .where(
+              (item) => const {
+                RegionInsightType.architecture,
+                RegionInsightType.naturalFeature,
+                RegionInsightType.photographyTheme,
+                RegionInsightType.seasonalSignal,
+              }.contains(item.type),
+            )
+            .toList(growable: false),
       ),
       _InsightGroup(
         title: '正在发生',
         icon: CupertinoIcons.calendar,
-        items: insights.where((item) => const {
-          RegionInsightType.event,
-          RegionInsightType.performance,
-          RegionInsightType.market,
-        }.contains(item.type)).toList(growable: false),
+        items: insights
+            .where(
+              (item) => const {
+                RegionInsightType.event,
+                RegionInsightType.performance,
+                RegionInsightType.market,
+              }.contains(item.type),
+            )
+            .toList(growable: false),
       ),
       _InsightGroup(
         title: '这里的味道与人文',
         icon: CupertinoIcons.book,
-        items: insights.where((item) => const {
-          RegionInsightType.history,
-          RegionInsightType.localStory,
-          RegionInsightType.localFood,
-          RegionInsightType.specialty,
-          RegionInsightType.culturalPractice,
-          RegionInsightType.etiquette,
-        }.contains(item.type)).toList(growable: false),
+        items: insights
+            .where(
+              (item) => const {
+                RegionInsightType.history,
+                RegionInsightType.localStory,
+                RegionInsightType.localFood,
+                RegionInsightType.specialty,
+                RegionInsightType.culturalPractice,
+                RegionInsightType.etiquette,
+              }.contains(item.type),
+            )
+            .toList(growable: false),
       ),
       _InsightGroup(
         title: '出发前确认',
         icon: CupertinoIcons.check_mark_circled,
-        items: insights.where((item) => const {
-          RegionInsightType.routeStop,
-          RegionInsightType.supply,
-          RegionInsightType.openingStatus,
-          RegionInsightType.regulation,
-        }.contains(item.type)).toList(growable: false),
+        items: insights
+            .where(
+              (item) => const {
+                RegionInsightType.routeStop,
+                RegionInsightType.supply,
+                RegionInsightType.openingStatus,
+                RegionInsightType.regulation,
+              }.contains(item.type),
+            )
+            .toList(growable: false),
       ),
     ].where((group) => group.items.isNotEmpty).toList(growable: false);
 
@@ -369,12 +381,12 @@ class _InsightGroupView extends StatelessWidget {
     children: [
       Row(
         children: [
-          Icon(group.icon, size: 17, color: V2Palette.moss),
+          Icon(group.icon, size: 17, color: context.v2Moss),
           const SizedBox(width: 7),
           Text(
             group.title,
-            style: const TextStyle(
-              color: V2Palette.ink,
+            style: TextStyle(
+              color: context.v2Ink,
               fontSize: 17,
               fontWeight: FontWeight.w900,
             ),
@@ -397,9 +409,9 @@ class _RegionInsightCard extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 9),
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: V2Palette.paper,
+      color: context.v2Paper,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: V2Palette.line),
+      border: Border.all(color: context.v2Line),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,15 +422,14 @@ class _RegionInsightCard extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _VerificationBadge(value: insight.verification),
-            if (insight.timeSensitive)
-              const _BriefMetricChip(label: '时效信息'),
+            if (insight.timeSensitive) const _BriefMetricChip(label: '时效信息'),
           ],
         ),
         const SizedBox(height: 9),
         Text(
           insight.title,
-          style: const TextStyle(
-            color: V2Palette.ink,
+          style: TextStyle(
+            color: context.v2Ink,
             fontSize: 16,
             fontWeight: FontWeight.w900,
             height: 1.3,
@@ -427,8 +438,8 @@ class _RegionInsightCard extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           insight.summary,
-          style: const TextStyle(
-            color: V2Palette.mutedInk,
+          style: TextStyle(
+            color: context.v2MutedInk,
             fontSize: 13,
             height: 1.48,
           ),
@@ -464,13 +475,13 @@ class _BriefMetricChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
     decoration: BoxDecoration(
-      color: V2Palette.mossSoft,
+      color: context.v2MossSoft,
       borderRadius: BorderRadius.circular(999),
     ),
     child: Text(
       label,
-      style: const TextStyle(
-        color: V2Palette.moss,
+      style: TextStyle(
+        color: context.v2Moss,
         fontSize: 11,
         fontWeight: FontWeight.w800,
       ),
