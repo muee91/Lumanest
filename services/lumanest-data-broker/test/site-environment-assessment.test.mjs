@@ -139,7 +139,7 @@ test('service returns contract v4 only for explicit sky assessment requests', as
   assert.equal(assessmentBody.terrainHorizon.status, 'ready');
   assert.equal(assessmentBody.terrainHorizon.samples.length, 72);
   assert.equal(assessmentBody.skySiteAssessment.status, 'ready');
-  assert.equal(assessmentBody.skySiteAssessment.algorithmVersion, 'sky-site-assessment.1');
+  assert.equal(assessmentBody.skySiteAssessment.algorithmVersion, 'sky-site-assessment.2');
   assert.equal(Object.hasOwn(assessmentBody.skySiteAssessment, 'probability'), false);
   assert.equal(calls.filter((item) => item.url.includes('/v1/dem/horizon')).length, 1);
 });
