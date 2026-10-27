@@ -70,6 +70,37 @@ jobs:
       - name: Run tests
         run: flutter test --reporter expanded
 
+  android-debug-build:
+    name: Build Android debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Compile Android debug APK
+        run: flutter build apk --debug --no-pub
+
+      - name: Verify APK exists
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
+
   data-broker:
     name: Test data broker
     runs-on: ubuntu-latest
@@ -221,6 +252,7 @@ jobs:
     if: always()
     needs:
       - quality
+      - android-debug-build
       - data-broker
       - context-service
       - discovery-service
@@ -235,6 +267,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
+          ANDROID_BUILD_RESULT: ${{ needs['android-debug-build'].result }}
           DATA_BROKER_RESULT: ${{ needs['data-broker'].result }}
           CONTEXT_RESULT: ${{ needs['context-service'].result }}
           DISCOVERY_RESULT: ${{ needs['discovery-service'].result }}
@@ -245,6 +278,7 @@ jobs:
           script: |
             const results = {
               flutter: process.env.QUALITY_RESULT,
+              androidBuild: process.env.ANDROID_BUILD_RESULT,
               dataBroker: process.env.DATA_BROKER_RESULT,
               context: process.env.CONTEXT_RESULT,
               discovery: process.env.DISCOVERY_RESULT,
