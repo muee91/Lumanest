@@ -552,10 +552,15 @@ class V5EntryPayload(ApiModel):
 
 
 class V5EntryPresentation(ApiModel):
+    # Mirrors `EntryPresentationVariant` in lib/src/core/entry/context_entry.dart.
+    # `nextWindow` is produced by the client's local window resolver, so this
+    # service never emits it, but the two enumerations must stay identical or a
+    # projected entry fails the client's closed-set parse.
     variant: Literal[
         "safety",
         "shootingSession",
         "skyOpportunity",
+        "nextWindow",
         "manifestOpportunity",
         "quiet",
     ]
