@@ -53,6 +53,7 @@ async function withServer(run, {
   qweatherApiHost = 'https://project.qweatherapi.com',
   weatherCache,
   requestRateLimiter,
+  trustedProxyAddresses,
   contextSnapshotStore,
   simulationRegistry,
   now,
@@ -87,6 +88,7 @@ async function withServer(run, {
     qweatherApiHost,
     weatherCache,
     requestRateLimiter,
+    trustedProxyAddresses,
     contextSnapshotStore,
     simulationRegistry,
     now,
@@ -1009,6 +1011,48 @@ test('global AI switch disables discovery model extraction', async () => {
   assert.equal(upstreamCalls, 0);
 });
 
+test('discovery extract reads the payload size a real eight-source CJK extraction produces', async () => {
+  // `validDiscoveryExtractRequest` allows eight evidence pieces with 1,200
+  // characters each. Chinese snippets are three bytes per character, so a
+  // legitimate worker request lands near 30 KB — above the former 16 KB reader
+  // ceiling, which rejected it before validation and surfaced as the same
+  // opaque 400 a schema violation produces.
+  const snippet = '盐官古城地处钱塘江北岸，以观潮文化和传统街巷为主要特征。'.repeat(40);
+  const evidence = Array.from({ length: 8 }, (_, index) => ({
+    title: `盐官古城官方公告第${index}条`,
+    snippet,
+    url: `https://www.haining.gov.cn/art/2026/10/29/art_1688462_${index}.html`,
+    sourceId: 'haining-government-open',
+    publisher: '海宁市人民政府',
+    license: '政府信息公开内容；仅摘要并保留来源链接',
+    version: '2026-07-29',
+    qualityTier: 'A',
+  }));
+  const body = JSON.stringify({
+    missionType: 'localStories',
+    focus: '海宁·硖石 区域探索资料',
+    locale: 'zh-CN',
+    region: { latitude: 30.45, longitude: 120.67 },
+    evidence,
+  });
+  assert.ok(Buffer.byteLength(body) > 16 * 1_024);
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/internal/v1/discovery/extract`, {
+      method: 'POST',
+      headers: { 'X-Discovery-Worker-Token': 'worker-secret', 'Content-Type': 'application/json' },
+      body,
+    });
+    // Reaching the AI switch proves the body was read and validated; the old
+    // ceiling answered 400 invalid_discovery_extract_request instead.
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: 'ai_unconfigured' });
+  }, {
+    aiApiKey: 'model-secret',
+    discoveryWorkerToken: 'worker-secret',
+    settings: { aiEnabled: false },
+  });
+});
+
 test('context snapshot accepts only the current bounded contract and forwards with an internal token', async () => {
   let upstreamRequest;
   const requestBody = {
@@ -1256,6 +1300,130 @@ test('discovery uses its own bounded rate-limit policy', async () => {
       missionType: 'humanityEvents', status: 'pending', generatedAt: '2026-07-20T02:00:00Z',
       expiresAt: null, retryAfterSeconds: 30, items: [],
     }), { status: 202, headers: { 'Content-Type': 'application/json' } }),
+  });
+});
+
+test('internal discovery endpoints carry their own rate budget', async () => {
+  let upstreamCalls = 0;
+  const consumed = [];
+  const limiter = {
+    async consume(input) {
+      consumed.push(input);
+      // Refuse everything after the first call so the 429 path is exercised
+      // without spending a real minute on 120 upstream calls.
+      return { allowed: consumed.length === 1, retryAfterSeconds: 30 };
+    },
+  };
+  await withServer(async (baseUrl) => {
+    const options = {
+      method: 'POST',
+      headers: {
+        'X-Discovery-Worker-Token': 'worker-secret',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '海宁 摄影 展览', locale: 'zh-CN', freshnessDays: 7, domains: [] }),
+    };
+    assert.equal((await fetch(`${baseUrl}/internal/v1/discovery/search`, options)).status, 200);
+    const limited = await fetch(`${baseUrl}/internal/v1/discovery/search`, options);
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers.get('retry-after'), '30');
+    assert.equal(upstreamCalls, 1, 'a rate-limited call must never reach the paid upstream');
+    assert.equal(consumed.length, 2);
+    assert.match(consumed[0].key, /^internal-discovery:[a-f0-9]{24}$/);
+    // The budget must be finite and its own bucket, not the /v1 default.
+    assert.equal(consumed[0].limit, 120);
+    assert.equal(consumed[0].windowMs, 60_000);
+  }, {
+    discoveryWorkerToken: 'worker-secret',
+    discoverySearchProfile: {
+      baseUrl: 'https://api.tavily.com', apiKey: 'tavily-super-secret', enabled: true,
+      timeoutMs: 8_000,
+      sourcePolicies: [{
+        id: 'culture', domain: 'culture.example.gov.cn', attribution: '文化发布',
+        license: 'CC BY 4.0', version: '2026-07', enabled: true,
+      }],
+    },
+    requestRateLimiter: limiter,
+    fetcher: async () => {
+      upstreamCalls += 1;
+      return new Response(JSON.stringify({ results: [] }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+});
+
+test('X-Forwarded-For is only honoured for a declared proxy peer', async () => {
+  // /v1/weather/7timer validates its body after the rate check, so a 400 still
+  // proves which bucket the request landed in without calling any upstream.
+  const requestWith = (baseUrl, forwarded) => fetch(`${baseUrl}/v1/weather/7timer`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer test-service-token',
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': forwarded,
+    },
+    body: JSON.stringify({}),
+  });
+
+  const trustedKeys = [];
+  const trustedLimiter = {
+    async consume({ key }) {
+      trustedKeys.push(key);
+      return { allowed: true, retryAfterSeconds: 30 };
+    },
+  };
+  await withServer(async (baseUrl) => {
+    await requestWith(baseUrl, '203.0.113.1');
+    await requestWith(baseUrl, '203.0.113.2');
+  }, {
+    trustedProxyAddresses: ['::ffff:127.0.0.1', '127.0.0.1', '::1'],
+    requestRateLimiter: trustedLimiter,
+  });
+  // Two forwarded addresses behind a declared proxy are two buckets, so one
+  // client can no longer exhaust the shared bucket for everybody.
+  assert.equal(trustedKeys.length, 2);
+  assert.notEqual(trustedKeys[0], trustedKeys[1]);
+
+  // Without a declared proxy the header is attacker-controlled, so rotating it
+  // must not mint a fresh bucket.
+  const untrustedKeys = [];
+  const untrustedLimiter = {
+    async consume({ key }) {
+      untrustedKeys.push(key);
+      return { allowed: true, retryAfterSeconds: 30 };
+    },
+  };
+  await withServer(async (baseUrl) => {
+    await requestWith(baseUrl, '198.51.100.1');
+    await requestWith(baseUrl, '198.51.100.2');
+  }, {
+    requestRateLimiter: untrustedLimiter,
+  });
+  assert.equal(untrustedKeys.length, 2);
+  assert.equal(untrustedKeys[0], untrustedKeys[1], 'an untrusted header must not change the bucket');
+});
+
+test('an unexpected handler throw becomes 500 internal_error instead of killing the process', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/sky-opportunities?latitude=30.2&longitude=120.1`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: 'internal_error' });
+
+    // The server is still serving: a process-killing throw would have made this
+    // request fail at the socket level.
+    const health = await fetch(`${baseUrl}/healthz`);
+    assert.equal(health.status, 200);
+  }, {
+    // A limiter that throws stands in for any unhandled exception on a handler
+    // path; no code below the top level is expected to guard against this.
+    requestRateLimiter: {
+      async consume() {
+        throw new TypeError('boom');
+      },
+    },
   });
 });
 

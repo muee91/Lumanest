@@ -3,6 +3,7 @@ const contractVersion = 2;
 const activationTypes = new Set([
   'user_manual',
   'foreground_opportunistic',
+  'ai_verification',
 ]);
 const physicalScenes = new Set([
   'unknown', 'urban', 'village', 'mountain', 'plateau', 'desert', 'forest',

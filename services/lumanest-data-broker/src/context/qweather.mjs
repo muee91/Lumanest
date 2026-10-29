@@ -7,6 +7,15 @@ import { createQWeatherJwt } from '../jwt.mjs';
 const freshCacheMilliseconds = 5 * 60 * 1_000;
 const staleCacheMilliseconds = 2 * 60 * 60 * 1_000;
 
+// QWeather refreshes `/v7/weather/now` roughly every 15 minutes, so a healthy
+// observation is routinely 20+ minutes old by the time it reaches us. The
+// previous 30-minute window treated a single missed upstream update as stale,
+// which propagated into `ContextSnapshot.stale` and made the assistant reject
+// every snapshot carrying a slightly lagging observation. This window absorbs
+// routine upstream lag while still withholding genuinely old readings.
+const observationStaleMilliseconds = 60 * 60 * 1_000;
+const observationFutureToleranceMilliseconds = 5 * 60 * 1_000;
+
 function finite(value, minimum, maximum) {
   const parsed = typeof value === 'string' ? Number.parseFloat(value) : value;
   return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : null;
@@ -105,7 +114,8 @@ function normalizedCurrent(body, fetchedAt) {
     visibilityKm: visibility,
     cloudCoverPercent: finite(value.cloud, 0, 100),
     thunder: thunderFromIcon(value.icon),
-    stale: observationAge > 30 * 60 * 1_000 || observationAge < -5 * 60 * 1_000,
+    stale: observationAge > observationStaleMilliseconds ||
+      observationAge < -observationFutureToleranceMilliseconds,
   };
 }
 

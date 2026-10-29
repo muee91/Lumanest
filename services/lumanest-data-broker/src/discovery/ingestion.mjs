@@ -20,6 +20,10 @@ const allowedSceneTags = new Set([
   'openRoad', 'openHorizon', 'darkSky', 'reviewedPeak', 'reviewedViewpoint',
   'reflectiveSurface',
 ]);
+// The prompt must spell out the enum: without it the model translated the tags
+// into Chinese (["街区","甜爱路"]), the parser rejected the whole payload
+// because one tag was outside the whitelist, and every extraction was lost.
+const sceneTagEnumeration = [...allowedSceneTags].join('|');
 const prohibitedTerms = /(?:safety|risk|danger|warning|species|wildlife|animal|permit|route|popularity|热度|安全|风险|预警|物种|动物|许可|路线)/iu;
 const unsafeFocusTerms = /(?:safety|risk|danger|warning|species|wildlife|animal|安全|风险|预警|物种|野生动物)/iu;
 
@@ -61,7 +65,7 @@ function normalizedDomain(value, policies) {
 
 export function validDiscoverySearchRequest(body, sourcePolicies = []) {
   if (!isPlainObject(body) || Object.keys(body).some((key) => !searchKeys.has(key))) return false;
-  if (text(body.query, 2, 180) == null || !/^[\p{L}\p{N}\s\-_'.,，。？！、（）()]+$/u.test(body.query)) return false;
+  if (text(body.query, 2, 180) == null || !/^[\p{L}\p{N}\s\-_'.,，。？！、（）()·《》【】—～“”‘’]+$/u.test(body.query)) return false;
   if (typeof body.locale !== 'string' || !/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(body.locale)) return false;
   // Some region-identity material is deliberately evergreen: applying a
   // rolling "recent" filter to history, craft, etiquette, or local food makes
@@ -205,7 +209,7 @@ export function discoveryExtractionPrompt(body) {
     culturalEtiquette: '只提取来源明确的文化礼仪，不得把礼仪解释为法律、许可或安全规则。',
   }[body.missionType];
   return {
-    system: `你是摄影探索资料的结构化编辑。${missionRule}只能从给定来源证据中提取候选地点和区域事实；不得补充事实、热度、许可、路线、安全、风险、野生动物、物种或个人信息。坐标仅可在来源明确给出且靠近指定区域时返回。若返回 coordinate，必须返回 coordinateEvidence：它必须是来源原文中可直接找到的“纬度,经度”或“经度,纬度”坐标文本，且数值必须与 coordinate 完全对应。areaIdentity 只能描述来源明确的区域名称、类型或形成背景；orientation 只能描述来源明确的入口、核心区域、地标或区域内部相对方位，不得依据坐标自行计算或推断。区域事实的 factText 必须是来源中可直接找到的连续原文，summary 必须是 factText 的不增义缩短。只输出 JSON：{"candidates":[{"title":"不超过80字","kind":"candidate_viewpoint|attraction|event","summary":"不超过180字","sourceIndexes":[0],"coordinate":{"latitude":0,"longitude":0},"coordinateEvidence":"30.280,120.130","startsAt":"ISO 时间","endsAt":"ISO 时间"}],"insights":[{"type":"areaIdentity|orientation|history|localStory|architecture|culturalPractice|etiquette|performance|event|market|localFood|specialty|naturalFeature|photographyTheme|routeStop|supply|openingStatus|regulation|seasonalSignal","title":"不超过120字","summary":"不超过280字","factText":"来源原文连续片段","sourceIndexes":[0],"startsAt":"ISO 时间","endsAt":"ISO 时间","timeSensitive":false,"actionability":"informational|detail|remind","sceneTags":["oldTown"],"photoThemeTags":["传统建筑"]}]}。候选最多 6 项，insights 最多 8 项；每项 sourceIndexes 必须引用证据数组索引。`,
+    system: `你是摄影探索资料的结构化编辑。${missionRule}只能从给定来源证据中提取候选地点和区域事实；不得补充事实、热度、许可、路线、安全、风险、野生动物、物种或个人信息。坐标仅可在来源明确给出且靠近指定区域时返回。若返回 coordinate，必须返回 coordinateEvidence：它必须是来源原文中可直接找到的“纬度,经度”或“经度,纬度”坐标文本，且数值必须与 coordinate 完全对应。areaIdentity 只能描述来源明确的区域名称、类型或形成背景；orientation 只能描述来源明确的入口、核心区域、地标或区域内部相对方位，不得依据坐标自行计算或推断。区域事实的 factText 必须是来源中可直接找到的连续原文，summary 必须是 factText 中连续出现的一段（原文子串，不得改写、不得增删字词、不得补标点）。sceneTags 与 photoThemeTags 必须始终返回数组，没有可对应的值时返回空数组；sceneTags 只能从以下英文枚举原值中选择（不得翻译成中文、不得自造枚举外的新值）：${sceneTagEnumeration}。只输出 JSON：{"candidates":[{"title":"不超过80字","kind":"candidate_viewpoint|attraction|event","summary":"不超过180字","sourceIndexes":[0],"coordinate":{"latitude":0,"longitude":0},"coordinateEvidence":"30.280,120.130","startsAt":"ISO 时间","endsAt":"ISO 时间"}],"insights":[{"type":"areaIdentity|orientation|history|localStory|architecture|culturalPractice|etiquette|performance|event|market|localFood|specialty|naturalFeature|photographyTheme|routeStop|supply|openingStatus|regulation|seasonalSignal","title":"不超过120字","summary":"不超过280字","factText":"来源原文连续片段","sourceIndexes":[0],"startsAt":"ISO 时间","endsAt":"ISO 时间","timeSensitive":false,"actionability":"informational|detail|remind","sceneTags":["oldTown"],"photoThemeTags":["传统建筑"]}]}。候选最多 6 项，insights 最多 8 项；每项 sourceIndexes 必须引用证据数组索引。`,
     user: JSON.stringify({ missionType: body.missionType, focus: body.focus, locale: body.locale, region: body.region, evidence: body.evidence }),
   };
 }

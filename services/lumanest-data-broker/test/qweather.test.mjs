@@ -156,6 +156,38 @@ test('authoritative weather uses a bounded stale cache and rejects arbitrary hos
   assert.deepEqual(invalid, { ok: false, error: 'not_configured' });
 });
 
+test('a routine upstream lag does not mark fresh weather as stale', async () => {
+  // `/v7/weather/now` refreshes about every 15 minutes, so a healthy reading is
+  // often 20-40 minutes old. Treating that as stale made every context snapshot
+  // stale and forced the assistant to reject it with `snapshot_expired`.
+  const options = {
+    coordinate,
+    apiHost: 'https://project.qweatherapi.com',
+    privateKey,
+    keyId: 'key-id',
+    projectId: 'project-id',
+    cache: new MemoryWeatherCache(),
+    fetcher: async (url) => response(url.pathname),
+  };
+
+  // obsTime is 02:00Z; 40 minutes of lag is ordinary, not degraded.
+  const lagging = await authoritativeWeather({
+    ...options,
+    now: () => new Date('2026-07-14T02:40:00Z'),
+  });
+  assert.equal(lagging.ok, true);
+  assert.equal(lagging.body.weather.stale, false);
+
+  // An hour-plus-old reading is genuinely stale and must stay flagged.
+  const old = await authoritativeWeather({
+    ...options,
+    cache: new MemoryWeatherCache(),
+    now: () => new Date('2026-07-14T03:20:00Z'),
+  });
+  assert.equal(old.ok, true);
+  assert.equal(old.body.weather.stale, true);
+});
+
 test('incomplete warning cache refreshes online and degrades safely offline', async () => {
   const cache = new RecordingCache();
   const base = {

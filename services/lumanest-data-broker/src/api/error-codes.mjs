@@ -25,6 +25,7 @@ export const apiErrorCodes = Object.freeze({
   discoveryUnconfigured: 'discovery_unconfigured',
   emptyDataseries: 'empty_dataseries',
   emptyQuery: 'empty_query',
+  internalError: 'internal_error',
   invalidAssistantRequest: 'invalid_assistant_request',
   invalidBody: 'invalid_body',
   invalidCalibrationBundle: 'invalid_calibration_bundle',

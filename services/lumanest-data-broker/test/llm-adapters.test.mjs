@@ -31,6 +31,21 @@ test('OpenAI-compatible adapter sends chat completions and extracts content', as
   assert.deepEqual(result, { ok: true, text: '{"summary":"ok"}' });
 });
 
+test('OpenAI-compatible adapter reserves completion budget for reasoning models', async () => {
+  let captured;
+  await requestNarrative({
+    profile: profile('openai_compatible'), prompt,
+    fetcher: async (url, options) => {
+      captured = { url, options };
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] }), { status: 200 });
+    },
+  });
+  const body = JSON.parse(captured.options.body);
+  // A reasoning model spends this ceiling on its private reasoning before the
+  // visible answer; anything smaller returns empty content and invalid_response.
+  assert.equal(body.max_tokens, 8192);
+});
+
 test('OpenAI-compatible adapter omits authorization for keyless Ollama', async () => {
   let headers;
   await requestNarrative({

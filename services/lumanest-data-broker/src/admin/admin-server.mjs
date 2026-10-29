@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
-import { isLanAddress } from './lan-address.mjs';
+import { isLanAddress, isLanHostHeader } from './lan-address.mjs';
 import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
@@ -168,10 +168,33 @@ function safeConfiguration(snapshot, outboundNetwork) {
   };
 }
 
+function clearCookieHeader(secure) {
+  return `lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? '; Secure' : ''}`;
+}
+
+// A same-origin console request either omits `Origin` (form-free GET, older
+// browsers) or sends the exact host it is talking to. Anything else is a page
+// on another origin driving the operator's session, so it is refused before
+// authentication is even consulted.
+function originAllowed(origin, allowedHosts) {
+  if (origin == null) return true;
+  if (typeof origin !== 'string' || origin.length === 0) return false;
+  let parsed;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  return isLanHostHeader(parsed.host, { allowedHosts });
+}
+
 export function createAdminServer({
   authService,
   runtimeConfig,
   auditLog,
+  allowedHosts = [],
+  secureCookies = false,
   testConnection = async () => ({ status: 'ok' }),
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   listLLMModels = async () => ({ ok: false, error: apiErrorCodes.upstreamUnavailable }),
@@ -195,7 +218,13 @@ export function createAdminServer({
 }) {
   return createServer(async (request, response) => {
     const remoteAddress = request.socket.remoteAddress;
-    if (!isLanAddress(remoteAddress)) {
+    // The socket address alone cannot prove the caller is local: behind the
+    // Docker userland proxy every request arrives from the bridge gateway
+    // (172.17.0.1), which is private even when the port is published publicly.
+    // The `Host` header is what the caller actually addressed, so a public
+    // domain reaching the published port is refused here.
+    if (!isLanAddress(remoteAddress) ||
+        !isLanHostHeader(request.headers.host, { allowedHosts })) {
       json(response, 403, { error: apiErrorCodes.lanOnly });
       return;
     }
@@ -214,6 +243,12 @@ export function createAdminServer({
 
     const sessionToken = cookieToken(request.headers.cookie);
     const changing = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
+    // CSRF tokens already gate every write, but a cross-origin page must not be
+    // able to reach the console at all. An Origin the operator did not declare
+    // is refused before any credential is checked.
+    if (changing && !originAllowed(request.headers.origin, allowedHosts)) {
+      return json(response, 403, { error: apiErrorCodes.lanOnly });
+    }
     const authentication = await authService.authenticate({
       sessionToken,
       csrfToken: request.headers['x-csrf-token'],
@@ -231,7 +266,7 @@ export function createAdminServer({
     if (request.method === 'POST' && url.pathname === '/admin-api/logout') {
       await authService.logout(sessionToken);
       return json(response, 200, { ok: true }, {
-        'Set-Cookie': 'lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+        'Set-Cookie': clearCookieHeader(secureCookies),
       });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/config') {
@@ -545,7 +580,7 @@ export function createAdminServer({
         }
         auditLog.record({ operation: 'change_password', result: 'ok' });
         return json(response, 200, { ok: true }, {
-          'Set-Cookie': 'lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+          'Set-Cookie': clearCookieHeader(secureCookies),
         });
       } catch {
         auditLog.record({ operation: 'change_password', result: 'invalid_password' });

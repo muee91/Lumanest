@@ -47,6 +47,7 @@ export class AdminAuthService {
   #state = null;
   #failures = new Map();
   #operationQueue = Promise.resolve();
+  #secureCookies = false;
 
   constructor({
     filePath,
@@ -54,6 +55,10 @@ export class AdminAuthService {
     now = () => new Date(),
     randomBytesGenerator = randomBytes,
     fileSystem = defaultFileSystem,
+    // The console is served over plain HTTP on the LAN, where `Secure` would
+    // make the browser drop the cookie outright. A deployment that terminates
+    // TLS in front of it opts in here so the session never travels in clear.
+    secureCookies = false,
   }) {
     if (typeof filePath !== 'string' || filePath.length === 0) {
       throw new TypeError('Administrator auth file path is required');
@@ -63,6 +68,11 @@ export class AdminAuthService {
     this.#now = now;
     this.#randomBytes = randomBytesGenerator;
     this.#fileSystem = fileSystem;
+    this.#secureCookies = secureCookies;
+  }
+
+  get #cookieSuffix() {
+    return this.#secureCookies ? '; Secure' : '';
   }
 
   initialize() {
@@ -133,7 +143,7 @@ export class AdminAuthService {
         ok: true,
         sessionToken,
         csrfToken,
-        cookie: `lumanest_admin=${sessionToken}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000`,
+        cookie: `lumanest_admin=${sessionToken}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${this.#cookieSuffix}`,
       };
     });
   }

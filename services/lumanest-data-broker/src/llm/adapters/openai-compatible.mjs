@@ -1,3 +1,15 @@
+// Reasoning models (DeepSeek V4 Flash, OpenAI o-series, …) bill their private
+// reasoning against the same completion ceiling as the visible answer. Measured
+// against deepseek-v4-flash: a long extraction prompt spends ~3.7k reasoning
+// tokens before emitting ~2k characters of JSON. A 2048 ceiling therefore ended
+// with `finish_reason: "length"`, empty `content`, and an `invalid_response`
+// failure for every call; 4096 was still consumed entirely by reasoning. 8192
+// is the smallest ceiling observed to let reasoning finish and leave the visible
+// JSON intact. This is an upper bound, not a reservation — cost follows actual
+// token usage, so a ceiling large enough to finish is cheaper than a ceiling that
+// burns tokens and produces nothing.
+const completionTokenCeiling = 8192;
+
 export function openAICompatibleRequest(profile, prompt) {
   const headers = { 'Content-Type': 'application/json' };
   if (profile.apiKey) headers.Authorization = `Bearer ${profile.apiKey}`;
@@ -10,13 +22,7 @@ export function openAICompatibleRequest(profile, prompt) {
       body: JSON.stringify({
         model: profile.model,
         temperature: 0.3,
-        // DeepSeek's reasoning models (deepseek-v4-flash etc.) spend tokens
-        // on an internal reasoning_content before the visible content. The
-        // 300-token ceiling that was fine for non-reasoning models truncated
-        // the visible JSON mid-answer (invalid_json) or starved it to empty
-        // (invalid_response). 2048 comfortably covers reasoning + the ≤80
-        // character answer the prompt asks for.
-        max_tokens: 2048,
+        max_tokens: completionTokenCeiling,
         stream: false,
         messages: [
           { role: 'system', content: prompt.system },

@@ -39,6 +39,17 @@ services:
       LUMANEST_ADMIN_BOOTSTRAP_PASSWORD: ${LUMANEST_ADMIN_BOOTSTRAP_PASSWORD:-}
       LUMANEST_ADMIN_PASSWORD: ${LUMANEST_ADMIN_PASSWORD:-}
       LUMANEST_SIMULATION_ENABLED: ${LUMANEST_SIMULATION_ENABLED:-false}
+      # Socket addresses of reverse proxies we run ourselves, comma separated.
+      # Empty keeps X-Forwarded-For untrusted, so each client is keyed by its
+      # socket address instead of a spoofable header.
+      LUMANEST_TRUSTED_PROXY_ADDRESSES: ${LUMANEST_TRUSTED_PROXY_ADDRESSES:-}
+      # Extra host names the admin console accepts beyond loopback, private IP
+      # literals and `.local`. Needed only for a split-horizon name or a proxy
+      # that rewrites Host; a public domain stays refused.
+      LUMANEST_ADMIN_ALLOWED_HOSTS: ${LUMANEST_ADMIN_ALLOWED_HOSTS:-}
+      # Set to true only when TLS terminates in front of the admin console, so
+      # the session cookie is marked Secure.
+      LUMANEST_ADMIN_SECURE_COOKIES: ${LUMANEST_ADMIN_SECURE_COOKIES:-false}
       CONTEXT_SERVICE_URL: http://context-service:8000
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
