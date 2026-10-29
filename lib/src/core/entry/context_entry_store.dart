@@ -61,11 +61,15 @@ abstract interface class ContextEntryStore {
 }
 
 class InMemoryContextEntryStore implements ContextEntryStore {
-  InMemoryContextEntryStore()
-    : _current = EntryStoreSnapshot(revision: 0, entries: const {});
+  InMemoryContextEntryStore({DateTime Function()? now})
+    : _now = now ?? DateTime.now,
+      _current = EntryStoreSnapshot(revision: 0, entries: const {});
 
   final StreamController<EntryDelta> _changes =
       StreamController<EntryDelta>.broadcast(sync: true);
+  // Expiry is decided once, at the moment a batch is applied. Keeping the
+  // clock injectable lets tests pin it instead of racing the real one.
+  final DateTime Function() _now;
   EntryStoreSnapshot _current;
 
   @override
@@ -79,10 +83,11 @@ class InMemoryContextEntryStore implements ContextEntryStore {
     final previous = _current;
     final candidate = <String, ContextEntry>{...previous.entries};
     final touched = <String>{};
+    final appliedAt = _now();
     for (final entry in batch.entries) {
       if (entry.id.isEmpty ||
           entry.sourceId.isEmpty ||
-          entry.isExpiredAt(DateTime.now())) {
+          entry.isExpiredAt(appliedAt)) {
         continue;
       }
       final existing = previous.entries[entry.id];

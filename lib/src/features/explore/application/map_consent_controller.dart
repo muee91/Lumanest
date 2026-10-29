@@ -64,6 +64,8 @@ class MapConsentController extends Notifier<MapConsentState> {
 
   Future<void> _restore() async {
     final restored = await ref.read(mapConsentStoreProvider).readGranted();
+    // The SDK privacy call and the state write must not run after disposal.
+    if (!ref.mounted) return;
     if (_changedThisSession || restored != true) return;
 
     _updatePrivacyAgreement(hasAgree: true);

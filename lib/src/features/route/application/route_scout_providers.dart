@@ -47,7 +47,6 @@ final routeScoutPlanProvider = FutureProvider.autoDispose
         durationSeconds: request.route.durationSeconds,
         departureAt: now,
         routeSeed: request.routeKey,
-        maximumSamples: 5,
       );
       final weatherFuture = _optionalWeather(
         ref.watch(routeWeatherRepositoryProvider),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luma_nest/src/generated/opportunity_catalog.g.dart';
@@ -63,6 +64,33 @@ void main() {
         containsAll((prompt['equipmentRequirement'] as List<Object?>)),
       );
     }
+  });
+
+  test('generated mirrors are byte-equivalent to the hand-maintained catalog', () {
+    // Every other assertion here reads the generated Dart string, so a
+    // generator that copied the wrong source document would still pass: the
+    // test and the generator would be wrong together. This reads the four
+    // hand-maintained JSON documents directly and compares item by item.
+    final pairs = {
+      'opportunities.v1.json': generatedOpportunityCatalogJson,
+      'timing-policies.v1.json': generatedTimingPoliciesJson,
+      'tags.v1.json': generatedCanonicalTagsJson,
+      'creative-prompts.v1.json': generatedCreativePromptsJson,
+    };
+    for (final entry in pairs.entries) {
+      final source =
+          jsonDecode(File('catalog/${entry.key}').readAsStringSync())
+              as Map<String, Object?>;
+      expect(
+        _objects(entry.value),
+        source['items'],
+        reason: '${entry.key} 与生成的 Dart 镜像不一致，需重新运行 generate_catalog.py',
+      );
+    }
+    final opportunities =
+        jsonDecode(File('catalog/opportunities.v1.json').readAsStringSync())
+            as Map<String, Object?>;
+    expect(opportunityCatalogVersion, opportunities['catalogVersion']);
   });
 }
 

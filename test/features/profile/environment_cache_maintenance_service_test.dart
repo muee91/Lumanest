@@ -15,7 +15,7 @@ void main() {
     () async {
       final cache = InMemoryContextCache();
       final wildlifeCache = _FakeWildlifeMapLayerCache();
-      final now = DateTime.now().toUtc();
+      final now = DateTime.utc(2026, 7, 18, 10);
       await cache.write(
         ContextSnapshot(
           id: 'local-cache',
@@ -31,6 +31,11 @@ void main() {
         overrides: [
           contextCacheProvider.overrideWithValue(cache),
           wildlifeMapLayerCacheProvider.overrideWithValue(wildlifeCache),
+          // Freshness must be decided against the app clock, not the wall
+          // clock, or this test starts failing ten minutes after it is written.
+          currentTimeProvider.overrideWithValue(
+            () => now.add(const Duration(minutes: 5)),
+          ),
         ],
       );
       addTearDown(container.dispose);

@@ -46,6 +46,9 @@ class EnvironmentConsentController extends Notifier<bool> {
     final restored = await ref
         .read(environmentConsentStoreProvider)
         .readGranted();
+    // Guarded like every other post-await write: the provider can be disposed
+    // while the persisted value is still loading.
+    if (!ref.mounted) return;
     if (!_changedThisSession && restored == true) state = true;
   }
 

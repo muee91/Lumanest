@@ -29,7 +29,9 @@ void main() {
     expect(find.text('1月3日 · 夜间'), findsOneWidget);
   });
 
-  final now = DateTime.now().toUtc();
+  // Pinned so the rendered labels never depend on the wall clock; `_host`
+  // already drives the page through the same instant.
+  final now = DateTime.utc(2026, 7, 18, 10);
 
   testWidgets('warning stays in the top-right while photography remains hero', (
     tester,

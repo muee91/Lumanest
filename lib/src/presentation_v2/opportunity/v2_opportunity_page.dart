@@ -13,6 +13,7 @@ import 'package:luma_nest/src/core/photography/field_environment_selector.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/photography/target_arrival_state.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
+import 'package:luma_nest/src/features/location/application/location_services.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
@@ -196,7 +197,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
       // Field arrival must use a real foreground device fix. Manual/base-region
       // fallbacks are valid for environment lookup but must never auto-confirm
       // physical arrival at a reviewed shooting target.
-      final reading = await ref.read(locationRepositoryProvider).current();
+      final reading = await ref.read(deviceLocationFixServiceProvider).current();
       if (!mounted || !_fieldModeForeground) return;
       setState(() {
         _locationReading = reading;
@@ -352,7 +353,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
                       decision: decision,
                       target: target,
                       facts: fieldFacts,
-                      dataObservedAt: fieldSnapshot?.observedAt,
+                      dataObservedAt: fieldSnapshot?.snapshotGeneratedAt,
                       directionDegrees:
                           decision.phase?.directionDegrees ??
                           target.viewBearingDegrees,

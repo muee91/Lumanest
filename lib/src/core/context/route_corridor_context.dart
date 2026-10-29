@@ -28,11 +28,19 @@ class RouteCorridorSample {
 }
 
 class RouteCorridorContext {
+  // These mirror the Broker's contract in context/proxy.mjs: at most three
+  // samples and a routeId matching {1,64}. Allowing more only produced requests
+  // the server rejected, so the client now refuses to build one.
+  static const maximumSamples = 3;
+  static const maximumRouteIdLength = 64;
+
   RouteCorridorContext({
     required this.routeId,
     required Iterable<RouteCorridorSample> samples,
   }) : samples = List.unmodifiable(samples) {
-    if (routeId.isEmpty || routeId.length > 160 || this.samples.length > 5) {
+    if (routeId.isEmpty ||
+        routeId.length > maximumRouteIdLength ||
+        this.samples.length > maximumSamples) {
       throw ArgumentError('invalid transient route corridor');
     }
   }
@@ -60,7 +68,7 @@ class RouteCorridorContext {
     if (polyline.length < 2 ||
         durationSeconds < 1 ||
         maximumSamples < 2 ||
-        maximumSamples > 5) {
+        maximumSamples > RouteCorridorContext.maximumSamples) {
       throw ArgumentError(
         'a loaded route with duration and at least two points is required',
       );

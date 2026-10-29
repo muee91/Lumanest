@@ -190,7 +190,8 @@ class EnvironmentVisualization {
             lowCloudCoverPercent: atmosphere?.lowCloudCoverPercent,
             middleCloudCoverPercent: atmosphere?.middleCloudCoverPercent,
             highCloudCoverPercent: atmosphere?.highCloudCoverPercent,
-            observedAt: usableSky?.current.observedAt ?? snapshot.observedAt,
+            observedAt:
+                usableSky?.current.observedAt ?? snapshot.weatherObservedAt,
             expiresAt: usableSky?.expiresAt ?? snapshot.expiresAt,
             isStale:
                 snapshot.isStale ||

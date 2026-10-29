@@ -64,6 +64,19 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # `app_database.g.dart` is checked in and hand-editing it is forbidden
+      # (AGENTS.md §11.1), but nothing verified it matched the table definitions.
+      # Regenerate and fail on any drift in the generated Dart output.
+      - name: Verify Drift generated code is current
+        run: |
+          flutter pub run build_runner build
+          if [ -n "$(git status --porcelain -- lib)" ]; then
+            git status --porcelain -- lib
+            git diff -- lib
+            echo "::error::Generated Dart code is stale. Re-run 'flutter pub run build_runner build' and commit the result."
+            exit 1
+          fi
+
       - name: Analyze
         run: flutter analyze
 

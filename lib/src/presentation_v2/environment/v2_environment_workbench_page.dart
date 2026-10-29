@@ -957,7 +957,7 @@ class _ProvenanceCard extends StatelessWidget {
           ),
           const SizedBox(height: 9),
           Text(
-            '数据状态：${current ? '有效' : '已过期'} · 更新于 ${_dateTime(snapshot.observedAt)}',
+            '数据状态：${current ? '有效' : '已过期'} · 更新于 ${_dateTime(snapshot.snapshotGeneratedAt)}',
             style: TextStyle(
               color: context.v2MutedInk,
               fontSize: 11,

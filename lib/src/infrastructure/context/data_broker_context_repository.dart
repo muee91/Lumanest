@@ -130,6 +130,12 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       if (error.response?.statusCode == 400) {
         throw const RemoteContextFailure(RemoteContextFailureKind.response);
       }
+      // 429 has its own kind: retrying inside the server's rate-limit window is
+      // the one thing guaranteed to make the limiter worse, and the client was
+      // previously treating it as an ordinary network blip.
+      if (error.response?.statusCode == 429) {
+        throw const RemoteContextFailure(RemoteContextFailureKind.rateLimited);
+      }
       if (error.response?.statusCode case final status?
           when status == 502 || status == 503) {
         throw const RemoteContextFailure(
@@ -325,6 +331,16 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         body['stale'] == true ||
         dataFreshness == ContextDataFreshness.stale ||
         weatherFreshness == ContextDataFreshness.stale;
+    // A stale snapshot ships entries that still carry a shooting-session id,
+    // but the sessions themselves are dropped below. Keeping the entry would
+    // make "打开拍摄窗口" a dead action, so the entry goes with the session.
+    final visibleEntries = entries.whereType<ContextEntry>().where(
+      (entry) =>
+          !isStale ||
+          !entry.actions.any(
+            (action) => action.type == EntryActionType.openShootingWindow,
+          ),
+    );
     return ContextSnapshot(
       id: body['contextId']! as String,
       observedAt: weatherObservedAt.toUtc(),
@@ -394,7 +410,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
       routeMode: routeMode,
       routeStage: routeStage,
       allowedActions: actions.cast<ContextAction>(),
-      entries: entries.whereType<ContextEntry>().toList(growable: false),
+      entries: visibleEntries.toList(growable: false),
       canonicalEntriesPresent: true,
     );
   }

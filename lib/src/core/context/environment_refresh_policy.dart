@@ -42,8 +42,9 @@ abstract final class EnvironmentRefreshPolicy {
     if (snapshot == null) return true;
     final localNow = now.toLocal();
     if (!snapshot.expiresAt.toUtc().isAfter(localNow.toUtc())) return true;
-    final generatedAt = (snapshot.remoteGeneratedAt ?? snapshot.observedAt)
-        .toLocal();
+    // The calendar-day boundary belongs to the snapshot that was projected,
+    // not to the weather observation it embeds; the two can differ by hours.
+    final generatedAt = snapshot.snapshotGeneratedAt.toLocal();
     return generatedAt.year != localNow.year ||
         generatedAt.month != localNow.month ||
         generatedAt.day != localNow.day;

@@ -31,9 +31,9 @@ class RiverpodEnvironmentCacheMaintenanceService
         availability: EnvironmentCacheAvailability.absent,
       );
     }
+    final now = _ref.read(currentTimeProvider)();
     final current =
-        !snapshot.isStale &&
-        snapshot.expiresAt.toUtc().isAfter(DateTime.now().toUtc());
+        !snapshot.isStale && snapshot.expiresAt.toUtc().isAfter(now.toUtc());
     return EnvironmentCacheStatus(
       availability: current
           ? EnvironmentCacheAvailability.current

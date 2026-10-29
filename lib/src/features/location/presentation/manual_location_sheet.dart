@@ -9,6 +9,7 @@ import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/application/base_region_controller.dart';
+import 'package:luma_nest/src/features/location/application/location_services.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 
 class ManualLocationSheet extends ConsumerStatefulWidget {
@@ -42,7 +43,7 @@ class _ManualLocationSheetState extends ConsumerState<ManualLocationSheet> {
     });
     try {
       final results = await ref
-          .read(locationSearchRepositoryProvider)
+          .read(locationSearchServiceProvider)
           .search(query);
       if (mounted) setState(() => _results = results);
     } catch (_) {

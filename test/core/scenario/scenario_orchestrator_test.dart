@@ -11,11 +11,16 @@ import 'package:luma_nest/src/core/scenario/scenario_context.dart';
 import 'package:luma_nest/src/core/scenario/scenario_orchestrator.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 
+/// Pinned instead of `DateTime.now()`: the composition policy compares session
+/// windows and entry expiry against "now", so a real clock makes these tests
+/// flaky near a phase boundary and hides expiry regressions.
+final _pinnedNow = DateTime.utc(2026, 7, 18, 10);
+
 void main() {
   _selectTodayTests();
 
   test('Today composition promotes the session without page arbitration', () {
-    final now = DateTime.now().toUtc();
+    final now = _pinnedNow;
     final snapshot = ContextFixtures.lakeSunset(observedAt: now);
     final composition = _compose(snapshot);
 
@@ -32,7 +37,7 @@ void main() {
   test(
     'P0 safety keeps a detail slot without overriding the photography judgement',
     () {
-      final now = DateTime.now().toUtc();
+      final now = _pinnedNow;
       final base = ContextFixtures.lakeSunset(observedAt: now);
       final storm = ContextEvent(
         id: 'thunderstorm',
@@ -84,7 +89,7 @@ void main() {
   );
 
   test('an explicit empty canonical entry list stays quiet', () {
-    final now = DateTime.now().toUtc();
+    final now = _pinnedNow;
     final base = ContextFixtures.lakeSunset(observedAt: now);
     final snapshot = ContextSnapshot(
       id: base.id,

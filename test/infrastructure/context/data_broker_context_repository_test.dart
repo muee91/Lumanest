@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/remote_context_repository.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/context/scene_context.dart';
 import 'package:luma_nest/src/core/entry/context_entry.dart';
+import 'package:luma_nest/src/core/entry/entry_action.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/infrastructure/context/data_broker_context_repository.dart';
@@ -504,6 +505,66 @@ void main() {
     },
   );
 
+  test('stale 快照丢掉依赖拍摄会话的 entry，避免死链动作', () async {
+    // A stale response still ships entries that point at shooting sessions,
+    // while the sessions themselves are dropped. Keeping the entry leaves
+    // "打开拍摄窗口" as an action with nothing behind it.
+    final transport = _FakeTransport()
+      ..mutateResponse = (response) {
+        response['stale'] = true;
+        response['entries'] = [
+          _entryV5Body(surfaces: ['today']),
+          _entryV5Body(
+            surfaces: ['today'],
+            id: 'entry_0123456789abcdef01234568',
+            actionType: 'openExplore',
+            variant: 'quiet',
+          ),
+        ];
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    final result = await repository.fetchSnapshot(
+      location: _location(),
+      observedAt: DateTime.utc(2026, 7, 14, 2),
+    );
+
+    expect(result.isStale, isTrue);
+    expect(result.entries.map((entry) => entry.id), [
+      'entry_0123456789abcdef01234568',
+    ]);
+    expect(
+      result.entries.single.actions.single.type,
+      EntryActionType.openExplore,
+      reason: '只应丢弃指向已删除会话的动作',
+    );
+  });
+
+  test('fresh 快照保留拍摄窗口 entry 与动作', () async {
+    final transport = _FakeTransport()
+      ..mutateResponse = (response) {
+        response['entries'] = [_entryV5Body(surfaces: ['today'])];
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    final result = await repository.fetchSnapshot(
+      location: _location(),
+      observedAt: DateTime.utc(2026, 7, 14, 2),
+    );
+
+    expect(result.isStale, isFalse);
+    expect(result.entries.single.actions.single.type,
+        EntryActionType.openShootingWindow);
+  });
+
   test('服务端授予的通知表面原样到达客户端，未知表面被丢弃', () async {
     final transport = _FakeTransport()
       ..mutateResponse = (response) {
@@ -530,6 +591,35 @@ void main() {
       reason: '能否不请自来是服务端的结论，客户端不得静默丢掉这份授权',
     );
   });
+
+  test('天气观测时刻与快照生成时刻不混为一谈', () async {
+    // `dataFreshness.weatherObservedAt` 是天气观测时刻，`generatedAt` 是这份
+    // 快照被投影出来的时刻。二者语义不同：观测可能比投影早一小时，任何
+    // "更新于"或跨日判定都必须使用后者，否则界面会显示过旧的时刻。
+    final transport = _FakeTransport()
+      ..mutateResponse = (response) {
+        _environment(response)['dataFreshness'] = {
+          'context': 'fresh',
+          'weather': 'fresh',
+          'weatherObservedAt': '2026-07-14T01:00:00Z',
+        };
+        response['generatedAt'] = '2026-07-14T02:00:00Z';
+      };
+    final repository = DataBrokerContextRepository(
+      brokerBaseUrl: 'https://broker.example',
+      serviceToken: 'service-token',
+      transport: transport,
+    );
+
+    final result = await repository.fetchSnapshot(
+      location: _location(),
+      observedAt: DateTime.utc(2026, 7, 14, 2, 30),
+    );
+
+    expect(result.weatherObservedAt, DateTime.utc(2026, 7, 14, 1));
+    expect(result.observedAt, DateTime.utc(2026, 7, 14, 1));
+    expect(result.snapshotGeneratedAt, DateTime.utc(2026, 7, 14, 2));
+  });
 }
 
 LocationReading _location() => LocationReading(
@@ -538,8 +628,13 @@ LocationReading _location() => LocationReading(
   accuracyMeters: 8,
 );
 
-Map<String, Object?> _entryV5Body({required List<String> surfaces}) => {
-  'id': 'entry_0123456789abcdef01234567',
+Map<String, Object?> _entryV5Body({
+  required List<String> surfaces,
+  String id = 'entry_0123456789abcdef01234567',
+  String actionType = 'openShootingWindow',
+  String variant = 'shootingSession',
+}) => {
+  'id': id,
   'kind': 'photographyOpportunity',
   'sourceNamespace': 'contextService.v5',
   'sourceId': 'session.water.evening',
@@ -555,13 +650,13 @@ Map<String, Object?> _entryV5Body({required List<String> surfaces}) => {
   'allowedSurfaces': surfaces,
   'actions': [
     {
-      'type': 'openShootingWindow',
+      'type': actionType,
       'targetId': 'session.water.evening',
       'query': null,
     },
   ],
   'presentation': {
-    'variant': 'shootingSession',
+    'variant': variant,
     'title': '湖岸晚间窗口',
     'shortLabel': '晚间窗口',
     'fallbackSummary': '风与云正在把窗口慢慢打开。',

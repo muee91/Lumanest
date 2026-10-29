@@ -55,6 +55,10 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   String _routeLocation = '/today';
   bool _routeRefreshScheduled = false;
   String? _lastPhotographyWatchReconciliation;
+  /// Reconciliations cancel and re-schedule the same local reminders. Running
+  /// two at once let the older one cancel what the newer one had just queued,
+  /// so each pass waits for the previous one to finish.
+  Future<void> _photographyWatchReconciliationQueue = Future<void>.value();
   AmbientPresetBundle? _ambientPresets;
   Timer? _environmentRefreshTimer;
   DateTime? _environmentRefreshDeadline;
@@ -160,16 +164,18 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         _lastPhotographyWatchReconciliation = reconciliationKey;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          unawaited(
-            ref
+          final operation = _photographyWatchReconciliationQueue.then((_) async {
+            if (!mounted) return;
+            await ref
                 .read(shootingSessionNotificationReconcilerProvider)
                 .reconcile(
                   snapshot: reconciliationSnapshot,
                   library: library,
                   departurePlan: departurePlan,
                   departureInvalidation: departureInvalidation,
-                ),
-          );
+                );
+          });
+          _photographyWatchReconciliationQueue = operation.catchError((_) {});
         });
       }
     }

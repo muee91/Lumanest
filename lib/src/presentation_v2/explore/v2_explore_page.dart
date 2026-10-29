@@ -27,6 +27,7 @@ import 'package:luma_nest/src/features/explore/domain/region_photo_theme_focus.d
 import 'package:luma_nest/src/features/explore/presentation/amap_marker_icon_factory.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/location/application/location_services.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_provider_facts_sheet.dart';
 import 'package:luma_nest/src/presentation_v2/explore/v2_region_brief_expansion.dart';
@@ -546,10 +547,9 @@ class _V2ExploreMapState extends ConsumerState<_V2ExploreMap> {
         _panelFraction = .5;
       });
       try {
-        final snapshot = await ref.read(environmentSnapshotProvider.future);
         final result = await ref
-            .read(locationSearchRepositoryProvider)
-            .search(query, center: snapshot.location);
+            .read(locationSearchServiceProvider)
+            .searchAroundEnvironment(query);
         if (mounted && generation == _searchGeneration) {
           setState(() => _searchResults = AsyncData(result));
         }

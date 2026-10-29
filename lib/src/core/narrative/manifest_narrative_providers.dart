@@ -31,13 +31,20 @@ final manifestNarrativeCoordinatorProvider =
     Provider<ManifestNarrativeCoordinator>((ref) {
       return ManifestNarrativeCoordinator(
         model: ref.watch(manifestNarrativeModelProvider),
-        now: DateTime.now,
+        // Shares the injected clock with the manifest and the composition, so
+        // cache expiry and backoff follow the same instant the UI shows.
+        now: ref.watch(currentTimeProvider),
         logger: ref.watch(appLoggerProvider),
       );
     });
 
+// `ContextSnapshot` has no value equality, so each refresh is a new family key.
+// autoDispose releases the old key together with its in-flight LLM result.
 final manifestNarrativeProvider =
-    FutureProvider.family<ManifestNarrative, ContextSnapshot>((ref, snapshot) {
+    FutureProvider.autoDispose.family<ManifestNarrative, ContextSnapshot>((
+      ref,
+      snapshot,
+    ) {
       final manifest = ref.watch(personalizedManifestProvider(snapshot));
       final personalization = ref.watch(creativePersonalizationProvider);
       return ref

@@ -167,8 +167,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
     // The header describes the environment data currently on screen, not the
     // composition cache's construction time. This keeps a resumed app from
     // carrying a previous UTC calendar date across a local day boundary.
-    final snapshotDate = (snapshot.remoteGeneratedAt ?? snapshot.observedAt)
-        .toLocal();
+    final snapshotDate = snapshot.snapshotGeneratedAt.toLocal();
     final date =
         '${snapshotDate.month}月${snapshotDate.day}日 · ${_phaseLabel(snapshot.dayPhase)}';
     final sessionId = primary.payload is OpportunityEntryPayload
@@ -342,7 +341,7 @@ class _V2CurrentConditions extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '${_time(snapshot.observedAt)} 更新',
+                '${_time(snapshot.weatherObservedAt)} 更新',
                 style: TextStyle(
                   color: context.v2MutedInk,
                   fontSize: 10,

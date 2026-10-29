@@ -77,6 +77,11 @@ class RegionBriefController extends Notifier<RegionBriefState> {
   RegionBriefState build() {
     _retryTimer?.cancel();
     _automaticRetries = 0;
+    // The notifier instance survives a rebuild, so an in-flight load started
+    // under the previous snapshot/profile would still match `_generation` and
+    // commit a brief for inputs that no longer apply. Advancing it here makes
+    // that response stale.
+    _generation++;
     ref.onDispose(() => _retryTimer?.cancel());
     ref.watch(environmentSnapshotProvider);
     ref.watch(explorationSceneProfileProvider);
@@ -86,9 +91,19 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     return const RegionBriefState.idle();
   }
 
-  Future<void> load({bool manual = false, bool verification = false}) async {
-    _retryTimer?.cancel();
+  Future<void> load({bool manual = false, bool verification = false}) {
+    // A user-initiated entry gets a fresh retry budget; the timer's own repeat
+    // must not, or the budget is reset on every attempt and the ceiling of
+    // `_maximumAutomaticRetries` is never reached.
     if (manual || verification) _automaticRetries = 0;
+    return _load(manual: manual, verification: verification);
+  }
+
+  Future<void> _load({
+    required bool manual,
+    required bool verification,
+  }) async {
+    _retryTimer?.cancel();
     var previous = state.brief;
     if (verification && !RegionBriefRequestPolicy.needsVerification(previous)) {
       return;
@@ -232,7 +247,9 @@ class RegionBriefController extends Notifier<RegionBriefState> {
     _retryTimer = Timer(delay, () {
       if (!ref.mounted) return;
       _automaticRetries += 1;
-      unawaited(load(manual: manual, verification: verification));
+      // Deliberately bypasses `load`: that entry point resets the budget for
+      // user-initiated refreshes, and a timer repeat is not user-initiated.
+      unawaited(_load(manual: manual, verification: verification));
     });
   }
 }
