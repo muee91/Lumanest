@@ -48,9 +48,9 @@ services:
       # literals and `.local`. Needed only for a split-horizon name or a proxy
       # that rewrites Host; a public domain stays refused.
       LUMANEST_ADMIN_ALLOWED_HOSTS: ${LUMANEST_ADMIN_ALLOWED_HOSTS:-}
-      # Set to true only when TLS terminates in front of the admin console, so
-      # the session cookie is marked Secure.
-      LUMANEST_ADMIN_SECURE_COOKIES: ${LUMANEST_ADMIN_SECURE_COOKIES:-false}
+      # The admin port is internal-only; expose it through an HTTPS reverse
+      # proxy or VPN and keep the session cookie Secure by default.
+      LUMANEST_ADMIN_SECURE_COOKIES: ${LUMANEST_ADMIN_SECURE_COOKIES:-true}
       CONTEXT_SERVICE_URL: http://context-service:8000
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
@@ -78,7 +78,10 @@ services:
       - mihomo
     ports:
       - "8787:8787"
-      - "8788:8788"
+      # LAN-only admin access. Keep the default loopback binding; a direct
+      # HTTP LAN console must opt in with LUMANEST_ADMIN_BIND_ADDRESS and use
+      # LUMANEST_ADMIN_SECURE_COOKIES=false, or terminate HTTPS in front.
+      - "${LUMANEST_ADMIN_BIND_ADDRESS:-127.0.0.1}:8788:8788"
     volumes:
       - ${QWEATHER_PRIVATE_KEY_FILE:?Set QWEATHER_PRIVATE_KEY_FILE in qweather-token-broker.env}:/run/secrets/qweather-ed25519-private.pem:ro
       - lumanest-data:/var/lib/lumanest

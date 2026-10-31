@@ -216,7 +216,11 @@ export function createAdminServer({
   restart = async () => {},
   outboundNetworkController = null,
 }) {
-  return createServer(async (request, response) => {
+  return createServer({
+    requestTimeout: 15_000,
+    headersTimeout: 10_000,
+    keepAliveTimeout: 5_000,
+  }, async (request, response) => {
     const remoteAddress = request.socket.remoteAddress;
     // The socket address alone cannot prove the caller is local: behind the
     // Docker userland proxy every request arrives from the bridge gateway

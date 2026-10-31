@@ -204,12 +204,16 @@ verify_http_boundary() {
     sleep "$HEALTHCHECK_INTERVAL_SECONDS"
   done
 
-  admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8788/admin || true)
   public_admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8787/admin || true)
-  if [ "$admin_status" != "200" ] || [ "$public_admin_status" != "404" ]; then
-    echo "Admin boundary check failed after rollback: 8788=$admin_status 8787=$public_admin_status" >&2
+  if [ "$public_admin_status" != "404" ]; then
+    echo "Admin boundary check failed after rollback: public 8787=$public_admin_status" >&2
     return 1
   fi
+  compose_live exec -T qweather-token-broker \
+    wget -qO- --timeout=5 http://127.0.0.1:8788/admin >/dev/null 2>&1 || {
+    echo "Admin boundary check failed after rollback: internal 8788 is unavailable." >&2
+    return 1
+  }
 }
 
 verify_live_context() {

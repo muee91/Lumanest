@@ -7,10 +7,18 @@ async function api(path,{method='GET',body}={}){
   const headers={};
   if(body!==undefined)headers['Content-Type']='application/json';
   if(method!=='GET'&&state.csrf)headers['X-CSRF-Token']=state.csrf;
-  const response=await fetch(`/admin-api/${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetch(`/admin-api/${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
   const value=await response.json().catch(()=>({error:'invalid_response'}));
   if(response.status===401&&path!=='login'&&value.error==='unauthenticated')showLogin();
   if(!response.ok)throw new Error(value.error||'request_failed');
+  return value;
+}
+
+async function refreshAdminSession(){
+  const response=await fetch('/admin-api/session',{cache:'no-store'});
+  const value=await response.json().catch(()=>({error:'invalid_response'}));
+  if(!response.ok)throw new Error(value.error||'request_failed');
+  state.csrf=value.csrfToken;
   return value;
 }
 
@@ -196,7 +204,7 @@ $('#clear-all-simulations').addEventListener('click',async()=>{if(!window.confir
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{method:'POST'});}finally{showLogin();}});
 
 $('#services-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const patch={};for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken']){const value=form.elements[name].value.trim();if(value)patch[name]=value;}try{status('正在加密并应用…');renderConfig(await api('config',{method:'PUT',body:patch}));for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken'])form.elements[name].value='';status('密钥与服务配置已生效');}catch{status('保存失败，请检查输入范围与格式');}});
-$('#discovery-search-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;let sourcePolicies;try{sourcePolicies=JSON.parse(form.elements.sourcePolicies.value);}catch{status('来源政策必须是有效 JSON 数组');return;}const profile={baseUrl:form.elements.baseUrl.value.trim(),enabled:form.elements.enabled.checked,timeoutMs:Number(form.elements.timeoutMs.value),sourcePolicies};const apiKey=form.elements.apiKey.value.trim();if(apiKey)profile.apiKey=apiKey;try{const result=await api('discovery/search-profile',{method:'PUT',body:profile});form.elements.apiKey.value='';$('#discovery-search-key-mask').textContent=maskText(result.profile.apiKey);status('探索搜索配置已加密保存');await loadConfig();}catch{status('搜索配置保存失败，请检查来源许可、域名和字段');}});
+$('#discovery-search-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const policyText=form.elements.sourcePolicies.value.trim();let sourcePolicies;try{sourcePolicies=policyText?JSON.parse(policyText):[];}catch{status('来源政策必须是有效 JSON 数组');return;}const profile={baseUrl:form.elements.baseUrl.value.trim(),enabled:form.elements.enabled.checked,timeoutMs:Number(form.elements.timeoutMs.value),sourcePolicies};const apiKey=form.elements.apiKey.value.trim();if(apiKey)profile.apiKey=apiKey;try{await refreshAdminSession();const result=await api('discovery/search-profile',{method:'PUT',body:profile});form.elements.apiKey.value='';$('#discovery-search-key-mask').textContent=maskText(result.profile.apiKey);status('探索搜索配置已加密保存');await loadConfig();}catch(error){const messages={invalid_search_profile:'搜索配置校验失败：请检查端点、超时和来源政策；启用搜索时至少要有一条启用的来源政策',unauthenticated:'登录状态已过期，请重新登录',csrf_mismatch:'登录状态已刷新，请重新提交一次',lan_only:'请使用局域网地址打开管理台'};status(messages[error.message]??'搜索配置保存失败，请检查 Broker 状态');}});
 
 $('#add-llm-profile').addEventListener('click',()=>$('#provider-dialog').showModal());
 $('#add-llm-profile-empty').addEventListener('click',()=>$('#provider-dialog').showModal());
@@ -215,7 +223,7 @@ $('#test-seven-timer').addEventListener('click',async()=>{const button=$('#test-
 
 $('#outbound-network-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const mode=form.elements.mode.value;const label=mode==='mihomo'?'经 mihomo':'直连';if(!window.confirm(`确认将整个后端的外网 HTTP(S) 切换为「${label}」？四个应用容器会短暂重建，数据库和缓存不会清除。`))return;const button=event.submitter;button.disabled=true;try{await api('outbound-network',{method:'PUT',body:{mode}});$('#outbound-network-message').textContent='网络方式已提交，正在重建应用容器…';setTimeout(()=>loadConfig().catch(()=>{$('#outbound-network-message').textContent='状态刷新失败，请稍后刷新页面确认。';}),8000);}catch{ $('#outbound-network-message').textContent='切换未被接受；当前网络方式没有改变。';}finally{setTimeout(()=>{button.disabled=false;},8000);}});
 
-$('#password-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const button=event.submitter;const passwordStatus=$('#password-status');const currentPassword=form.elements.currentPassword.value;const newPassword=form.elements.newPassword.value;const confirmPassword=form.elements.confirmPassword.value;if(newPassword!==confirmPassword){passwordStatus.textContent='两次输入的新密码不一致';return;}button.disabled=true;passwordStatus.textContent='正在更新密码…';try{await api('change-password',{method:'POST',body:{currentPassword,newPassword,confirmPassword}});form.reset();showLogin();$('#login-status').textContent='密码已更换，所有设备均需重新登录';}catch(error){const messages={invalid_current_password:'当前密码不正确',password_mismatch:'两次输入的新密码不一致',invalid_password:'新密码必须为 8 至 256 个字符',invalid_request:'改密请求无效'};passwordStatus.textContent=messages[error.message]??'密码更新失败，请检查 Broker 状态';}finally{button.disabled=false;}});
+$('#password-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const button=event.submitter;const passwordStatus=$('#password-status');const currentPassword=form.elements.currentPassword.value;const newPassword=form.elements.newPassword.value;const confirmPassword=form.elements.confirmPassword.value;if(newPassword!==confirmPassword){passwordStatus.textContent='两次输入的新密码不一致';return;}button.disabled=true;passwordStatus.textContent='正在更新密码…';try{await refreshAdminSession();await api('change-password',{method:'POST',body:{currentPassword,newPassword,confirmPassword}});form.reset();showLogin();$('#login-status').textContent='密码已更换，所有设备均需重新登录';}catch(error){const messages={invalid_current_password:'当前密码不正确',password_mismatch:'两次输入的新密码不一致',invalid_password:'新密码必须为 8 至 256 个字符',invalid_request:'改密请求无效',unauthenticated:'登录状态已过期，请重新登录',csrf_mismatch:'登录状态已刷新，请重新提交一次',lan_only:'请使用局域网地址打开管理台'};passwordStatus.textContent=messages[error.message]??'密码更新失败，请检查 Broker 状态';}finally{button.disabled=false;}});
 $('#clear-cache').addEventListener('click',async()=>{try{await api('clear-cache',{method:'POST',body:{}});status('缓存已清理');await loadAudit();}catch{status('缓存清理失败');}});
 $('#restart').addEventListener('click',async()=>{if(!window.confirm('确认重启 Broker？App API 会短暂中断。'))return;try{await api('restart',{method:'POST',body:{}});status('重启指令已发送');}catch{status('重启指令发送失败');}});
 

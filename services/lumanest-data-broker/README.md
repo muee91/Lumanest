@@ -177,7 +177,14 @@ AI 没有默认供应商，也不会自动选择任何模型。自动文案模�
    {"status":"ok"}
    ```
 
-6. 在局域网浏览器打开 `http://NAS_IP:8788/admin`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
+6. 如需直接从局域网浏览器打开管理台，在环境文件中设置 NAS/Ubuntu 的局域网地址：
+
+   ```dotenv
+   LUMANEST_ADMIN_BIND_ADDRESS=192.168.10.105
+   LUMANEST_ADMIN_SECURE_COOKIES=false
+   ```
+
+   然后打开 `http://192.168.10.105:8788/admin`。`8788` 只绑定该局域网地址，不加入公网反向代理；使用 HTTPS 反向代理时保留 `LUMANEST_ADMIN_SECURE_COOKIES=true`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
 
 完整情境与发现服务还需要以下仅保存在 NAS 环境文件中的值：
 

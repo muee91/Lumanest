@@ -21,6 +21,7 @@ BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine@sha256:6ab0b6e738177
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
 HEALTHCHECK_INTERVAL_SECONDS=${HEALTHCHECK_INTERVAL_SECONDS:-3}
 SKIP_BUILD=${SKIP_BUILD:-0}
+SKIP_SKY_DATA_CHECK=${SKIP_SKY_DATA_CHECK:-0}
 DATA_MAY_BE_CHANGED=0
 BACKUP_COMPLETE=0
 DEPLOY_LOCK_DIR=
@@ -307,7 +308,11 @@ backup_application_images() {
     if ! printf '%s\n' "$services" | grep -qx "$service"; then
       continue
     fi
-    container_id=$(compose_previous ps -q "$service") || return 1
+    # `docker compose ps -q` only reports running containers by default. A
+    # previous stack can be safely stopped (or left in `created`) while its
+    # image is still the rollback source, so include all container states when
+    # resolving the image to archive.
+    container_id=$(compose_previous ps --all -q "$service") || return 1
     if [ -z "$container_id" ]; then
       echo "Cannot archive image because the previous $service container is missing." >&2
       return 1
@@ -321,7 +326,17 @@ backup_application_images() {
       echo "Unsafe Docker image reference for service $service." >&2
       return 1
     fi
-    docker image tag "$image_id" "$backup_ref" || return 1
+    # A container can keep running after its image tag or local image record
+    # has been replaced by a preloaded release. In that state `docker image
+    # tag` cannot resolve the image ID even though the old container is still
+    # the verified rollback source. Snapshot the container directly so the
+    # backup remains usable for recovery.
+    if docker image inspect "$image_id" >/dev/null 2>&1; then
+      docker image tag "$image_id" "$backup_ref" || return 1
+    else
+      echo "The previous $service image record is unavailable; snapshotting its container for rollback."
+      docker commit --pause=true "$container_id" "$backup_ref" >/dev/null || return 1
+    fi
     printf '%s|%s|%s\n' "$service" "$original_ref" "$backup_ref" >> "$images_tmp"
     image_refs="$image_refs $backup_ref"
     if [ "$service" = "qweather-token-broker" ]; then
@@ -456,17 +471,43 @@ verify_http_boundary() {
     sleep "$HEALTHCHECK_INTERVAL_SECONDS"
   done
 
-  admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8788/admin || true)
   public_admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8787/admin || true)
-  if [ "$admin_status" != "200" ] || [ "$public_admin_status" != "404" ]; then
-    echo "Admin boundary check failed: 8788=$admin_status 8787=$public_admin_status" >&2
+  if [ "$public_admin_status" != "404" ]; then
+    echo "Admin boundary check failed: public 8787=$public_admin_status" >&2
     return 1
   fi
-  if [ -n "$expected_admin_marker" ] && \
-      ! curl --max-time 5 --fail --silent http://127.0.0.1:8788/admin | grep -Fq "$expected_admin_marker"; then
+  admin_page=$(compose_release exec -T qweather-token-broker \
+    wget -qO- --timeout=5 http://127.0.0.1:8788/admin 2>/dev/null) || {
+    echo "Admin boundary check failed: internal 8788 is unavailable." >&2
+    return 1
+  }
+  if [ -n "$expected_admin_marker" ] && ! printf '%s' "$admin_page" | grep -Fq "$expected_admin_marker"; then
     echo "Admin content check failed." >&2
     return 1
   fi
+}
+
+verify_previous_http_boundary() {
+  attempt=1
+  while ! curl --max-time 5 --fail --silent http://127.0.0.1:8787/healthz >/dev/null; do
+    if [ "$attempt" -ge "$HEALTHCHECK_ATTEMPTS" ]; then
+      echo "Broker health check timed out during recovery." >&2
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "$HEALTHCHECK_INTERVAL_SECONDS"
+  done
+
+  public_admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8787/admin || true)
+  if [ "$public_admin_status" != "404" ]; then
+    echo "Admin boundary check failed during recovery: public 8787=$public_admin_status" >&2
+    return 1
+  fi
+  compose_previous exec -T qweather-token-broker \
+    wget -qO- --timeout=5 http://127.0.0.1:8788/admin >/dev/null 2>&1 || {
+    echo "Admin boundary check failed during recovery: internal 8788 is unavailable." >&2
+    return 1
+  }
 }
 
 verify_previous_context() {
@@ -578,7 +619,7 @@ deployment_failed() {
     if ! restore_old_stack; then
       echo "Recovery failed: the previous stack could not be started." >&2
       recovery_status=1
-    elif ! verify_http_boundary "" || ! verify_previous_context || ! verify_previous_discovery || ! verify_previous_discovery_worker || ! verify_previous_feed_worker; then
+    elif ! verify_previous_http_boundary || ! verify_previous_context || ! verify_previous_discovery || ! verify_previous_discovery_worker || ! verify_previous_feed_worker; then
       echo "Recovery failed: the previous stack did not pass health checks." >&2
       recovery_status=1
     fi
@@ -644,6 +685,10 @@ esac
 case "$SKIP_BUILD" in
   0|1) ;;
   *) echo "SKIP_BUILD must be 0 or 1." >&2; exit 1 ;;
+esac
+case "$SKIP_SKY_DATA_CHECK" in
+  0|1) ;;
+  *) echo "SKIP_SKY_DATA_CHECK must be 0 or 1." >&2; exit 1 ;;
 esac
 
 LUMANEST_ROOT=$(canonical_dir "$LUMANEST_ROOT_INPUT") || {
@@ -717,14 +762,20 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 verify_build_proxy_endpoint
-if sky_data_ready "$ENV_FILE"; then
+if [ "$SKIP_SKY_DATA_CHECK" = 1 ]; then
+  SKY_DATA_ENABLED=1
+  PREVIOUS_SKY_DATA_ENABLED=1
+  echo "Sky data profile enabled without re-hashing; use only after a prior verified release check."
+elif sky_data_ready "$ENV_FILE"; then
   SKY_DATA_ENABLED=1
   echo "Sky data profile enabled with reviewed, checksum-verified local raster files."
 else
   SKY_DATA_ENABLED=0
   echo "Sky data profile disabled; Broker will keep sky facts unavailable."
 fi
-if sky_data_ready "$PREVIOUS_RELEASE/qweather-token-broker.env"; then
+if [ "$SKIP_SKY_DATA_CHECK" = 1 ]; then
+  PREVIOUS_SKY_DATA_ENABLED=1
+elif sky_data_ready "$PREVIOUS_RELEASE/qweather-token-broker.env"; then
   PREVIOUS_SKY_DATA_ENABLED=1
 else
   PREVIOUS_SKY_DATA_ENABLED=0

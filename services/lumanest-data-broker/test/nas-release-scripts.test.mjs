@@ -597,12 +597,13 @@ if [ "$1" = "compose" ]; then
   case "$*" in
     *' config --services') printf '%s\\n' 'qweather-token-broker'; exit 0 ;;
     *' config --quiet') exit 0 ;;
-    *' ps -q qweather-token-broker') printf '%s\\n' 'test-broker-container'; exit 0 ;;
+    *' ps --all -q qweather-token-broker') printf '%s\\n' 'test-broker-container'; exit 0 ;;
     *' stop') printf 'compose-stop:%s\\n' "$release_dir" >> "$TEST_LOG"; exit 0 ;;
     *' down --remove-orphans') printf 'compose-down:%s\\n' "$release_dir" >> "$TEST_LOG"; [ -n "\${TEST_STATE:-}" ] && printf 'down\\n' > "$TEST_STATE"; exit 0 ;;
     *' up -d --build --remove-orphans') printf 'compose-up:%s\\n' "$release_dir" >> "$TEST_LOG"; [ -n "\${TEST_STATE:-}" ] && printf '%s\\n' "$release_dir" > "$TEST_STATE"; exit 0 ;;
     *' up -d --no-build --remove-orphans') printf 'compose-up:%s\\n' "$release_dir" >> "$TEST_LOG"; [ -n "\${TEST_STATE:-}" ] && printf '%s\\n' "$release_dir" > "$TEST_STATE"; exit 0 ;;
     *' exec -T context-service '*) exit 0 ;;
+    *' exec -T qweather-token-broker wget '* ) printf '<title>栖光 · 管理台</title>\\n'; exit 0 ;;
     *' ps') exit 0 ;;
   esac
 fi
