@@ -1,0 +1,22 @@
+{
+  "world": "野外取景器",
+  "mode": "operate",
+  "surface": "Flutter Core 1.0 shell and Today",
+  "tokens": {
+    "primaryLight": "#2E6B5A",
+    "primaryDark": "#9BD1B7",
+    "surfaceLight": "#F6F4ED",
+    "surfaceDark": "#121815",
+    "onSurfaceLight": "#202923",
+    "onSurfaceDark": "#F1F5EF",
+    "radii": {
+      "compact": 18,
+      "regular": 22,
+      "expansive": 28
+    }
+  },
+  "firstViewport": {
+    "thesis": "一个来自真实环境快照的判断，先说结论，再显示依据与时间",
+    "signatureInteraction": "四个目的地之间的选择镜片与独立的问栖光入口"
+  }
+}

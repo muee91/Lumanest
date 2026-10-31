@@ -6,19 +6,22 @@ import 'package:flutter/material.dart';
 /// supplies atmosphere; static UI remains legible in direct sunlight.
 abstract final class LumaNestColors {
   // ── Primary ──
-  static const Color primaryLight = Color(0xFF00A5E9);
-  static const Color onPrimaryLight = Color(0xFF061E29);
-  static const Color primaryDark = Color(0xFF37B5EA);
-  static const Color onPrimaryDark = Color(0xFF061E29);
+  // Pine is the instrument colour: it reads in direct sun, carries a quiet
+  // outdoor character, and keeps the live sky/weather colours available for
+  // the information layer.
+  static const Color primaryLight = Color(0xFF2E6B5A);
+  static const Color onPrimaryLight = Color(0xFFF8FBF7);
+  static const Color primaryDark = Color(0xFF9BD1B7);
+  static const Color onPrimaryDark = Color(0xFF102A22);
 
   // ── Surface & background ──
-  static const Color surfaceLight = Color(0xFFF6F6F5);
-  static const Color onSurfaceLight = Color(0xFF25292D);
-  static const Color surfaceDark = Color(0xFF12161A);
-  static const Color onSurfaceDark = Color(0xFFF5F7F8);
+  static const Color surfaceLight = Color(0xFFF6F4ED);
+  static const Color onSurfaceLight = Color(0xFF202923);
+  static const Color surfaceDark = Color(0xFF121815);
+  static const Color onSurfaceDark = Color(0xFFF1F5EF);
 
-  static const Color backgroundLight = Color(0xFFF6F6F5);
-  static const Color backgroundDark = Color(0xFF12161A);
+  static const Color backgroundLight = Color(0xFFF6F4ED);
+  static const Color backgroundDark = Color(0xFF121815);
 
   // ── Accent ──
   static const Color accentLight = Color(0xFF91A86B);

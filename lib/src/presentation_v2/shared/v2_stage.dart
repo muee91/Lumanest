@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
 
 import 'v2_palette.dart';
@@ -52,6 +53,79 @@ class V2PageStage extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(padding: resolvedPadding, child: child),
+      ),
+    );
+  }
+}
+
+/// Small brand lockup used where the app needs to establish context before
+/// presenting an environment judgement. It keeps the mark visible without
+/// turning the page into a marketing header.
+class V2BrandLockup extends StatelessWidget {
+  const V2BrandLockup({super.key, this.compact = false, this.markOnly = false});
+
+  final bool compact;
+  final bool markOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final markSize = compact ? 26.0 : 30.0;
+    return Semantics(
+      label: '栖光，环境感知摄影助手',
+      image: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(compact ? 6 : 7),
+              child: SvgPicture.asset(
+                'assets/brand/lumanest-mark.svg',
+                width: markSize,
+                height: markSize,
+                colorFilter: ColorFilter.mode(
+                  colors.onPrimaryContainer,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+          if (!markOnly) ...[
+            SizedBox(width: compact ? 8 : 10),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '栖光',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: compact ? 15 : 17,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                    letterSpacing: -.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'LUMANEST',
+                  style: TextStyle(
+                    color: colors.onSurfaceVariant,
+                    fontSize: compact ? 8 : 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.8,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
