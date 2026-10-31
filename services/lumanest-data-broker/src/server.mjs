@@ -491,11 +491,26 @@ function contextProxyFailure(result) {
 // X-Forwarded-For is only safe when the socket peer is a proxy we deployed
 // ourselves; behind an untrusted peer the header is attacker-controlled and
 // rotating it would bypass the limit entirely.
+//
+// A proxy appends the address it received the request from, so the real client
+// sits at the rightmost entry that our own trusted proxies did not append. A
+// value the client smuggled in left of that must not be able to mint a fresh
+// bucket, which is exactly what reading the first entry would allow.
+function clientAddressFromForwarded(forwarded, trustedProxyAddresses) {
+  const entries = forwarded.split(',').map((entry) => entry.trim()).filter(Boolean);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (!trustedProxyAddresses.has(entries[index])) return entries[index];
+  }
+  // Every entry names a proxy we declared ourselves, so the chain originated
+  // inside our own deployment; share the rightmost bucket rather than bypass.
+  return entries[entries.length - 1] ?? null;
+}
+
 function rateLimitKey(request, policy, trustedProxyAddresses) {
   const remoteAddress = request.socket?.remoteAddress ?? 'unknown';
   const forwarded = request.headers['x-forwarded-for'];
   const clientAddress = trustedProxyAddresses.has(remoteAddress) && typeof forwarded === 'string'
-    ? forwarded.split(',')[0].trim() || remoteAddress
+    ? clientAddressFromForwarded(forwarded, trustedProxyAddresses) ?? remoteAddress
     : remoteAddress;
   const source = createHash('sha256').update(clientAddress).digest('hex').slice(0, 24);
   return `${policy.key}:${source}`;

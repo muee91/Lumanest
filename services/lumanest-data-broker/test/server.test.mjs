@@ -1439,6 +1439,39 @@ test('X-Forwarded-For is only honoured for a declared proxy peer', async () => {
   assert.equal(untrustedKeys[0], untrustedKeys[1], 'an untrusted header must not change the bucket');
 });
 
+test('a forged X-Forwarded-For prefix cannot rotate the rate-limit key', async () => {
+  // An append-mode proxy adds the real client address after whatever the
+  // client sent, so a rotating forged prefix left of the appended entry must
+  // not mint a fresh bucket - reading the first entry would let it do exactly
+  // that.
+  const requestWith = (baseUrl, forwarded) => fetch(`${baseUrl}/v1/weather/7timer`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer test-service-token',
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': forwarded,
+    },
+    body: JSON.stringify({}),
+  });
+
+  const keys = [];
+  const limiter = {
+    async consume({ key }) {
+      keys.push(key);
+      return { allowed: true, retryAfterSeconds: 30 };
+    },
+  };
+  await withServer(async (baseUrl) => {
+    await requestWith(baseUrl, '9.9.9.9, 203.0.113.7');
+    await requestWith(baseUrl, '8.8.4.4, 198.51.100.9, 203.0.113.7');
+  }, {
+    trustedProxyAddresses: ['::ffff:127.0.0.1', '127.0.0.1', '::1'],
+    requestRateLimiter: limiter,
+  });
+  assert.equal(keys.length, 2);
+  assert.equal(keys[0], keys[1], 'the forged prefix must not change the bucket');
+});
+
 test('an unexpected handler throw becomes 500 internal_error instead of killing the process', async () => {
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/v1/sky-opportunities?latitude=30.2&longitude=120.1`, {
