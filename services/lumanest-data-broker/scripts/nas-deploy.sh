@@ -459,6 +459,30 @@ restore_backup_volumes() {
   done < "$BACKUP_DIR/volumes.txt"
 }
 
+# The admin console must only ever answer on loopback or a private LAN
+# address. A wildcard or public binding passes every other boundary check,
+# so verify the address Docker actually published instead of trusting the
+# configuration.
+admin_binding_is_private() {
+  case "$1" in
+    ''|0.0.0.0:*|'[::]:'*)
+      return 1
+      ;;
+  esac
+  host="${1%%:*}"
+  case "$1" in
+    \[*\]*) host="${1%%]*}"; host="${host#\[}" ;;
+  esac
+  case "$host" in
+    localhost|127.*|::1|10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|fe[89ab]*|f[cd]*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 verify_http_boundary() {
   expected_admin_marker=$1
   attempt=1
@@ -481,6 +505,15 @@ verify_http_boundary() {
     echo "Admin boundary check failed: internal 8788 is unavailable." >&2
     return 1
   }
+  admin_binding=$(compose_release port qweather-token-broker 8788 2>/dev/null || true)
+  if [ -z "$admin_binding" ]; then
+    echo "Admin boundary check failed: 8788 is not published by compose." >&2
+    return 1
+  fi
+  if ! admin_binding_is_private "$admin_binding"; then
+    echo "Admin boundary check failed: 8788 is published on a non-private binding (${admin_binding})." >&2
+    return 1
+  fi
   if [ -n "$expected_admin_marker" ] && ! printf '%s' "$admin_page" | grep -Fq "$expected_admin_marker"; then
     echo "Admin content check failed." >&2
     return 1

@@ -636,3 +636,42 @@ exit 22
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+test('the admin port binding check accepts only private addresses', async () => {
+  const deploy = await readFile(scripts[0], 'utf8');
+  const start = deploy.indexOf('admin_binding_is_private() {');
+  assert.ok(start >= 0, 'deploy script defines the binding check');
+  const end = deploy.indexOf('\n}', start) + 2;
+  const helper = deploy.slice(start, end);
+  const accepts = (binding) =>
+    spawnSync('sh', ['-c', `${helper}\nadmin_binding_is_private "$1"`, 'sh', binding], {
+      encoding: 'utf8',
+    }).status === 0;
+
+  assert.equal(accepts('127.0.0.1:8788'), true);
+  assert.equal(accepts('192.168.10.105:8788'), true);
+  assert.equal(accepts('10.0.0.5:8788'), true);
+  assert.equal(accepts('172.16.4.9:8788'), true);
+  assert.equal(accepts('172.31.255.9:8788'), true);
+  assert.equal(accepts('[::1]:8788'), true);
+  assert.equal(accepts('[fd00::1]:8788'), true);
+  // A wildcard or public binding passes every other boundary check, so the
+  // binding check must refuse it explicitly.
+  assert.equal(accepts('0.0.0.0:8788'), false);
+  assert.equal(accepts('[::]:8788'), false);
+  assert.equal(accepts('203.0.113.7:8788'), false);
+  assert.equal(accepts('172.32.0.1:8788'), false);
+  assert.equal(accepts(''), false);
+});
+
+test('deployment fails on a non-private admin binding and rollback warns', async () => {
+  const deploy = await readFile(scripts[0], 'utf8');
+  const rollback = await readFile(scripts[1], 'utf8');
+  assert.match(deploy, /compose_release port qweather-token-broker 8788/);
+  assert.match(deploy, /Admin boundary check failed: 8788 is published on a non-private binding/);
+  // The rolled-back release may predate the hardening; rollback must warn
+  // instead of blocking the operator's emergency path.
+  assert.match(rollback, /compose_live port qweather-token-broker 8788/);
+  assert.match(rollback, /Warning: the rolled-back release publishes 8788/);
+  assert.doesNotMatch(rollback, /return 1\n  fi\n  # The rolled-back release/);
+});
