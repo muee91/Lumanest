@@ -46,7 +46,8 @@ services:
       LUMANEST_TRUSTED_PROXY_ADDRESSES: ${LUMANEST_TRUSTED_PROXY_ADDRESSES:-}
       # Extra host names the admin console accepts beyond loopback, private IP
       # literals and `.local`. Needed only for a split-horizon name or a proxy
-      # that rewrites Host; a public domain stays refused.
+      # that rewrites Host. Declared entries are accepted verbatim - including
+      # public domains - so only list hosts this deployment actually controls.
       LUMANEST_ADMIN_ALLOWED_HOSTS: ${LUMANEST_ADMIN_ALLOWED_HOSTS:-}
       # The admin port is internal-only; expose it through an HTTPS reverse
       # proxy or VPN and keep the session cookie Secure by default.

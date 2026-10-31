@@ -5,7 +5,7 @@
 ## 网络与接口
 
 - App API 端口：`8787`
-- 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`
+- 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`（默认仅绑定 NAS 回环，局域网直连需按下方「首次部署」步骤 6 配置 `LUMANEST_ADMIN_BIND_ADDRESS`；经 VPN 域名或改写 Host 的反向代理访问时，还需在 `LUMANEST_ADMIN_ALLOWED_HOSTS` 中显式声明该域名）
 - 健康检查：`GET /healthz`
 - 周边 POI：`GET /v1/amap/nearby`
 - 驾车路线：`GET /v1/amap/driving`
