@@ -33,6 +33,7 @@ migrate_working_dir/
 .pub/
 /build/
 /android/build/
+/services/*/build/
 /coverage/
 **/node_modules/
 **/.venv/
