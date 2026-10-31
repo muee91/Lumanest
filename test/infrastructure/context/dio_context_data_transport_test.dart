@@ -18,6 +18,7 @@ class _StubAdapter implements HttpClientAdapter {
   final Future<ResponseBody> Function(RequestOptions options) respond;
   RequestOptions? lastRequest;
   Object? lastBody;
+  int calls = 0;
 
   @override
   Future<ResponseBody> fetch(
@@ -25,6 +26,7 @@ class _StubAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) {
+    calls += 1;
     lastRequest = options;
     lastBody = options.data;
     return respond(options);
@@ -97,11 +99,10 @@ void main() {
 
   test('maps a 429 from the broker to rateLimited, which is not retried',
       () async {
-    final repository = repositoryWith(
-      _StubAdapter(
-        (_) async => ResponseBody.fromString('{"error":"rate_limited"}', 429),
-      ),
+    final adapter = _StubAdapter(
+      (_) async => ResponseBody.fromString('{"error":"rate_limited"}', 429),
     );
+    final repository = repositoryWith(adapter);
 
     await expectLater(
       fetch(repository),
@@ -113,6 +114,10 @@ void main() {
         ),
       ),
     );
+    // The name of this test is a contract: a rate limit must surface as a
+    // failure to the caller, never as a background retry that would amplify
+    // the pressure on the broker.
+    expect(adapter.calls, 1);
   });
 
   test('maps a request timeout to network instead of a response failure',
