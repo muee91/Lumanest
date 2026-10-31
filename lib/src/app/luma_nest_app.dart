@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/config/broker_session_controller.dart';
+import 'package:luma_nest/src/core/config/client_session_bootstrap.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
@@ -31,27 +33,43 @@ import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart'
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_preview_override.dart';
 
 class LumaNestApp extends StatelessWidget {
-  const LumaNestApp({super.key, this.initialContext, this.config});
+  const LumaNestApp({
+    super.key,
+    this.initialContext,
+    this.config,
+    this.sessionCredentials,
+  });
 
   final ContextSnapshot? initialContext;
   final EnvironmentConfig? config;
+
+  /// Session credentials from the launch bootstrap; they seed the renewal
+  /// controller's first schedule. Null for debug builds with an embedded
+  /// bearer or when the broker was unreachable at launch.
+  final BrokerSessionCredentials? sessionCredentials;
 
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
       overrides: [
         if (config != null)
-          environmentConfigProvider.overrideWithValue(config!),
+          environmentConfigControllerProvider.overrideWith(
+            () => EnvironmentConfigController()..initial = config!,
+          ),
       ],
-      child: _LumaNestRoot(initialContext: initialContext),
+      child: _LumaNestRoot(
+        initialContext: initialContext,
+        sessionCredentials: sessionCredentials,
+      ),
     );
   }
 }
 
 class _LumaNestRoot extends ConsumerStatefulWidget {
-  const _LumaNestRoot({required this.initialContext});
+  const _LumaNestRoot({required this.initialContext, this.sessionCredentials});
 
   final ContextSnapshot? initialContext;
+  final BrokerSessionCredentials? sessionCredentials;
 
   @override
   ConsumerState<_LumaNestRoot> createState() => _LumaNestRootState();
@@ -77,11 +95,16 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   /// auto-decelerate per design §9.3.
   final ValueNotifier<bool> _interactionSuppressed = ValueNotifier(false);
 
+  /// Keeps the short-lived broker session token fresh; null in debug builds
+  /// that embed the shared bearer and when the broker base URL is unset.
+  BrokerSessionController? _brokerSessionController;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _router = createLumaNestRouter(initialContext: widget.initialContext);
+    _startBrokerSessionRenewal();
     unawaited(_loadAmbientPresets());
     configureShootingSessionNotificationNavigation(
       ref.read(shootingSessionNotificationServiceProvider),
@@ -104,6 +127,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _brokerSessionController?.dispose();
     _router.routerDelegate.removeListener(_handleRouterChange);
     _environmentRefreshTimer?.cancel();
     _interactionSuppressed.dispose();
@@ -407,9 +431,30 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
     }
   }
 
+  void _startBrokerSessionRenewal() {
+    final config = ref.read(environmentConfigProvider);
+    // Debug builds embed the shared bearer and never exchange session tokens;
+    // only a session-eligible configuration needs renewal. A token that came
+    // from the launch bootstrap (sessionCredentials != null) or an empty
+    // token with a configured base URL both mark session mode.
+    final sessionMode = config.isBrokerBaseConfigured &&
+        (widget.sessionCredentials != null ||
+            config.lumaNestServiceToken.isEmpty);
+    if (!sessionMode) return;
+    _brokerSessionController = BrokerSessionController(
+      initialConfig: config,
+      initialCredentials: widget.sessionCredentials,
+      onConfigChanged: (next) {
+        if (!mounted) return;
+        ref.read(environmentConfigControllerProvider.notifier).replace(next);
+      },
+    )..start();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _brokerSessionController?.checkForRenewalOnResume();
       ref.invalidate(deviceEnergyProvider);
       unawaited(_refreshEnvironment(force: false));
     }

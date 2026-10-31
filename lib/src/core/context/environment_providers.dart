@@ -31,8 +31,28 @@ import 'package:luma_nest/src/features/location/infrastructure/location_search_c
 import 'package:luma_nest/src/features/location/infrastructure/resilient_location_search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Holds the effective environment configuration. The app overrides the
+/// initial value with the bootstrapped config (which may carry a short-lived
+/// session token); session renewal replaces the state so every provider that
+/// watches [environmentConfigProvider] rebuilds with the fresh token.
+class EnvironmentConfigController extends Notifier<EnvironmentConfig> {
+  /// Set by the app-level override before the first build; tests that pin a
+  /// fixed config keep using [environmentConfigProvider] overrides directly.
+  EnvironmentConfig? initial;
+
+  @override
+  EnvironmentConfig build() => initial ?? EnvironmentConfig.fromEnvironment();
+
+  void replace(EnvironmentConfig next) => state = next;
+}
+
+final environmentConfigControllerProvider =
+    NotifierProvider<EnvironmentConfigController, EnvironmentConfig>(
+      EnvironmentConfigController.new,
+    );
+
 final environmentConfigProvider = Provider<EnvironmentConfig>((ref) {
-  return EnvironmentConfig.fromEnvironment();
+  return ref.watch(environmentConfigControllerProvider);
 });
 
 /// The single clock used by presentation code that compares a snapshot with

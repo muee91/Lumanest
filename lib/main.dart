@@ -6,11 +6,16 @@ import 'package:luma_nest/src/core/monitoring/crash_monitoring.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final config = await bootstrapBrokerSession(
+  final bootstrap = await bootstrapBrokerSession(
     EnvironmentConfig.fromEnvironment(),
   );
   await runLumaNestWithCrashMonitoring(
-    config: config,
-    appRunner: () => runApp(LumaNestApp(config: config)),
+    config: bootstrap.config,
+    appRunner: () => runApp(
+      LumaNestApp(
+        config: bootstrap.config,
+        sessionCredentials: bootstrap.credentials,
+      ),
+    ),
   );
 }
