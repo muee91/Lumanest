@@ -19,7 +19,8 @@
 - 首页朝霞/晚霞批量结果：`GET /v1/sky-opportunities/daily`
 - 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
 - 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
-- App API 需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
+- Release App 通过 `POST /v1/session` 获取短期 App-scoped Token；共享
+  `LUMANEST_SERVICE_TOKEN` 仅保留给 debug/兼容客户端，不应编译进正式 APK。
 
 ## 朝霞与晚霞 Provider
 
@@ -89,7 +90,8 @@ AI 没有默认供应商，也不会自动选择任何模型。自动文案模�
    - `QWEATHER_PROJECT_ID`：和风天气项目 ID。
    - `QWEATHER_API_HOST`：和风控制台分配的项目 API Host，必须为 HTTPS `*.qweatherapi.com`。
    - `QWEATHER_PRIVATE_KEY_FILE`：NAS 私钥的绝对路径。
-   - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
+   - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的服务兼容 Token。
+   - `LUMANEST_SESSION_SIGNING_KEY`：运行 `openssl rand -hex 32` 生成的会话签名密钥，必须与服务 Token 分开。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
    - `LUMANEST_CONFIG_MASTER_KEY`：32 字节随机密钥的 Base64，用于加密持久化配置。
    - `LUMANEST_ADMIN_BOOTSTRAP_PASSWORD`：仅在首次创建管理认证文件时写入 Argon2id 哈希。认证文件建立后应从环境文件删除；修改此变量不会覆盖现有密码。

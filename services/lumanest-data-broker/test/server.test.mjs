@@ -181,6 +181,41 @@ function v5SnapshotBody() {
   };
 }
 
+test('anonymous mobile session issues a short-lived App token without the shared bearer', async () => {
+  await withServer(async (baseUrl) => {
+    const session = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        installationId: 'abcdefghijklmnopqrstuvwx',
+        nonce: 'nonce-abcdefghijklmnop',
+      }),
+    });
+    assert.equal(session.status, 200);
+    const body = await session.json();
+    assert.equal(typeof body.accessToken, 'string');
+    assert.equal(typeof body.expiresAt, 'string');
+    assert.equal(body.accessToken.includes('test-service-token'), false);
+
+    const accepted = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${body.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    assert.equal(accepted.status, 400);
+
+    const rejected = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(rejected.status, 401);
+  });
+});
+
 function discoveryRequestBody(overrides = {}) {
   return {
     activationType: 'user_manual',

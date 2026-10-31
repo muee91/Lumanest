@@ -1,4 +1,9 @@
-import { createHash, createPrivateKey, timingSafeEqual } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  createPrivateKey,
+  timingSafeEqual,
+} from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -162,6 +167,61 @@ function hasValidAuthorization(header, serviceToken) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+const sessionTokenLifetimeMilliseconds = 24 * 60 * 60 * 1_000;
+
+function base64urlJson(value) {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function signSessionPayload(payload, signingKey) {
+  const encoded = base64urlJson(payload);
+  const signature = createHmac('sha256', signingKey).update(encoded).digest('base64url');
+  return `${encoded}.${signature}`;
+}
+
+function validInstallationId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{22,80}$/.test(value);
+}
+
+function issueSessionToken({ installationId, signingKey, now }) {
+  const issuedAt = Math.floor(now.getTime() / 1_000);
+  const expiresAt = issuedAt + sessionTokenLifetimeMilliseconds / 1_000;
+  return {
+    accessToken: signSessionPayload({
+      sub: installationId,
+      scope: 'app',
+      iat: issuedAt,
+      exp: expiresAt,
+    }, signingKey),
+    expiresAt: new Date(expiresAt * 1_000).toISOString(),
+  };
+}
+
+function hasValidSessionAuthorization(header, signingKey, now) {
+  if (typeof header !== 'string' || !header.startsWith('Bearer ') ||
+      typeof signingKey !== 'string' || signingKey.length < 16) return false;
+  const token = header.slice('Bearer '.length);
+  const separator = token.indexOf('.');
+  if (separator <= 0 || separator === token.length - 1) return false;
+  const encoded = token.slice(0, separator);
+  const receivedSignature = token.slice(separator + 1);
+  const expectedSignature = createHmac('sha256', signingKey)
+    .update(encoded)
+    .digest('base64url');
+  const actual = Buffer.from(receivedSignature);
+  const expected = Buffer.from(expectedSignature);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    const nowSeconds = Math.floor(now.getTime() / 1_000);
+    return payload?.scope === 'app' && validInstallationId(payload.sub) &&
+      Number.isInteger(payload.exp) && payload.exp > nowSeconds &&
+      Number.isInteger(payload.iat) && payload.iat <= nowSeconds + 300;
+  } catch {
+    return false;
+  }
+}
+
 function hasValidWorkerToken(header, workerToken) {
   if (typeof header !== 'string' || typeof workerToken !== 'string' || workerToken.length === 0) return false;
   const actual = Buffer.from(header);
@@ -307,19 +367,37 @@ function profileLocations(value, maximumSamples = 64) {
   return locations.every(validCoordinate) ? locations : null;
 }
 
-async function readJsonBody(request, maximumBytes = 4096) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > maximumBytes) return null;
-    chunks.push(chunk);
-  }
+async function readJsonBody(request, maximumBytes = 4096, maximumMilliseconds = 15_000) {
+  const declaredLength = Number.parseInt(request.headers['content-length'] ?? '', 10);
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) return null;
+  const read = (async () => {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size > maximumBytes) return null;
+      chunks.push(chunk);
+    }
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      return body && typeof body === 'object' && !Array.isArray(body) ? body : null;
+    } catch {
+      return null;
+    }
+  })().catch(() => null);
+  let timer;
   try {
-    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    return body && typeof body === 'object' && !Array.isArray(body) ? body : null;
-  } catch {
-    return null;
+    return await Promise.race([
+      read,
+      new Promise((resolve) => {
+        timer = setTimeout(() => {
+          request.destroy();
+          resolve(null);
+        }, maximumMilliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer != null) clearTimeout(timer);
   }
 }
 
@@ -358,6 +436,7 @@ const ratePolicies = [
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
   { path: '/v1/sky-opportunities', limit: 12, windowMs: 60 * 1_000, key: 'sky-opportunity' },
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
+  { path: '/v1/session', limit: 8, windowMs: 60 * 1_000, key: 'session' },
   { path: '/v1/weather/7timer', limit: 20, windowMs: 60 * 1_000, key: 'seven-timer' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
@@ -839,6 +918,7 @@ export function createTokenBrokerServer({
   keyId,
   projectId,
   serviceToken,
+  sessionSigningKey = '',
   amapWebKey,
   llmProfiles = [],
   llmRouting = {
@@ -889,6 +969,7 @@ export function createTokenBrokerServer({
     keyId,
     projectId,
     serviceToken,
+    sessionSigningKey,
     amapWebKey,
     llmProfiles: Object.freeze([...llmProfiles]),
     llmRouting: Object.freeze({ ...llmRouting }),
@@ -982,6 +1063,45 @@ export function createTokenBrokerServer({
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
     if (request.method === 'GET' && requestUrl.pathname === '/healthz') {
       writeJson(response, 200, { status: 'ok' });
+      return;
+    }
+
+    // Public bootstrap for mobile installs. The installation identifier is
+    // deliberately not treated as a secret; the returned short-lived token
+    // only authorizes the App surface and is rate-limited separately from the
+    // protected business APIs. Release builds therefore do not need a shared
+    // bearer secret embedded in the APK.
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/session') {
+      const policy = ratePolicy(requestUrl.pathname);
+      const limit = await requestRateLimiter.consume({
+        key: rateLimitKey(request, policy, trustedProxies),
+        limit: policy.limit,
+        windowMs: policy.windowMs,
+        now: now(),
+      });
+      if (!limit.allowed) {
+        writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
+          'Retry-After': String(limit.retryAfterSeconds),
+        });
+        return;
+      }
+      const body = await readJsonBody(request, 512);
+      if (body == null || Object.keys(body).length !== 2 ||
+          !validInstallationId(body.installationId) ||
+          typeof body.nonce !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(body.nonce)) {
+        writeJson(response, 400, { error: apiErrorCodes.invalidRequest });
+        return;
+      }
+      const signingKey = configuration.sessionSigningKey || configuration.serviceToken;
+      if (typeof signingKey !== 'string' || signingKey.length < 16) {
+        writeJson(response, 503, { error: apiErrorCodes.notConfigured });
+        return;
+      }
+      writeJson(response, 200, issueSessionToken({
+        installationId: body.installationId,
+        signingKey,
+        now: now(),
+      }));
       return;
     }
 
@@ -1104,7 +1224,9 @@ export function createTokenBrokerServer({
       return;
     }
 
-    if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken)) {
+    const sessionSigningKey = configuration.sessionSigningKey || configuration.serviceToken;
+    if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken) &&
+        !hasValidSessionAuthorization(request.headers.authorization, sessionSigningKey, now())) {
       writeJson(response, 401, { error: apiErrorCodes.unauthorized });
       return;
     }
@@ -1931,7 +2053,11 @@ export function createTokenBrokerServer({
     writeJson(response, 404, { error: apiErrorCodes.notFound });
   }
 
-  return createServer((request, response) => {
+  return createServer({
+    requestTimeout: 20_000,
+    headersTimeout: 15_000,
+    keepAliveTimeout: 5_000,
+  }, (request, response) => {
     handleRequest(request, response).catch((error) => {
       console.error(JSON.stringify({
         evt: 'request.failed',
@@ -1962,6 +2088,10 @@ export function configurationFromEnvironment(environment = process.env) {
     keyId: required('QWEATHER_KEY_ID'),
     projectId: required('QWEATHER_PROJECT_ID'),
     serviceToken: required('LUMANEST_SERVICE_TOKEN'),
+    // Keep the legacy service token as a server-side fallback during rollout;
+    // production deployments should provide a distinct signing key.
+    sessionSigningKey: environment.LUMANEST_SESSION_SIGNING_KEY?.trim() ||
+      required('LUMANEST_SERVICE_TOKEN'),
     amapWebKey: required('AMAP_WEB_KEY'),
     contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/app/router.dart';
 import 'package:luma_nest/src/core/context/environment_consent.dart';
+import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
@@ -30,13 +31,20 @@ import 'package:luma_nest/src/shared/widgets/ambient/ambient_visual_mapper.dart'
 import 'package:luma_nest/src/shared/widgets/ambient/ambient_preview_override.dart';
 
 class LumaNestApp extends StatelessWidget {
-  const LumaNestApp({super.key, this.initialContext});
+  const LumaNestApp({super.key, this.initialContext, this.config});
 
   final ContextSnapshot? initialContext;
+  final EnvironmentConfig? config;
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(child: _LumaNestRoot(initialContext: initialContext));
+    return ProviderScope(
+      overrides: [
+        if (config != null)
+          environmentConfigProvider.overrideWithValue(config!),
+      ],
+      child: _LumaNestRoot(initialContext: initialContext),
+    );
   }
 }
 
@@ -55,6 +63,7 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
   String _routeLocation = '/today';
   bool _routeRefreshScheduled = false;
   String? _lastPhotographyWatchReconciliation;
+
   /// Reconciliations cancel and re-schedule the same local reminders. Running
   /// two at once let the older one cancel what the newer one had just queued,
   /// so each pass waits for the previous one to finish.
@@ -164,7 +173,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
         _lastPhotographyWatchReconciliation = reconciliationKey;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          final operation = _photographyWatchReconciliationQueue.then((_) async {
+          final operation = _photographyWatchReconciliationQueue.then((
+            _,
+          ) async {
             if (!mounted) return;
             await ref
                 .read(shootingSessionNotificationReconcilerProvider)
