@@ -12,7 +12,10 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "0010_drop_shooting_session_feedback"
+# Keep the revision within Alembic's default VARCHAR(32) version column. The
+# previous name was 35 characters and made fresh production migrations fail
+# when PostgreSQL updated alembic_version.
+revision = "0010_drop_shooting_feedback"
 down_revision = "0009_feedback_condition_band"
 branch_labels = None
 depends_on = None
