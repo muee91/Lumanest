@@ -180,7 +180,16 @@ class RouteCorridorContextController extends Notifier<RouteCorridorContext?> {
     return null;
   }
 
-  void replace(RouteCorridorContext context) => state = context;
+  /// Rebuilding the route surface must not create a new environment input for
+  /// the same route. The route map can rebuild while its scout/weather data is
+  /// loading; publishing an equivalent corridor from that build would rebuild
+  /// the environment snapshot, which rebuilds the route, which publishes the
+  /// corridor again. Keep the existing corridor for the same route identity so
+  /// the input state is stable across presentation rebuilds.
+  void replace(RouteCorridorContext context) {
+    if (state?.routeId == context.routeId) return;
+    state = context;
+  }
 
   void clear() => state = null;
 }
