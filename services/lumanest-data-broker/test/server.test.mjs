@@ -14,6 +14,7 @@ import { MemoryRequestRateLimiter } from '../src/context/request-rate-limiter.mj
 import { MemoryWeatherCache } from '../src/context/weather-cache.mjs';
 import { ContextSnapshotStore } from '../src/context/context-snapshot-store.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
+import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 
@@ -44,6 +45,8 @@ async function withServer(run, {
   aiModel,
   settings,
   runtimeConfig,
+  sessionSigningKey,
+  sessionInstallationRegistry,
   contextServiceUrl = '',
   contextInternalToken = '',
   discoveryServiceUrl = '',
@@ -79,6 +82,8 @@ async function withServer(run, {
     },
     settings,
     runtimeConfig,
+    sessionSigningKey,
+    sessionInstallationRegistry,
     contextServiceUrl,
     contextInternalToken,
     discoveryServiceUrl,
@@ -188,7 +193,6 @@ test('anonymous mobile session issues a short-lived App token without the shared
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 'abcdefghijklmnopqrstuvwx',
-        nonce: 'nonce-abcdefghijklmnop',
       }),
     });
     assert.equal(session.status, 200);
@@ -214,6 +218,130 @@ test('anonymous mobile session issues a short-lived App token without the shared
     });
     assert.equal(rejected.status, 401);
   });
+});
+
+test('session issuance is capped per installation over a rolling window', async () => {
+  const registry = new SessionInstallationRegistry({
+    maximumIssuances: 2,
+    windowMilliseconds: 60 * 60 * 1_000,
+  });
+  await registry.initialize();
+  const issue = (baseUrl, installationId = 'abcdefghijklmnopqrstuvwx') =>
+    fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId }),
+    });
+  await withServer(async (baseUrl) => {
+    assert.equal((await issue(baseUrl)).status, 200);
+    assert.equal((await issue(baseUrl)).status, 200);
+    const limited = await issue(baseUrl);
+    assert.equal(limited.status, 429);
+    assert.equal((await limited.json()).error, 'rate_limited');
+    const retryAfter = Number(limited.headers.get('retry-after'));
+    assert.equal(Number.isFinite(retryAfter) && retryAfter > 0, true);
+    // The quota is per identifier, so a different installation is unaffected.
+    assert.equal((await issue(baseUrl, 'zyxwvutsrqponmlkjihgfedcba')).status, 200);
+  }, { sessionInstallationRegistry: registry });
+});
+
+test('a revoked installation cannot issue or keep using session tokens', async () => {
+  const registry = new SessionInstallationRegistry();
+  await registry.initialize();
+  const issue = (baseUrl) => fetch(`${baseUrl}/v1/session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+  });
+  const snapshotWith = (baseUrl, token) => fetch(`${baseUrl}/v1/context/snapshot`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  await withServer(async (baseUrl) => {
+    const issued = await issue(baseUrl);
+    assert.equal(issued.status, 200);
+    const { accessToken } = await issued.json();
+    // Authenticated but invalid body: proves the token itself is accepted.
+    assert.equal((await snapshotWith(baseUrl, accessToken)).status, 400);
+
+    await registry.setRevoked('abcdefghijklmnopqrstuvwx', true);
+    const refused = await issue(baseUrl);
+    assert.equal(refused.status, 403);
+    assert.equal((await refused.json()).error, 'installation_revoked');
+    assert.equal((await snapshotWith(baseUrl, accessToken)).status, 401);
+
+    // Restoring the installation re-enables issuance for it.
+    await registry.setRevoked('abcdefghijklmnopqrstuvwx', false);
+    assert.equal((await issue(baseUrl)).status, 200);
+  }, { sessionInstallationRegistry: registry });
+});
+
+test('an independent session signing key issues and validates app tokens', async () => {
+  await withServer(async (baseUrl) => {
+    const issued = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(issued.status, 200);
+    const { accessToken } = await issued.json();
+
+    const authorized = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(authorized.status, 400);
+
+    // The legacy service bearer keeps working alongside the session key.
+    const legacy = await fetch(`${baseUrl}/v1/context/snapshot`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer test-service-token', 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(legacy.status, 400);
+  }, { sessionSigningKey: 'independent-session-signing-key-0123456789abcdef' });
+});
+
+test('a session token is bound to the deployment signing key', async () => {
+  let foreignToken = null;
+  await withServer(async (baseUrl) => {
+    const issued = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(issued.status, 200);
+    foreignToken = (await issued.json()).accessToken;
+  }, { sessionSigningKey: 'first-session-signing-key-0123456789abcdef' });
+  assert.notEqual(foreignToken, null);
+
+  const snapshotWith = (baseUrl) => fetch(`${baseUrl}/v1/context/snapshot`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${foreignToken}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  // A different dedicated key must refuse the token, and so must a deployment
+  // that never configured one (service-token fallback).
+  await withServer(async (baseUrl) => {
+    assert.equal((await snapshotWith(baseUrl)).status, 401);
+  }, { sessionSigningKey: 'second-session-signing-key-0123456789abcdef' });
+  await withServer(async (baseUrl) => {
+    assert.equal((await snapshotWith(baseUrl)).status, 401);
+  });
+});
+
+test('a short dedicated session signing key disables issuance', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error, 'not_configured');
+  }, { sessionSigningKey: 'short-key' });
 });
 
 function discoveryRequestBody(overrides = {}) {
@@ -1615,6 +1743,40 @@ test('environment configuration has no single-provider AI fields', async () => {
     assert.equal(configuration.terrainServiceUrl, 'http://lumanest-terrain-service:8793');
     assert.equal(configuration.terrainServiceToken, 'terrain-token');
     assert.equal(configuration.terrainHorizonDatasetRevision, 'copernicus-glo30-2024-r1');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('an explicit session signing key equal to the service token is rejected', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lumanest-environment-'));
+  const privateKeyPath = join(directory, 'qweather.pem');
+  const { privateKey } = generateKeyPairSync('ed25519');
+  await writeFile(privateKeyPath, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  const baseEnvironment = {
+    QWEATHER_PRIVATE_KEY_PATH: privateKeyPath,
+    QWEATHER_KEY_ID: 'key-id', QWEATHER_PROJECT_ID: 'project-id',
+    LUMANEST_SERVICE_TOKEN: 'service-token', AMAP_WEB_KEY: 'amap-key',
+  };
+  try {
+    // Copy-pasting the service token into the signing key variable would
+    // silently undo the separation the dedicated key exists for.
+    assert.throws(
+      () => configurationFromEnvironment({
+        ...baseEnvironment,
+        LUMANEST_SESSION_SIGNING_KEY: 'service-token',
+      }),
+      /must differ/,
+    );
+    // A genuinely distinct key is accepted, and omitting one keeps the
+    // documented rollout fallback to the service token.
+    const distinct = configurationFromEnvironment({
+      ...baseEnvironment,
+      LUMANEST_SESSION_SIGNING_KEY: 'distinct-session-signing-key-0123456789',
+    });
+    assert.equal(distinct.sessionSigningKey, 'distinct-session-signing-key-0123456789');
+    const fallback = configurationFromEnvironment(baseEnvironment);
+    assert.equal(fallback.sessionSigningKey, 'service-token');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

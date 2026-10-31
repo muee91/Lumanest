@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
 import { isLanAddress, isLanHostHeader } from './lan-address.mjs';
+import { isValidInstallationId } from '../session/installation-registry.mjs';
 import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
@@ -212,15 +213,12 @@ export function createAdminServer({
   importContextDataset = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   simulationEnabled = false,
   simulationRegistry = null,
+  sessionInstallationRegistry = null,
   clearCache = async () => {},
   restart = async () => {},
   outboundNetworkController = null,
 }) {
-  return createServer({
-    requestTimeout: 15_000,
-    headersTimeout: 10_000,
-    keepAliveTimeout: 5_000,
-  }, async (request, response) => {
+  async function handleAdminRequest(request, response) {
     const remoteAddress = request.socket.remoteAddress;
     // The socket address alone cannot prove the caller is local: behind the
     // Docker userland proxy every request arrives from the bridge gateway
@@ -266,6 +264,37 @@ export function createAdminServer({
     if (request.method === 'GET' && url.pathname === '/admin-api/session') {
       const csrfToken = await authService.issueCsrf(sessionToken);
       return json(response, 200, { authenticated: true, csrfToken });
+    }
+    if (request.method === 'GET' && url.pathname === '/admin-api/sessions') {
+      if (sessionInstallationRegistry == null) {
+        return json(response, 503, { error: apiErrorCodes.notConfigured });
+      }
+      return json(response, 200, {
+        installations: sessionInstallationRegistry.list({ limit: 50 }),
+      });
+    }
+    if ((request.method === 'POST' && url.pathname === '/admin-api/sessions/revoke') ||
+        (request.method === 'POST' && url.pathname === '/admin-api/sessions/restore')) {
+      if (sessionInstallationRegistry == null) {
+        return json(response, 503, { error: apiErrorCodes.notConfigured });
+      }
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (!isValidInstallationId(parsed.value?.installationId)) {
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
+      }
+      const revoking = url.pathname.endsWith('/revoke');
+      try {
+        const installation = await sessionInstallationRegistry.setRevoked(
+          parsed.value.installationId,
+          revoking,
+        );
+        auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'ok' });
+        return json(response, 200, { installation });
+      } catch (error) {
+        auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'failed' });
+        return json(response, 503, { error: apiErrorCodes.internalError });
+      }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/logout') {
       await authService.logout(sessionToken);
@@ -618,5 +647,28 @@ export function createAdminServer({
       return;
     }
     json(response, 404, { error: apiErrorCodes.notFound });
+  }
+
+  return createServer({
+    requestTimeout: 15_000,
+    headersTimeout: 10_000,
+    keepAliveTimeout: 5_000,
+  }, (request, response) => {
+    // One unexpected throw used to reject the request listener and leave the
+    // operator's request hanging: the process-level unhandledRejection guard
+    // keeps the console alive, but only this boundary can still answer the
+    // request that failed.
+    handleAdminRequest(request, response).catch((error) => {
+      console.error(JSON.stringify({
+        evt: 'admin.request_failed',
+        path: request.url ?? '/',
+        error: error instanceof Error ? error.name : 'unknown',
+      }));
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+      json(response, 500, { error: apiErrorCodes.internalError });
+    });
   });
 }

@@ -66,6 +66,7 @@ export const apiErrorCodes = Object.freeze({
   invalidSiteEnvironmentQuery: 'invalid_site_environment_query',
   invalidSkyOpportunityQuery: 'invalid_sky_opportunity_query',
   invalidSkyWindowQuery: 'invalid_sky_window_query',
+  installationRevoked: 'installation_revoked',
   lanOnly: 'lan_only',
   mediaTooLarge: 'media_too_large',
   mediaUnavailable: 'media_unavailable',

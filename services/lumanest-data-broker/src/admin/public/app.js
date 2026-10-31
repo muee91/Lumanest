@@ -125,7 +125,7 @@ function switchPage(name){
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
   if(name==='simulation'&&!state.simulationEnabled)return;
   const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V5 环境场景。'],observability:['数据可观测','查看探索、AI 上下文和 Provider 的真实覆盖。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
-  if(name==='security')loadAudit();
+  if(name==='security'){loadAudit();loadSessions();}
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
   if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
   if(name==='runtime')loadSevenTimerHealth().catch(()=>status('7Timer 健康状态读取失败'));
@@ -172,6 +172,37 @@ async function loadAudit(){
   }catch{status('审计记录读取失败');}
 }
 
+function sessionTime(value){const date=new Date(value);return Number.isNaN(date.getTime())?'未知时间':date.toLocaleString('zh-CN',{hour12:false});}
+
+function renderSessions(installations){
+  const list=$('#session-installations');list.replaceChildren();
+  if(!installations.length){$('#sessions-status').textContent='还没有安装换取过会话 Token。';return;}
+  $('#sessions-status').textContent=`共 ${installations.length} 个安装（最多显示 50）。`;
+  for(const installation of installations){
+    const row=document.createElement('div');row.className='session-row';
+    const identity=document.createElement('div');identity.className='session-identity';
+    const id=document.createElement('strong');id.textContent=installation.installationId;
+    const detail=document.createElement('small');detail.textContent=`最近发放 ${sessionTime(installation.lastIssuedAt)} · 累计 ${installation.totalIssuances} 次 · 窗口内 ${installation.issuances.length} 次`;
+    identity.append(id,detail);
+    const state=document.createElement('span');state.className=`session-state${installation.revoked?' revoked':''}`;state.textContent=installation.revoked?'已撤销':'正常';
+    const action=document.createElement('button');action.type='button';action.className='row-action';action.textContent=installation.revoked?'恢复':'撤销';
+    action.addEventListener('click',()=>toggleSession(installation));
+    row.append(identity,state,action);list.append(row);
+  }
+}
+
+async function loadSessions(){
+  try{renderSessions((await api('sessions')).installations);}
+  catch(error){$('#sessions-status').textContent=error.message==='not_configured'?'此部署未启用会话记账。':'会话列表读取失败';}
+}
+
+async function toggleSession(installation){
+  const revoking=!installation.revoked;
+  if(revoking&&!window.confirm(`确认撤销安装 ${installation.installationId} 的会话？该设备将立即失去 App API 访问，直到恢复或重新安装。`))return;
+  try{await refreshAdminSession();await api(`sessions/${revoking?'revoke':'restore'}`,{method:'POST',body:{installationId:installation.installationId}});await loadSessions();}
+  catch(error){const messages={unauthenticated:'登录状态已过期，请重新登录',csrf_mismatch:'登录状态已刷新，请重新提交一次'};$('#sessions-status').textContent=messages[error.message]??'操作未生效，请稍后重试';}
+}
+
 $('#login-form').addEventListener('submit',async(event)=>{
   event.preventDefault();
   const form=event.currentTarget;
@@ -198,6 +229,7 @@ $('#login-form').addEventListener('submit',async(event)=>{
 $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=>switchPage(button.dataset.page)));
 document.addEventListener('click',(event)=>{const button=event.target.closest('button[data-target]');if(button)switchPage(button.dataset.target);});
 $('#refresh-overview').addEventListener('click',async()=>{const button=$('#refresh-overview');button.disabled=true;try{status('正在刷新配置快照…');await loadConfig();status('状态已刷新');}catch{status('刷新失败，请确认 Broker 服务状态');}finally{button.disabled=false;}});
+$('#refresh-sessions').addEventListener('click',()=>loadSessions());
 $('#simulation-preset').addEventListener('change',renderSimulationPreset);
 $('#refresh-simulations').addEventListener('click',async()=>{const button=$('#refresh-simulations');button.disabled=true;try{await loadSimulation();status('测试会话已刷新');}catch{status('测试会话读取失败');}finally{button.disabled=false;}});
 $('#clear-all-simulations').addEventListener('click',async()=>{if(!window.confirm('确认停止全部活动模拟？Debug App 下一次刷新将恢复真实环境链路。'))return;try{const result=await api('simulation/sessions',{method:'DELETE',body:{}});status(`已停止 ${result.cleared} 个活动模拟`);await loadSimulation();}catch{status('停止全部模拟失败');}});

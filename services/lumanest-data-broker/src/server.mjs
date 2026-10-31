@@ -110,6 +110,7 @@ import {
   mergeAssistantSources,
 } from './assistant/context-envelope.mjs';
 import { apiErrorCodes } from './api/error-codes.mjs';
+import { SessionInstallationRegistry } from './session/installation-registry.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
 const maximumVerifiedPlaceMediaBytes = 8 * 1024 * 1024;
@@ -197,12 +198,16 @@ function issueSessionToken({ installationId, signingKey, now }) {
   };
 }
 
-function hasValidSessionAuthorization(header, signingKey, now) {
+// Verifies an App-surface session token and returns its payload, or null when
+// the token is malformed, signed with another key, or expired. Revocation is
+// checked by the caller against the installation registry, because this
+// function only sees the cryptographic facts.
+function sessionAuthorization(header, signingKey, now) {
   if (typeof header !== 'string' || !header.startsWith('Bearer ') ||
-      typeof signingKey !== 'string' || signingKey.length < 16) return false;
+      typeof signingKey !== 'string' || signingKey.length < 16) return null;
   const token = header.slice('Bearer '.length);
   const separator = token.indexOf('.');
-  if (separator <= 0 || separator === token.length - 1) return false;
+  if (separator <= 0 || separator === token.length - 1) return null;
   const encoded = token.slice(0, separator);
   const receivedSignature = token.slice(separator + 1);
   const expectedSignature = createHmac('sha256', signingKey)
@@ -210,15 +215,17 @@ function hasValidSessionAuthorization(header, signingKey, now) {
     .digest('base64url');
   const actual = Buffer.from(receivedSignature);
   const expected = Buffer.from(expectedSignature);
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return false;
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
     const nowSeconds = Math.floor(now.getTime() / 1_000);
     return payload?.scope === 'app' && validInstallationId(payload.sub) &&
       Number.isInteger(payload.exp) && payload.exp > nowSeconds &&
-      Number.isInteger(payload.iat) && payload.iat <= nowSeconds + 300;
+      Number.isInteger(payload.iat) && payload.iat <= nowSeconds + 300
+      ? payload
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -973,6 +980,7 @@ export function createTokenBrokerServer({
   skyWindowService = null,
   requestRateLimiter = new MemoryRequestRateLimiter(),
   trustedProxyAddresses = [],
+  sessionInstallationRegistry = new SessionInstallationRegistry(),
   simulationRegistry = null,
   contextSnapshotStore = null,
   operationalObservability = null,
@@ -1082,10 +1090,12 @@ export function createTokenBrokerServer({
     }
 
     // Public bootstrap for mobile installs. The installation identifier is
-    // deliberately not treated as a secret; the returned short-lived token
-    // only authorizes the App surface and is rate-limited separately from the
-    // protected business APIs. Release builds therefore do not need a shared
-    // bearer secret embedded in the APK.
+    // deliberately not treated as a secret; it is the quota and revocation
+    // handle: issuance is accounted per identifier with a rolling cap, and a
+    // revoked identifier is refused new tokens and loses the ones it holds.
+    // The returned short-lived token only authorizes the App surface and the
+    // endpoint is rate-limited separately from the protected business APIs,
+    // so release builds need no shared bearer secret embedded in the APK.
     if (request.method === 'POST' && requestUrl.pathname === '/v1/session') {
       const policy = ratePolicy(requestUrl.pathname);
       const limit = await requestRateLimiter.consume({
@@ -1101,15 +1111,27 @@ export function createTokenBrokerServer({
         return;
       }
       const body = await readJsonBody(request, 512);
-      if (body == null || Object.keys(body).length !== 2 ||
-          !validInstallationId(body.installationId) ||
-          typeof body.nonce !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(body.nonce)) {
+      if (body == null || Object.keys(body).length !== 1 ||
+          !validInstallationId(body.installationId)) {
         writeJson(response, 400, { error: apiErrorCodes.invalidRequest });
         return;
       }
       const signingKey = configuration.sessionSigningKey || configuration.serviceToken;
       if (typeof signingKey !== 'string' || signingKey.length < 16) {
         writeJson(response, 503, { error: apiErrorCodes.notConfigured });
+        return;
+      }
+      const issuance = await sessionInstallationRegistry.recordIssuance({
+        installationId: body.installationId,
+      });
+      if (!issuance.allowed) {
+        if (issuance.status === 403) {
+          writeJson(response, 403, { error: apiErrorCodes.installationRevoked });
+          return;
+        }
+        writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
+          'Retry-After': String(issuance.retryAfterSeconds),
+        });
         return;
       }
       writeJson(response, 200, issueSessionToken({
@@ -1240,8 +1262,9 @@ export function createTokenBrokerServer({
     }
 
     const sessionSigningKey = configuration.sessionSigningKey || configuration.serviceToken;
+    const sessionPayload = sessionAuthorization(request.headers.authorization, sessionSigningKey, now());
     if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken) &&
-        !hasValidSessionAuthorization(request.headers.authorization, sessionSigningKey, now())) {
+        (sessionPayload == null || sessionInstallationRegistry.isRevoked(sessionPayload.sub))) {
       writeJson(response, 401, { error: apiErrorCodes.unauthorized });
       return;
     }
@@ -2098,15 +2121,23 @@ export function configurationFromEnvironment(environment = process.env) {
   };
 
   const privateKeyPath = required('QWEATHER_PRIVATE_KEY_PATH');
+  const serviceToken = required('LUMANEST_SERVICE_TOKEN');
+  // Keep the legacy service token as a server-side fallback during rollout;
+  // production deployments must provide a distinct signing key. An explicitly
+  // configured key equal to the service token would silently undo the
+  // separation the key exists for, so it is rejected instead of ignored.
+  const explicitSessionSigningKey = environment.LUMANEST_SESSION_SIGNING_KEY?.trim() ?? '';
+  if (explicitSessionSigningKey.length > 0 && explicitSessionSigningKey === serviceToken) {
+    throw new Error('LUMANEST_SESSION_SIGNING_KEY must differ from LUMANEST_SERVICE_TOKEN');
+  }
   return {
     privateKey: createPrivateKey(readFileSync(privateKeyPath)),
     keyId: required('QWEATHER_KEY_ID'),
     projectId: required('QWEATHER_PROJECT_ID'),
-    serviceToken: required('LUMANEST_SERVICE_TOKEN'),
+    serviceToken,
     // Keep the legacy service token as a server-side fallback during rollout;
     // production deployments should provide a distinct signing key.
-    sessionSigningKey: environment.LUMANEST_SESSION_SIGNING_KEY?.trim() ||
-      required('LUMANEST_SERVICE_TOKEN'),
+    sessionSigningKey: explicitSessionSigningKey || serviceToken,
     amapWebKey: required('AMAP_WEB_KEY'),
     contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
@@ -2206,6 +2237,9 @@ export async function createBrokerServices(environment = process.env, {
     environment.LUMANEST_SIMULATION_ENABLED?.trim() ?? '',
   );
   const simulationRegistry = simulationEnabled ? new SimulationRegistry() : null;
+  const sessionInstallationRegistry = await new SessionInstallationRegistry({
+    filePath: `${dataDirectory}/session-installations.json`,
+  }).initialize();
   const appServer = createTokenBrokerServer({
     runtimeConfig,
     weatherCache,
@@ -2227,6 +2261,7 @@ export async function createBrokerServices(environment = process.env, {
     skyOpportunityLogger: (entry) => console.info(JSON.stringify(entry)),
     requestRateLimiter,
     trustedProxyAddresses: defaults.trustedProxyAddresses,
+    sessionInstallationRegistry,
     simulationRegistry,
     providerFactsService,
     operationalObservability,
@@ -2235,6 +2270,7 @@ export async function createBrokerServices(environment = process.env, {
     authService,
     runtimeConfig,
     auditLog,
+    sessionInstallationRegistry,
     allowedHosts: defaults.adminAllowedHosts,
     secureCookies: defaults.adminSecureCookies,
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),

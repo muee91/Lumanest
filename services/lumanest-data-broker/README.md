@@ -19,8 +19,11 @@
 - 首页朝霞/晚霞批量结果：`GET /v1/sky-opportunities/daily`
 - 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
 - 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
-- Release App 通过 `POST /v1/session` 获取短期 App-scoped Token；共享
+- Release App 通过 `POST /v1/session` 获取短期 App-scoped Token（请求体仅携带 `installationId`）；共享
   `LUMANEST_SERVICE_TOKEN` 仅保留给 debug/兼容客户端，不应编译进正式 APK。
+  发放按安装 ID 记账：每个安装在一个 24 小时滚动窗口内最多换取 20 个 Token，超出返回 429 并附带 `Retry-After`；
+  记录持久化在 NAS 数据卷 `session-installations.json`，可通过管理台「安全与维护 → App 设备会话」查看并撤销——
+  撤销后该安装立即无法换取新 Token，已持有的 Token 也一并失效。
 
 ## 朝霞与晚霞 Provider
 

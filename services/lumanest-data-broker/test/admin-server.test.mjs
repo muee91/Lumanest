@@ -11,6 +11,7 @@ import { AdminAuthService } from '../src/admin/auth.mjs';
 import { AuditLog } from '../src/admin/audit-log.mjs';
 import { validateRuntimeSettings } from '../src/admin/runtime-settings.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
+import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
 
 const testMasterKey = Buffer.alloc(32, 7).toString('base64');
 
@@ -24,6 +25,7 @@ async function withAdmin(run, {
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
   allowedHosts = [],
   secureCookies = false,
+  sessionInstallationRegistry = null,
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
   const authService = new AdminAuthService({
@@ -58,6 +60,7 @@ async function withAdmin(run, {
     authService, runtimeConfig, auditLog,
     allowedHosts,
     secureCookies,
+    sessionInstallationRegistry,
     testConnection: async () => ({ status: 'ok' }),
     getSevenTimerHealth: async () => sevenTimer?.health ?? ({ provider: '7timer', enabled: true, status: 'unknown', products: [] }),
     testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
@@ -656,6 +659,76 @@ test('operational observability is authenticated and excludes raw private contex
       regionBrief: { requests: 2 },
       assistantContext: { builds: 1 },
       providers: { total: 14 },
+    },
+  });
+});
+
+test('session installations are listed and revoked through the admin API', async () => {
+  const registry = await new SessionInstallationRegistry().initialize();
+  await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie, csrf } = await login(baseUrl);
+
+    const unauthenticated = await fetch(`${baseUrl}/admin-api/sessions`);
+    assert.equal(unauthenticated.status, 401);
+
+    const listed = await fetch(`${baseUrl}/admin-api/sessions`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(listed.status, 200);
+    const { installations } = await listed.json();
+    assert.equal(installations.length, 1);
+    assert.equal(installations[0].installationId, 'abcdefghijklmnopqrstuvwx');
+    assert.equal(installations[0].revoked, false);
+
+    const malformed = await fetch(`${baseUrl}/admin-api/sessions/revoke`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'short' }),
+    });
+    assert.equal(malformed.status, 400);
+
+    const revoked = await fetch(`${baseUrl}/admin-api/sessions/revoke`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(revoked.status, 200);
+    assert.equal((await revoked.json()).installation.revoked, true);
+    assert.equal(registry.isRevoked('abcdefghijklmnopqrstuvwx'), true);
+
+    const restored = await fetch(`${baseUrl}/admin-api/sessions/restore`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(restored.status, 200);
+    assert.equal((await restored.json()).installation.revoked, false);
+    assert.equal(registry.isRevoked('abcdefghijklmnopqrstuvwx'), false);
+  }, { sessionInstallationRegistry: registry });
+});
+
+test('session admin routes report unconfigured when no registry is wired', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie } = await login(baseUrl);
+    const listed = await fetch(`${baseUrl}/admin-api/sessions`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(listed.status, 503);
+  });
+});
+
+test('an unexpected admin handler throw answers 500 instead of hanging', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie } = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/health`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).error, 'internal_error');
+  }, {
+    getBrokerHealth: async () => {
+      throw new Error('boom');
     },
   });
 });
