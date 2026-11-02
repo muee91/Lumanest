@@ -193,6 +193,27 @@ validate_live_archive() {
   rm -f "$members_file"
 }
 
+# Mirror of the deploy-side helper: loopback and private LAN addresses only.
+admin_binding_is_private() {
+  case "$1" in
+    ''|0.0.0.0:*|'[::]:'*)
+      return 1
+      ;;
+  esac
+  host="${1%%:*}"
+  case "$1" in
+    \[*\]*) host="${1%%]*}"; host="${host#\[}" ;;
+  esac
+  case "$host" in
+    localhost|127.*|::1|10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|fe[89ab]*|f[cd]*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 verify_http_boundary() {
   attempt=1
   while ! curl --max-time 5 --fail --silent http://127.0.0.1:8787/healthz >/dev/null; do
@@ -204,11 +225,22 @@ verify_http_boundary() {
     sleep "$HEALTHCHECK_INTERVAL_SECONDS"
   done
 
-  admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8788/admin || true)
   public_admin_status=$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8787/admin || true)
-  if [ "$admin_status" != "200" ] || [ "$public_admin_status" != "404" ]; then
-    echo "Admin boundary check failed after rollback: 8788=$admin_status 8787=$public_admin_status" >&2
+  if [ "$public_admin_status" != "404" ]; then
+    echo "Admin boundary check failed after rollback: public 8787=$public_admin_status" >&2
     return 1
+  fi
+  compose_live exec -T qweather-token-broker \
+    wget -qO- --timeout=5 http://127.0.0.1:8788/admin >/dev/null 2>&1 || {
+    echo "Admin boundary check failed after rollback: internal 8788 is unavailable." >&2
+    return 1
+  }
+  # The rolled-back release may predate the loopback-binding hardening, and
+  # rolling back is the operator's emergency path, so warn loudly instead of
+  # failing the rollback on a non-private binding.
+  previous_admin_binding=$(compose_live port qweather-token-broker 8788 2>/dev/null || true)
+  if ! admin_binding_is_private "$previous_admin_binding"; then
+    echo "Warning: the rolled-back release publishes 8788 on '${previous_admin_binding:-an unpublished or non-private binding}'." >&2
   fi
 }
 

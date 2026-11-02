@@ -5,7 +5,7 @@
 ## 网络与接口
 
 - App API 端口：`8787`
-- 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`
+- 局域网管理端口：`8788`，入口 `http://NAS_IP:8788/admin`（默认仅绑定 NAS 回环，局域网直连需按下方「首次部署」步骤 6 配置 `LUMANEST_ADMIN_BIND_ADDRESS`；经 VPN 域名或改写 Host 的反向代理访问时，还需在 `LUMANEST_ADMIN_ALLOWED_HOSTS` 中显式声明该域名）
 - 健康检查：`GET /healthz`
 - 周边 POI：`GET /v1/amap/nearby`
 - 驾车路线：`GET /v1/amap/driving`
@@ -19,7 +19,11 @@
 - 首页朝霞/晚霞批量结果：`GET /v1/sky-opportunities/daily`
 - 情境来源状态：`GET /admin-api/context/sources`，仅限已登录的 LAN 管理会话
 - 审核数据导入：`POST /admin-api/context/imports`，需要 LAN 会话与 CSRF
-- App API 需要请求头：`Authorization: Bearer <LUMANEST_SERVICE_TOKEN>`
+- Release App 通过 `POST /v1/session` 获取短期 App-scoped Token（请求体仅携带 `installationId`）；共享
+  `LUMANEST_SERVICE_TOKEN` 仅保留给 debug/兼容客户端，不应编译进正式 APK。
+  发放按安装 ID 记账：每个安装在一个 24 小时滚动窗口内最多换取 20 个 Token，超出返回 429 并附带 `Retry-After`；
+  记录持久化在 NAS 数据卷 `session-installations.json`，可通过管理台「安全与维护 → App 设备会话」查看并撤销——
+  撤销后该安装立即无法换取新 Token，已持有的 Token 也一并失效。
 
 ## 朝霞与晚霞 Provider
 
@@ -89,7 +93,8 @@ AI 没有默认供应商，也不会自动选择任何模型。自动文案模�
    - `QWEATHER_PROJECT_ID`：和风天气项目 ID。
    - `QWEATHER_API_HOST`：和风控制台分配的项目 API Host，必须为 HTTPS `*.qweatherapi.com`。
    - `QWEATHER_PRIVATE_KEY_FILE`：NAS 私钥的绝对路径。
-   - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的随机值。
+   - `LUMANEST_SERVICE_TOKEN`：运行 `openssl rand -hex 32` 生成的服务兼容 Token。
+   - `LUMANEST_SESSION_SIGNING_KEY`：运行 `openssl rand -hex 32` 生成的会话签名密钥，必须与服务 Token 分开。
    - `AMAP_WEB_KEY`：高德控制台创建的 Web 服务 Key，仅部署在 NAS。
    - `LUMANEST_CONFIG_MASTER_KEY`：32 字节随机密钥的 Base64，用于加密持久化配置。
    - `LUMANEST_ADMIN_BOOTSTRAP_PASSWORD`：仅在首次创建管理认证文件时写入 Argon2id 哈希。认证文件建立后应从环境文件删除；修改此变量不会覆盖现有密码。
@@ -175,7 +180,14 @@ AI 没有默认供应商，也不会自动选择任何模型。自动文案模�
    {"status":"ok"}
    ```
 
-6. 在局域网浏览器打开 `http://NAS_IP:8788/admin`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
+6. 如需直接从局域网浏览器打开管理台，在环境文件中设置 NAS/Ubuntu 的局域网地址：
+
+   ```dotenv
+   LUMANEST_ADMIN_BIND_ADDRESS=192.168.10.105
+   LUMANEST_ADMIN_SECURE_COOKIES=false
+   ```
+
+   然后打开 `http://192.168.10.105:8788/admin`。`8788` 只绑定该局域网地址，不加入公网反向代理；使用 HTTPS 反向代理时保留 `LUMANEST_ADMIN_SECURE_COOKIES=true`。密钥仅显示配置状态和末四位，保存后对后续请求立即生效，无需重启 Docker。
 
 完整情境与发现服务还需要以下仅保存在 NAS 环境文件中的值：
 

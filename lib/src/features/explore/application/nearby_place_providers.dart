@@ -208,6 +208,13 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
       (value) => (center: value.activeCenter, radiusMeters: value.radiusMeters),
     ),
   );
+  // Moving the map or changing the radius invalidates this provider, but the
+  // in-flight batches keep running. Publishing their result would let an old
+  // batch delete entries the newer batch just wrote, so every write is gated on
+  // this flag and every batch boundary re-checks it.
+  var cancelled = false;
+  ref.onDispose(() => cancelled = true);
+  bool isCancelled() => cancelled || !ref.mounted;
   final location = area.center ?? snapshot.location;
   if (location == null) {
     throw const NearbyPlaceFailure(NearbyPlaceFailureKind.response);
@@ -243,6 +250,7 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
 
   if (!discoveryEnabled) {
     final places = await placesFuture;
+    if (isCancelled()) return const <NearbyPlace>[];
     final result = ref
         .watch(nearbyDiscoveryEngineProvider)
         .rank(places, discoveryContext);
@@ -262,13 +270,17 @@ final nearbyPlacesProvider = FutureProvider<List<NearbyPlace>>((ref) async {
     category,
   );
   final shortlist = NearbyCandidateRanker.shortlist(merged);
+  if (isCancelled()) return const <NearbyPlace>[];
   final routed = candidateMode
       ? await _withDrivingTimes(
           shortlist,
           origin: location,
           repository: ref.watch(drivingRouteRepositoryProvider),
+          isCancelled: isCancelled,
         )
       : shortlist;
+  // The batch loop can stop early, so a cancelled run must not reach the store.
+  if (isCancelled()) return const <NearbyPlace>[];
   final result = ref
       .watch(nearbyDiscoveryEngineProvider)
       .rank(routed, discoveryContext);
@@ -358,9 +370,13 @@ Future<List<NearbyPlace>> _withDrivingTimes(
   List<NearbyPlace> places, {
   required GeoPoint origin,
   required DrivingRouteRepository repository,
+  required bool Function() isCancelled,
 }) async {
   final results = <NearbyPlace>[];
   for (var index = 0; index < places.length; index += 2) {
+    // One map drag used to fan out up to eight driving requests that nobody
+    // wanted. Stopping at a batch boundary keeps the wasted work bounded.
+    if (isCancelled()) break;
     final batch = places.skip(index).take(2);
     results.addAll(
       await Future.wait(

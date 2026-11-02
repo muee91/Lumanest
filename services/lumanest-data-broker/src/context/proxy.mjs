@@ -238,7 +238,10 @@ function validShootingSession(value) {
         'cityBlueHour', 'cityAfterRain', 'desertSideLight', 'routeLightWindow',
       ].includes(value.kind) ||
       typeof value.title !== 'string' || value.title.trim().length < 1 ||
-      value.title.length > 80 ||
+      // Count code points, matching the Python service: an emoji is one
+      // character there but two UTF-16 units here, and a title of exactly 80
+      // emoji would otherwise be rejected as a contract violation.
+      [...value.title].length > 80 ||
       ![
         'morningBlueHour', 'sunrise', 'morningMist', 'reflection', 'warmLight',
         'sunset', 'blueHour', 'artificialLights', 'rainEnding', 'wetReflection',
@@ -324,6 +327,10 @@ function validV5Entry(entry) {
         (action.query == null || typeof action.query === 'string')) ||
       !object(entry.presentation) || !object(entry.payload) ||
       !Array.isArray(entry.provenance) || entry.provenance.length < 1 ||
+      // contract/context-v5.policy.json declares maxProvenance: 8; the Python
+      // service enforces it, so the Broker must too or it will happily forward
+      // a response the client is told to reject.
+      entry.provenance.length > 8 ||
       !entry.provenance.every((item) => exactKeys(item, new Set(['sourceId', 'observedAt', 'sourceUrl'])) &&
         typeof item.sourceId === 'string' && typeof item.observedAt === 'string' &&
         Number.isFinite(Date.parse(item.observedAt)) &&

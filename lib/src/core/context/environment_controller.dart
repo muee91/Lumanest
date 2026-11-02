@@ -237,7 +237,7 @@ class EnvironmentLoader {
     if (cached != null) {
       // Reject severely expired cache (>24h) to avoid misleading the user
       // with outdated safety or weather guidance.
-      final age = now().toUtc().difference(cached.observedAt.toUtc());
+      final age = now().toUtc().difference(cached.snapshotGeneratedAt.toUtc());
       if (age > const Duration(hours: 24)) {
         logger?.warning(
           LogCategory.contextCache,

@@ -12,7 +12,10 @@ import 'package:luma_nest/src/core/scenario/surface_composition.dart';
 /// store above feature modules prevents Explore, Today and Route from
 /// maintaining independent copies of the same contextual fact.
 final contextEntryStoreProvider = Provider<ContextEntryStore>((ref) {
-  return InMemoryContextEntryStore();
+  // Share the app's injectable clock so a pinned test time also decides entry
+  // expiry, instead of the store racing the wall clock.
+  final now = ref.watch(currentTimeProvider);
+  return InMemoryContextEntryStore(now: now);
 });
 
 final contextEntryStoreRevisionProvider = StreamProvider<int>((ref) async* {

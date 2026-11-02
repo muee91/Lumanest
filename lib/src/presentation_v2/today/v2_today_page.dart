@@ -167,8 +167,7 @@ class _V2TodayContentState extends State<_V2TodayContent> {
     // The header describes the environment data currently on screen, not the
     // composition cache's construction time. This keeps a resumed app from
     // carrying a previous UTC calendar date across a local day boundary.
-    final snapshotDate = (snapshot.remoteGeneratedAt ?? snapshot.observedAt)
-        .toLocal();
+    final snapshotDate = snapshot.snapshotGeneratedAt.toLocal();
     final date =
         '${snapshotDate.month}月${snapshotDate.day}日 · ${_phaseLabel(snapshot.dayPhase)}';
     final sessionId = primary.payload is OpportunityEntryPayload
@@ -191,6 +190,8 @@ class _V2TodayContentState extends State<_V2TodayContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const V2BrandLockup(),
+                  SizedBox(height: compact ? 18 : 24),
                   V2TopLine(
                     primary: location.description,
                     secondary: date,
@@ -205,19 +206,19 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                             ),
                           ),
                   ),
-                  SizedBox(height: compact ? 20 : 30),
+                  SizedBox(height: compact ? 24 : 34),
                   Text(
                     '栖光此刻看到',
                     style: TextStyle(
-                      color: context.v2Moss.withValues(alpha: .9),
-                      fontSize: 13,
+                      color: context.v2Moss,
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.1,
                     ),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
-                    height: compact ? 34 : 38,
+                    height: compact ? 74 : 84,
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
@@ -228,12 +229,22 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                         softWrap: false,
                         style: TextStyle(
                           color: context.v2Ink,
-                          fontSize: compact ? 27 : 32,
-                          height: 1.12,
+                          fontSize: compact ? 29 : 36,
+                          height: 1.05,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -1.1,
+                          letterSpacing: -1.35,
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '根据 ${_time(now)} 的天气、云层与光线整理',
+                    style: TextStyle(
+                      color: context.v2MutedInk,
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   SizedBox(height: compact ? 18 : 26),
@@ -299,6 +310,10 @@ class _V2TodayContentState extends State<_V2TodayContent> {
     DayPhase.blueHour => '蓝调',
     DayPhase.night => '夜间',
   };
+
+  static String _time(DateTime value) =>
+      '${value.toLocal().hour.toString().padLeft(2, '0')}:'
+      '${value.toLocal().minute.toString().padLeft(2, '0')}';
 }
 
 class _V2CurrentConditions extends StatelessWidget {
@@ -342,7 +357,7 @@ class _V2CurrentConditions extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '${_time(snapshot.observedAt)} 更新',
+                '${_time(snapshot.weatherObservedAt)} 更新',
                 style: TextStyle(
                   color: context.v2MutedInk,
                   fontSize: 10,

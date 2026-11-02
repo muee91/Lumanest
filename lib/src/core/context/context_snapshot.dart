@@ -174,6 +174,19 @@ class ContextSnapshot {
   final List<ContextEntry> entries;
   final bool canonicalEntriesPresent;
 
+  /// The moment the weather observation itself was taken.
+  ///
+  /// [observedAt] carries this value for remotely projected snapshots, where
+  /// the Context service reports `dataFreshness.weatherObservedAt`. It is
+  /// deliberately not the same instant as [snapshotGeneratedAt]: weather can be
+  /// older than the projection that wrapped it, so anything that describes
+  /// "this snapshot" must use [snapshotGeneratedAt] instead.
+  DateTime get weatherObservedAt => observedAt;
+
+  /// The moment this snapshot was produced, or [weatherObservedAt] for local
+  /// snapshots that were assembled without a remote projection.
+  DateTime get snapshotGeneratedAt => remoteGeneratedAt ?? observedAt;
+
   /// Composite scene state used by the v5 cache and catalog engine. Local
   /// deterministic snapshots derive it from [primaryScene] when necessary.
   SceneContext get resolvedSceneContext =>

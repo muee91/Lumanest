@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/manifest_policy.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
@@ -25,10 +26,18 @@ final creativePersonalizationProvider = Provider<CreativePersonalization>((
 });
 
 /// The one personalized manifest consumed by Today, Inspiration, and AI copy.
+///
+/// `ContextSnapshot` has no value equality, so every refresh is a new family
+/// key. Without `autoDispose` each old key stayed resident for the lifetime of
+/// the container, which made memory grow with the number of refreshes.
 final personalizedManifestProvider =
-    Provider.family<UiManifest, ContextSnapshot>((ref, snapshot) {
+    Provider.autoDispose.family<UiManifest, ContextSnapshot>((ref, snapshot) {
+      // Expiry must be judged against the same clock the composition uses, or a
+      // snapshot pinned in a test (or replayed from cache) loses its events here
+      // while `composeToday` still considers them current.
       final manifest = ManifestPolicy.build(
         snapshot,
+        now: ref.watch(currentTimeProvider)(),
         personalization: ref.watch(creativePersonalizationProvider),
       );
       ref

@@ -31,8 +31,28 @@ import 'package:luma_nest/src/features/location/infrastructure/location_search_c
 import 'package:luma_nest/src/features/location/infrastructure/resilient_location_search_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Holds the effective environment configuration. The app overrides the
+/// initial value with the bootstrapped config (which may carry a short-lived
+/// session token); session renewal replaces the state so every provider that
+/// watches [environmentConfigProvider] rebuilds with the fresh token.
+class EnvironmentConfigController extends Notifier<EnvironmentConfig> {
+  /// Set by the app-level override before the first build; tests that pin a
+  /// fixed config keep using [environmentConfigProvider] overrides directly.
+  EnvironmentConfig? initial;
+
+  @override
+  EnvironmentConfig build() => initial ?? EnvironmentConfig.fromEnvironment();
+
+  void replace(EnvironmentConfig next) => state = next;
+}
+
+final environmentConfigControllerProvider =
+    NotifierProvider<EnvironmentConfigController, EnvironmentConfig>(
+      EnvironmentConfigController.new,
+    );
+
 final environmentConfigProvider = Provider<EnvironmentConfig>((ref) {
-  return EnvironmentConfig.fromEnvironment();
+  return ref.watch(environmentConfigControllerProvider);
 });
 
 /// The single clock used by presentation code that compares a snapshot with
@@ -187,6 +207,12 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
 
   @override
   Future<ContextSnapshot> build() async {
+    // A rebuild (route context change, privacy revoke, loader rebuild) must
+    // invalidate every request started under the previous loader. Without this
+    // the generation counter was only ever advanced by manual refreshes, so an
+    // old background load could commit a snapshot that no longer reflects the
+    // watched inputs.
+    _generation++;
     final loader = ref.watch(environmentLoaderProvider);
     final cached = await loader.cache.readLatest();
     if (cached == null) return _load(loader, trigger: 'automatic');
@@ -235,7 +261,7 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
 
   Future<void> refresh() async {
     // Increment generation so any in-flight background refresh becomes stale.
-    _generation++;
+    final generation = ++_generation;
     // A manual refresh is a content update, not a navigation state change.
     // Keep the last safe snapshot visible while RefreshIndicator describes the
     // in-flight request; replacing it with AsyncLoading makes the whole Today
@@ -243,9 +269,17 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
     final previous = state.asData?.value;
     if (previous != null) {
       try {
-        state = AsyncData(
-          await _load(ref.read(environmentLoaderProvider), trigger: 'manual'),
+        final snapshot = await _load(
+          ref.read(environmentLoaderProvider),
+          trigger: 'manual',
         );
+        // Two overlapping manual refreshes must not let the slower, older
+        // response overwrite the newer one. `ref.mounted` covers the case where
+        // privacy revoke invalidated this notifier while the request was in
+        // flight; assigning state on a disposed notifier throws.
+        if (ref.mounted && generation == _generation) {
+          state = AsyncData(snapshot);
+        }
       } on Object {
         // `_load` records a sanitized category. The existing snapshot remains
         // the truthful, usable fallback until a later refresh succeeds.
@@ -254,9 +288,12 @@ class LiveEnvironmentController extends AsyncNotifier<ContextSnapshot> {
     }
 
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
+    final result = await AsyncValue.guard(
       () => _load(ref.read(environmentLoaderProvider), trigger: 'manual'),
     );
+    if (ref.mounted && generation == _generation) {
+      state = result;
+    }
   }
 
   Future<ContextSnapshot> _load(

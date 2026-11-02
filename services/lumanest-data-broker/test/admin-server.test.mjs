@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -10,6 +11,7 @@ import { AdminAuthService } from '../src/admin/auth.mjs';
 import { AuditLog } from '../src/admin/audit-log.mjs';
 import { validateRuntimeSettings } from '../src/admin/runtime-settings.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
+import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
 
 const testMasterKey = Buffer.alloc(32, 7).toString('base64');
 
@@ -21,11 +23,15 @@ async function withAdmin(run, {
   providerHub = null,
   observability = null,
   getAuditLogHealth = () => ({ entries: 0, lastWriteAt: null, lastWriteOk: null, lastWriteError: null }),
+  allowedHosts = [],
+  secureCookies = false,
+  sessionInstallationRegistry = null,
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
   const authService = new AdminAuthService({
     filePath: join(directory, 'auth.json'),
     bootstrapPassword: 'initial-password',
+    secureCookies,
   });
   await authService.initialize();
   let snapshot = Object.freeze({
@@ -52,6 +58,9 @@ async function withAdmin(run, {
   }).initialize();
   const server = createAdminServer({
     authService, runtimeConfig, auditLog,
+    allowedHosts,
+    secureCookies,
+    sessionInstallationRegistry,
     testConnection: async () => ({ status: 'ok' }),
     getSevenTimerHealth: async () => sevenTimer?.health ?? ({ provider: '7timer', enabled: true, status: 'unknown', products: [] }),
     testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
@@ -103,8 +112,78 @@ async function login(baseUrl, password = 'initial-password') {
     body: JSON.stringify({ password }),
   });
   const value = await response.json();
-  return { cookie: response.headers.get('set-cookie').split(';')[0], csrf: value.csrfToken };
+  return {
+    cookie: response.headers.get('set-cookie').split(';')[0],
+    setCookie: response.headers.get('set-cookie'),
+    csrf: value.csrfToken,
+  };
 }
+
+// `fetch` forbids overriding `Host`, so the LAN gate can only be exercised
+// through the raw client, which is exactly what an attacker would use.
+function rawGet(baseUrl, path, headers) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(`${baseUrl}${path}`, { headers }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve({
+        status: response.statusCode,
+        body: Buffer.concat(chunks).toString('utf8'),
+      }));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+test('a public Host header is refused even though the peer address is private', async () => {
+  // Behind the Docker userland proxy the socket peer is always 172.17.0.1, so
+  // `isLanAddress` alone would let a published port serve the console to the
+  // public internet. The Host header is the only remaining discriminator.
+  await withAdmin(async ({ baseUrl }) => {
+    const publicHost = await rawGet(baseUrl, '/admin', { Host: 'lumanest.example.com' });
+    assert.equal(publicHost.status, 403);
+    assert.equal(JSON.parse(publicHost.body).error, 'lan_only');
+
+    const lanHost = await rawGet(baseUrl, '/admin', { Host: '192.168.100.151:8788' });
+    assert.equal(lanHost.status, 200);
+  });
+});
+
+test('an operator-declared host passes the LAN gate', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const declared = await rawGet(baseUrl, '/admin', { Host: 'lumanest.home.arpa' });
+    assert.equal(declared.status, 200);
+  }, { allowedHosts: ['lumanest.home.arpa'] });
+});
+
+test('a cross-origin write is refused before the CSRF token is checked', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/clear-cache`, {
+      method: 'POST',
+      headers: {
+        Cookie: credentials.cookie,
+        'X-CSRF-Token': credentials.csrf,
+        Origin: 'https://evil.example.com',
+      },
+    });
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).error, 'lan_only');
+  });
+});
+
+test('the session cookie carries Secure only when TLS terminates in front', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    assert.match(credentials.setCookie, /HttpOnly/);
+    assert.doesNotMatch(credentials.setCookie, /; Secure/);
+  });
+  await withAdmin(async ({ baseUrl }) => {
+    const credentials = await login(baseUrl);
+    assert.match(credentials.setCookie, /; Secure/);
+  }, { secureCookies: true });
+});
 
 test('LAN login and authenticated config never reveal raw secrets', async () => {
   await withAdmin(async ({ baseUrl }) => {
@@ -580,6 +659,76 @@ test('operational observability is authenticated and excludes raw private contex
       regionBrief: { requests: 2 },
       assistantContext: { builds: 1 },
       providers: { total: 14 },
+    },
+  });
+});
+
+test('session installations are listed and revoked through the admin API', async () => {
+  const registry = await new SessionInstallationRegistry().initialize();
+  await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie, csrf } = await login(baseUrl);
+
+    const unauthenticated = await fetch(`${baseUrl}/admin-api/sessions`);
+    assert.equal(unauthenticated.status, 401);
+
+    const listed = await fetch(`${baseUrl}/admin-api/sessions`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(listed.status, 200);
+    const { installations } = await listed.json();
+    assert.equal(installations.length, 1);
+    assert.equal(installations[0].installationId, 'abcdefghijklmnopqrstuvwx');
+    assert.equal(installations[0].revoked, false);
+
+    const malformed = await fetch(`${baseUrl}/admin-api/sessions/revoke`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'short' }),
+    });
+    assert.equal(malformed.status, 400);
+
+    const revoked = await fetch(`${baseUrl}/admin-api/sessions/revoke`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(revoked.status, 200);
+    assert.equal((await revoked.json()).installation.revoked, true);
+    assert.equal(registry.isRevoked('abcdefghijklmnopqrstuvwx'), true);
+
+    const restored = await fetch(`${baseUrl}/admin-api/sessions/restore`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(restored.status, 200);
+    assert.equal((await restored.json()).installation.revoked, false);
+    assert.equal(registry.isRevoked('abcdefghijklmnopqrstuvwx'), false);
+  }, { sessionInstallationRegistry: registry });
+});
+
+test('session admin routes report unconfigured when no registry is wired', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie } = await login(baseUrl);
+    const listed = await fetch(`${baseUrl}/admin-api/sessions`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(listed.status, 503);
+  });
+});
+
+test('an unexpected admin handler throw answers 500 instead of hanging', async () => {
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie } = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/health`, {
+      headers: { Cookie: cookie },
+    });
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).error, 'internal_error');
+  }, {
+    getBrokerHealth: async () => {
+      throw new Error('boom');
     },
   });
 });

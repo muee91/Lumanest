@@ -17,6 +17,9 @@ class ProfilePreferencesController extends Notifier<ProfilePreferences> {
 
   Future<void> _restore() async {
     final restored = await ref.read(profilePreferencesStoreProvider).read();
+    // The restore can outlive the provider when a container is rebuilt or the
+    // provider is invalidated; writing state then throws.
+    if (!ref.mounted) return;
     if (!_changedThisSession && restored != null) state = restored;
   }
 

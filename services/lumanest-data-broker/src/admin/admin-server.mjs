@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 
-import { isLanAddress } from './lan-address.mjs';
+import { isLanAddress, isLanHostHeader } from './lan-address.mjs';
+import { isValidInstallationId } from '../session/installation-registry.mjs';
 import { publicProviderCatalog } from '../llm/provider-catalog.mjs';
 import { validateLLMProfile } from '../llm/profile.mjs';
 import { validateDiscoverySearchProfile } from '../discovery/search-profile.mjs';
@@ -168,10 +169,33 @@ function safeConfiguration(snapshot, outboundNetwork) {
   };
 }
 
+function clearCookieHeader(secure) {
+  return `lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? '; Secure' : ''}`;
+}
+
+// A same-origin console request either omits `Origin` (form-free GET, older
+// browsers) or sends the exact host it is talking to. Anything else is a page
+// on another origin driving the operator's session, so it is refused before
+// authentication is even consulted.
+function originAllowed(origin, allowedHosts) {
+  if (origin == null) return true;
+  if (typeof origin !== 'string' || origin.length === 0) return false;
+  let parsed;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  return isLanHostHeader(parsed.host, { allowedHosts });
+}
+
 export function createAdminServer({
   authService,
   runtimeConfig,
   auditLog,
+  allowedHosts = [],
+  secureCookies = false,
   testConnection = async () => ({ status: 'ok' }),
   testLLMProfile = async (profileId) => ({ status: 'profile_not_found', profileId }),
   listLLMModels = async () => ({ ok: false, error: apiErrorCodes.upstreamUnavailable }),
@@ -189,13 +213,20 @@ export function createAdminServer({
   importContextDataset = async () => ({ ok: false, error: apiErrorCodes.notConfigured }),
   simulationEnabled = false,
   simulationRegistry = null,
+  sessionInstallationRegistry = null,
   clearCache = async () => {},
   restart = async () => {},
   outboundNetworkController = null,
 }) {
-  return createServer(async (request, response) => {
+  async function handleAdminRequest(request, response) {
     const remoteAddress = request.socket.remoteAddress;
-    if (!isLanAddress(remoteAddress)) {
+    // The socket address alone cannot prove the caller is local: behind the
+    // Docker userland proxy every request arrives from the bridge gateway
+    // (172.17.0.1), which is private even when the port is published publicly.
+    // The `Host` header is what the caller actually addressed, so a public
+    // domain reaching the published port is refused here.
+    if (!isLanAddress(remoteAddress) ||
+        !isLanHostHeader(request.headers.host, { allowedHosts })) {
       json(response, 403, { error: apiErrorCodes.lanOnly });
       return;
     }
@@ -214,6 +245,12 @@ export function createAdminServer({
 
     const sessionToken = cookieToken(request.headers.cookie);
     const changing = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
+    // CSRF tokens already gate every write, but a cross-origin page must not be
+    // able to reach the console at all. An Origin the operator did not declare
+    // is refused before any credential is checked.
+    if (changing && !originAllowed(request.headers.origin, allowedHosts)) {
+      return json(response, 403, { error: apiErrorCodes.lanOnly });
+    }
     const authentication = await authService.authenticate({
       sessionToken,
       csrfToken: request.headers['x-csrf-token'],
@@ -228,10 +265,41 @@ export function createAdminServer({
       const csrfToken = await authService.issueCsrf(sessionToken);
       return json(response, 200, { authenticated: true, csrfToken });
     }
+    if (request.method === 'GET' && url.pathname === '/admin-api/sessions') {
+      if (sessionInstallationRegistry == null) {
+        return json(response, 503, { error: apiErrorCodes.notConfigured });
+      }
+      return json(response, 200, {
+        installations: sessionInstallationRegistry.list({ limit: 50 }),
+      });
+    }
+    if ((request.method === 'POST' && url.pathname === '/admin-api/sessions/revoke') ||
+        (request.method === 'POST' && url.pathname === '/admin-api/sessions/restore')) {
+      if (sessionInstallationRegistry == null) {
+        return json(response, 503, { error: apiErrorCodes.notConfigured });
+      }
+      const parsed = await body(request);
+      if (parsed.tooLarge) return json(response, 413, { error: apiErrorCodes.bodyTooLarge });
+      if (!isValidInstallationId(parsed.value?.installationId)) {
+        return json(response, 400, { error: apiErrorCodes.invalidRequest });
+      }
+      const revoking = url.pathname.endsWith('/revoke');
+      try {
+        const installation = await sessionInstallationRegistry.setRevoked(
+          parsed.value.installationId,
+          revoking,
+        );
+        auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'ok' });
+        return json(response, 200, { installation });
+      } catch (error) {
+        auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'failed' });
+        return json(response, 503, { error: apiErrorCodes.internalError });
+      }
+    }
     if (request.method === 'POST' && url.pathname === '/admin-api/logout') {
       await authService.logout(sessionToken);
       return json(response, 200, { ok: true }, {
-        'Set-Cookie': 'lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+        'Set-Cookie': clearCookieHeader(secureCookies),
       });
     }
     if (request.method === 'GET' && url.pathname === '/admin-api/config') {
@@ -545,7 +613,7 @@ export function createAdminServer({
         }
         auditLog.record({ operation: 'change_password', result: 'ok' });
         return json(response, 200, { ok: true }, {
-          'Set-Cookie': 'lumanest_admin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0',
+          'Set-Cookie': clearCookieHeader(secureCookies),
         });
       } catch {
         auditLog.record({ operation: 'change_password', result: 'invalid_password' });
@@ -579,5 +647,28 @@ export function createAdminServer({
       return;
     }
     json(response, 404, { error: apiErrorCodes.notFound });
+  }
+
+  return createServer({
+    requestTimeout: 15_000,
+    headersTimeout: 10_000,
+    keepAliveTimeout: 5_000,
+  }, (request, response) => {
+    // One unexpected throw used to reject the request listener and leave the
+    // operator's request hanging: the process-level unhandledRejection guard
+    // keeps the console alive, but only this boundary can still answer the
+    // request that failed.
+    handleAdminRequest(request, response).catch((error) => {
+      console.error(JSON.stringify({
+        evt: 'admin.request_failed',
+        path: request.url ?? '/',
+        error: error instanceof Error ? error.name : 'unknown',
+      }));
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+      json(response, 500, { error: apiErrorCodes.internalError });
+    });
   });
 }

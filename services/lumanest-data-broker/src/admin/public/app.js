@@ -7,10 +7,18 @@ async function api(path,{method='GET',body}={}){
   const headers={};
   if(body!==undefined)headers['Content-Type']='application/json';
   if(method!=='GET'&&state.csrf)headers['X-CSRF-Token']=state.csrf;
-  const response=await fetch(`/admin-api/${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetch(`/admin-api/${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
   const value=await response.json().catch(()=>({error:'invalid_response'}));
   if(response.status===401&&path!=='login'&&value.error==='unauthenticated')showLogin();
   if(!response.ok)throw new Error(value.error||'request_failed');
+  return value;
+}
+
+async function refreshAdminSession(){
+  const response=await fetch('/admin-api/session',{cache:'no-store'});
+  const value=await response.json().catch(()=>({error:'invalid_response'}));
+  if(!response.ok)throw new Error(value.error||'request_failed');
+  state.csrf=value.csrfToken;
   return value;
 }
 
@@ -117,7 +125,7 @@ function switchPage(name){
   $$('.page').forEach((panel)=>{panel.hidden=panel.dataset.panel!==name;panel.classList.toggle('active',panel.dataset.panel===name);});
   if(name==='simulation'&&!state.simulationEnabled)return;
   const pages={overview:['概览','查看栖光数据服务的状态与配置。'],services:['密钥与服务','管理上游服务凭据、App 访问与审核来源搜索。'],llm:['模型服务','配置创作表达模型、连接状态与备用路由。'],runtime:['运行设置','调整服务端实时策略、缓存和机会功能开关。'],simulation:['场景实验室','向已配对的 Debug App 注入隔离、可复现的 V5 环境场景。'],observability:['数据可观测','查看探索、AI 上下文和 Provider 的真实覆盖。'],security:['安全与维护','管理控制台凭据、运行缓存与服务维护操作。']};$('#page-title').textContent=pages[name][0];$('#page-subtitle').textContent=pages[name][1];status('');
-  if(name==='security')loadAudit();
+  if(name==='security'){loadAudit();loadSessions();}
   if(name==='llm')loadLLM().catch(()=>status('模型服务配置读取失败'));
   if(name==='simulation')loadSimulation().catch(()=>status('模拟会话读取失败'));
   if(name==='runtime')loadSevenTimerHealth().catch(()=>status('7Timer 健康状态读取失败'));
@@ -164,6 +172,37 @@ async function loadAudit(){
   }catch{status('审计记录读取失败');}
 }
 
+function sessionTime(value){const date=new Date(value);return Number.isNaN(date.getTime())?'未知时间':date.toLocaleString('zh-CN',{hour12:false});}
+
+function renderSessions(installations){
+  const list=$('#session-installations');list.replaceChildren();
+  if(!installations.length){$('#sessions-status').textContent='还没有安装换取过会话 Token。';return;}
+  $('#sessions-status').textContent=`共 ${installations.length} 个安装（最多显示 50）。`;
+  for(const installation of installations){
+    const row=document.createElement('div');row.className='session-row';
+    const identity=document.createElement('div');identity.className='session-identity';
+    const id=document.createElement('strong');id.textContent=installation.installationId;
+    const detail=document.createElement('small');detail.textContent=`最近发放 ${sessionTime(installation.lastIssuedAt)} · 累计 ${installation.totalIssuances} 次 · 窗口内 ${installation.issuances.length} 次`;
+    identity.append(id,detail);
+    const state=document.createElement('span');state.className=`session-state${installation.revoked?' revoked':''}`;state.textContent=installation.revoked?'已撤销':'正常';
+    const action=document.createElement('button');action.type='button';action.className='row-action';action.textContent=installation.revoked?'恢复':'撤销';
+    action.addEventListener('click',()=>toggleSession(installation));
+    row.append(identity,state,action);list.append(row);
+  }
+}
+
+async function loadSessions(){
+  try{renderSessions((await api('sessions')).installations);}
+  catch(error){$('#sessions-status').textContent=error.message==='not_configured'?'此部署未启用会话记账。':'会话列表读取失败';}
+}
+
+async function toggleSession(installation){
+  const revoking=!installation.revoked;
+  if(revoking&&!window.confirm(`确认撤销安装 ${installation.installationId} 的会话？该设备将立即失去 App API 访问，直到恢复或重新安装。`))return;
+  try{await refreshAdminSession();await api(`sessions/${revoking?'revoke':'restore'}`,{method:'POST',body:{installationId:installation.installationId}});await loadSessions();}
+  catch(error){const messages={unauthenticated:'登录状态已过期，请重新登录',csrf_mismatch:'登录状态已刷新，请重新提交一次'};$('#sessions-status').textContent=messages[error.message]??'操作未生效，请稍后重试';}
+}
+
 $('#login-form').addEventListener('submit',async(event)=>{
   event.preventDefault();
   const form=event.currentTarget;
@@ -190,13 +229,14 @@ $('#login-form').addEventListener('submit',async(event)=>{
 $$('.nav-item[data-page]').forEach((button)=>button.addEventListener('click',()=>switchPage(button.dataset.page)));
 document.addEventListener('click',(event)=>{const button=event.target.closest('button[data-target]');if(button)switchPage(button.dataset.target);});
 $('#refresh-overview').addEventListener('click',async()=>{const button=$('#refresh-overview');button.disabled=true;try{status('正在刷新配置快照…');await loadConfig();status('状态已刷新');}catch{status('刷新失败，请确认 Broker 服务状态');}finally{button.disabled=false;}});
+$('#refresh-sessions').addEventListener('click',()=>loadSessions());
 $('#simulation-preset').addEventListener('change',renderSimulationPreset);
 $('#refresh-simulations').addEventListener('click',async()=>{const button=$('#refresh-simulations');button.disabled=true;try{await loadSimulation();status('测试会话已刷新');}catch{status('测试会话读取失败');}finally{button.disabled=false;}});
 $('#clear-all-simulations').addEventListener('click',async()=>{if(!window.confirm('确认停止全部活动模拟？Debug App 下一次刷新将恢复真实环境链路。'))return;try{const result=await api('simulation/sessions',{method:'DELETE',body:{}});status(`已停止 ${result.cleared} 个活动模拟`);await loadSimulation();}catch{status('停止全部模拟失败');}});
 $('#logout').addEventListener('click',async()=>{try{await api('logout',{method:'POST'});}finally{showLogin();}});
 
 $('#services-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const patch={};for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken']){const value=form.elements[name].value.trim();if(value)patch[name]=value;}try{status('正在加密并应用…');renderConfig(await api('config',{method:'PUT',body:patch}));for(const name of ['keyId','projectId','qweatherPrivateKeyPem','amapWebKey','serviceToken'])form.elements[name].value='';status('密钥与服务配置已生效');}catch{status('保存失败，请检查输入范围与格式');}});
-$('#discovery-search-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;let sourcePolicies;try{sourcePolicies=JSON.parse(form.elements.sourcePolicies.value);}catch{status('来源政策必须是有效 JSON 数组');return;}const profile={baseUrl:form.elements.baseUrl.value.trim(),enabled:form.elements.enabled.checked,timeoutMs:Number(form.elements.timeoutMs.value),sourcePolicies};const apiKey=form.elements.apiKey.value.trim();if(apiKey)profile.apiKey=apiKey;try{const result=await api('discovery/search-profile',{method:'PUT',body:profile});form.elements.apiKey.value='';$('#discovery-search-key-mask').textContent=maskText(result.profile.apiKey);status('探索搜索配置已加密保存');await loadConfig();}catch{status('搜索配置保存失败，请检查来源许可、域名和字段');}});
+$('#discovery-search-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const policyText=form.elements.sourcePolicies.value.trim();let sourcePolicies;try{sourcePolicies=policyText?JSON.parse(policyText):[];}catch{status('来源政策必须是有效 JSON 数组');return;}const profile={baseUrl:form.elements.baseUrl.value.trim(),enabled:form.elements.enabled.checked,timeoutMs:Number(form.elements.timeoutMs.value),sourcePolicies};const apiKey=form.elements.apiKey.value.trim();if(apiKey)profile.apiKey=apiKey;try{await refreshAdminSession();const result=await api('discovery/search-profile',{method:'PUT',body:profile});form.elements.apiKey.value='';$('#discovery-search-key-mask').textContent=maskText(result.profile.apiKey);status('探索搜索配置已加密保存');await loadConfig();}catch(error){const messages={invalid_search_profile:'搜索配置校验失败：请检查端点、超时和来源政策；启用搜索时至少要有一条启用的来源政策',unauthenticated:'登录状态已过期，请重新登录',csrf_mismatch:'登录状态已刷新，请重新提交一次',lan_only:'请使用局域网地址打开管理台'};status(messages[error.message]??'搜索配置保存失败，请检查 Broker 状态');}});
 
 $('#add-llm-profile').addEventListener('click',()=>$('#provider-dialog').showModal());
 $('#add-llm-profile-empty').addEventListener('click',()=>$('#provider-dialog').showModal());
@@ -215,7 +255,7 @@ $('#test-seven-timer').addEventListener('click',async()=>{const button=$('#test-
 
 $('#outbound-network-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const mode=form.elements.mode.value;const label=mode==='mihomo'?'经 mihomo':'直连';if(!window.confirm(`确认将整个后端的外网 HTTP(S) 切换为「${label}」？四个应用容器会短暂重建，数据库和缓存不会清除。`))return;const button=event.submitter;button.disabled=true;try{await api('outbound-network',{method:'PUT',body:{mode}});$('#outbound-network-message').textContent='网络方式已提交，正在重建应用容器…';setTimeout(()=>loadConfig().catch(()=>{$('#outbound-network-message').textContent='状态刷新失败，请稍后刷新页面确认。';}),8000);}catch{ $('#outbound-network-message').textContent='切换未被接受；当前网络方式没有改变。';}finally{setTimeout(()=>{button.disabled=false;},8000);}});
 
-$('#password-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const button=event.submitter;const passwordStatus=$('#password-status');const currentPassword=form.elements.currentPassword.value;const newPassword=form.elements.newPassword.value;const confirmPassword=form.elements.confirmPassword.value;if(newPassword!==confirmPassword){passwordStatus.textContent='两次输入的新密码不一致';return;}button.disabled=true;passwordStatus.textContent='正在更新密码…';try{await api('change-password',{method:'POST',body:{currentPassword,newPassword,confirmPassword}});form.reset();showLogin();$('#login-status').textContent='密码已更换，所有设备均需重新登录';}catch(error){const messages={invalid_current_password:'当前密码不正确',password_mismatch:'两次输入的新密码不一致',invalid_password:'新密码必须为 8 至 256 个字符',invalid_request:'改密请求无效'};passwordStatus.textContent=messages[error.message]??'密码更新失败，请检查 Broker 状态';}finally{button.disabled=false;}});
+$('#password-form').addEventListener('submit',async(event)=>{event.preventDefault();const form=event.currentTarget;const button=event.submitter;const passwordStatus=$('#password-status');const currentPassword=form.elements.currentPassword.value;const newPassword=form.elements.newPassword.value;const confirmPassword=form.elements.confirmPassword.value;if(newPassword!==confirmPassword){passwordStatus.textContent='两次输入的新密码不一致';return;}button.disabled=true;passwordStatus.textContent='正在更新密码…';try{await refreshAdminSession();await api('change-password',{method:'POST',body:{currentPassword,newPassword,confirmPassword}});form.reset();showLogin();$('#login-status').textContent='密码已更换，所有设备均需重新登录';}catch(error){const messages={invalid_current_password:'当前密码不正确',password_mismatch:'两次输入的新密码不一致',invalid_password:'新密码必须为 8 至 256 个字符',invalid_request:'改密请求无效',unauthenticated:'登录状态已过期，请重新登录',csrf_mismatch:'登录状态已刷新，请重新提交一次',lan_only:'请使用局域网地址打开管理台'};passwordStatus.textContent=messages[error.message]??'密码更新失败，请检查 Broker 状态';}finally{button.disabled=false;}});
 $('#clear-cache').addEventListener('click',async()=>{try{await api('clear-cache',{method:'POST',body:{}});status('缓存已清理');await loadAudit();}catch{status('缓存清理失败');}});
 $('#restart').addEventListener('click',async()=>{if(!window.confirm('确认重启 Broker？App API 会短暂中断。'))return;try{await api('restart',{method:'POST',body:{}});status('重启指令已发送');}catch{status('重启指令发送失败');}});
 

@@ -28,11 +28,19 @@ class RouteCorridorSample {
 }
 
 class RouteCorridorContext {
+  // These mirror the Broker's contract in context/proxy.mjs: at most three
+  // samples and a routeId matching {1,64}. Allowing more only produced requests
+  // the server rejected, so the client now refuses to build one.
+  static const maximumSamples = 3;
+  static const maximumRouteIdLength = 64;
+
   RouteCorridorContext({
     required this.routeId,
     required Iterable<RouteCorridorSample> samples,
   }) : samples = List.unmodifiable(samples) {
-    if (routeId.isEmpty || routeId.length > 160 || this.samples.length > 5) {
+    if (routeId.isEmpty ||
+        routeId.length > maximumRouteIdLength ||
+        this.samples.length > maximumSamples) {
       throw ArgumentError('invalid transient route corridor');
     }
   }
@@ -60,7 +68,7 @@ class RouteCorridorContext {
     if (polyline.length < 2 ||
         durationSeconds < 1 ||
         maximumSamples < 2 ||
-        maximumSamples > 5) {
+        maximumSamples > RouteCorridorContext.maximumSamples) {
       throw ArgumentError(
         'a loaded route with duration and at least two points is required',
       );
@@ -172,7 +180,16 @@ class RouteCorridorContextController extends Notifier<RouteCorridorContext?> {
     return null;
   }
 
-  void replace(RouteCorridorContext context) => state = context;
+  /// Rebuilding the route surface must not create a new environment input for
+  /// the same route. The route map can rebuild while its scout/weather data is
+  /// loading; publishing an equivalent corridor from that build would rebuild
+  /// the environment snapshot, which rebuilds the route, which publishes the
+  /// corridor again. Keep the existing corridor for the same route identity so
+  /// the input state is stable across presentation rebuilds.
+  void replace(RouteCorridorContext context) {
+    if (state?.routeId == context.routeId) return;
+    state = context;
+  }
 
   void clear() => state = null;
 }

@@ -445,7 +445,12 @@ abstract final class RegionBriefCodec {
       value.keys.every(keys.contains);
 
   static String _string(Object? value, {required int maximum}) {
-    if (value is! String || value.trim().isEmpty || value.length > maximum) {
+    // The Broker bounds these strings in code points. Measuring UTF-16 units
+    // here rejected legal responses whose text contains emoji (one emoji is two
+    // units), so a valid brief was dropped on the client.
+    if (value is! String ||
+        value.trim().isEmpty ||
+        value.runes.length > maximum) {
       throw const RegionBriefFailure('invalid_string');
     }
     return value.trim();

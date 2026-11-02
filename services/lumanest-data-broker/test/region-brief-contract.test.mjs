@@ -101,6 +101,14 @@ test('Region Brief request is bounded, snapshot-scoped and privacy-safe', () => 
   assert.equal(validRegionBriefRequest({ ...request, requestedSections: ['identity', 'identity'] }), false);
 });
 
+test('Region Brief accepts the verification entry point the client actually sends', () => {
+  // The Explore "verify candidate" action sends ai_verification; a whitelist
+  // without it rejected every verification request with a 400.
+  assert.equal(validRegionBriefRequest({ ...request, activationType: 'ai_verification' }), true);
+  assert.equal(validRegionBriefRequest({ ...request, activationType: 'user_manual' }), true);
+  assert.equal(validRegionBriefRequest({ ...request, activationType: 'background' }), false);
+});
+
 test('Region Brief response keeps fact, source and insight references closed', () => {
   assert.equal(validRegionBriefResponse(response), true);
   assert.equal(validRegionBriefResponse({

@@ -147,6 +147,27 @@ test('rejects CSRF mismatch on state-changing authentication', async () => {
   });
 });
 
+test('keeps a small overlap of CSRF tokens for independently loaded admin panels', async () => {
+  await withAuth(async ({ service }) => {
+    const login = await service.login({
+      password: 'initial-password', ipAddress: '192.168.1.51',
+    });
+    const first = await service.issueCsrf(login.sessionToken);
+    const second = await service.issueCsrf(login.sessionToken);
+    assert.notEqual(first, second);
+    assert.equal((await service.authenticate({
+      sessionToken: login.sessionToken,
+      csrfToken: first,
+      requireCsrf: true,
+    })).ok, true);
+    assert.equal((await service.authenticate({
+      sessionToken: login.sessionToken,
+      csrfToken: second,
+      requireCsrf: true,
+    })).ok, true);
+  });
+});
+
 test('password change invalidates all sessions', async () => {
   await withAuth(async ({ service }) => {
     const first = await service.login({

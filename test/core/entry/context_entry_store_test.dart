@@ -32,12 +32,32 @@ void main() {
     expect(newerDelta.updated.single.presentation.title, '新版');
     expect(store.current.revision, 12);
   });
+
+  test('expired entries are dropped against the injected clock', () {
+    // Expiry used to be decided against `DateTime.now()` inside the store, so
+    // the test could not pin it and a wrong comparison direction would only
+    // fail near a real boundary.
+    final pinned = DateTime.utc(2026, 7, 18, 10);
+    final store = InMemoryContextEntryStore(now: () => pinned);
+    final expired = _entry(
+      revision: 1,
+      now: pinned,
+      title: '已过期',
+      expiresAt: pinned.subtract(const Duration(minutes: 1)),
+    );
+
+    final delta = store.apply(EntryBatch(entries: [expired], sourceRevision: 1));
+
+    expect(delta.added, isEmpty);
+    expect(store.byId(expired.id), isNull);
+  });
 }
 
 ContextEntry _entry({
   required int revision,
   required DateTime now,
   required String title,
+  DateTime? expiresAt,
 }) {
   return ContextEntry(
     id: 'entry_test_same',
@@ -47,7 +67,7 @@ ContextEntry _entry({
     revision: revision,
     observedAt: now,
     validFrom: now,
-    expiresAt: now.add(const Duration(hours: 1)),
+    expiresAt: expiresAt ?? now.add(const Duration(hours: 1)),
     freshness: EntryFreshness.fresh,
     evidenceConfidence: .7,
     basePriority: EntryPriority.p1,

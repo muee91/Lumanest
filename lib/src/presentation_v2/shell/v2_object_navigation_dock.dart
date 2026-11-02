@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
+import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
 /// Four persistent destinations plus one isolated intelligent entrance.
 ///
@@ -116,6 +117,10 @@ class _V2ObjectNavigationDockState extends State<V2ObjectNavigationDock> {
         width: 92,
         child: Column(
           children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 14),
+              child: V2BrandLockup(compact: true, markOnly: true),
+            ),
             Expanded(child: _buildExpandedPrimaryRail(context)),
             const SizedBox(height: 12),
             _IntelligenceDockButton(
@@ -429,35 +434,38 @@ class _IntelligenceDockButtonState extends State<_IntelligenceDockButton> {
         onTapDown: (_) => setState(() => _pressed = true),
         onTapUp: (_) => setState(() => _pressed = false),
         onTapCancel: () => setState(() => _pressed = false),
-        child: AnimatedScale(
-          duration: widget.reduceMotion
-              ? Duration.zero
-              : _pressed
-              ? LumaNestMotion.pressIn
-              : LumaNestMotion.pressOut,
-          scale: _pressed ? .9 : 1,
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: .9)),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: .17),
-                  blurRadius: 24,
-                  offset: const Offset(0, 11),
+        child: Tooltip(
+          message: '问栖光',
+          child: AnimatedScale(
+            duration: widget.reduceMotion
+                ? Duration.zero
+                : _pressed
+                ? LumaNestMotion.pressIn
+                : LumaNestMotion.pressOut,
+            scale: _pressed ? .9 : 1,
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: .9)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: .17),
+                    blurRadius: 24,
+                    offset: const Offset(0, 11),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  CupertinoIcons.sparkles,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  size: 28,
                 ),
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                CupertinoIcons.sparkles,
-                color: Theme.of(context).colorScheme.onPrimary,
-                size: 28,
               ),
             ),
           ),

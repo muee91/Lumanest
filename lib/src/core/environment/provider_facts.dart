@@ -246,8 +246,25 @@ class ProviderFactsBundle {
       'expiresAt',
       'sourceUrl',
     };
-    if (!_exactKeys(value, keys)) {
+    // The Broker adds an optional `attributes` bag (OSM outdoor-map counts,
+    // iNaturalist observation counts) to some signals. Rejecting the whole
+    // bundle over one optional field blanked Explore wherever those providers
+    // had data, so the bag is tolerated here and deliberately not surfaced.
+    if (!_allowedKeys(value, keys, const {'attributes'})) {
       throw const FormatException('Invalid provider signal');
+    }
+    final attributes = value['attributes'];
+    if (attributes != null) {
+      if (attributes is! Map ||
+          attributes.length > 16 ||
+          attributes.entries.any((entry) =>
+              entry.key is! String ||
+              !RegExp(r'^[a-z][a-zA-Z0-9]{0,31}$').hasMatch(entry.key as String) ||
+              entry.value is! int ||
+              (entry.value as int) < 0 ||
+              (entry.value as int) > 1000)) {
+        throw const FormatException('Invalid provider signal attributes');
+      }
     }
     final observedAt = _date(value['observedAt']);
     final expiresAt = _date(value['expiresAt']);
@@ -313,6 +330,16 @@ Map<String, Object?> _map(Object? value) {
 
 bool _exactKeys(Map<String, Object?> value, Set<String> keys) =>
     value.length == keys.length && value.keys.toSet().containsAll(keys);
+
+// Required keys plus an explicitly enumerated set of optional ones. Anything
+// outside both sets is still a contract violation.
+bool _allowedKeys(
+  Map<String, Object?> value,
+  Set<String> required,
+  Set<String> optional,
+) =>
+    required.every(value.containsKey) &&
+    value.keys.every((key) => required.contains(key) || optional.contains(key));
 
 String _bounded(Object? value, int minimum, int maximum) {
   if (value is! String ||

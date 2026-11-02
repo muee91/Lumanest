@@ -34,11 +34,24 @@ services:
       QWEATHER_PROJECT_ID: ${QWEATHER_PROJECT_ID:?Set QWEATHER_PROJECT_ID}
       QWEATHER_API_HOST: ${QWEATHER_API_HOST:?Set QWEATHER_API_HOST}
       LUMANEST_SERVICE_TOKEN: ${LUMANEST_SERVICE_TOKEN:?Set LUMANEST_SERVICE_TOKEN}
+      LUMANEST_SESSION_SIGNING_KEY: ${LUMANEST_SESSION_SIGNING_KEY:?Set LUMANEST_SESSION_SIGNING_KEY}
       AMAP_WEB_KEY: ${AMAP_WEB_KEY:?Set AMAP_WEB_KEY}
       LUMANEST_CONFIG_MASTER_KEY: ${LUMANEST_CONFIG_MASTER_KEY:?Set LUMANEST_CONFIG_MASTER_KEY}
       LUMANEST_ADMIN_BOOTSTRAP_PASSWORD: ${LUMANEST_ADMIN_BOOTSTRAP_PASSWORD:-}
       LUMANEST_ADMIN_PASSWORD: ${LUMANEST_ADMIN_PASSWORD:-}
       LUMANEST_SIMULATION_ENABLED: ${LUMANEST_SIMULATION_ENABLED:-false}
+      # Socket addresses of reverse proxies we run ourselves, comma separated.
+      # Empty keeps X-Forwarded-For untrusted, so each client is keyed by its
+      # socket address instead of a spoofable header.
+      LUMANEST_TRUSTED_PROXY_ADDRESSES: ${LUMANEST_TRUSTED_PROXY_ADDRESSES:-}
+      # Extra host names the admin console accepts beyond loopback, private IP
+      # literals and `.local`. Needed only for a split-horizon name or a proxy
+      # that rewrites Host. Declared entries are accepted verbatim - including
+      # public domains - so only list hosts this deployment actually controls.
+      LUMANEST_ADMIN_ALLOWED_HOSTS: ${LUMANEST_ADMIN_ALLOWED_HOSTS:-}
+      # The admin port is internal-only; expose it through an HTTPS reverse
+      # proxy or VPN and keep the session cookie Secure by default.
+      LUMANEST_ADMIN_SECURE_COOKIES: ${LUMANEST_ADMIN_SECURE_COOKIES:-true}
       CONTEXT_SERVICE_URL: http://context-service:8000
       CONTEXT_INTERNAL_TOKEN: ${CONTEXT_INTERNAL_TOKEN:?Set CONTEXT_INTERNAL_TOKEN}
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
@@ -66,7 +79,10 @@ services:
       - mihomo
     ports:
       - "8787:8787"
-      - "8788:8788"
+      # LAN-only admin access. Keep the default loopback binding; a direct
+      # HTTP LAN console must opt in with LUMANEST_ADMIN_BIND_ADDRESS and use
+      # LUMANEST_ADMIN_SECURE_COOKIES=false, or terminate HTTPS in front.
+      - "${LUMANEST_ADMIN_BIND_ADDRESS:-127.0.0.1}:8788:8788"
     volumes:
       - ${QWEATHER_PRIVATE_KEY_FILE:?Set QWEATHER_PRIVATE_KEY_FILE in qweather-token-broker.env}:/run/secrets/qweather-ed25519-private.pem:ro
       - lumanest-data:/var/lib/lumanest

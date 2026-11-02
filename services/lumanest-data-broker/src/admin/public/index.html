@@ -411,6 +411,11 @@
               </section>
             </aside>
           </div>
+          <section class="settings-card sessions-card">
+            <header class="settings-card-head"><div><p class="card-kicker">APP SESSIONS</p><h3>App 设备会话</h3><p>按安装 ID 记录 24 小时滚动窗口内的会话发放。撤销后该安装立即无法换取新 Token，已持有的 Token 也一并失效。</p></div><span class="section-index">APP</span></header>
+            <div id="session-installations" class="session-installations" aria-label="App 设备会话列表"></div>
+            <footer class="settings-actions"><p class="status" id="sessions-status" role="status" aria-live="polite"></p><button type="button" id="refresh-sessions" class="secondary">刷新列表</button></footer>
+          </section>
           <div class="audit"><div class="audit-head"><div><p class="card-kicker">AUDIT LOG</p><h3>最近操作</h3></div><span>仅保留管理操作结果</span></div><ol id="audit-list"></ol></div>
         </section>
       </div>

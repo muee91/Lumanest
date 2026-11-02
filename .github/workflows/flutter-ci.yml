@@ -64,6 +64,19 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # `app_database.g.dart` is checked in and hand-editing it is forbidden
+      # (AGENTS.md §11.1), but nothing verified it matched the table definitions.
+      # Regenerate and fail on any drift in the generated Dart output.
+      - name: Verify Drift generated code is current
+        run: |
+          flutter pub run build_runner build
+          if [ -n "$(git status --porcelain -- lib)" ]; then
+            git status --porcelain -- lib
+            git diff -- lib
+            echo "::error::Generated Dart code is stale. Re-run 'flutter pub run build_runner build' and commit the result."
+            exit 1
+          fi
+
       - name: Analyze
         run: flutter analyze
 
@@ -100,6 +113,77 @@ jobs:
 
       - name: Verify APK exists
         run: test -s build/app/outputs/flutter-apk/app-debug.apk
+
+  android-release-build:
+    name: Build Android release APK with R8
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # The release build fails fast without a signing config (see
+      # android/app/build.gradle.kts), so CI mints a throwaway keystore.
+      # It only signs the build that this job verifies and archives; it is
+      # never a distribution credential.
+      - name: Mint a throwaway release keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/ci-release.jks \
+            -storepass ci-only-pw -keypass ci-only-pw \
+            -alias ci -keyalg RSA -keysize 2048 -validity 1 \
+            -dname "CN=ci"
+          cat > android/key.properties <<'EOF'
+          storeFile=ci-release.jks
+          storePassword=ci-only-pw
+          keyPassword=ci-only-pw
+          keyAlias=ci
+          EOF
+
+      - name: Compile Android release APK
+        run: flutter build apk --release --no-pub
+
+      - name: Verify APK exists
+        run: test -s build/app/outputs/flutter-apk/app-release.apk
+
+      # The AMap SDK loads its mapcore bridge reflectively from the GL thread,
+      # so R8 shrinking it aborts the process on the first AMapWidget. The keep
+      # rule in android/app/proguard-rules.pro is the only thing preventing
+      # that, and it only runs in release builds - assert the rule actually kept
+      # the class so a future dependency or rule change cannot ship a release
+      # APK with a broken map.
+      - name: Assert R8 kept the AMap mapcore bridge
+        run: |
+          grep -Fx \
+            'com.autonavi.base.amap.mapcore.ClassTools -> com.autonavi.base.amap.mapcore.ClassTools' \
+            build/app/outputs/mapping/release/mapping.txt
+
+      # Release stack traces are obfuscated; without this mapping they cannot
+      # be symbolicated (the app ships sentry_flutter).
+      - name: Archive the R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mapping
+          path: build/app/outputs/mapping/release/mapping.txt
+          retention-days: 14
+          if-no-files-found: error
 
   data-broker:
     name: Test data broker
@@ -253,6 +337,7 @@ jobs:
     needs:
       - quality
       - android-debug-build
+      - android-release-build
       - data-broker
       - context-service
       - discovery-service
@@ -268,6 +353,7 @@ jobs:
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           ANDROID_BUILD_RESULT: ${{ needs['android-debug-build'].result }}
+          ANDROID_RELEASE_BUILD_RESULT: ${{ needs['android-release-build'].result }}
           DATA_BROKER_RESULT: ${{ needs['data-broker'].result }}
           CONTEXT_RESULT: ${{ needs['context-service'].result }}
           DISCOVERY_RESULT: ${{ needs['discovery-service'].result }}
@@ -279,6 +365,7 @@ jobs:
             const results = {
               flutter: process.env.QUALITY_RESULT,
               androidBuild: process.env.ANDROID_BUILD_RESULT,
+              androidReleaseBuild: process.env.ANDROID_RELEASE_BUILD_RESULT,
               dataBroker: process.env.DATA_BROKER_RESULT,
               context: process.env.CONTEXT_RESULT,
               discovery: process.env.DISCOVERY_RESULT,

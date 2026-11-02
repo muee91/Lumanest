@@ -43,6 +43,59 @@ void main() {
 
     expect(() => ProviderFactsBundle.fromJson(body), throwsFormatException);
   });
+
+  test('accepts the optional attributes bag the Broker attaches to signals', () {
+    // OSM and iNaturalist signals carry an `attributes` count bag. Treating it
+    // as an unknown key failed the whole bundle, which blanked Explore wherever
+    // those providers had any data.
+    final body = _fixture();
+    final providers = body['providers']! as List<Object?>;
+    final first = Map<String, Object?>.from(providers.first! as Map);
+    final signals = List<Object?>.from(first['signals']! as List);
+    final signal = Map<String, Object?>.from(signals.first! as Map);
+    signal['attributes'] = {'outdoorMapFeatures': 12, 'observationCount': 3};
+    first['signals'] = [signal];
+    providers[0] = first;
+    body['providers'] = providers;
+
+    final bundle = ProviderFactsBundle.fromJson(body);
+    expect(
+      bundle.displayableSignalsAt(instant).map((item) => item.title),
+      contains('近期光学观测'),
+    );
+  });
+
+  test('still rejects unknown signal keys and malformed attributes', () {
+    Map<String, Object?> withSignal(Map<String, Object?> extra) {
+      final body = _fixture();
+      final providers = body['providers']! as List<Object?>;
+      final first = Map<String, Object?>.from(providers.first! as Map);
+      final signals = List<Object?>.from(first['signals']! as List);
+      first['signals'] = [
+        {...Map<String, Object?>.from(signals.first! as Map), ...extra},
+      ];
+      providers[0] = first;
+      body['providers'] = providers;
+      return body;
+    }
+
+    expect(
+      () => ProviderFactsBundle.fromJson(withSignal({'unexpected': 1})),
+      throwsFormatException,
+    );
+    expect(
+      () => ProviderFactsBundle.fromJson(withSignal({
+        'attributes': {'observationCount': -1},
+      })),
+      throwsFormatException,
+    );
+    expect(
+      () => ProviderFactsBundle.fromJson(withSignal({
+        'attributes': {'NotLowerCamel': 1},
+      })),
+      throwsFormatException,
+    );
+  });
 }
 
 Map<String, Object?> _fixture() => {

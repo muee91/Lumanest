@@ -16,6 +16,7 @@ enum RemoteContextFailureKind {
   configuration,
   network,
   serviceUnavailable,
+  rateLimited,
   response,
 }
 

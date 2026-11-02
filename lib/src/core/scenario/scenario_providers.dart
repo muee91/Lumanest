@@ -14,8 +14,14 @@ final scenarioOrchestratorProvider = Provider<ScenarioOrchestrator>((ref) {
   return const ScenarioOrchestrator();
 });
 
+// `ContextSnapshot` has no value equality, so each refresh is a new family key.
+// autoDispose keeps the number of live compositions bounded by the number of
+// surfaces on screen instead of the number of refreshes so far.
 final todaySurfaceCompositionProvider =
-    Provider.family<SurfaceComposition, ContextSnapshot>((ref, snapshot) {
+    Provider.autoDispose.family<SurfaceComposition, ContextSnapshot>((
+      ref,
+      snapshot,
+    ) {
       final now = ref.watch(currentTimeProvider)();
       final point = snapshot.location;
       final daily = point == null

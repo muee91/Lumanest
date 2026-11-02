@@ -32,15 +32,26 @@ void main() {
     test('light theme exposes readable color scheme', () {
       final theme = LumaNestTheme.light;
 
-      expect(theme.colorScheme, isNotNull);
+      // `colorScheme` is non-nullable on ThemeData, so asserting it was
+      // vacuous. What actually matters is that body copy stays legible on the
+      // page surface.
       expect(theme.brightness, Brightness.light);
+      expect(
+        _contrastRatio(theme.colorScheme.onSurface, theme.colorScheme.surface),
+        greaterThanOrEqualTo(4.5),
+        reason: '正文与页面底色的对比度必须达到 WCAG AA',
+      );
     });
 
     test('dark theme exposes readable color scheme', () {
       final theme = LumaNestTheme.dark;
 
-      expect(theme.colorScheme, isNotNull);
       expect(theme.brightness, Brightness.dark);
+      expect(
+        _contrastRatio(theme.colorScheme.onSurface, theme.colorScheme.surface),
+        greaterThanOrEqualTo(4.5),
+        reason: '正文与页面底色的对比度必须达到 WCAG AA',
+      );
     });
 
     test('light and dark themes produce different color schemes', () {

@@ -63,6 +63,7 @@ SentryEvent _stripApplicationContext(SentryEvent event, Hint hint) {
     release: event.release,
     dist: event.dist,
     environment: event.environment,
+    message: event.message,
     throwable: event.throwableMechanism,
     level: event.level,
     exceptions: event.exceptions,

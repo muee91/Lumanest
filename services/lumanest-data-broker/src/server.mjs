@@ -1,4 +1,9 @@
-import { createHash, createPrivateKey, timingSafeEqual } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  createPrivateKey,
+  timingSafeEqual,
+} from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -105,6 +110,7 @@ import {
   mergeAssistantSources,
 } from './assistant/context-envelope.mjs';
 import { apiErrorCodes } from './api/error-codes.mjs';
+import { SessionInstallationRegistry } from './session/installation-registry.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
 const maximumVerifiedPlaceMediaBytes = 8 * 1024 * 1024;
@@ -160,6 +166,67 @@ function hasValidAuthorization(header, serviceToken) {
   const actual = Buffer.from(header);
   const expected = Buffer.from(`Bearer ${serviceToken}`);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+const sessionTokenLifetimeMilliseconds = 24 * 60 * 60 * 1_000;
+
+function base64urlJson(value) {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function signSessionPayload(payload, signingKey) {
+  const encoded = base64urlJson(payload);
+  const signature = createHmac('sha256', signingKey).update(encoded).digest('base64url');
+  return `${encoded}.${signature}`;
+}
+
+function validInstallationId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{22,80}$/.test(value);
+}
+
+function issueSessionToken({ installationId, signingKey, now }) {
+  const issuedAt = Math.floor(now.getTime() / 1_000);
+  const expiresAt = issuedAt + sessionTokenLifetimeMilliseconds / 1_000;
+  return {
+    accessToken: signSessionPayload({
+      sub: installationId,
+      scope: 'app',
+      iat: issuedAt,
+      exp: expiresAt,
+    }, signingKey),
+    expiresAt: new Date(expiresAt * 1_000).toISOString(),
+  };
+}
+
+// Verifies an App-surface session token and returns its payload, or null when
+// the token is malformed, signed with another key, or expired. Revocation is
+// checked by the caller against the installation registry, because this
+// function only sees the cryptographic facts.
+function sessionAuthorization(header, signingKey, now) {
+  if (typeof header !== 'string' || !header.startsWith('Bearer ') ||
+      typeof signingKey !== 'string' || signingKey.length < 16) return null;
+  const token = header.slice('Bearer '.length);
+  const separator = token.indexOf('.');
+  if (separator <= 0 || separator === token.length - 1) return null;
+  const encoded = token.slice(0, separator);
+  const receivedSignature = token.slice(separator + 1);
+  const expectedSignature = createHmac('sha256', signingKey)
+    .update(encoded)
+    .digest('base64url');
+  const actual = Buffer.from(receivedSignature);
+  const expected = Buffer.from(expectedSignature);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    const nowSeconds = Math.floor(now.getTime() / 1_000);
+    return payload?.scope === 'app' && validInstallationId(payload.sub) &&
+      Number.isInteger(payload.exp) && payload.exp > nowSeconds &&
+      Number.isInteger(payload.iat) && payload.iat <= nowSeconds + 300
+      ? payload
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function hasValidWorkerToken(header, workerToken) {
@@ -307,19 +374,37 @@ function profileLocations(value, maximumSamples = 64) {
   return locations.every(validCoordinate) ? locations : null;
 }
 
-async function readJsonBody(request, maximumBytes = 4096) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > maximumBytes) return null;
-    chunks.push(chunk);
-  }
+async function readJsonBody(request, maximumBytes = 4096, maximumMilliseconds = 15_000) {
+  const declaredLength = Number.parseInt(request.headers['content-length'] ?? '', 10);
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) return null;
+  const read = (async () => {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size > maximumBytes) return null;
+      chunks.push(chunk);
+    }
+    try {
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      return body && typeof body === 'object' && !Array.isArray(body) ? body : null;
+    } catch {
+      return null;
+    }
+  })().catch(() => null);
+  let timer;
   try {
-    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    return body && typeof body === 'object' && !Array.isArray(body) ? body : null;
-  } catch {
-    return null;
+    return await Promise.race([
+      read,
+      new Promise((resolve) => {
+        timer = setTimeout(() => {
+          request.destroy();
+          resolve(null);
+        }, maximumMilliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer != null) clearTimeout(timer);
   }
 }
 
@@ -358,6 +443,7 @@ const ratePolicies = [
   { path: '/v1/context/safety-detail', limit: 30, windowMs: 60 * 1_000, key: 'safety-detail' },
   { path: '/v1/sky-opportunities', limit: 12, windowMs: 60 * 1_000, key: 'sky-opportunity' },
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
+  { path: '/v1/session', limit: 8, windowMs: 60 * 1_000, key: 'session' },
   { path: '/v1/weather/7timer', limit: 20, windowMs: 60 * 1_000, key: 'seven-timer' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
@@ -375,7 +461,10 @@ const ratePolicies = [
 
 function ratePolicy(pathname) {
   if (/^\/v1\/explore\/media\/[A-Za-z0-9_-]{16,2800}$/.test(pathname)) {
-    return { limit: 60, windowMs: 60 * 1_000, key: 'place-media' };
+    // Each response is up to 8 MB and the token is only a base64url URL, so a
+    // client can mint any upload.wikimedia.org path itself. 60/min turned that
+    // into a bandwidth amplifier.
+    return { limit: 20, windowMs: 60 * 1_000, key: 'place-media' };
   }
   return ratePolicies.find((policy) => policy.path === pathname) ?? {
     limit: 60,
@@ -383,6 +472,12 @@ function ratePolicy(pathname) {
     key: 'app',
   };
 }
+
+// Discovery workers use a separate token and are internal, but an unlimited
+// internal surface is one leaked token away from unbounded LLM and Tavily
+// spend. The bucket is still per source so one stuck worker cannot starve the
+// others.
+const internalDiscoveryRatePolicy = { limit: 120, windowMs: 60 * 1_000, key: 'internal-discovery' };
 
 // The context service can fail in three different ways, and they need three
 // different answers: the deployment lacks its internal wiring, the two services
@@ -398,9 +493,33 @@ function contextProxyFailure(result) {
   return { status: 502, code: apiErrorCodes.upstreamUnavailable };
 }
 
-function rateLimitKey(request, policy) {
+// A reverse proxy makes every request look like it came from one address, so
+// one client's script would exhaust the shared bucket for everybody. Honouring
+// X-Forwarded-For is only safe when the socket peer is a proxy we deployed
+// ourselves; behind an untrusted peer the header is attacker-controlled and
+// rotating it would bypass the limit entirely.
+//
+// A proxy appends the address it received the request from, so the real client
+// sits at the rightmost entry that our own trusted proxies did not append. A
+// value the client smuggled in left of that must not be able to mint a fresh
+// bucket, which is exactly what reading the first entry would allow.
+function clientAddressFromForwarded(forwarded, trustedProxyAddresses) {
+  const entries = forwarded.split(',').map((entry) => entry.trim()).filter(Boolean);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (!trustedProxyAddresses.has(entries[index])) return entries[index];
+  }
+  // Every entry names a proxy we declared ourselves, so the chain originated
+  // inside our own deployment; share the rightmost bucket rather than bypass.
+  return entries[entries.length - 1] ?? null;
+}
+
+function rateLimitKey(request, policy, trustedProxyAddresses) {
   const remoteAddress = request.socket?.remoteAddress ?? 'unknown';
-  const source = createHash('sha256').update(remoteAddress).digest('hex').slice(0, 24);
+  const forwarded = request.headers['x-forwarded-for'];
+  const clientAddress = trustedProxyAddresses.has(remoteAddress) && typeof forwarded === 'string'
+    ? clientAddressFromForwarded(forwarded, trustedProxyAddresses) ?? remoteAddress
+    : remoteAddress;
+  const source = createHash('sha256').update(clientAddress).digest('hex').slice(0, 24);
   return `${policy.key}:${source}`;
 }
 
@@ -821,6 +940,7 @@ export function createTokenBrokerServer({
   keyId,
   projectId,
   serviceToken,
+  sessionSigningKey = '',
   amapWebKey,
   llmProfiles = [],
   llmRouting = {
@@ -859,6 +979,8 @@ export function createTokenBrokerServer({
   skyBrightnessCalibrationPath = '',
   skyWindowService = null,
   requestRateLimiter = new MemoryRequestRateLimiter(),
+  trustedProxyAddresses = [],
+  sessionInstallationRegistry = new SessionInstallationRegistry(),
   simulationRegistry = null,
   contextSnapshotStore = null,
   operationalObservability = null,
@@ -870,6 +992,7 @@ export function createTokenBrokerServer({
     keyId,
     projectId,
     serviceToken,
+    sessionSigningKey,
     amapWebKey,
     llmProfiles: Object.freeze([...llmProfiles]),
     llmRouting: Object.freeze({ ...llmRouting }),
@@ -953,11 +1076,69 @@ export function createTokenBrokerServer({
   const placeMediaCache = new BoundedTtlMap();
   const assistantPlaceCache = new BoundedTtlMap();
   const contextSnapshots = contextSnapshotStore ?? new ContextSnapshotStore();
-  return createServer(async (request, response) => {
+  const trustedProxies = new Set(trustedProxyAddresses);
+
+  // One unexpected throw used to reject the request listener, and Node 22 then
+  // terminates the process — the single backend the App depends on. Handlers
+  // are still expected to catch what they can; this is the last line.
+  async function handleRequest(request, response) {
     const configuration = configurationSource.snapshot();
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
     if (request.method === 'GET' && requestUrl.pathname === '/healthz') {
       writeJson(response, 200, { status: 'ok' });
+      return;
+    }
+
+    // Public bootstrap for mobile installs. The installation identifier is
+    // deliberately not treated as a secret; it is the quota and revocation
+    // handle: issuance is accounted per identifier with a rolling cap, and a
+    // revoked identifier is refused new tokens and loses the ones it holds.
+    // The returned short-lived token only authorizes the App surface and the
+    // endpoint is rate-limited separately from the protected business APIs,
+    // so release builds need no shared bearer secret embedded in the APK.
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/session') {
+      const policy = ratePolicy(requestUrl.pathname);
+      const limit = await requestRateLimiter.consume({
+        key: rateLimitKey(request, policy, trustedProxies),
+        limit: policy.limit,
+        windowMs: policy.windowMs,
+        now: now(),
+      });
+      if (!limit.allowed) {
+        writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
+          'Retry-After': String(limit.retryAfterSeconds),
+        });
+        return;
+      }
+      const body = await readJsonBody(request, 512);
+      if (body == null || Object.keys(body).length !== 1 ||
+          !validInstallationId(body.installationId)) {
+        writeJson(response, 400, { error: apiErrorCodes.invalidRequest });
+        return;
+      }
+      const signingKey = configuration.sessionSigningKey || configuration.serviceToken;
+      if (typeof signingKey !== 'string' || signingKey.length < 16) {
+        writeJson(response, 503, { error: apiErrorCodes.notConfigured });
+        return;
+      }
+      const issuance = await sessionInstallationRegistry.recordIssuance({
+        installationId: body.installationId,
+      });
+      if (!issuance.allowed) {
+        if (issuance.status === 403) {
+          writeJson(response, 403, { error: apiErrorCodes.installationRevoked });
+          return;
+        }
+        writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
+          'Retry-After': String(issuance.retryAfterSeconds),
+        });
+        return;
+      }
+      writeJson(response, 200, issueSessionToken({
+        installationId: body.installationId,
+        signingKey,
+        now: now(),
+      }));
       return;
     }
 
@@ -981,7 +1162,28 @@ export function createTokenBrokerServer({
         writeJson(response, 401, { error: apiErrorCodes.unauthorized });
         return;
       }
-      const body = await readJsonBody(request, requestUrl.pathname.endsWith('/search') || requestUrl.pathname.endsWith('/resolve-place') ? 4_096 : 16 * 1_024);
+      const workerLimit = await requestRateLimiter.consume({
+        key: rateLimitKey(request, internalDiscoveryRatePolicy, trustedProxies),
+        limit: internalDiscoveryRatePolicy.limit,
+        windowMs: internalDiscoveryRatePolicy.windowMs,
+        now: now(),
+      });
+      if (!workerLimit.allowed) {
+        writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
+          'Retry-After': String(workerLimit.retryAfterSeconds),
+        });
+        return;
+      }
+      // `validDiscoveryExtractRequest` already bounds an extraction at eight
+      // evidence pieces with 1,200-character snippets, but those snippets are
+      // usually Chinese, so three bytes per character puts a legitimate body
+      // near 30 KB. The former 16 KB reader ceiling rejected it before
+      // validation ran, which workers could not tell apart from a schema error.
+      const bodyLimit = requestUrl.pathname.endsWith('/search') ||
+          requestUrl.pathname.endsWith('/resolve-place')
+        ? 4_096
+        : requestUrl.pathname.endsWith('/extract') ? 64 * 1_024 : 16 * 1_024;
+      const body = await readJsonBody(request, bodyLimit);
       if (requestUrl.pathname.endsWith('/search')) {
         if (body == null || !validDiscoverySearchRequest(
           body, configuration.discoverySearchProfile.sourcePolicies,
@@ -1059,14 +1261,17 @@ export function createTokenBrokerServer({
       return;
     }
 
-    if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken)) {
+    const sessionSigningKey = configuration.sessionSigningKey || configuration.serviceToken;
+    const sessionPayload = sessionAuthorization(request.headers.authorization, sessionSigningKey, now());
+    if (!hasValidAuthorization(request.headers.authorization, configuration.serviceToken) &&
+        (sessionPayload == null || sessionInstallationRegistry.isRevoked(sessionPayload.sub))) {
       writeJson(response, 401, { error: apiErrorCodes.unauthorized });
       return;
     }
 
     const policy = ratePolicy(requestUrl.pathname);
     const limit = await requestRateLimiter.consume({
-      key: rateLimitKey(request, policy),
+      key: rateLimitKey(request, policy, trustedProxies),
       limit: policy.limit,
       windowMs: policy.windowMs,
       now: now(),
@@ -1465,9 +1670,10 @@ export function createTokenBrokerServer({
       }
       const snapshot = contextSnapshots.snapshot(body.snapshotId);
       const assistantNow = now();
+      // The snapshot identifier is not logged: combined with timestamps it
+      // reconstructs a session's space-time context, which §12.2 forbids.
       console.log(JSON.stringify({
         evt: 'assistant.request',
-        snapshotId: body.snapshotId,
         snapshotPresent: snapshot != null,
         snapshotStale: snapshot?.stale,
         snapshotExpiresAt: snapshot?.expiresAt,
@@ -1883,6 +2089,27 @@ export function createTokenBrokerServer({
     }
 
     writeJson(response, 404, { error: apiErrorCodes.notFound });
+  }
+
+  return createServer({
+    requestTimeout: 20_000,
+    headersTimeout: 15_000,
+    keepAliveTimeout: 5_000,
+  }, (request, response) => {
+    handleRequest(request, response).catch((error) => {
+      console.error(JSON.stringify({
+        evt: 'request.failed',
+        path: request.url ?? '/',
+        error: error instanceof Error ? error.name : 'unknown',
+      }));
+      // SSE and media streams have already written their headers, so the only
+      // honest recovery is to stop the response instead of appending JSON.
+      if (response.headersSent) {
+        response.end();
+        return;
+      }
+      writeJson(response, 500, { error: apiErrorCodes.internalError });
+    });
   });
 }
 
@@ -1894,11 +2121,23 @@ export function configurationFromEnvironment(environment = process.env) {
   };
 
   const privateKeyPath = required('QWEATHER_PRIVATE_KEY_PATH');
+  const serviceToken = required('LUMANEST_SERVICE_TOKEN');
+  // Keep the legacy service token as a server-side fallback during rollout;
+  // production deployments must provide a distinct signing key. An explicitly
+  // configured key equal to the service token would silently undo the
+  // separation the key exists for, so it is rejected instead of ignored.
+  const explicitSessionSigningKey = environment.LUMANEST_SESSION_SIGNING_KEY?.trim() ?? '';
+  if (explicitSessionSigningKey.length > 0 && explicitSessionSigningKey === serviceToken) {
+    throw new Error('LUMANEST_SESSION_SIGNING_KEY must differ from LUMANEST_SERVICE_TOKEN');
+  }
   return {
     privateKey: createPrivateKey(readFileSync(privateKeyPath)),
     keyId: required('QWEATHER_KEY_ID'),
     projectId: required('QWEATHER_PROJECT_ID'),
-    serviceToken: required('LUMANEST_SERVICE_TOKEN'),
+    serviceToken,
+    // Keep the legacy service token as a server-side fallback during rollout;
+    // production deployments should provide a distinct signing key.
+    sessionSigningKey: explicitSessionSigningKey || serviceToken,
     amapWebKey: required('AMAP_WEB_KEY'),
     contextServiceUrl: environment.CONTEXT_SERVICE_URL?.trim() ?? '',
     contextInternalToken: environment.CONTEXT_INTERNAL_TOKEN?.trim() ?? '',
@@ -1916,6 +2155,20 @@ export function configurationFromEnvironment(environment = process.env) {
     terrainHorizonDatasetRevision: environment.LUMANEST_TERRAIN_DATASET_REVISION?.trim() ?? '',
     openMeteoForecastBaseUrl: environment.OPEN_METEO_FORECAST_BASE_URL?.trim() || 'https://api.open-meteo.com',
     skyBrightnessCalibrationPath: environment.LUMANEST_SKY_BRIGHTNESS_CALIBRATION_PATH?.trim() ?? '',
+    // Comma-separated socket addresses of reverse proxies we deploy ourselves.
+    // Empty by default: X-Forwarded-For stays untrusted until an operator names
+    // the proxy, because trusting it blindly lets a client mint its own bucket.
+    trustedProxyAddresses: (environment.LUMANEST_TRUSTED_PROXY_ADDRESSES ?? '')
+      .split(',').map((address) => address.trim()).filter(Boolean),
+    // Host names the operator declares as LAN-reachable beyond the defaults
+    // (loopback, private IP literals, `.local`). Only needed for a split-horizon
+    // name or a reverse proxy that rewrites `Host`.
+    adminAllowedHosts: (environment.LUMANEST_ADMIN_ALLOWED_HOSTS ?? '')
+      .split(',').map((host) => host.trim().toLowerCase()).filter(Boolean),
+    // Set when TLS terminates in front of the console, so the session cookie
+    // carries `Secure`. Plain-HTTP LAN access must leave this off or the
+    // browser drops the cookie on login.
+    adminSecureCookies: (environment.LUMANEST_ADMIN_SECURE_COOKIES ?? '').trim().toLowerCase() === 'true',
     port: Number.parseInt(environment.PORT ?? '8787', 10),
   };
 }
@@ -1944,6 +2197,7 @@ export async function createBrokerServices(environment = process.env, {
     filePath: `${dataDirectory}/admin-auth.json`,
     bootstrapPassword: environment.LUMANEST_ADMIN_BOOTSTRAP_PASSWORD?.trim() ||
       environment.LUMANEST_ADMIN_PASSWORD?.trim() || '',
+    secureCookies: defaults.adminSecureCookies,
   });
   await authService.initialize();
   const auditLog = await new AuditLog({
@@ -1983,6 +2237,9 @@ export async function createBrokerServices(environment = process.env, {
     environment.LUMANEST_SIMULATION_ENABLED?.trim() ?? '',
   );
   const simulationRegistry = simulationEnabled ? new SimulationRegistry() : null;
+  const sessionInstallationRegistry = await new SessionInstallationRegistry({
+    filePath: `${dataDirectory}/session-installations.json`,
+  }).initialize();
   const appServer = createTokenBrokerServer({
     runtimeConfig,
     weatherCache,
@@ -2003,6 +2260,8 @@ export async function createBrokerServices(environment = process.env, {
     sevenTimerService,
     skyOpportunityLogger: (entry) => console.info(JSON.stringify(entry)),
     requestRateLimiter,
+    trustedProxyAddresses: defaults.trustedProxyAddresses,
+    sessionInstallationRegistry,
     simulationRegistry,
     providerFactsService,
     operationalObservability,
@@ -2011,6 +2270,9 @@ export async function createBrokerServices(environment = process.env, {
     authService,
     runtimeConfig,
     auditLog,
+    sessionInstallationRegistry,
+    allowedHosts: defaults.adminAllowedHosts,
+    secureCookies: defaults.adminSecureCookies,
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),
     getBrokerHealth: () => brokerHealthMonitor.snapshot(),
     getProviderHealth: () => providerFactsService.healthSnapshot(),
@@ -2071,6 +2333,25 @@ export async function createBrokerServices(environment = process.env, {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  // Detached work (discovery prewarm, SSE streams, cache writes) can still
+  // reject outside any request handler. Node 22 exits on that by default, which
+  // would take the App's only backend down over one background task, so the
+  // rejection is logged and the process keeps serving. An uncaught synchronous
+  // exception is a genuinely unknown state and still exits non-zero.
+  process.on('unhandledRejection', (reason) => {
+    console.error(JSON.stringify({
+      evt: 'process.unhandled_rejection',
+      error: reason instanceof Error ? reason.name : 'unknown',
+    }));
+  });
+  process.on('uncaughtException', (error) => {
+    console.error(JSON.stringify({
+      evt: 'process.uncaught_exception',
+      error: error instanceof Error ? error.name : 'unknown',
+    }));
+    process.exit(1);
+  });
+
   const services = await createBrokerServices();
   services.appServer.listen(services.appPort, '0.0.0.0', () => {
     console.log(`lumanest-data-broker app API listening on ${services.appPort}`);

@@ -22,11 +22,18 @@ if [[ ! -f "$source_file" ]]; then
   exit 1
 fi
 
-safe_file="$(mktemp "${TMPDIR:-/tmp}/lumanest-client-env.XXXXXX")"
-trap 'rm -f "$safe_file"' EXIT
+client_file="$(mktemp "${TMPDIR:-/tmp}/lumanest-client-env.XXXXXX")"
+safe_file="$(mktemp "${TMPDIR:-/tmp}/lumanest-test-env.XXXXXX")"
+trap 'rm -f "$client_file" "$safe_file"' EXIT
 
-# The central JSON also contains server-only values. Only these client-safe
-# fields may be passed to Flutter and therefore considered for APK embedding.
+# The central JSON also contains server-only values. Release builds bootstrap
+# a short-lived App session and must not embed the shared Broker bearer.
+jq '{
+  AMAP_ANDROID_KEY,
+  LUMANEST_BROKER_BASE_URL,
+  SENTRY_DSN
+}' "$source_file" > "$client_file"
+
 jq '{
   AMAP_ANDROID_KEY,
   LUMANEST_BROKER_BASE_URL,
@@ -36,7 +43,7 @@ jq '{
 
 case "$command_name" in
   build|run|drive)
-    flutter "$@" --dart-define-from-file="$safe_file"
+    flutter "$@" --dart-define-from-file="$client_file"
     ;;
   test-configured)
     shift

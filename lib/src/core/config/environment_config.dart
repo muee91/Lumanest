@@ -34,10 +34,19 @@ class EnvironmentConfig {
   final String lumaNestServiceToken;
   final String sentryDsn;
 
+  EnvironmentConfig withServiceToken(String token) => EnvironmentConfig._(
+    amapAndroidKey: amapAndroidKey,
+    dataBrokerBaseUrl: dataBrokerBaseUrl,
+    lumaNestServiceToken: token.trim(),
+    sentryDsn: sentryDsn,
+  );
+
   bool get isAmapConfigured => amapAndroidKey.isNotEmpty;
 
   bool get isDataBrokerConfigured =>
       dataBrokerBaseUrl.isNotEmpty && lumaNestServiceToken.isNotEmpty;
+
+  bool get isBrokerBaseConfigured => dataBrokerBaseUrl.isNotEmpty;
 
   bool get isSentryConfigured => sentryDsn.isNotEmpty;
 

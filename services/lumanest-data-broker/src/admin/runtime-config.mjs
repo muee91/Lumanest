@@ -206,6 +206,7 @@ function buildSnapshot(defaults, overrides, revision) {
     keyId: overrides.keyId ?? defaults.keyId,
     projectId: overrides.projectId ?? defaults.projectId,
     serviceToken: overrides.serviceToken ?? defaults.serviceToken,
+    sessionSigningKey: defaults.sessionSigningKey ?? defaults.serviceToken,
     amapWebKey: overrides.amapWebKey ?? defaults.amapWebKey,
     llmProfiles,
     llmRouting,

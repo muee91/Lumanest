@@ -55,6 +55,21 @@ test('search accepts Chinese requests only for enabled reviewed domains', () => 
   assert.equal(validDiscoverySearchRequest({ ...body, freshnessDays: 0 }, [policy]), false);
 });
 
+test('search accepts the CJK punctuation that reverse-geocoded area names carry', () => {
+  // The discovery worker prefixes reverse-geocoded area names onto the focus,
+  // e.g. "海宁·硖石 humanityEvents 官方 公告".  A middle dot is ordinary
+  // punctuation in Chinese place names, so rejecting it made every worker query
+  // fail with 400 and left region briefs stuck at `pending` forever.
+  const body = { query: '海宁·硖石 humanityEvents 官方 公告', locale: 'zh-CN', freshnessDays: null, domains: [] };
+  assert.equal(validDiscoverySearchRequest(body, [policy]), true);
+  assert.equal(validDiscoverySearchRequest({ ...body, query: '志摩故里·寻梦康桥《盐官》【潮乐之城】' }, [policy]), true);
+  // The character set stays closed: markup, control characters and shell or
+  // query syntax are still rejected rather than becoming an upstream injection.
+  for (const query of ['<script>alert(1)</script>', '海宁\u0000盐官', '海宁 & 盐官', '海宁 $HOME']) {
+    assert.equal(validDiscoverySearchRequest({ ...body, query }, [policy]), false, query);
+  }
+});
+
 test('evergreen searches omit upstream recency filtering rather than hiding archival official records', async () => {
   let requestBody;
   const result = await searchTavily({
@@ -154,6 +169,37 @@ test('local story extraction can produce the identity and orientation required b
     }],
   }), evidence);
   assert.deepEqual(parsed?.insights.map((item) => item.type), ['areaIdentity', 'orientation']);
+});
+
+test('extraction prompt spells out the scene tag enum so the model cannot translate it', () => {
+  const body = {
+    missionType: 'localStories', focus: '盐官古城区域资料', locale: 'zh-CN',
+    region: { latitude: 30.45, longitude: 120.67 },
+    evidence: [{
+      title: '盐官古城介绍', snippet: '盐官古城是以观潮文化和传统街巷为主要特征的历史街区。',
+      url: 'https://culture.example.gov.cn/yanguan', sourceId: 'haining-culture',
+      publisher: '海宁文化和旅游发布', license: 'CC BY 4.0', version: '2026-07',
+    }],
+  };
+  const { system } = discoveryExtractionPrompt(body);
+  // The parser rejects the whole payload when any tag falls outside the
+  // whitelist, so every accepted value has to be visible to the model.
+  for (const tag of [
+    'lake', 'river', 'reservoir', 'wetland', 'coast', 'tidalFlat', 'waterfall',
+    'snowCover', 'glacier', 'canyon', 'dune', 'grassland', 'forest',
+    'bambooForest', 'skyline', 'architecture', 'oldTown', 'villageStreet',
+    'openRoad', 'openHorizon', 'darkSky', 'reviewedPeak', 'reviewedViewpoint',
+    'reflectiveSurface',
+  ]) {
+    assert.match(system, new RegExp(`(?:\\||：)${tag}(?:\\||。)`));
+  }
+  assert.match(system, /不得翻译成中文/);
+  assert.match(system, /没有可对应的值时返回空数组/);
+  // The parser rejects an insight whose summary is not a literal substring of
+  // factText, and requires both tag arrays to exist. Models omit fields that
+  // look optional, so the constraints have to be explicit.
+  assert.match(system, /原文子串/);
+  assert.match(system, /必须始终返回数组/);
 });
 
 test('model coordinates require an exact coordinate string in their linked evidence', () => {

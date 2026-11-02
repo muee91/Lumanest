@@ -13,5 +13,13 @@
     "notification"
   ],
   "maxEntries": 64,
-  "maxProvenance": 8
+  "maxProvenance": 8,
+  "entryPresentationVariants": [
+    "safety",
+    "shootingSession",
+    "skyOpportunity",
+    "nextWindow",
+    "manifestOpportunity",
+    "quiet"
+  ]
 }
