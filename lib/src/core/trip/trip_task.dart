@@ -156,7 +156,9 @@ class TripTask {
 
   TripTask start({DateTime? at}) {
     if (stage == TripTaskStage.enRoute) return this;
-    _requireOpen('start');
+    if (stage != TripTaskStage.planning) {
+      throw StateError('cannot start a ${stage.name} trip task');
+    }
     final now = (at ?? DateTime.now()).toUtc();
     return _copy(stage: TripTaskStage.enRoute, startedAt: startedAt ?? now);
   }
@@ -165,7 +167,9 @@ class TripTask {
   /// the task honest when a user arrives without opening an external map.
   TripTask enterField({DateTime? at}) {
     if (stage == TripTaskStage.field) return this;
-    _requireOpen('enterField');
+    if (stage != TripTaskStage.planning && stage != TripTaskStage.enRoute) {
+      throw StateError('cannot enterField a ${stage.name} trip task');
+    }
     final now = (at ?? DateTime.now()).toUtc();
     return _copy(
       stage: TripTaskStage.field,
@@ -176,7 +180,9 @@ class TripTask {
 
   TripTask complete({DateTime? at}) {
     if (stage == TripTaskStage.completed) return this;
-    _requireOpen('complete');
+    if (stage != TripTaskStage.field) {
+      throw StateError('cannot complete a ${stage.name} trip task');
+    }
     return _copy(
       stage: TripTaskStage.completed,
       completedAt: (at ?? DateTime.now()).toUtc(),
@@ -285,19 +291,34 @@ final tripTaskStoreProvider = Provider<TripTaskStore>(
 
 class TripTaskController extends Notifier<TripTask?> {
   int _nextId = 0;
+  int _mutationRevision = 0;
   bool _restored = false;
+  late Future<void> _restoreFuture;
+  Future<void> _writeQueue = Future<void>.value();
 
   @override
   TripTask? build() {
     final store = ref.watch(tripTaskStoreProvider);
-    unawaited(_restore(store));
+    _restoreFuture = _restore(store, _mutationRevision);
     return null;
   }
 
-  Future<void> _restore(TripTaskStore store) async {
-    final restored = await store.read();
+  Future<void> _restore(TripTaskStore store, int revisionAtStart) async {
+    TripTask? restored;
+    try {
+      restored = await store.read();
+    } on Object {
+      // A read failure must not leave the write queue permanently blocked;
+      // the next accepted command can still establish a valid snapshot.
+      _restored = true;
+      return;
+    }
     if (_restored || !ref.mounted) return;
     _restored = true;
+    // A command may have been accepted while the disk read was in flight.
+    // Its state is newer than the snapshot, so never let the late restore
+    // overwrite it or clear its freshly queued task.
+    if (revisionAtStart != _mutationRevision) return;
     if (restored == null) return;
     if (!restored.isOpen) {
       unawaited(store.clear());
@@ -334,6 +355,7 @@ class TripTaskController extends Notifier<TripTask?> {
       targetId: targetId,
     );
     state = task;
+    _mutationRevision += 1;
     _persist(task);
     _projectRouteContext(task);
     return task;
@@ -342,7 +364,10 @@ class TripTaskController extends Notifier<TripTask?> {
   void start({DateTime? at}) {
     final current = state;
     if (current == null) return;
-    state = current.start(at: at);
+    final next = current.start(at: at);
+    if (identical(next, current)) return;
+    state = next;
+    _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
   }
@@ -350,7 +375,10 @@ class TripTaskController extends Notifier<TripTask?> {
   void enterField({DateTime? at}) {
     final current = state;
     if (current == null) return;
-    state = current.enterField(at: at);
+    final next = current.enterField(at: at);
+    if (identical(next, current)) return;
+    state = next;
+    _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
   }
@@ -358,7 +386,10 @@ class TripTaskController extends Notifier<TripTask?> {
   void complete({DateTime? at}) {
     final current = state;
     if (current == null) return;
-    state = current.complete(at: at);
+    final next = current.complete(at: at);
+    if (identical(next, current)) return;
+    state = next;
+    _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
   }
@@ -366,19 +397,39 @@ class TripTaskController extends Notifier<TripTask?> {
   void cancel() {
     final current = state;
     if (current == null) return;
-    state = current.cancel();
+    final next = current.cancel();
+    if (identical(next, current)) return;
+    state = next;
+    _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
   }
 
   void clear() {
     state = null;
-    unawaited(ref.read(tripTaskStoreProvider).clear());
+    _mutationRevision += 1;
+    _enqueuePersistence((store) => store.clear());
     ref.read(routeContextStateProvider.notifier).end();
   }
 
   void _persist(TripTask task) {
-    unawaited(ref.read(tripTaskStoreProvider).write(task));
+    _enqueuePersistence((store) => store.write(task));
+  }
+
+  void _enqueuePersistence(
+    Future<void> Function(TripTaskStore store) operation,
+  ) {
+    final store = ref.read(tripTaskStoreProvider);
+    final queued = _writeQueue
+        .catchError((Object error, StackTrace stack) {})
+        .then((_) => _restoreFuture)
+        .then((_) => operation(store));
+    _writeQueue = queued;
+    unawaited(
+      queued.catchError((Object error, StackTrace stack) {
+        debugPrint('TripTask persistence failed: $error');
+      }),
+    );
   }
 
   void _projectRouteContext(TripTask task) {
