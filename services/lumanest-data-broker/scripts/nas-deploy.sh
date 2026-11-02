@@ -252,15 +252,6 @@ ensure_outbound_network_environment() {
     fi
   fi
 
-  controller_token=$(environment_value LUMANEST_NETWORK_CONTROLLER_TOKEN)
-  if [ ${#controller_token} -lt 24 ]; then
-    controller_token=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
-    case "$controller_token" in
-      *[!a-f0-9]*|'') echo "Unable to generate network controller token." >&2; exit 1 ;;
-    esac
-    upsert_environment_value LUMANEST_NETWORK_CONTROLLER_TOKEN "$controller_token"
-    echo "Generated the protected network controller token."
-  fi
 }
 
 verify_build_proxy_endpoint() {

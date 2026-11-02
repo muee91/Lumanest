@@ -298,8 +298,7 @@ test('deployment derives a host-gateway BuildKit proxy from the protected Mihomo
   await writeFile(
     join(fixture.previousRelease, 'qweather-token-broker.env'),
     'LUMANEST_OUTBOUND_NETWORK_MODE=mihomo\n' +
-      'LUMANEST_OUTBOUND_PROXY_URL=http://mihomo:7890\n' +
-      'LUMANEST_NETWORK_CONTROLLER_TOKEN=0123456789abcdef0123456789abcdef\n',
+    'LUMANEST_OUTBOUND_PROXY_URL=http://mihomo:7890\n',
   );
   const result = spawnSync('sh', [fixture.deployScript], {
     cwd: dirname(fixture.deployScript),
