@@ -1,6 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The single user-facing task that connects planning, departure and field
 /// work in 2.0. Route geometry, weather and shooting evidence remain owned by
@@ -84,6 +90,70 @@ class TripTask {
 
   bool get isInField => stage == TripTaskStage.field;
 
+  Map<String, Object?> toJson() => {
+    'version': 1,
+    'id': id,
+    'destinationName': destinationName,
+    'destination': {
+      'latitude': destination.latitude,
+      'longitude': destination.longitude,
+      'coordinateSystem': destination.coordinateSystem.name,
+    },
+    'travelMode': travelMode.name,
+    'stage': stage.name,
+    'createdAt': createdAt.toIso8601String(),
+    if (startedAt != null) 'startedAt': startedAt!.toIso8601String(),
+    if (fieldEnteredAt != null)
+      'fieldEnteredAt': fieldEnteredAt!.toIso8601String(),
+    if (completedAt != null) 'completedAt': completedAt!.toIso8601String(),
+    if (sessionId != null) 'sessionId': sessionId,
+    if (targetId != null) 'targetId': targetId,
+  };
+
+  static TripTask? fromJson(Object? raw) {
+    if (raw is! Map || raw['version'] != 1) return null;
+    final destination = raw['destination'];
+    if (destination is! Map) return null;
+    final latitude = _finite(destination['latitude'], -90, 90);
+    final longitude = _finite(destination['longitude'], -180, 180);
+    final coordinateSystem = _enumByName(
+      CoordinateSystem.values,
+      destination['coordinateSystem'],
+    );
+    final travelMode = _enumByName(TripTravelMode.values, raw['travelMode']);
+    final stage = _enumByName(TripTaskStage.values, raw['stage']);
+    final id = _boundedString(raw['id'], 96);
+    final destinationName = _boundedString(raw['destinationName'], 120);
+    final createdAt = _date(raw['createdAt']);
+    if (latitude == null ||
+        longitude == null ||
+        coordinateSystem == null ||
+        travelMode == null ||
+        stage == null ||
+        id == null ||
+        destinationName == null ||
+        createdAt == null) {
+      return null;
+    }
+    return TripTask(
+      id: id,
+      destinationName: destinationName,
+      destination: GeoPoint(
+        latitude: latitude,
+        longitude: longitude,
+        coordinateSystem: coordinateSystem,
+      ),
+      travelMode: travelMode,
+      stage: stage,
+      createdAt: createdAt,
+      startedAt: _date(raw['startedAt']),
+      fieldEnteredAt: _date(raw['fieldEnteredAt']),
+      completedAt: _date(raw['completedAt']),
+      sessionId: _boundedString(raw['sessionId'], 128),
+      targetId: _boundedString(raw['targetId'], 128),
+    );
+  }
+
   TripTask start({DateTime? at}) {
     if (stage == TripTaskStage.enRoute) return this;
     _requireOpen('start');
@@ -143,15 +213,99 @@ class TripTask {
       throw StateError('cannot $operation a ${stage.name} trip task');
     }
   }
+
+  static double? _finite(Object? value, double minimum, double maximum) {
+    final parsed = value is num ? value.toDouble() : double.tryParse('$value');
+    return parsed != null &&
+            parsed.isFinite &&
+            parsed >= minimum &&
+            parsed <= maximum
+        ? parsed
+        : null;
+  }
+
+  static String? _boundedString(Object? value, int maximum) {
+    if (value is! String || value.isEmpty || value.length > maximum) {
+      return null;
+    }
+    return value;
+  }
+
+  static DateTime? _date(Object? value) {
+    if (value == null) return null;
+    final parsed = value is String ? DateTime.tryParse(value) : null;
+    return parsed?.toUtc();
+  }
+
+  static T? _enumByName<T extends Enum>(List<T> values, Object? raw) {
+    if (raw is! String) return null;
+    for (final value in values) {
+      if (value.name == raw) return value;
+    }
+    return null;
+  }
 }
 
-/// Transient controller for the current task. Persistence is intentionally
-/// deferred until the 2.0 task flow is validated end to end.
-class TripTaskController extends Notifier<TripTask?> {
-  int _nextId = 0;
+abstract interface class TripTaskStore {
+  Future<TripTask?> read();
+
+  Future<void> write(TripTask task);
+
+  Future<void> clear();
+}
+
+class SharedPreferencesTripTaskStore implements TripTaskStore {
+  SharedPreferencesTripTaskStore(this._preferences);
+
+  static const _key = 'lumanest.trip_task.v1';
+  final SharedPreferencesAsync _preferences;
 
   @override
-  TripTask? build() => null;
+  Future<TripTask?> read() async {
+    final raw = await _preferences.getString(_key);
+    if (raw == null) return null;
+    try {
+      return TripTask.fromJson(jsonDecode(raw));
+    } on FormatException {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> write(TripTask task) =>
+      _preferences.setString(_key, jsonEncode(task.toJson()));
+
+  @override
+  Future<void> clear() => _preferences.remove(_key);
+}
+
+final tripTaskStoreProvider = Provider<TripTaskStore>(
+  (ref) => SharedPreferencesTripTaskStore(SharedPreferencesAsync()),
+);
+
+class TripTaskController extends Notifier<TripTask?> {
+  int _nextId = 0;
+  bool _restored = false;
+
+  @override
+  TripTask? build() {
+    final store = ref.watch(tripTaskStoreProvider);
+    unawaited(_restore(store));
+    return null;
+  }
+
+  Future<void> _restore(TripTaskStore store) async {
+    final restored = await store.read();
+    if (_restored || !ref.mounted) return;
+    _restored = true;
+    if (restored == null) return;
+    if (!restored.isOpen) {
+      unawaited(store.clear());
+      return;
+    }
+    state = restored;
+    _projectRouteContext(restored);
+  }
 
   TripTask plan({
     required String destinationName,
@@ -180,6 +334,8 @@ class TripTaskController extends Notifier<TripTask?> {
       targetId: targetId,
     );
     state = task;
+    _persist(task);
+    _projectRouteContext(task);
     return task;
   }
 
@@ -187,27 +343,66 @@ class TripTaskController extends Notifier<TripTask?> {
     final current = state;
     if (current == null) return;
     state = current.start(at: at);
+    _persist(state!);
+    _projectRouteContext(state!);
   }
 
   void enterField({DateTime? at}) {
     final current = state;
     if (current == null) return;
     state = current.enterField(at: at);
+    _persist(state!);
+    _projectRouteContext(state!);
   }
 
   void complete({DateTime? at}) {
     final current = state;
     if (current == null) return;
     state = current.complete(at: at);
+    _persist(state!);
+    _projectRouteContext(state!);
   }
 
   void cancel() {
     final current = state;
     if (current == null) return;
     state = current.cancel();
+    _persist(state!);
+    _projectRouteContext(state!);
   }
 
-  void clear() => state = null;
+  void clear() {
+    state = null;
+    unawaited(ref.read(tripTaskStoreProvider).clear());
+    ref.read(routeContextStateProvider.notifier).end();
+  }
+
+  void _persist(TripTask task) {
+    unawaited(ref.read(tripTaskStoreProvider).write(task));
+  }
+
+  void _projectRouteContext(TripTask task) {
+    if (!task.isOpen) {
+      ref.read(routeContextStateProvider.notifier).end();
+      return;
+    }
+    final mode = task.travelMode == TripTravelMode.walking
+        ? ContextRouteMode.hiking
+        : ContextRouteMode.driving;
+    final routeController = ref.read(routeContextStateProvider.notifier);
+    routeController.plan(
+      mode,
+      identity: RouteIdentity(
+        latitude: task.destination.latitude,
+        longitude: task.destination.longitude,
+        mode: mode,
+      ),
+    );
+    if (task.stage == TripTaskStage.enRoute ||
+        task.stage == TripTaskStage.field) {
+      routeController.start();
+    }
+  }
 
   static bool _sameDestination(GeoPoint first, GeoPoint second) =>
       first.latitude == second.latitude &&

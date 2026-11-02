@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:luma_nest/src/core/context/context_snapshot.dart';
+import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/trip/trip_task.dart';
 
@@ -78,6 +81,74 @@ void main() {
     );
     expect(TripTaskCommandParser.parse('什么时候出发？'), isNull);
   });
+
+  test('round-trips the persisted task contract', () {
+    final task = TripTask(
+      id: 'trip_saved',
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+      stage: TripTaskStage.field,
+      createdAt: createdAt,
+      startedAt: createdAt.add(const Duration(minutes: 5)),
+      fieldEnteredAt: createdAt.add(const Duration(minutes: 45)),
+      sessionId: 'session_1',
+      targetId: 'target_1',
+    );
+
+    final restored = TripTask.fromJson(task.toJson());
+
+    expect(restored?.id, task.id);
+    expect(restored?.destination.latitude, destination.latitude);
+    expect(restored?.stage, TripTaskStage.field);
+    expect(restored?.fieldEnteredAt, task.fieldEnteredAt);
+    expect(restored?.sessionId, 'session_1');
+  });
+
+  test('controller restores an open task and projects route state', () async {
+    final store = _FakeTripTaskStore(
+      TripTask(
+        id: 'trip_saved',
+        destinationName: '西湖',
+        destination: destination,
+        travelMode: TripTravelMode.walking,
+        stage: TripTaskStage.enRoute,
+        createdAt: createdAt,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [tripTaskStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    container.read(tripTaskProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(tripTaskProvider)?.stage, TripTaskStage.enRoute);
+    expect(
+      container.read(routeContextStateProvider).mode,
+      ContextRouteMode.hiking,
+    );
+    expect(
+      container.read(routeContextStateProvider).stage,
+      ContextRouteStage.active,
+    );
+  });
 }
 
 final createdAt = DateTime.utc(2026, 11, 3, 1);
+
+class _FakeTripTaskStore implements TripTaskStore {
+  _FakeTripTaskStore(this.value);
+
+  TripTask? value;
+
+  @override
+  Future<TripTask?> read() async => value;
+
+  @override
+  Future<void> write(TripTask task) async => value = task;
+
+  @override
+  Future<void> clear() async => value = null;
+}
