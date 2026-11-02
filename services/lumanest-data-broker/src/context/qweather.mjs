@@ -308,8 +308,15 @@ function normalizedWarnings(body, fetchedAt) {
   }).slice(0, 8);
 }
 
+function warningSourceStatus(body) {
+  if (Array.isArray(body?.alerts)) return 'available';
+  if (body?.code === '200' && Array.isArray(body.warning)) return 'available';
+  return 'unavailable';
+}
+
 function hasCurrentWarningContract(body) {
   return body != null && typeof body === 'object' &&
+    ['available', 'unavailable'].includes(body.officialWarningsStatus) &&
     Array.isArray(body.officialWarnings) && body.officialWarnings.every((warning) =>
       warning != null && typeof warning === 'object' &&
       boundedWarningText(warning.title, 80) != null,
@@ -393,6 +400,7 @@ export async function authoritativeWeather({
       ? normalizedCurrent(requests[0].value, fetchedAt)
       : null;
     if (current == null) throw new Error('current_weather_unavailable');
+    const warningBody = requests[3].status === 'fulfilled' ? requests[3].value : null;
     const body = {
       weather: {
         ...current,
@@ -406,10 +414,8 @@ export async function authoritativeWeather({
         requests[2].status === 'fulfilled' ? requests[2].value : null,
         fetchedAt,
       ),
-      officialWarnings: normalizedWarnings(
-        requests[3].status === 'fulfilled' ? requests[3].value : null,
-        fetchedAt,
-      ),
+      officialWarningsStatus: warningSourceStatus(warningBody),
+      officialWarnings: normalizedWarnings(warningBody, fetchedAt),
     };
     await cache.set(key, { cachedAt: fetchedAt.getTime(), body });
     return { ok: true, body, cache: 'miss' };

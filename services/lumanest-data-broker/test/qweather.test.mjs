@@ -74,6 +74,7 @@ test('authoritative weather normalizes all licensed QWeather sources and caches 
   assert.equal(first.body.forecast.thunderNextThreeHours, true);
   assert.equal(first.body.forecast.hourly[0].visibilityKm, 18);
   assert.equal(first.body.officialWarnings[0].severity, 'critical');
+  assert.equal(first.body.officialWarningsStatus, 'available');
   assert.equal(first.body.officialWarnings[0].title, '雷电红色预警');
   assert.equal(first.body.officialWarnings[0].description, '预计未来两小时局地有强雷电活动。');
   assert.deepEqual(first.body.officialWarnings[0].guidance, [
@@ -109,6 +110,38 @@ test('air quality failure never breaks authoritative weather', async () => {
   assert.equal(result.ok, true);
   assert.equal(result.body.weather.airQualityIndex, null);
   assert.equal(result.body.weather.airQualityStale, true);
+});
+
+test('warning source failure is distinct from an available empty warning list', async () => {
+  const base = {
+    coordinate,
+    apiHost: 'https://project.qweatherapi.com',
+    privateKey,
+    keyId: 'key-id',
+    projectId: 'project-id',
+    now: () => new Date('2026-07-14T02:02:00Z'),
+  };
+  const unavailable = await authoritativeWeather({
+    ...base,
+    cache: new MemoryWeatherCache(),
+    fetcher: async (url) => url.pathname === '/weatheralert/v1/current/30.25/120.15'
+      ? new Response(JSON.stringify({ code: '500' }), { status: 503 })
+      : response(url.pathname),
+  });
+  const availableEmpty = await authoritativeWeather({
+    ...base,
+    cache: new MemoryWeatherCache(),
+    fetcher: async (url) => url.pathname === '/weatheralert/v1/current/30.25/120.15'
+      ? new Response(JSON.stringify({ alerts: [] }), { status: 200 })
+      : response(url.pathname),
+  });
+
+  assert.equal(unavailable.ok, true);
+  assert.deepEqual(unavailable.body.officialWarnings, []);
+  assert.equal(unavailable.body.officialWarningsStatus, 'unavailable');
+  assert.equal(availableEmpty.ok, true);
+  assert.deepEqual(availableEmpty.body.officialWarnings, []);
+  assert.equal(availableEmpty.body.officialWarningsStatus, 'available');
 });
 
 test('three-hour aggregates ignore later entries while retaining 24-hour coverage', async () => {
