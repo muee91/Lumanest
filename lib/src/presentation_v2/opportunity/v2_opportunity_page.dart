@@ -6,12 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/location/location_reading.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/field_environment_selector.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/photography/target_arrival_state.dart';
+import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/location/application/location_services.dart';
 import 'package:luma_nest/src/features/notifications/application/photography_watch_notification_service.dart';
@@ -197,7 +200,9 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
       // Field arrival must use a real foreground device fix. Manual/base-region
       // fallbacks are valid for environment lookup but must never auto-confirm
       // physical arrival at a reviewed shooting target.
-      final reading = await ref.read(deviceLocationFixServiceProvider).current();
+      final reading = await ref
+          .read(deviceLocationFixServiceProvider)
+          .current();
       if (!mounted || !_fieldModeForeground) return;
       setState(() {
         _locationReading = reading;
@@ -357,8 +362,7 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
                       directionDegrees:
                           decision.phase?.directionDegrees ??
                           target.viewBearingDegrees,
-                      onToggle: () =>
-                          setState(() => _arrivalOverride = !atTarget),
+                      onToggle: () => _toggleFieldMode(target, atTarget),
                     ),
                   ],
                   if (planB != null && selectedPlanBTarget != null) ...[
@@ -535,6 +539,26 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
         context,
       ).showSnackBar(const SnackBar(content: Text('已取消守候提醒')));
     }
+  }
+
+  void _toggleFieldMode(ShootingTarget target, bool atTarget) {
+    setState(() => _arrivalOverride = !atTarget);
+    if (atTarget) return;
+
+    final point = target.coordinate.coordinateSystem == CoordinateSystem.gcj02
+        ? ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate)
+        : target.coordinate;
+    ref.read(tripTaskProvider.notifier)
+      ..plan(
+        destinationName: target.name,
+        destination: point,
+        travelMode: target.accessModes.contains(ShootingTravelMode.driving)
+            ? TripTravelMode.driving
+            : TripTravelMode.walking,
+        sessionId: widget.session.id,
+        targetId: target.id,
+      )
+      ..enterField();
   }
 
   void _primaryAction(
