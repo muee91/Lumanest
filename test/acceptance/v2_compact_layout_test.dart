@@ -6,7 +6,7 @@ import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_opportunity_object.dart';
 
 void main() {
-  testWidgets('V2 four-page shell and intelligence stay usable at 360 x 800', (
+  testWidgets('V2 three-page shell and intelligence stay usable at 360 x 800', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
@@ -16,7 +16,7 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
 
-    for (final label in ['探索', '路线']) {
+    for (final label in ['发现', '我的']) {
       await tester.tap(find.bySemanticsLabel(label));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 450));
@@ -27,21 +27,15 @@ void main() {
       );
     }
 
-    await tester.tap(
-      find.bySemanticsLabel('栖光：问问题或抽取灵感'),
-    );
+    await tester.tap(find.bySemanticsLabel('栖光：问问题或抽取灵感'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull, reason: '栖光 must not overflow');
 
-    // The intelligent surface is pushed over Route and must restore Route when
-    // closed instead of resetting the shell to Today.
+    // The intelligent surface is pushed over the current shell destination and
+    // must restore it when closed instead of resetting the shell to Today.
     await tester.tap(find.bySemanticsLabel('关闭栖光'));
     await tester.pumpAndSettle();
-    expect(find.text('先选一个要抵达的地方'), findsOneWidget);
-
-    await tester.tap(find.bySemanticsLabel('我的'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('栖光如何理解我'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: '我的 must not overflow');
   });
 

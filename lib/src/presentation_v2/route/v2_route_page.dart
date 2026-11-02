@@ -14,6 +14,7 @@ import 'package:luma_nest/src/core/location/geo_distance.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/features/explore/application/map_consent_controller.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -54,9 +55,16 @@ class V2RoutePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recent = library?.recentRoute;
-    final name = destinationName ?? recent?.name;
-    final latitude = destinationLatitude ?? recent?.latitude;
-    final longitude = destinationLongitude ?? recent?.longitude;
+    final tripTask = ref.watch(tripTaskProvider);
+    final name = destinationName ?? recent?.name ?? tripTask?.destinationName;
+    final latitude =
+        destinationLatitude ??
+        recent?.latitude ??
+        tripTask?.destination.latitude;
+    final longitude =
+        destinationLongitude ??
+        recent?.longitude ??
+        tripTask?.destination.longitude;
     if (name == null || latitude == null || longitude == null) {
       return V2PageStage(
         child: V2EmptyObject(
@@ -224,6 +232,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   @override
   Widget build(BuildContext context) {
     final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
+    final tripTask = ref.watch(tripTaskProvider);
     final scout = ref.watch(routeScoutPlanProvider(_scoutRequest));
     final points = widget.route.polyline
         .map(ChinaCoordinateConverter.wgs84ToGcj02)
@@ -310,7 +319,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           },
         ),
         Positioned(
-          left: 20,
+          left: 76,
           right: 20,
           top: MediaQuery.paddingOf(context).top + 12,
           child: V2RouteVerdict(
@@ -322,11 +331,17 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           ),
         ),
         Positioned(
+          left: 16,
+          top: MediaQuery.paddingOf(context).top + 12,
+          child: V2BackButton(onTap: _closeRoute),
+        ),
+        Positioned(
           left: 14,
           right: 14,
           bottom: MediaQuery.paddingOf(context).bottom + 80,
           child: _V2RouteActionObject(
             scout: scout,
+            task: tripTask,
             onScout: _openScout,
             onNavigate: () => unawaited(_navigate()),
             onExplore: () => context.go('/explore'),
@@ -362,10 +377,21 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
 
   Future<void> _navigate() async {
     final opened = await RouteNavigationLauncher.open(widget.destination);
-    if (!opened && mounted) {
+    if (opened) {
+      ref.read(tripTaskProvider.notifier).start();
+      ref.read(routeContextStateProvider.notifier).start();
+    } else if (mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('暂时无法打开外部地图')));
+    }
+  }
+
+  void _closeRoute() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/today');
     }
   }
 
@@ -438,6 +464,17 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
             longitude: widget.destination.point.longitude,
             mode: mode,
           ),
+        );
+    ref
+        .read(tripTaskProvider.notifier)
+        .plan(
+          destinationName: widget.destination.name,
+          destination: widget.destination.point,
+          travelMode: widget.destination.travelMode == RouteTravelMode.walking
+              ? TripTravelMode.walking
+              : TripTravelMode.driving,
+          sessionId: widget.activeShootingIntent?.sessionId,
+          targetId: widget.activeShootingIntent?.targetId,
         );
     unawaited(
       ref.read(userLibraryProvider.notifier).saveRecentRoute(_savedDestination),

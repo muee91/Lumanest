@@ -2319,8 +2319,10 @@ export async function createBrokerServices(environment = process.env, {
       ]);
     },
     outboundNetworkController: createOutboundNetworkControllerClient({
-      baseUrl: environment.LUMANEST_OUTBOUND_NETWORK_CONTROLLER_URL ?? '',
-      token: environment.LUMANEST_NETWORK_CONTROLLER_TOKEN ?? '',
+      // Network mode is selected at deployment startup. The broker no longer
+      // controls Docker or recreates containers at runtime.
+      baseUrl: '',
+      token: '',
     }),
     restart: async () => exit(0),
   });

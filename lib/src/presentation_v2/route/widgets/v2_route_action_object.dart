@@ -3,12 +3,14 @@ part of '../v2_route_page.dart';
 class _V2RouteActionObject extends StatelessWidget {
   const _V2RouteActionObject({
     required this.scout,
+    required this.task,
     required this.onScout,
     required this.onNavigate,
     required this.onExplore,
   });
 
   final AsyncValue<RouteScoutPlan> scout;
+  final TripTask? task;
   final VoidCallback onScout;
   final VoidCallback onNavigate;
   final VoidCallback onExplore;
@@ -37,7 +39,11 @@ class _V2RouteActionObject extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  '路线探路',
+                  task?.isInField == true
+                      ? '出行任务 · 现场'
+                      : task?.isEnRoute == true
+                      ? '出行任务 · 路上'
+                      : '出行任务 · 已规划',
                   style: TextStyle(
                     color: context.v2Moss,
                     fontSize: 12,

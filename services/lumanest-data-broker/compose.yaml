@@ -66,14 +66,12 @@ services:
       LUMANEST_TERRAIN_DATASET_REVISION: ${LUMANEST_TERRAIN_DATASET_REVISION:-}
       SUNSETBOT_BASE_URL: ${SUNSETBOT_BASE_URL:-https://sunsetbot.top}
       LUMANEST_OUTBOUND_NETWORK_MODE: ${LUMANEST_OUTBOUND_NETWORK_MODE:-direct}
-      LUMANEST_OUTBOUND_NETWORK_CONTROLLER_URL: http://outbound-network-controller:8790
-      LUMANEST_NETWORK_CONTROLLER_TOKEN: ${LUMANEST_NETWORK_CONTROLLER_TOKEN:?Set LUMANEST_NETWORK_CONTROLLER_TOKEN}
       # Node 22 built-in fetch only honors the standard proxy environment
       # variables when this flag is enabled. Internal service calls bypass it.
       NODE_OPTIONS: "--use-env-proxy"
       HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
       HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
-      NO_PROXY: 127.0.0.1,localhost,context-service,discovery-api,lumanest-raster-service,lumanest-terrain-service,outbound-network-controller,redis,postgres
+      NO_PROXY: 127.0.0.1,localhost,context-service,discovery-api,lumanest-raster-service,lumanest-terrain-service,redis,postgres
     networks:
       - default
       - mihomo
@@ -350,7 +348,11 @@ services:
     image: redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     container_name: lumanest-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    # This Redis instance also owns Discovery Streams and consumer state. An
+    # eviction policy could silently delete an unacknowledged job under memory
+    # pressure, so exhaustion must surface as a cache/queue write failure that
+    # the callers can observe and degrade around.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - lumanest-redis:/data
     healthcheck:
@@ -358,32 +360,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  outbound-network-controller:
-    build:
-      context: .
-      dockerfile: Dockerfile.network-controller
-      args: *build-proxy-args
-      extra_hosts: *build-extra-hosts
-    container_name: lumanest-outbound-network-controller
-    restart: unless-stopped
-    environment:
-      PORT: "8790"
-      LUMANEST_NETWORK_CONTROLLER_TOKEN: ${LUMANEST_NETWORK_CONTROLLER_TOKEN:?Set LUMANEST_NETWORK_CONTROLLER_TOKEN}
-      LUMANEST_HOST_ROOT: /lumanest-root
-      LUMANEST_HOST_RELEASE_PREFIX: ${LUMANEST_HOST_RELEASE_PREFIX:-/vol2/docker/lumanest}
-      LUMANEST_COMPOSE_PROJECT: ${PROJECT_NAME:-qweather-token-broker}
-      LUMANEST_MIHOMO_PROXY_URL: ${LUMANEST_MIHOMO_PROXY_URL:-http://mihomo:7890}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${LUMANEST_HOST_ROOT:-/vol2/docker/lumanest}:/lumanest-root:rw
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - default
 
 volumes:
   lumanest-data:

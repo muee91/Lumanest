@@ -7,7 +7,7 @@ import { createQWeatherJwt } from '../jwt.mjs';
 const freshCacheMilliseconds = 5 * 60 * 1_000;
 const staleCacheMilliseconds = 2 * 60 * 60 * 1_000;
 
-// QWeather refreshes `/v7/weather/now` roughly every 15 minutes, so a healthy
+// QWeather refreshes the current-weather feed roughly every 15 minutes, so a healthy
 // observation is routinely 20+ minutes old by the time it reaches us. The
 // previous 30-minute window treated a single missed upstream update as stale,
 // which propagated into `ContextSnapshot.stale` and made the assistant reject
@@ -93,6 +93,33 @@ function warningGuidance(type, title, severity) {
 }
 
 function normalizedCurrent(body, fetchedAt) {
+  if (body?.condition != null && body.temperature != null) {
+    const value = body;
+    const observedAt = new Date(value.observedAt ?? value.updateTime ?? fetchedAt);
+    const temperature = finite(value.temperature?.value, -100, 100);
+    const windSpeed = finite(value.wind?.speed?.value, 0, 200);
+    const windDirection = finite(value.wind?.direction?.degree, 0, 359.999);
+    const visibilityMeters = finite(value.visibility?.value, 0, 500_000);
+    const precipitation = finite(value.precipitation?.amount?.value, 0, 2_000);
+    if (temperature == null || windSpeed == null || windDirection == null ||
+        visibilityMeters == null || precipitation == null) return null;
+    const observationAge = fetchedAt.getTime() - observedAt.getTime();
+    return {
+      observedAt: observedAt.toISOString(),
+      condition: conditionFromIcon(value.condition.code),
+      temperatureCelsius: temperature,
+      windSpeedMps: windSpeed,
+      windDirectionDegrees: windDirection,
+      precipitationMm: precipitation,
+      visibilityKm: visibilityMeters / 1_000,
+      cloudCoverPercent: finite(value.cloudCover, 0, 1) == null
+        ? null
+        : finite(value.cloudCover, 0, 1) * 100,
+      thunder: thunderFromIcon(value.condition.code),
+      stale: observationAge > observationStaleMilliseconds ||
+        observationAge < -observationFutureToleranceMilliseconds,
+    };
+  }
   if (body?.code !== '200' || body.now == null || typeof body.now !== 'object') return null;
   const value = body.now;
   const observedAt = new Date(value.obsTime);
@@ -120,38 +147,68 @@ function normalizedCurrent(body, fetchedAt) {
 }
 
 function normalizedForecast(hourlyBody, minutelyBody, fetchedAt) {
-  const hourly = hourlyBody?.code === '200' && Array.isArray(hourlyBody.hourly)
-    ? hourlyBody.hourly.slice(0, 24)
-    : [];
+  const hourly = Array.isArray(hourlyBody?.hours)
+    ? hourlyBody.hours.slice(0, 24)
+    : hourlyBody?.code === '200' && Array.isArray(hourlyBody.hourly)
+      ? hourlyBody.hourly.slice(0, 24)
+      : [];
   const minutely = minutelyBody?.code === '200' && Array.isArray(minutelyBody.minutely)
     ? minutelyBody.minutely.slice(0, 12)
     : [];
   const nextThreeHours = hourly.slice(0, 3);
   const windSpeeds = nextThreeHours
-    .map((item) => finite(item.windSpeed, 0, 540))
+    .map((item) => {
+      const value = finite(item.wind?.speed?.value ?? item.windSpeed, 0, 540);
+      return value == null ? null : item.wind?.speed?.value == null ? value / 3.6 : value;
+    })
     .filter((value) => value != null);
   const precipitation = minutely.map((item) => finite(item.precip, 0, 500)).filter((value) => value != null);
   return {
     observedAt: fetchedAt.toISOString(),
     nextHourPrecipitationMm: precipitation.reduce((sum, value) => sum + value, 0),
-    nextThreeHoursMaxWindSpeedMps: windSpeeds.length === 0 ? null : Math.max(...windSpeeds) / 3.6,
-    thunderNextThreeHours: nextThreeHours.some((item) => thunderFromIcon(item.icon)),
+    nextThreeHoursMaxWindSpeedMps: windSpeeds.length === 0 ? null : Math.max(...windSpeeds),
+    thunderNextThreeHours: nextThreeHours.some((item) =>
+      thunderFromIcon(item.condition?.code ?? item.icon)),
     hourly: hourly.flatMap((item) => {
-      const at = new Date(item.fxTime);
-      const windSpeed = finite(item.windSpeed, 0, 540);
-      const precipitationMm = finite(item.precip, 0, 2_000);
+      const at = new Date(item.forecastTime ?? item.fxTime);
+      const windSpeed = finite(item.wind?.speed?.value ?? item.windSpeed, 0, 540);
+      const precipitationMm = finite(item.precipitation?.amount?.value ?? item.precip, 0, 2_000);
       if (!Number.isFinite(at.getTime()) || windSpeed == null) return [];
       return [{
-        at: at.toISOString(), condition: conditionFromIcon(item.icon),
-        cloudCoverPercent: finite(item.cloud, 0, 100), windSpeedMps: windSpeed / 3.6,
-        precipitationMm: precipitationMm ?? 0, visibilityKm: finite(item.vis, 0, 500),
-        thunder: thunderFromIcon(item.icon),
+        at: at.toISOString(), condition: conditionFromIcon(item.condition?.code ?? item.icon),
+        cloudCoverPercent: finite(item.cloudCover, 0, 1) == null
+          ? finite(item.cloud, 0, 100)
+          : finite(item.cloudCover, 0, 1) * 100,
+        windSpeedMps: item.wind?.speed?.value == null ? windSpeed / 3.6 : windSpeed,
+        precipitationMm: precipitationMm ?? 0,
+        visibilityKm: item.visibility?.value == null
+          ? finite(item.vis, 0, 500)
+          : finite(item.visibility.value, 0, 500_000) / 1_000,
+        thunder: thunderFromIcon(item.condition?.code ?? item.icon),
       }];
     }),
   };
 }
 
 function normalizedAirQuality(body, fetchedAt) {
+  if (Array.isArray(body?.indexes)) {
+    const value = body.indexes.find((item) => finite(item?.aqi, 0, 500) != null) ?? null;
+    const index = finite(value?.aqi, 0, 500);
+    const category = typeof value?.category === 'string' && value.category.trim().length <= 40
+      ? value.category.trim()
+      : null;
+    const primary = typeof value?.primaryPollutant?.name === 'string' &&
+        value.primaryPollutant.name.trim().length <= 40
+      ? value.primaryPollutant.name.trim()
+      : null;
+    return {
+      airQualityIndex: index == null ? null : Math.round(index),
+      airQualityCategory: category,
+      primaryPollutant: primary,
+      airQualityObservedAt: fetchedAt.toISOString(),
+      airQualityStale: index == null,
+    };
+  }
   const value = body?.code === '200' && body.now != null && typeof body.now === 'object'
     ? body.now
     : null;
@@ -193,6 +250,36 @@ function normalizedAirQuality(body, fetchedAt) {
 }
 
 function normalizedWarnings(body, fetchedAt) {
+  if (Array.isArray(body?.alerts)) {
+    return body.alerts.flatMap((warning) => {
+      const messageType = String(warning?.messageType?.code ?? '').toLowerCase();
+      if (messageType === 'cancel') return [];
+      const observedAt = new Date(warning?.issuedTime ?? warning?.effectiveTime ?? fetchedAt);
+      const expiresAt = new Date(warning?.expireTime ?? fetchedAt.getTime() + 60 * 60 * 1_000);
+      if (!Number.isFinite(observedAt.getTime()) || !Number.isFinite(expiresAt.getTime()) ||
+          expiresAt <= fetchedAt) return [];
+      const type = boundedWarningText(warning?.eventType?.name, 60);
+      const title = boundedWarningText(warning?.headline ?? [type, '预警'].filter(Boolean).join(' '), 80)
+        ?? '官方气象预警';
+      const description = boundedWarningText(warning?.description, 500);
+      const severity = warningSeverity(warning?.severity ?? warning?.color?.code);
+      return [{
+        id: createHash('sha256').update(String(warning?.id ?? title)).digest('hex').slice(0, 12),
+        observedAt: observedAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        severity,
+        title,
+        description,
+        guidance: (() => {
+          const instruction = boundedWarningText(warning?.instruction, 500);
+          return instruction == null
+            ? warningGuidance(type, title, severity)
+            : [...instruction.split(/\n+/u).slice(0, 3),
+              '关注当地气象部门的最新预警和现场管制信息。'];
+        })(),
+      }];
+    }).slice(0, 8);
+  }
   if (body?.code !== '200' || !Array.isArray(body.warning)) return [];
   return body.warning.flatMap((warning) => {
     if (String(warning.status ?? '').toLowerCase() === 'cancel') return [];
@@ -246,15 +333,25 @@ function staleCachedBody(body) {
   };
 }
 
-async function qweatherRequest({ host, path, location, token, fetcher, timeoutMs }) {
+async function qweatherRequest({ host, path, location, query = {}, token, fetcher, timeoutMs }) {
   const url = new URL(path, host);
-  url.searchParams.set('location', location);
+  if (location != null) url.searchParams.set('location', location);
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
   const response = await fetcher(url, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(timeoutMs),
   });
-  const body = await response.json();
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    return null;
+  }
   return response.ok ? body : null;
+}
+
+function coordinatePath(coordinate) {
+  return `${coordinate.latitude.toFixed(2)}/${coordinate.longitude.toFixed(2)}`;
 }
 
 export async function authoritativeWeather({
@@ -284,12 +381,13 @@ export async function authoritativeWeather({
   try {
     const token = createQWeatherJwt({ privateKey, keyId, projectId, now: fetchedAt, ttlSeconds: 900 });
     const location = `${coordinate.longitude},${coordinate.latitude}`;
+    const path = coordinatePath(coordinate);
     const requests = await Promise.allSettled([
-      qweatherRequest({ host, path: '/v7/weather/now', location, token, fetcher, timeoutMs }),
-      qweatherRequest({ host, path: '/v7/weather/24h', location, token, fetcher, timeoutMs }),
+      qweatherRequest({ host, path: `/weather/v1/current/${path}`, token, fetcher, timeoutMs }),
+      qweatherRequest({ host, path: `/weather/v1/hourly/${path}`, query: { hours: 24 }, token, fetcher, timeoutMs }),
       qweatherRequest({ host, path: '/v7/minutely/5m', location, token, fetcher, timeoutMs }),
-      qweatherRequest({ host, path: '/v7/warning/now', location, token, fetcher, timeoutMs }),
-      qweatherRequest({ host, path: '/v7/air/now', location, token, fetcher, timeoutMs }),
+      qweatherRequest({ host, path: `/weatheralert/v1/current/${path}`, query: { localTime: false }, token, fetcher, timeoutMs }),
+      qweatherRequest({ host, path: `/airquality/v1/current/${path}`, token, fetcher, timeoutMs }),
     ]);
     const current = requests[0].status === 'fulfilled'
       ? normalizedCurrent(requests[0].value, fetchedAt)

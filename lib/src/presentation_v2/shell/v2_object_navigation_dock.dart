@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:luma_nest/src/design/luma_nest_motion.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
-/// Four persistent destinations plus one isolated intelligent entrance.
+/// Three persistent destinations plus one isolated intelligent entrance.
 ///
 /// The isolated action is intentionally not a shell branch. It pushes the
 /// unified inspiration-and-assistant surface over whichever destination the
@@ -37,24 +37,18 @@ class _V2ObjectNavigationDockState extends State<V2ObjectNavigationDock> {
   static const _primaryItems = <_V2DockItem>[
     _V2DockItem(
       branchIndex: 0,
-      label: '今日',
+      label: '此刻',
       icon: CupertinoIcons.sun_max,
       selectedIcon: CupertinoIcons.sun_max_fill,
     ),
     _V2DockItem(
       branchIndex: 1,
-      label: '探索',
+      label: '发现',
       icon: CupertinoIcons.compass,
       selectedIcon: CupertinoIcons.compass_fill,
     ),
     _V2DockItem(
       branchIndex: 2,
-      label: '路线',
-      icon: CupertinoIcons.map,
-      selectedIcon: CupertinoIcons.map_fill,
-    ),
-    _V2DockItem(
-      branchIndex: 3,
       label: '我的',
       icon: CupertinoIcons.person_crop_circle,
       selectedIcon: CupertinoIcons.person_crop_circle_fill,

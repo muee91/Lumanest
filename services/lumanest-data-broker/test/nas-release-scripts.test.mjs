@@ -107,6 +107,7 @@ test('production images pin base digests and hashed Python dependency locks', as
   assert.match(broker, /ARG NODE_IMAGE=node:22-alpine@sha256:[a-f0-9]{64}/);
   assert.match(compose, /image: postgis\/postgis:17-3\.5@sha256:[a-f0-9]{64}/);
   assert.match(compose, /image: redis:7\.4-alpine@sha256:[a-f0-9]{64}/);
+  assert.match(compose, /--appendfsync", "everysec", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction/);
   for (const script of scripts) {
     assert.match(
       await readFile(script, 'utf8'),
@@ -297,8 +298,7 @@ test('deployment derives a host-gateway BuildKit proxy from the protected Mihomo
   await writeFile(
     join(fixture.previousRelease, 'qweather-token-broker.env'),
     'LUMANEST_OUTBOUND_NETWORK_MODE=mihomo\n' +
-      'LUMANEST_OUTBOUND_PROXY_URL=http://mihomo:7890\n' +
-      'LUMANEST_NETWORK_CONTROLLER_TOKEN=0123456789abcdef0123456789abcdef\n',
+    'LUMANEST_OUTBOUND_PROXY_URL=http://mihomo:7890\n',
   );
   const result = spawnSync('sh', [fixture.deployScript], {
     cwd: dirname(fixture.deployScript),

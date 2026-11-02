@@ -10,13 +10,17 @@ import 'package:luma_nest/src/core/assistant/assistant_model.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/assistant_decision_summary.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
+import 'package:luma_nest/src/core/location/china_coordinate_converter.dart';
+import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
+import 'package:luma_nest/src/features/location/application/location_services.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
@@ -344,6 +348,11 @@ class _IntelligenceWorkspaceState
             normalizedQuestion: parsed.normalizedQuestion,
           )
         : parsed;
+    final taskCommand = TripTaskCommandParser.parse(question);
+    if (taskCommand != null) {
+      unawaited(_applyTripTaskCommand(intent, taskCommand));
+      return;
+    }
     final fallback = _localFallback(intent, note: note);
     final model = ref.read(assistantModelProvider);
     final canUseModel = model != null && intent.allowsRemoteRewrite;
@@ -425,6 +434,90 @@ class _IntelligenceWorkspaceState
       });
       _scheduleScroll();
     }
+  }
+
+  Future<void> _applyTripTaskCommand(
+    AssistantIntent intent,
+    TripTaskCommand command,
+  ) async {
+    final controller = ref.read(tripTaskProvider.notifier);
+    final task = ref.read(tripTaskProvider);
+    final response = await switch (command.type) {
+      TripTaskCommandType.plan => _planTripTask(
+        controller,
+        command.destinationQuery!,
+      ),
+      TripTaskCommandType.start => Future.value(
+        task == null
+            ? '先在探索或今天选择一个目的地，栖光才能接着管理这次出行。'
+            : _startTripTask(controller, task),
+      ),
+      TripTaskCommandType.enterField => Future.value(
+        task == null
+            ? '先在探索或今天选择一个目的地，栖光才能接着管理这次出行。'
+            : _enterTripField(controller, task),
+      ),
+      TripTaskCommandType.complete => Future.value(
+        task == null ? '当前没有进行中的出行任务。' : _completeTripTask(controller, task),
+      ),
+      TripTaskCommandType.cancel => Future.value(
+        task == null ? '当前没有进行中的出行任务。' : _cancelTripTask(controller, task),
+      ),
+    };
+    setState(() {
+      _appendTurn(intent, response, 'template');
+      _clearPending();
+    });
+    _scheduleScroll();
+    if (command.type == TripTaskCommandType.plan && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/route');
+      });
+    }
+  }
+
+  Future<String> _planTripTask(
+    TripTaskController controller,
+    String query,
+  ) async {
+    try {
+      final results = await ref
+          .read(locationSearchServiceProvider)
+          .searchAroundEnvironment(query);
+      final result = results.firstOrNull;
+      if (result == null) return '没有找到「$query」，换一个更具体的目的地试试。';
+      final point = result.point.coordinateSystem == CoordinateSystem.gcj02
+          ? ChinaCoordinateConverter.gcj02ToWgs84(result.point)
+          : result.point;
+      final task = controller.plan(
+        destinationName: result.name,
+        destination: point,
+        travelMode: TripTravelMode.driving,
+      );
+      return '已为你建立前往「${task.destinationName}」的出行任务。';
+    } on Object {
+      return '目的地搜索暂时不可用，保留当前页面，你可以稍后再试。';
+    }
+  }
+
+  String _startTripTask(TripTaskController controller, TripTask task) {
+    controller.start();
+    return '已开始前往「${task.destinationName}」，路线和沿途信息会围绕这次出行更新。';
+  }
+
+  String _enterTripField(TripTaskController controller, TripTask task) {
+    controller.enterField();
+    return '已进入「${task.destinationName}」现场模式，接下来只保留当前拍摄判断。';
+  }
+
+  String _completeTripTask(TripTaskController controller, TripTask task) {
+    controller.complete();
+    return '已结束「${task.destinationName}」这次出行。';
+  }
+
+  String _cancelTripTask(TripTaskController controller, TripTask task) {
+    controller.cancel();
+    return '已取消「${task.destinationName}」这次出行任务。';
   }
 
   List<String> _assistantEventIds(InspirationNote? note) {
