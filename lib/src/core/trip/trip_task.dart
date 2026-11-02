@@ -10,19 +10,29 @@ enum TripTaskStage { planning, enRoute, field, completed, cancelled }
 
 enum TripTravelMode { driving, walking }
 
-enum TripTaskCommandType { start, enterField, complete, cancel }
+enum TripTaskCommandType { plan, start, enterField, complete, cancel }
 
 @immutable
 class TripTaskCommand {
-  const TripTaskCommand(this.type);
+  const TripTaskCommand(this.type, {this.destinationQuery});
 
   final TripTaskCommandType type;
+  final String? destinationQuery;
 }
 
 abstract final class TripTaskCommandParser {
   static TripTaskCommand? parse(String value) {
     final text = value.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (text.isEmpty || text.length > 80) return null;
+    final planMatch = RegExp(
+      r'^(?:带我去|现在去|前往|去|想去)\s*(.{2,32})$',
+    ).firstMatch(text);
+    if (planMatch != null && planMatch.group(1)!.trim() != '哪里') {
+      return TripTaskCommand(
+        TripTaskCommandType.plan,
+        destinationQuery: planMatch.group(1)!.trim(),
+      );
+    }
     if (RegExp(r'^(?:开始出发|现在出发|我出发了|出发)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.start);
     }

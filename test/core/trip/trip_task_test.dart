@@ -67,6 +67,7 @@ void main() {
   });
 
   test('parses only explicit task commands', () {
+    expect(TripTaskCommandParser.parse('带我去西湖')?.destinationQuery, '西湖');
     expect(
       TripTaskCommandParser.parse('开始出发')?.type,
       TripTaskCommandType.start,

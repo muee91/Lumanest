@@ -55,9 +55,16 @@ class V2RoutePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recent = library?.recentRoute;
-    final name = destinationName ?? recent?.name;
-    final latitude = destinationLatitude ?? recent?.latitude;
-    final longitude = destinationLongitude ?? recent?.longitude;
+    final tripTask = ref.watch(tripTaskProvider);
+    final name = destinationName ?? recent?.name ?? tripTask?.destinationName;
+    final latitude =
+        destinationLatitude ??
+        recent?.latitude ??
+        tripTask?.destination.latitude;
+    final longitude =
+        destinationLongitude ??
+        recent?.longitude ??
+        tripTask?.destination.longitude;
     if (name == null || latitude == null || longitude == null) {
       return V2PageStage(
         child: V2EmptyObject(
