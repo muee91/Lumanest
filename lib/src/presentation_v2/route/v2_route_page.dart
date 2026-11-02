@@ -33,6 +33,50 @@ part 'widgets/v2_route_action_object.dart';
 part 'widgets/v2_route_scout_sheet.dart';
 part 'widgets/v2_route_scout_timeline.dart';
 
+RouteDestination? resolveV2RouteDestination({
+  required String? destinationName,
+  required double? destinationLatitude,
+  required double? destinationLongitude,
+  required CoordinateSystem destinationCoordinateSystem,
+  required RouteTravelMode travelMode,
+  required SavedRouteDestination? recentRoute,
+  required TripTask? activeTask,
+}) {
+  final hasExplicitDestination =
+      destinationName != null &&
+      destinationLatitude != null &&
+      destinationLongitude != null;
+  // A deep link is an explicit one-off route request. Otherwise the active
+  // task is the source of truth; history is only a fallback when no task is
+  // open. This prevents a newly planned task from reopening yesterday's
+  // destination just because it was the most recent saved route.
+  final name = hasExplicitDestination
+      ? destinationName
+      : activeTask?.destinationName ?? recentRoute?.name;
+  final latitude = hasExplicitDestination
+      ? destinationLatitude
+      : activeTask?.destination.latitude ?? recentRoute?.latitude;
+  final longitude = hasExplicitDestination
+      ? destinationLongitude
+      : activeTask?.destination.longitude ?? recentRoute?.longitude;
+  if (name == null || latitude == null || longitude == null) return null;
+  final coordinateSystem = hasExplicitDestination
+      ? destinationCoordinateSystem
+      : CoordinateSystem.wgs84;
+  final rawPoint = GeoPoint(
+    latitude: latitude,
+    longitude: longitude,
+    coordinateSystem: coordinateSystem,
+  );
+  return RouteDestination(
+    name: name,
+    // Route, target and weather contracts use WGS-84. Explore carries the
+    // coordinate system explicitly so AMap GCJ-02 values are converted once.
+    point: ChinaCoordinateConverter.gcj02ToWgs84(rawPoint),
+    travelMode: travelMode,
+  );
+}
+
 class V2RoutePage extends ConsumerWidget {
   const V2RoutePage({
     super.key,
@@ -56,16 +100,17 @@ class V2RoutePage extends ConsumerWidget {
     final library = ref.watch(userLibraryProvider).asData?.value;
     final recent = library?.recentRoute;
     final tripTask = ref.watch(tripTaskProvider);
-    final name = destinationName ?? recent?.name ?? tripTask?.destinationName;
-    final latitude =
-        destinationLatitude ??
-        recent?.latitude ??
-        tripTask?.destination.latitude;
-    final longitude =
-        destinationLongitude ??
-        recent?.longitude ??
-        tripTask?.destination.longitude;
-    if (name == null || latitude == null || longitude == null) {
+    final activeTask = tripTask?.isOpen == true ? tripTask : null;
+    final destination = resolveV2RouteDestination(
+      destinationName: destinationName,
+      destinationLatitude: destinationLatitude,
+      destinationLongitude: destinationLongitude,
+      destinationCoordinateSystem: destinationCoordinateSystem,
+      travelMode: travelMode,
+      recentRoute: recent,
+      activeTask: activeTask,
+    );
+    if (destination == null) {
       return V2PageStage(
         child: V2EmptyObject(
           icon: CupertinoIcons.map_pin_ellipse,
@@ -76,22 +121,6 @@ class V2RoutePage extends ConsumerWidget {
         ),
       );
     }
-    final coordinateSystem =
-        destinationLatitude != null && destinationLongitude != null
-        ? destinationCoordinateSystem
-        : CoordinateSystem.wgs84;
-    final rawPoint = GeoPoint(
-      latitude: latitude,
-      longitude: longitude,
-      coordinateSystem: coordinateSystem,
-    );
-    final destination = RouteDestination(
-      name: name,
-      // Route, target and weather contracts use WGS-84. Explore carries the
-      // coordinate system explicitly so AMap GCJ-02 values are converted once.
-      point: ChinaCoordinateConverter.gcj02ToWgs84(rawPoint),
-      travelMode: travelMode,
-    );
     return _V2RouteStage(
       destination: destination,
       activeShootingIntent: activeShootingIntent,
@@ -233,6 +262,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   Widget build(BuildContext context) {
     final snapshot = ref.watch(environmentSnapshotProvider).asData?.value;
     final tripTask = ref.watch(tripTaskProvider);
+    final activeTask = tripTask?.isOpen == true ? tripTask : null;
     final scout = ref.watch(routeScoutPlanProvider(_scoutRequest));
     final points = widget.route.polyline
         .map(ChinaCoordinateConverter.wgs84ToGcj02)
@@ -341,7 +371,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           bottom: MediaQuery.paddingOf(context).bottom + 80,
           child: _V2RouteActionObject(
             scout: scout,
-            task: tripTask,
+            task: activeTask,
             onScout: _openScout,
             onNavigate: () => unawaited(_navigate()),
             onExplore: () => context.go('/explore'),
@@ -376,6 +406,15 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
   }
 
   Future<void> _navigate() async {
+    final task = ref.read(tripTaskProvider);
+    if (task?.isInField == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已经在现场模式中，无需再次打开导航')));
+      }
+      return;
+    }
     final opened = await RouteNavigationLauncher.open(widget.destination);
     if (opened) {
       ref.read(tripTaskProvider.notifier).start();

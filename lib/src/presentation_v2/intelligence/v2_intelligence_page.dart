@@ -21,6 +21,7 @@ import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart'
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
 import 'package:luma_nest/src/features/location/application/location_services.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/features/profile/application/profile_preferences_controller.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
@@ -78,6 +79,25 @@ class V2IntelligencePage extends ConsumerWidget {
 }
 
 enum _PendingPhase { thinking, generating }
+
+class _TripTaskCommandResult {
+  const _TripTaskCommandResult(this.message, {this.openRoute = false});
+
+  final String message;
+  final bool openRoute;
+}
+
+LocationSearchResult? resolveTripTaskDestination(
+  List<LocationSearchResult> results,
+  String query,
+) {
+  if (results.length == 1) return results.single;
+  final normalizedQuery = query.trim().toLowerCase();
+  final exact = results
+      .where((result) => result.name.trim().toLowerCase() == normalizedQuery)
+      .toList(growable: false);
+  return exact.length == 1 ? exact.single : null;
+}
 
 class _IntelligenceWorkspace extends ConsumerStatefulWidget {
   const _IntelligenceWorkspace({required this.snapshot, this.initialNoteId});
@@ -442,41 +462,45 @@ class _IntelligenceWorkspaceState
   ) async {
     final controller = ref.read(tripTaskProvider.notifier);
     final task = ref.read(tripTaskProvider);
-    final response = await switch (command.type) {
+    final result = await switch (command.type) {
       TripTaskCommandType.plan => _planTripTask(
         controller,
         command.destinationQuery!,
       ),
       TripTaskCommandType.start => Future.value(
         task == null
-            ? '先在探索或今天选择一个目的地，栖光才能接着管理这次出行。'
+            ? const _TripTaskCommandResult('先在探索或今天选择一个目的地，栖光才能接着管理这次出行。')
             : _startTripTask(controller, task),
       ),
       TripTaskCommandType.enterField => Future.value(
         task == null
-            ? '先在探索或今天选择一个目的地，栖光才能接着管理这次出行。'
+            ? const _TripTaskCommandResult('先在探索或今天选择一个目的地，栖光才能接着管理这次出行。')
             : _enterTripField(controller, task),
       ),
       TripTaskCommandType.complete => Future.value(
-        task == null ? '当前没有进行中的出行任务。' : _completeTripTask(controller, task),
+        task == null
+            ? const _TripTaskCommandResult('当前没有进行中的出行任务。')
+            : _completeTripTask(controller, task),
       ),
       TripTaskCommandType.cancel => Future.value(
-        task == null ? '当前没有进行中的出行任务。' : _cancelTripTask(controller, task),
+        task == null
+            ? const _TripTaskCommandResult('当前没有进行中的出行任务。')
+            : _cancelTripTask(controller, task),
       ),
     };
     setState(() {
-      _appendTurn(intent, response, 'template');
+      _appendTurn(intent, result.message, 'template');
       _clearPending();
     });
     _scheduleScroll();
-    if (command.type == TripTaskCommandType.plan && mounted) {
+    if (result.openRoute && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go('/route');
       });
     }
   }
 
-  Future<String> _planTripTask(
+  Future<_TripTaskCommandResult> _planTripTask(
     TripTaskController controller,
     String query,
   ) async {
@@ -484,8 +508,13 @@ class _IntelligenceWorkspaceState
       final results = await ref
           .read(locationSearchServiceProvider)
           .searchAroundEnvironment(query);
-      final result = results.firstOrNull;
-      if (result == null) return '没有找到「$query」，换一个更具体的目的地试试。';
+      final result = resolveTripTaskDestination(results, query);
+      if (result == null) {
+        if (results.length > 1) {
+          return _TripTaskCommandResult('「$query」对应多个地点，请补充城市或区域后再试。');
+        }
+        return _TripTaskCommandResult('没有找到「$query」，换一个更具体的目的地试试。');
+      }
       final point = result.point.coordinateSystem == CoordinateSystem.gcj02
           ? ChinaCoordinateConverter.gcj02ToWgs84(result.point)
           : result.point;
@@ -494,30 +523,63 @@ class _IntelligenceWorkspaceState
         destination: point,
         travelMode: TripTravelMode.driving,
       );
-      return '已为你建立前往「${task.destinationName}」的出行任务。';
+      return _TripTaskCommandResult(
+        '已为你建立前往「${task.destinationName}」的出行任务。',
+        openRoute: true,
+      );
     } on Object {
-      return '目的地搜索暂时不可用，保留当前页面，你可以稍后再试。';
+      return const _TripTaskCommandResult('目的地搜索暂时不可用，保留当前页面，你可以稍后再试。');
     }
   }
 
-  String _startTripTask(TripTaskController controller, TripTask task) {
+  _TripTaskCommandResult _startTripTask(
+    TripTaskController controller,
+    TripTask task,
+  ) {
+    if (task.stage != TripTaskStage.planning) {
+      return const _TripTaskCommandResult('这次出行已经出发或已进入现场。');
+    }
     controller.start();
-    return '已开始前往「${task.destinationName}」，路线和沿途信息会围绕这次出行更新。';
+    return _TripTaskCommandResult(
+      '已开始前往「${task.destinationName}」，路线和沿途信息会围绕这次出行更新。',
+    );
   }
 
-  String _enterTripField(TripTaskController controller, TripTask task) {
+  _TripTaskCommandResult _enterTripField(
+    TripTaskController controller,
+    TripTask task,
+  ) {
+    if (task.stage == TripTaskStage.field) {
+      return const _TripTaskCommandResult('已经在现场模式中。');
+    }
+    if (task.stage != TripTaskStage.planning &&
+        task.stage != TripTaskStage.enRoute) {
+      return const _TripTaskCommandResult('这次出行已经结束，无法重新进入现场。');
+    }
     controller.enterField();
-    return '已进入「${task.destinationName}」现场模式，接下来只保留当前拍摄判断。';
+    return _TripTaskCommandResult(
+      '已进入「${task.destinationName}」现场模式，接下来只保留当前拍摄判断。',
+    );
   }
 
-  String _completeTripTask(TripTaskController controller, TripTask task) {
+  _TripTaskCommandResult _completeTripTask(
+    TripTaskController controller,
+    TripTask task,
+  ) {
+    if (task.stage != TripTaskStage.field) {
+      return const _TripTaskCommandResult('请先确认已经进入现场，再完成这次出行。');
+    }
     controller.complete();
-    return '已结束「${task.destinationName}」这次出行。';
+    return _TripTaskCommandResult('已结束「${task.destinationName}」这次出行。');
   }
 
-  String _cancelTripTask(TripTaskController controller, TripTask task) {
+  _TripTaskCommandResult _cancelTripTask(
+    TripTaskController controller,
+    TripTask task,
+  ) {
+    if (!task.isOpen) return const _TripTaskCommandResult('当前任务已经结束。');
     controller.cancel();
-    return '已取消「${task.destinationName}」这次出行任务。';
+    return _TripTaskCommandResult('已取消「${task.destinationName}」这次出行任务。');
   }
 
   List<String> _assistantEventIds(InspirationNote? note) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
@@ -64,9 +66,38 @@ void main() {
     );
 
     expect(
-      () => task.complete(at: createdAt).start(at: createdAt),
+      () => task
+          .enterField(at: createdAt)
+          .complete(at: createdAt)
+          .start(at: createdAt),
       throwsStateError,
     );
+  });
+
+  test('field tasks cannot move backwards to en-route', () {
+    final task = TripTask(
+      id: 'trip_4',
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+      stage: TripTaskStage.field,
+      createdAt: createdAt,
+    );
+
+    expect(() => task.start(at: createdAt), throwsStateError);
+  });
+
+  test('tasks must enter the field before they can be completed', () {
+    final task = TripTask(
+      id: 'trip_5',
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+      stage: TripTaskStage.enRoute,
+      createdAt: createdAt,
+    );
+
+    expect(() => task.complete(at: createdAt), throwsStateError);
   });
 
   test('parses only explicit task commands', () {
@@ -134,6 +165,70 @@ void main() {
       ContextRouteStage.active,
     );
   });
+
+  test(
+    'a command accepted during restore is newer than the stored snapshot',
+    () async {
+      final stored = TripTask(
+        id: 'trip_old',
+        destinationName: '旧目的地',
+        destination: destination,
+        travelMode: TripTravelMode.driving,
+        stage: TripTaskStage.planning,
+        createdAt: createdAt,
+      );
+      final store = _BlockingReadTripTaskStore(stored);
+      final container = ProviderContainer(
+        overrides: [tripTaskStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(tripTaskProvider.notifier);
+      final current = controller.plan(
+        destinationName: '新目的地',
+        destination: const GeoPoint(
+          latitude: 31.25,
+          longitude: 121.15,
+          coordinateSystem: CoordinateSystem.wgs84,
+        ),
+        travelMode: TripTravelMode.driving,
+      );
+      store.completeRead();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(tripTaskProvider), same(current));
+      expect(store.value?.destinationName, '新目的地');
+    },
+  );
+
+  test('task writes are serialized in lifecycle order', () async {
+    final store = _SerializingTripTaskStore();
+    final container = ProviderContainer(
+      overrides: [tripTaskStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(tripTaskProvider.notifier);
+    controller.plan(
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+    );
+    await Future<void>.delayed(Duration.zero);
+    controller.start(at: createdAt);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(store.startedStages, [TripTaskStage.planning]);
+    store.releaseCurrentWrite();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(store.startedStages, [
+      TripTaskStage.planning,
+      TripTaskStage.enRoute,
+    ]);
+    store.releaseCurrentWrite();
+  });
 }
 
 final createdAt = DateTime.utc(2026, 11, 3, 1);
@@ -148,6 +243,51 @@ class _FakeTripTaskStore implements TripTaskStore {
 
   @override
   Future<void> write(TripTask task) async => value = task;
+
+  @override
+  Future<void> clear() async => value = null;
+}
+
+class _BlockingReadTripTaskStore implements TripTaskStore {
+  _BlockingReadTripTaskStore(this.value);
+
+  TripTask? value;
+  final _readCompleter = Completer<TripTask?>();
+
+  void completeRead() => _readCompleter.complete(value);
+
+  @override
+  Future<TripTask?> read() => _readCompleter.future;
+
+  @override
+  Future<void> write(TripTask task) async => value = task;
+
+  @override
+  Future<void> clear() async => value = null;
+}
+
+class _SerializingTripTaskStore implements TripTaskStore {
+  TripTask? value;
+  final startedStages = <TripTaskStage>[];
+  Completer<void>? _writeRelease;
+
+  @override
+  Future<TripTask?> read() async => value;
+
+  @override
+  Future<void> write(TripTask task) async {
+    startedStages.add(task.stage);
+    final release = Completer<void>();
+    _writeRelease = release;
+    await release.future;
+    value = task;
+  }
+
+  void releaseCurrentWrite() {
+    final release = _writeRelease;
+    if (release == null || release.isCompleted) return;
+    release.complete();
+  }
 
   @override
   Future<void> clear() async => value = null;

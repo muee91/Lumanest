@@ -172,7 +172,7 @@ jobs:
       - name: Assert R8 kept the AMap mapcore bridge
         run: |
           grep -Fx \
-            'com.autonavi.base.amap.mapcore.ClassTools -> com.autonavi.base.amap.mapcore.ClassTools' \
+            'com.autonavi.base.amap.mapcore.ClassTools -> com.autonavi.base.amap.mapcore.ClassTools:' \
             build/app/outputs/mapping/release/mapping.txt
 
       # Release stack traces are obfuscated; without this mapping they cannot

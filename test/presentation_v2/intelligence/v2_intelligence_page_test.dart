@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
+import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +15,35 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  test('destination resolver refuses ambiguous place results', () {
+    const results = [
+      LocationSearchResult(
+        id: 'west-lake-hangzhou',
+        name: '西湖',
+        point: GeoPoint(latitude: 30.25, longitude: 120.15),
+        address: '浙江省杭州市',
+      ),
+      LocationSearchResult(
+        id: 'west-lake-shaoxing',
+        name: '西湖',
+        point: GeoPoint(latitude: 30.01, longitude: 120.58),
+        address: '浙江省绍兴市',
+      ),
+    ];
+
+    expect(resolveTripTaskDestination(results, '西湖'), isNull);
+  });
+
+  test('destination resolver accepts one unambiguous result', () {
+    const result = LocationSearchResult(
+      id: 'west-lake',
+      name: '西湖',
+      point: GeoPoint(latitude: 30.25, longitude: 120.15),
+    );
+
+    expect(resolveTripTaskDestination([result], '西湖'), same(result));
   });
 
   testWidgets('keeps the conversation entry visible while typing', (
