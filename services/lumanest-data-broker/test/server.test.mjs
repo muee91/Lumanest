@@ -1244,16 +1244,18 @@ test('context snapshot accepts only the current bounded contract and forwards wi
     fetcher: async (url, options) => {
       if (url.hostname.endsWith('.qweatherapi.com')) {
         const bodies = {
-          '/v7/weather/now': { code: '200', now: {
-            obsTime: '2026-07-14T10:00:00+08:00', temp: '26', icon: '100',
-            windSpeed: '7.2', wind360: '90', vis: '20', precip: '0', cloud: '12',
-          } },
-          '/v7/weather/24h': { code: '200', hourly: [] },
+          '/weather/v1/current/30.25/120.15': {
+            updateTime: '2026-07-14T10:00:00+08:00', condition: { code: '100' },
+            temperature: { value: 26 }, wind: { speed: { value: 2 }, direction: { degree: 90 } },
+            visibility: { value: 20_000 }, precipitation: { amount: { value: 0 } }, cloudCover: 0.12,
+          },
+          '/weather/v1/hourly/30.25/120.15': { hours: [] },
           '/v7/minutely/5m': { code: '200', minutely: [] },
-          '/v7/warning/now': { code: '200', warning: [{
-            id: 'official-1', pubTime: '2026-07-14T09:55:00+08:00',
-            endTime: '2026-07-14T12:00:00+08:00', level: 'Red', status: 'active',
-            title: '雷电红色预警', typeName: '雷电', text: '预计未来两小时局地有强雷电活动。',
+          '/weatheralert/v1/current/30.25/120.15': { alerts: [{
+            id: 'official-1', issuedTime: '2026-07-14T09:55:00+08:00',
+            expireTime: '2026-07-14T12:00:00+08:00', severity: 'extreme',
+            headline: '雷电红色预警', eventType: { name: '雷电' },
+            description: '预计未来两小时局地有强雷电活动。',
           }] },
         };
         return new Response(JSON.stringify(bodies[url.pathname]), { status: 200 });
@@ -2341,23 +2343,24 @@ test('route weather fetches each WGS84 sample and returns only forecast progress
   }, {
     now: () => now,
     fetcher: async (url) => {
-      requestedLocations.add(url.searchParams.get('location'));
+      const location = url.searchParams.get('location') ??
+        url.pathname.match(/\/(\d+\.\d+)\/(\d+\.\d+)$/)?.slice(1).reverse().join(',');
+      if (location != null) {
+        const [longitude, latitude] = location.split(',').map(Number);
+        requestedLocations.add(`${longitude},${latitude}`);
+      }
       const bodies = {
-        '/v7/weather/now': { code: '200', now: {
-          obsTime: '2026-07-18T10:00:00+08:00', temp: '26', icon: '101',
-          windSpeed: '7.2', wind360: '90', vis: '20', precip: '0', cloud: '50',
-        } },
-        '/v7/weather/24h': { code: '200', hourly: [
-          { fxTime: '2026-07-18T10:00:00+08:00', icon: '100', windSpeed: '5.4', precip: '0', vis: '25', cloud: '20' },
-          { fxTime: '2026-07-18T11:00:00+08:00', icon: '305', windSpeed: '14.4', precip: '2.5', vis: '8', cloud: '90' },
+        '/weather/v1/current/30.25/120.15': { updateTime: '2026-07-18T10:00:00+08:00', condition: { code: '101' }, temperature: { value: 26 }, wind: { speed: { value: 2 }, direction: { degree: 90 } }, visibility: { value: 20_000 }, precipitation: { amount: { value: 0 } }, cloudCover: 0.5 },
+        '/weather/v1/hourly/30.25/120.15': { hours: [
+          { forecastTime: '2026-07-18T10:00:00+08:00', condition: { code: '100' }, wind: { speed: { value: 5.4 } }, precipitation: { amount: { value: 0 } }, visibility: { value: 25_000 }, cloudCover: 0.2 },
+          { forecastTime: '2026-07-18T11:00:00+08:00', condition: { code: '305' }, wind: { speed: { value: 14.4 } }, precipitation: { amount: { value: 2.5 } }, visibility: { value: 8_000 }, cloudCover: 0.9 },
         ] },
         '/v7/minutely/5m': { code: '200', minutely: [] },
-        '/v7/warning/now': { code: '200', warning: [] },
-        '/v7/air/now': { code: '200', updateTime: '2026-07-18T10:00:00+08:00', now: {
-          pubTime: '2026-07-18T10:00:00+08:00', aqi: '40', category: '优', primary: 'NA',
-        } },
+        '/weatheralert/v1/current/30.25/120.15': { alerts: [] },
+        '/airquality/v1/current/30.25/120.15': { indexes: [{ aqi: 40, category: '优', primaryPollutant: { name: 'NA' } }] },
       };
-      return new Response(JSON.stringify(bodies[url.pathname]), { status: 200 });
+      const body = bodies[url.pathname] ?? bodies[url.pathname.replace('/30.50/120.50', '/30.25/120.15')];
+      return new Response(JSON.stringify(body), { status: 200 });
     },
   });
   assert.deepEqual([...requestedLocations].sort(), ['120.15,30.25', '120.5,30.5']);

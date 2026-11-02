@@ -10,28 +10,35 @@ const coordinate = { latitude: 30.25, longitude: 120.15 };
 
 function response(path) {
   const bodies = {
-    '/v7/weather/now': { code: '200', now: {
-      obsTime: '2026-07-14T10:00:00+08:00', temp: '26', icon: '302', windSpeed: '18',
-      wind360: '90', vis: '20', precip: '1.5', cloud: '80',
-    } },
-    '/v7/weather/24h': { code: '200', hourly: [
+    '/weather/v1/current/30.25/120.15': {
+      updateTime: '2026-07-14T10:00:00+08:00',
+      condition: { code: '302' },
+      temperature: { value: 26 },
+      wind: { direction: { degree: 90 }, speed: { value: 5 } },
+      visibility: { value: 20_000 },
+      precipitation: { amount: { value: 1.5 } },
+      cloudCover: 0.8,
+    },
+    '/weather/v1/hourly/30.25/120.15': { hours: [
       {
-        fxTime: '2026-07-14T11:00:00+08:00', icon: '302', windSpeed: '54', vis: '18',
+        forecastTime: '2026-07-14T03:00:00Z', condition: { code: '302' },
+        wind: { speed: { value: 15 } }, visibility: { value: 18_000 },
       },
     ] },
     '/v7/minutely/5m': { code: '200', minutely: [
       { fxTime: '2026-07-14T10:05:00+08:00', precip: '2.5' },
       { fxTime: '2026-07-14T10:10:00+08:00', precip: '3' },
     ] },
-    '/v7/warning/now': { code: '200', warning: [{
-      id: 'official-1', pubTime: '2026-07-14T09:55:00+08:00',
-      endTime: '2026-07-14T12:00:00+08:00', level: 'Red', status: 'active',
-      title: '雷电红色预警', typeName: '雷电', text: '预计未来两小时局地有强雷电活动。',
+    '/weatheralert/v1/current/30.25/120.15': { alerts: [{
+      id: 'official-1', issuedTime: '2026-07-14T09:55:00+08:00',
+      expireTime: '2026-07-14T12:00:00+08:00', severity: 'extreme',
+      eventType: { name: '雷电' }, headline: '雷电红色预警',
+      description: '预计未来两小时局地有强雷电活动。',
+      instruction: '远离制高点、水边、孤立树木和金属设备。',
     }] },
-    '/v7/air/now': { code: '200', updateTime: '2026-07-14T10:00:00+08:00', now: {
-      pubTime: '2026-07-14T10:00:00+08:00', aqi: '168', category: '中度污染',
-      primary: 'PM2.5',
-    } },
+    '/airquality/v1/current/30.25/120.15': { indexes: [{
+      code: 'cn', aqi: 168, category: '中度污染', primaryPollutant: { name: 'PM2.5' },
+    }] },
   };
   return new Response(JSON.stringify(bodies[path]), { status: 200 });
 }
@@ -57,7 +64,9 @@ test('authoritative weather normalizes all licensed QWeather sources and caches 
   assert.equal(first.ok, true);
   assert.equal(first.cache, 'miss');
   assert.deepEqual(paths.sort(), [
-    '/v7/air/now', '/v7/minutely/5m', '/v7/warning/now', '/v7/weather/24h', '/v7/weather/now',
+    '/airquality/v1/current/30.25/120.15', '/v7/minutely/5m',
+    '/weather/v1/current/30.25/120.15', '/weather/v1/hourly/30.25/120.15',
+    '/weatheralert/v1/current/30.25/120.15',
   ]);
   assert.equal(first.body.weather.thunder, true);
   assert.equal(first.body.forecast.nextHourPrecipitationMm, 5.5);
@@ -92,7 +101,7 @@ test('air quality failure never breaks authoritative weather', async () => {
     projectId: 'project-id',
     cache: new MemoryWeatherCache(),
     now: () => new Date('2026-07-14T02:02:00Z'),
-    fetcher: async (url) => url.pathname === '/v7/air/now'
+    fetcher: async (url) => url.pathname === '/airquality/v1/current/30.25/120.15'
       ? new Response(JSON.stringify({ code: '500' }), { status: 503 })
       : response(url.pathname),
   });
@@ -118,7 +127,7 @@ test('three-hour aggregates ignore later entries while retaining 24-hour coverag
     projectId: 'project-id',
     cache: new MemoryWeatherCache(),
     now: () => new Date('2026-07-14T02:02:00Z'),
-    fetcher: async (url) => url.pathname === '/v7/weather/24h'
+      fetcher: async (url) => url.pathname === '/weather/v1/hourly/30.25/120.15'
       ? new Response(JSON.stringify({ code: '200', hourly }), { status: 200 })
       : response(url.pathname),
   });

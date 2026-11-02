@@ -65,6 +65,18 @@ void main() {
       throwsStateError,
     );
   });
+
+  test('parses only explicit task commands', () {
+    expect(
+      TripTaskCommandParser.parse('开始出发')?.type,
+      TripTaskCommandType.start,
+    );
+    expect(
+      TripTaskCommandParser.parse('我到了，进入现场')?.type,
+      TripTaskCommandType.enterField,
+    );
+    expect(TripTaskCommandParser.parse('什么时候出发？'), isNull);
+  });
 }
 
 final createdAt = DateTime.utc(2026, 11, 3, 1);

@@ -107,6 +107,7 @@ test('production images pin base digests and hashed Python dependency locks', as
   assert.match(broker, /ARG NODE_IMAGE=node:22-alpine@sha256:[a-f0-9]{64}/);
   assert.match(compose, /image: postgis\/postgis:17-3\.5@sha256:[a-f0-9]{64}/);
   assert.match(compose, /image: redis:7\.4-alpine@sha256:[a-f0-9]{64}/);
+  assert.match(compose, /--appendfsync", "everysec", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction/);
   for (const script of scripts) {
     assert.match(
       await readFile(script, 'utf8'),

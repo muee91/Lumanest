@@ -14,6 +14,7 @@ import 'package:luma_nest/src/core/manifest/creative_personalization.dart';
 import 'package:luma_nest/src/core/manifest/ui_manifest.dart';
 import 'package:luma_nest/src/core/photography/equipment_capability.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/features/inspiration/domain/inspiration_note.dart';
 import 'package:luma_nest/src/features/library/application/user_library_controller.dart';
 import 'package:luma_nest/src/features/library/domain/user_library.dart';
@@ -344,6 +345,11 @@ class _IntelligenceWorkspaceState
             normalizedQuestion: parsed.normalizedQuestion,
           )
         : parsed;
+    final taskCommand = TripTaskCommandParser.parse(question);
+    if (taskCommand != null) {
+      _applyTripTaskCommand(intent, taskCommand);
+      return;
+    }
     final fallback = _localFallback(intent, note: note);
     final model = ref.read(assistantModelProvider);
     final canUseModel = model != null && intent.allowsRemoteRewrite;
@@ -425,6 +431,43 @@ class _IntelligenceWorkspaceState
       });
       _scheduleScroll();
     }
+  }
+
+  void _applyTripTaskCommand(AssistantIntent intent, TripTaskCommand command) {
+    final controller = ref.read(tripTaskProvider.notifier);
+    final task = ref.read(tripTaskProvider);
+    final response = switch ((task, command.type)) {
+      (null, _) => '先在探索或今天选择一个目的地，栖光才能接着管理这次出行。',
+      (_, TripTaskCommandType.start) => _startTripTask(controller, task!),
+      (_, TripTaskCommandType.enterField) => _enterTripField(controller, task!),
+      (_, TripTaskCommandType.complete) => _completeTripTask(controller, task!),
+      (_, TripTaskCommandType.cancel) => _cancelTripTask(controller, task!),
+    };
+    setState(() {
+      _appendTurn(intent, response, 'template');
+      _clearPending();
+    });
+    _scheduleScroll();
+  }
+
+  String _startTripTask(TripTaskController controller, TripTask task) {
+    controller.start();
+    return '已开始前往「${task.destinationName}」，路线和沿途信息会围绕这次出行更新。';
+  }
+
+  String _enterTripField(TripTaskController controller, TripTask task) {
+    controller.enterField();
+    return '已进入「${task.destinationName}」现场模式，接下来只保留当前拍摄判断。';
+  }
+
+  String _completeTripTask(TripTaskController controller, TripTask task) {
+    controller.complete();
+    return '已结束「${task.destinationName}」这次出行。';
+  }
+
+  String _cancelTripTask(TripTaskController controller, TripTask task) {
+    controller.cancel();
+    return '已取消「${task.destinationName}」这次出行任务。';
   }
 
   List<String> _assistantEventIds(InspirationNote? note) {

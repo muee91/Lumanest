@@ -350,7 +350,11 @@ services:
     image: redis:7.4-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     container_name: lumanest-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    # This Redis instance also owns Discovery Streams and consumer state. An
+    # eviction policy could silently delete an unacknowledged job under memory
+    # pressure, so exhaustion must surface as a cache/queue write failure that
+    # the callers can observe and degrade around.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - lumanest-redis:/data
     healthcheck:
