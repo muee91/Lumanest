@@ -34,7 +34,7 @@ void main() {
   });
 
   testWidgets(
-    'four destinations persist while intelligence opens above the shell',
+    'three destinations persist while intelligence opens above the shell',
     (tester) async {
       await tester.pumpWidget(const LumaNestApp());
       await tester.pump();
@@ -51,18 +51,13 @@ void main() {
       );
       expect(fadeSurface.height, closeTo(ambientLayer.height, 0.1));
 
-      await tester.tap(find.bySemanticsLabel('探索'));
+      await tester.tap(find.bySemanticsLabel('发现'));
       await tester.pump();
       await tester.pump();
       expect(find.text('地图从你所在之处展开'), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
       expect(find.byType(AmbientCanvas), findsNothing);
       expect(find.byKey(const Key('today-ambient-layer')), findsNothing);
-
-      await tester.tap(find.bySemanticsLabel('路线'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(find.text('先选一个要抵达的地方'), findsOneWidget);
 
       await tester.tap(find.bySemanticsLabel('栖光：问问题或抽取灵感'));
       await tester.pumpAndSettle();
@@ -72,7 +67,7 @@ void main() {
 
       await tester.tap(find.bySemanticsLabel('关闭栖光'));
       await tester.pumpAndSettle();
-      expect(find.text('先选一个要抵达的地方'), findsOneWidget);
+      expect(find.text('地图从你所在之处展开'), findsOneWidget);
       expect(find.byKey(const Key('v2-bottom-navigation')), findsOneWidget);
 
       await tester.tap(find.bySemanticsLabel('我的'));

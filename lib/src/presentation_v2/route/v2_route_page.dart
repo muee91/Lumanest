@@ -319,7 +319,7 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
           },
         ),
         Positioned(
-          left: 20,
+          left: 76,
           right: 20,
           top: MediaQuery.paddingOf(context).top + 12,
           child: V2RouteVerdict(
@@ -329,6 +329,11 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
             scout: scout.asData?.value,
             activeShootingIntent: widget.activeShootingIntent,
           ),
+        ),
+        Positioned(
+          left: 16,
+          top: MediaQuery.paddingOf(context).top + 12,
+          child: V2BackButton(onTap: _closeRoute),
         ),
         Positioned(
           left: 14,
@@ -379,6 +384,14 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('暂时无法打开外部地图')));
+    }
+  }
+
+  void _closeRoute() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/today');
     }
   }
 

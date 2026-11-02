@@ -25,7 +25,6 @@ final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-today');
 final _exploreNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'shell-explore',
 );
-final _routeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell-route');
 final _profileNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'shell-profile',
 );
@@ -70,41 +69,6 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
           StatefulShellBranch(
-            navigatorKey: _routeNavigatorKey,
-            routes: [
-              GoRoute(
-                path: '/route',
-                pageBuilder: (context, state) {
-                  final query = state.uri.queryParameters;
-                  final sessionId = query['session'];
-                  final activeIntent = sessionId == null
-                      ? null
-                      : ActiveShootingIntent.fromQueryParameters(
-                          sessionId: sessionId,
-                          targetId: query['target'],
-                          createdAt: query['intentAt'],
-                        );
-                  return _tabPage(
-                    state,
-                    child: V2RoutePage(
-                      destinationName: query['name'],
-                      destinationLatitude: double.tryParse(query['lat'] ?? ''),
-                      destinationLongitude: double.tryParse(query['lon'] ?? ''),
-                      destinationCoordinateSystem:
-                          query['system'] == CoordinateSystem.gcj02.name
-                          ? CoordinateSystem.gcj02
-                          : CoordinateSystem.wgs84,
-                      travelMode: query['mode'] == RouteTravelMode.walking.name
-                          ? RouteTravelMode.walking
-                          : RouteTravelMode.driving,
-                      activeShootingIntent: activeIntent,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          StatefulShellBranch(
             navigatorKey: _profileNavigatorKey,
             routes: [
               GoRoute(
@@ -115,6 +79,37 @@ GoRouter createLumaNestRouter({ContextSnapshot? initialContext}) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/route',
+        pageBuilder: (context, state) {
+          final query = state.uri.queryParameters;
+          final sessionId = query['session'];
+          final activeIntent = sessionId == null
+              ? null
+              : ActiveShootingIntent.fromQueryParameters(
+                  sessionId: sessionId,
+                  targetId: query['target'],
+                  createdAt: query['intentAt'],
+                );
+          return _v2DetailPage(
+            state,
+            child: V2RoutePage(
+              destinationName: query['name'],
+              destinationLatitude: double.tryParse(query['lat'] ?? ''),
+              destinationLongitude: double.tryParse(query['lon'] ?? ''),
+              destinationCoordinateSystem:
+                  query['system'] == CoordinateSystem.gcj02.name
+                  ? CoordinateSystem.gcj02
+                  : CoordinateSystem.wgs84,
+              travelMode: query['mode'] == RouteTravelMode.walking.name
+                  ? RouteTravelMode.walking
+                  : RouteTravelMode.driving,
+              activeShootingIntent: activeIntent,
+            ),
+          );
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

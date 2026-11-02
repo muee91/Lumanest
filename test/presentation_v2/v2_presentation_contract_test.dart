@@ -47,13 +47,13 @@ void main() {
     expect(find.textContaining('倒影 ·'), findsOneWidget);
   });
 
-  testWidgets('V2 exposes four shell destinations and intelligence', (
+  testWidgets('V2 exposes three shell destinations and intelligence', (
     tester,
   ) async {
     await tester.pumpWidget(const LumaNestApp());
     await tester.pump();
 
-    for (final label in ['今日', '探索', '路线', '我的']) {
+    for (final label in ['此刻', '发现', '我的']) {
       expect(find.bySemanticsLabel(label), findsOneWidget);
     }
     expect(find.bySemanticsLabel('栖光：问问题或抽取灵感'), findsOneWidget);
@@ -87,7 +87,7 @@ void main() {
 
     expect(find.byKey(const Key('v2-bottom-navigation')), findsNothing);
     expect(find.byKey(const Key('v2-object-navigation-rail')), findsOneWidget);
-    expect(find.bySemanticsLabel('今日'), findsOneWidget);
+    expect(find.bySemanticsLabel('此刻'), findsOneWidget);
     expect(find.bySemanticsLabel('栖光：问问题或抽取灵感'), findsOneWidget);
   });
 }
