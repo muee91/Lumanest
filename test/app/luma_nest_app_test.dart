@@ -10,14 +10,10 @@ void main() {
     await tester.pumpWidget(const LumaNestApp());
 
     expect(find.text('从此刻的位置开始'), findsOneWidget);
-    expect(find.bySemanticsLabel('今日'), findsOneWidget);
-    expect(find.bySemanticsLabel('探索'), findsOneWidget);
-    expect(find.bySemanticsLabel('路线'), findsOneWidget);
+    expect(find.bySemanticsLabel('此刻'), findsOneWidget);
+    expect(find.bySemanticsLabel('发现'), findsOneWidget);
     expect(find.bySemanticsLabel('我的'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel('栖光：问问题或抽取灵感'),
-      findsOneWidget,
-    );
+    expect(find.bySemanticsLabel('栖光：问问题或抽取灵感'), findsOneWidget);
   });
 
   testWidgets('accepts an injected context snapshot', (tester) async {

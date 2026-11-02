@@ -33,9 +33,7 @@ void main() {
       1.0,
     );
 
-    await tester.tap(
-      find.bySemanticsLabel('栖光：问问题或抽取灵感'),
-    );
+    await tester.tap(find.bySemanticsLabel('栖光：问问题或抽取灵感'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
@@ -48,7 +46,7 @@ void main() {
     await tester.pump();
     expect(find.byType(AmbientCanvas), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('路线'));
+    await tester.tap(find.bySemanticsLabel('发现'));
     await tester.pump();
     await tester.pump();
     expect(find.byType(AmbientCanvas), findsNothing);
@@ -58,7 +56,7 @@ void main() {
     await tester.pump();
     expect(find.byType(AmbientCanvas), findsNothing);
 
-    await tester.tap(find.bySemanticsLabel('今日'));
+    await tester.tap(find.bySemanticsLabel('此刻'));
     await tester.pump();
     await tester.pump();
     expect(find.byType(AmbientCanvas), findsOneWidget);
@@ -119,7 +117,7 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('返回'));
     await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsLabel('今日'));
+    await tester.tap(find.bySemanticsLabel('此刻'));
     await tester.pump();
     await tester.pump();
     expect(
