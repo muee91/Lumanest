@@ -7,7 +7,7 @@ import { createQWeatherJwt } from '../jwt.mjs';
 const freshCacheMilliseconds = 5 * 60 * 1_000;
 const staleCacheMilliseconds = 2 * 60 * 60 * 1_000;
 
-// QWeather refreshes `/v7/weather/now` roughly every 15 minutes, so a healthy
+// QWeather refreshes the current-weather feed roughly every 15 minutes, so a healthy
 // observation is routinely 20+ minutes old by the time it reaches us. The
 // previous 30-minute window treated a single missed upstream update as stale,
 // which propagated into `ContextSnapshot.stale` and made the assistant reject

@@ -166,7 +166,7 @@ test('authoritative weather uses a bounded stale cache and rejects arbitrary hos
 });
 
 test('a routine upstream lag does not mark fresh weather as stale', async () => {
-  // `/v7/weather/now` refreshes about every 15 minutes, so a healthy reading is
+  // The current-weather feed refreshes about every 15 minutes, so a healthy reading is
   // often 20-40 minutes old. Treating that as stale made every context snapshot
   // stale and forced the assistant to reject it with `snapshot_expired`.
   const options = {
