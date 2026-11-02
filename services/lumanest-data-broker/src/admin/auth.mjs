@@ -9,6 +9,7 @@ const sessionLifetimeMilliseconds = 30 * 24 * 60 * 60 * 1_000;
 const failureWindowMilliseconds = 15 * 60 * 1_000;
 const lockDurationMilliseconds = 15 * 60 * 1_000;
 const maximumFailures = 5;
+const maximumCsrfDigests = 4;
 
 function digest(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -20,6 +21,13 @@ function sameDigest(actual, expected) {
   const expectedBytes = Buffer.from(expected, 'hex');
   return actualBytes.length === expectedBytes.length &&
     actualBytes.length > 0 && timingSafeEqual(actualBytes, expectedBytes);
+}
+
+function csrfDigestsFor(session) {
+  if (Array.isArray(session.csrfDigests)) {
+    return session.csrfDigests.filter((value) => typeof value === 'string');
+  }
+  return typeof session.csrfDigest === 'string' ? [session.csrfDigest] : [];
 }
 
 function validatePassword(password) {
@@ -135,6 +143,7 @@ export class AdminAuthService {
         .concat({
           tokenDigest: digest(sessionToken),
           csrfDigest: digest(csrfToken),
+          csrfDigests: [digest(csrfToken)],
           createdAt: now,
           expiresAt: now + sessionLifetimeMilliseconds,
         });
@@ -165,8 +174,8 @@ export class AdminAuthService {
         }
         return { ok: false, reason: 'unauthenticated' };
       }
-      if (requireCsrf &&
-          (typeof csrfToken !== 'string' || !sameDigest(session.csrfDigest, digest(csrfToken)))) {
+      if (requireCsrf && (typeof csrfToken !== 'string' || !csrfDigestsFor(session)
+        .some((candidate) => sameDigest(candidate, digest(csrfToken))))) {
         return { ok: false, reason: 'csrf_mismatch' };
       }
       return { ok: true, expiresAt: session.expiresAt };
@@ -197,7 +206,10 @@ export class AdminAuthService {
         sameDigest(candidate.tokenDigest, tokenDigest) && candidate.expiresAt > now);
       if (session == null) return null;
       const csrfToken = this.#randomBytes(32).toString('base64url');
-      session.csrfDigest = digest(csrfToken);
+      const csrfDigest = digest(csrfToken);
+      session.csrfDigest = csrfDigest;
+      session.csrfDigests = [csrfDigest, ...csrfDigestsFor(session)
+        .filter((candidate) => candidate !== csrfDigest)].slice(0, maximumCsrfDigests);
       await this.#persist();
       return csrfToken;
     });
