@@ -41,7 +41,7 @@ AI 是全局按需入口，不是常驻一级 Tab。它解释已知事实、回�
 
 `TripTask` 是当前 2.0 的统一出行意图对象，状态按 `planning → enRoute → field → completed` 顺序推进，也可以从任一开放状态取消。它保存目的地、交通方式、时间和可选的拍摄会话关联，并投影到路线场景与现有环境上下文。
 
-当前任务只在客户端本地持久化。它不等同于服务端 Mission，不提供后台持续检查、实时轨迹、远程推送或跨设备任务记忆；这些能力在后续阶段单独验收。
+当前任务保留本地副本；新任务在设备会话可用时会通过 Broker 镜像到服务端 Mission。服务端使用 PostgreSQL `mission` schema、幂等/版本操作和独立 Worker 进行事实检查，但专用 NAS 角色、迁移、Worker profile 与真实重启验收仍需单独完成。远程推送、实时轨迹和跨设备恢复仍未交付。
 
 ## 3. 当前保留能力
 
@@ -77,7 +77,7 @@ AI 是全局按需入口，不是常驻一级 Tab。它解释已知事实、回�
 | Shooting feedback/calibration | **已删除（2026-09-26）** | 隐私开关、`shareAnonymousPhotographyFeedback` 偏好、Broker `/v1/context/target-session` 与 `/v1/context/shooting-feedback` 路由、Context Service feedback/calibration 端点与数据表均已移除 |
 | 未守候窗口的自动提醒 | **分期待放开** | 只有 §「本机定时提醒」验证过兑现率后，才按开口许可契约逐级放开；不得先做抢占再做校准 |
 | 远程推送 / 真后台重算 | **冻结** | 前台提前排程本机通知已覆盖绝大部分主动场景；推送需要 APNs 后端、证书与配额，且在数据不准的时间尺度上开口正是同类产品的失败点 |
-| 服务端 Mission Engine / 后台主动守候 | **未交付** | 尚无服务端持久任务、后台 Worker、事件审计和通知去重闭环；不得把客户端 `TripTask` 描述成主动副驾 |
+| 服务端 Mission Engine / 后台主动守候 | **基础实现，未完成验收** | Broker API、`mission` schema、幂等/版本/事件表和独立 Worker 已接线；专用 NAS 角色、真实迁移/重启验证和通知通道仍未完成，不得把它描述成已交付主动副驾 |
 | Agent 业务工具调用 | **未交付** | 当前 AI 目的地任务仍由客户端确定性解析和现有地点搜索接线，尚不是服务端行动编排 |
 | 实时语音副驾 | **未交付** | 尚无 Realtime 会话和语音驱动任务链路 |
 | iOS Live Activity / Dynamic Island | **冻结** | 需要 entitlement 与扩展 target，成本最高收益最低 |

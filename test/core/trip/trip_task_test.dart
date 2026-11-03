@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/mission/mission_providers.dart';
+import 'package:luma_nest/src/core/mission/mission_repository.dart';
 import 'package:luma_nest/src/core/trip/trip_task.dart';
 
 void main() {
@@ -110,6 +112,10 @@ void main() {
       TripTaskCommandParser.parse('我到了，进入现场')?.type,
       TripTaskCommandType.enterField,
     );
+    expect(
+      TripTaskCommandParser.parse('停止守候')?.type,
+      TripTaskCommandType.stopWatch,
+    );
     expect(TripTaskCommandParser.parse('什么时候出发？'), isNull);
   });
 
@@ -125,6 +131,10 @@ void main() {
       fieldEnteredAt: createdAt.add(const Duration(minutes: 45)),
       sessionId: 'session_1',
       targetId: 'target_1',
+      remoteMissionId: 'mis_0123456789abcdef0123456789abcdef',
+      remoteMissionVersion: 4,
+      remoteMissionStage: MissionRemoteStage.field,
+      watchEnabled: true,
     );
 
     final restored = TripTask.fromJson(task.toJson());
@@ -134,6 +144,9 @@ void main() {
     expect(restored?.stage, TripTaskStage.field);
     expect(restored?.fieldEnteredAt, task.fieldEnteredAt);
     expect(restored?.sessionId, 'session_1');
+    expect(restored?.remoteMissionId, task.remoteMissionId);
+    expect(restored?.remoteMissionVersion, 4);
+    expect(restored?.remoteMissionStage, MissionRemoteStage.field);
   });
 
   test('controller restores an open task and projects route state', () async {
@@ -229,6 +242,47 @@ void main() {
     ]);
     store.releaseCurrentWrite();
   });
+
+  test(
+    'new tasks are mirrored to the server and lifecycle updates are versioned',
+    () async {
+      final store = _FakeTripTaskStore(null);
+      final mission = _FakeMissionRepository();
+      final container = ProviderContainer(
+        overrides: [
+          tripTaskStoreProvider.overrideWithValue(store),
+          missionRemoteRepositoryProvider.overrideWithValue(mission),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(tripTaskProvider.notifier);
+      controller.plan(
+        destinationName: '西湖',
+        destination: destination,
+        travelMode: TripTravelMode.driving,
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        container.read(tripTaskProvider)?.remoteMissionId,
+        startsWith('mis_'),
+      );
+      expect(mission.operations, ['create']);
+
+      controller.start(at: createdAt);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(mission.operations, ['create', 'start']);
+      expect(container.read(tripTaskProvider)?.remoteMissionVersion, 2);
+
+      controller.setWatchEnabled(false);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(mission.operations, ['create', 'start', 'setWatch']);
+      expect(container.read(tripTaskProvider)?.watchEnabled, false);
+    },
+  );
 }
 
 final createdAt = DateTime.utc(2026, 11, 3, 1);
@@ -291,4 +345,50 @@ class _SerializingTripTaskStore implements TripTaskStore {
 
   @override
   Future<void> clear() async => value = null;
+}
+
+class _FakeMissionRepository implements MissionRemoteRepository {
+  final operations = <String>[];
+  int version = 1;
+  MissionRemoteStage currentStage = MissionRemoteStage.planning;
+
+  @override
+  Future<MissionRemoteSnapshot?> create(
+    MissionDraft draft, {
+    required String operationId,
+  }) async {
+    operations.add('create');
+    return MissionRemoteSnapshot(
+      id: 'mis_0123456789abcdef0123456789abcdef',
+      stage: MissionRemoteStage.planning,
+      version: version,
+      watchEnabled: draft.watchEnabled,
+    );
+  }
+
+  @override
+  Future<MissionRemoteSnapshot?> patch(
+    String missionId, {
+    required int expectedVersion,
+    required String operation,
+    required String operationId,
+    bool? watchEnabled,
+  }) async {
+    operations.add(operation);
+    version += 1;
+    final stage = switch (operation) {
+      'start' => MissionRemoteStage.enRoute,
+      'arrive' => MissionRemoteStage.field,
+      'complete' => MissionRemoteStage.completed,
+      'cancel' => MissionRemoteStage.cancelled,
+      _ => currentStage,
+    };
+    currentStage = stage;
+    return MissionRemoteSnapshot(
+      id: missionId,
+      stage: stage,
+      version: version,
+      watchEnabled: watchEnabled ?? true,
+    );
+  }
 }

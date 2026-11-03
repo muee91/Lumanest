@@ -110,6 +110,8 @@ import {
   mergeAssistantSources,
 } from './assistant/context-envelope.mjs';
 import { apiErrorCodes } from './api/error-codes.mjs';
+import { validMissionCreateRequest, validMissionPatchRequest } from './mission/contract.mjs';
+import { MissionStore } from './mission/store.mjs';
 import {
   SessionInstallationRegistry,
   isValidOwnerSecret,
@@ -449,6 +451,7 @@ const ratePolicies = [
   { path: '/v1/sky-opportunities', limit: 12, windowMs: 60 * 1_000, key: 'sky-opportunity' },
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
   { path: '/v1/session', limit: 8, windowMs: 60 * 1_000, key: 'session' },
+  { path: '/v1/missions', limit: 30, windowMs: 60 * 1_000, key: 'missions' },
   { path: '/v1/weather/7timer', limit: 20, windowMs: 60 * 1_000, key: 'seven-timer' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
@@ -961,6 +964,8 @@ export function createTokenBrokerServer({
   discoveryServiceUrl = '',
   discoveryInternalToken = '',
   discoveryWorkerToken = '',
+  missionWorkerToken = '',
+  missionStore = new MissionStore(),
   discoverySearchProfile = defaultDiscoverySearchProfile(),
   qweatherApiHost = '',
   weatherCache = new MemoryWeatherCache(),
@@ -1006,6 +1011,7 @@ export function createTokenBrokerServer({
     discoveryServiceUrl,
     discoveryInternalToken,
     discoveryWorkerToken,
+    missionWorkerToken,
     discoverySearchProfile,
     qweatherApiHost,
     sunsetBotBaseUrl,
@@ -1086,6 +1092,124 @@ export function createTokenBrokerServer({
   // One unexpected throw used to reject the request listener, and Node 22 then
   // terminates the process — the single backend the App depends on. Handlers
   // are still expected to catch what they can; this is the last line.
+  async function evaluateContextSnapshot(body, configuration, { prewarm = true, remember = true } = {}) {
+    const [weather, sceneEvidence, providerWarnings] = await Promise.all([
+      authoritativeWeather({
+        coordinate: body.coordinate,
+        apiHost: configuration.qweatherApiHost,
+        privateKey: configuration.privateKey,
+        keyId: configuration.keyId,
+        projectId: configuration.projectId,
+        cache: weatherCache,
+        fetcher,
+        now,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      }),
+      fetchAmapSceneEvidence({
+        coordinate: body.coordinate,
+        apiKey: configuration.amapWebKey,
+        fetcher,
+        timeoutMs: configuration.settings.upstreamTimeoutMs,
+      }),
+      boundedProviderSafetyWarnings(activeProviderFactsService, body),
+    ]);
+    if (!weather.ok) {
+      return {
+        ok: false,
+        status: weather.error === 'not_configured' ? 503 : 502,
+        error: weather.error === 'not_configured'
+          ? apiErrorCodes.weatherUnconfigured
+          : apiErrorCodes.upstreamUnavailable,
+      };
+    }
+    const allOfficialWarnings = [...weather.body.officialWarnings, ...providerWarnings]
+      .filter((warning) => Date.parse(warning.expiresAt) > now().getTime())
+      .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt))
+      .slice(0, 8);
+    const internalBody = {
+      contractVersion: body.contractVersion,
+      coordinate: body.coordinate,
+      observedAt: body.observedAt,
+      locale: body.locale,
+      intent: body.intent,
+      route: body.route,
+      evidence: sceneEvidence.ok ? sceneEvidence.evidence : {
+        urban: false,
+        waterBody: false,
+        mountainous: false,
+        aridLand: false,
+        settlement: false,
+      },
+      weather: {
+        ...weather.body.weather,
+        officialWarningsStatus: weather.body.officialWarningsStatus,
+      },
+      forecast: weather.body.forecast,
+      officialWarnings: allOfficialWarnings.map((warning) => ({
+        id: warning.id,
+        observedAt: warning.observedAt,
+        expiresAt: warning.expiresAt,
+        severity: warning.severity,
+        title: warning.title,
+      })),
+    };
+    const result = await forwardContextSnapshot({
+      body: internalBody,
+      serviceUrl: configuration.contextServiceUrl,
+      internalToken: configuration.contextInternalToken,
+      fetcher,
+      timeoutMs: configuration.settings.upstreamTimeoutMs,
+    });
+    if (!result.ok) {
+      const failure = contextProxyFailure(result);
+      return { ok: false, status: failure.status, error: failure.code };
+    }
+    const details = safetyDetailsFor(
+      result.body.contextId,
+      allOfficialWarnings,
+      result.body.facts.events.map((event) => event.id),
+    );
+    if (details.length > 0 && typeof weatherCache.setSafetyDetails === 'function') {
+      await weatherCache.setSafetyDetails(
+        result.body.contextId,
+        details,
+        result.body.expiresAt,
+      );
+    }
+    if (remember) {
+      contextSnapshots.rememberSnapshot({
+        ...result.body,
+        regionBriefGrid: regionBriefGrid(body.coordinate),
+        assistantContextBinding: createAssistantContextBinding({
+          coordinate: body.coordinate,
+          locale: body.locale,
+          route: body.route,
+          snapshot: result.body,
+          evidence: internalBody.evidence,
+        }),
+      });
+    }
+    if (prewarm) {
+      setImmediate(() => {
+        void prewarmRegionBriefDiscovery({
+          coordinate: body.coordinate,
+          locale: body.locale,
+          amapWebKey: configuration.amapWebKey,
+          serviceUrl: configuration.discoveryServiceUrl,
+          internalToken: configuration.discoveryInternalToken,
+          sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
+          fetcher,
+          timeoutMs: configuration.settings.upstreamTimeoutMs,
+          now,
+          radiusMeters: configuration.settings.discoveryLocationWarmupRadiusMeters,
+          enabled: configuration.settings.discoveryLocationWarmupEnabled,
+          searchEnabled: configuration.discoverySearchProfile.enabled,
+        }).catch(() => {});
+      });
+    }
+    return { ok: true, body: result.body };
+  }
+
   async function handleRequest(request, response) {
     const configuration = configurationSource.snapshot();
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
@@ -1157,6 +1281,27 @@ export function createTokenBrokerServer({
     if (requestUrl.pathname === '/admin' || requestUrl.pathname === '/admin/' ||
         requestUrl.pathname.startsWith('/admin-assets/')) {
       writeJson(response, 404, { error: apiErrorCodes.notFound });
+      return;
+    }
+
+    if (requestUrl.pathname === '/internal/v1/mission/check') {
+      if (request.method !== 'POST' || !hasValidWorkerToken(
+        request.headers['x-mission-worker-token'], configuration.missionWorkerToken,
+      )) {
+        writeJson(response, 401, { error: apiErrorCodes.unauthorized });
+        return;
+      }
+      const body = await readJsonBody(request, 4 * 1024);
+      if (body == null || !validContextRequest(body)) {
+        writeJson(response, 400, { error: apiErrorCodes.invalidContextRequest });
+        return;
+      }
+      const result = await evaluateContextSnapshot(body, configuration, { prewarm: false, remember: false });
+      if (!result.ok) {
+        writeJson(response, result.status, { error: result.error });
+        return;
+      }
+      writeJson(response, 200, result.body);
       return;
     }
 
@@ -1292,6 +1437,85 @@ export function createTokenBrokerServer({
       writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
         'Retry-After': String(limit.retryAfterSeconds),
       });
+      return;
+    }
+
+    const missionMatch = requestUrl.pathname.match(/^\/v1\/missions(?:\/(mis_[a-f0-9]{32})(\/events)?)?$/);
+    if (missionMatch != null) {
+      // A service bearer is intentionally insufficient here. Mission data is
+      // private to the short-lived, device-bound session subject.
+      if (sessionPayload == null) {
+        writeJson(response, 401, { error: apiErrorCodes.unauthorized });
+        return;
+      }
+      if (!missionStore.configured) {
+        writeJson(response, 503, { error: apiErrorCodes.missionUnconfigured });
+        return;
+      }
+      const missionIdValue = missionMatch[1] ?? null;
+      const isEvents = missionMatch[2] === '/events';
+      if (request.method === 'GET' && missionIdValue == null) {
+        const result = await missionStore.list(sessionPayload.sub);
+        writeJson(response, 200, result.body);
+        return;
+      }
+      if (request.method === 'GET' && missionIdValue != null && isEvents) {
+        const result = await missionStore.events(sessionPayload.sub, missionIdValue);
+        writeJson(response, result.body == null ? 404 : 200, result.body ?? {
+          error: apiErrorCodes.notFound,
+        });
+        return;
+      }
+      if (request.method === 'GET' && missionIdValue != null) {
+        const result = await missionStore.get(sessionPayload.sub, missionIdValue);
+        writeJson(response, result.body == null ? 404 : 200, result.body ?? {
+          error: apiErrorCodes.notFound,
+        });
+        return;
+      }
+      const operation = request.headers['idempotency-key'];
+      if (typeof operation !== 'string' || !/^[A-Za-z0-9._-]{16,128}$/.test(operation)) {
+        writeJson(response, 400, { error: apiErrorCodes.invalidMissionRequest });
+        return;
+      }
+      const body = await readJsonBody(request, 16 * 1024);
+      if (request.method === 'POST' && missionIdValue == null && validMissionCreateRequest(body)) {
+        const result = await missionStore.create({
+          ownerId: sessionPayload.sub,
+          request: body,
+          operation,
+        });
+        if (!result.ok) {
+          writeJson(response, result.error === 'not_configured' ? 503 : 409, {
+            error: result.error === 'not_configured'
+              ? apiErrorCodes.missionUnconfigured
+              : apiErrorCodes.missionConflict,
+          });
+          return;
+        }
+        writeJson(response, result.status, result.body);
+        return;
+      }
+      if (request.method === 'PATCH' && missionIdValue != null && !isEvents &&
+          validMissionPatchRequest(body)) {
+        const result = await missionStore.patch({
+          ownerId: sessionPayload.sub,
+          id: missionIdValue,
+          request: body,
+          operation,
+        });
+        if (!result.ok) {
+          const status = result.error === 'not_found' ? 404 : 409;
+          writeJson(response, status, {
+            error: status === 404 ? apiErrorCodes.notFound : apiErrorCodes.missionConflict,
+            ...(result.current == null ? {} : { current: result.current }),
+          });
+          return;
+        }
+        writeJson(response, result.status, result.body);
+        return;
+      }
+      writeJson(response, 400, { error: apiErrorCodes.invalidMissionRequest });
       return;
     }
 
@@ -1920,120 +2144,12 @@ export function createTokenBrokerServer({
           return;
         }
       }
-      const [weather, sceneEvidence, providerWarnings] = await Promise.all([
-        authoritativeWeather({
-          coordinate: body.coordinate,
-          apiHost: configuration.qweatherApiHost,
-          privateKey: configuration.privateKey,
-          keyId: configuration.keyId,
-          projectId: configuration.projectId,
-          cache: weatherCache,
-          fetcher,
-          now,
-          timeoutMs: configuration.settings.upstreamTimeoutMs,
-        }),
-        fetchAmapSceneEvidence({
-          coordinate: body.coordinate,
-          apiKey: configuration.amapWebKey,
-          fetcher,
-          timeoutMs: configuration.settings.upstreamTimeoutMs,
-        }),
-        boundedProviderSafetyWarnings(activeProviderFactsService, body),
-      ]);
-      if (!weather.ok) {
-        writeJson(response, weather.error === 'not_configured' ? 503 : 502, {
-          error: weather.error === 'not_configured' ? apiErrorCodes.weatherUnconfigured : apiErrorCodes.upstreamUnavailable,
-        });
-        return;
-      }
-      const allOfficialWarnings = [...weather.body.officialWarnings, ...providerWarnings]
-        .filter((warning) => Date.parse(warning.expiresAt) > now().getTime())
-        .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt))
-        .slice(0, 8);
-      const internalBody = {
-        contractVersion: body.contractVersion,
-        coordinate: body.coordinate,
-        observedAt: body.observedAt,
-        locale: body.locale,
-        intent: body.intent,
-        route: body.route,
-        evidence: sceneEvidence.ok ? sceneEvidence.evidence : {
-          urban: false,
-          waterBody: false,
-          mountainous: false,
-          aridLand: false,
-          settlement: false,
-        },
-        weather: {
-          ...weather.body.weather,
-          officialWarningsStatus: weather.body.officialWarningsStatus,
-        },
-        forecast: weather.body.forecast,
-        officialWarnings: allOfficialWarnings.map((warning) => ({
-          id: warning.id,
-          observedAt: warning.observedAt,
-          expiresAt: warning.expiresAt,
-          severity: warning.severity,
-          title: warning.title,
-        })),
-      };
-      const result = await forwardContextSnapshot({
-        body: internalBody,
-        serviceUrl: configuration.contextServiceUrl,
-        internalToken: configuration.contextInternalToken,
-        fetcher,
-        timeoutMs: configuration.settings.upstreamTimeoutMs,
-      });
+      const result = await evaluateContextSnapshot(body, configuration);
       if (!result.ok) {
-        const failure = contextProxyFailure(result);
-        writeJson(response, failure.status, { error: failure.code });
+        writeJson(response, result.status, { error: result.error });
         return;
       }
-      const details = safetyDetailsFor(
-        result.body.contextId,
-        allOfficialWarnings,
-        result.body.facts.events.map((event) => event.id),
-      );
-      if (details.length > 0 && typeof weatherCache.setSafetyDetails === 'function') {
-        await weatherCache.setSafetyDetails(
-          result.body.contextId,
-          details,
-          result.body.expiresAt,
-        );
-      }
-      contextSnapshots.rememberSnapshot({
-        ...result.body,
-        // Retain only a coarse cell and its cell centre in process-local memory.
-        // Raw GPS never enters ContextSnapshotStore or assistant conversation history.
-        regionBriefGrid: regionBriefGrid(body.coordinate),
-        assistantContextBinding: createAssistantContextBinding({
-          coordinate: body.coordinate,
-          locale: body.locale,
-          route: body.route,
-          snapshot: result.body,
-          evidence: internalBody.evidence,
-        }),
-      });
       writeJson(response, 200, result.body);
-      // The client must receive the refreshed environment immediately. Nearby
-      // Regional discovery is cache-first background work and is deliberately detached
-      // from this request; only the Broker performs the transient city lookup.
-      setImmediate(() => {
-        void prewarmRegionBriefDiscovery({
-          coordinate: body.coordinate,
-          locale: body.locale,
-          amapWebKey: configuration.amapWebKey,
-          serviceUrl: configuration.discoveryServiceUrl,
-          internalToken: configuration.discoveryInternalToken,
-          sourcePolicies: configuration.discoverySearchProfile.sourcePolicies,
-          fetcher,
-          timeoutMs: configuration.settings.upstreamTimeoutMs,
-          now,
-          radiusMeters: configuration.settings.discoveryLocationWarmupRadiusMeters,
-          enabled: configuration.settings.discoveryLocationWarmupEnabled,
-          searchEnabled: configuration.discoverySearchProfile.enabled,
-        }).catch(() => {});
-      });
       return;
     }
 
@@ -2159,6 +2275,8 @@ export function configurationFromEnvironment(environment = process.env) {
     discoveryServiceUrl: environment.DISCOVERY_SERVICE_URL?.trim() ?? '',
     discoveryInternalToken: environment.DISCOVERY_INTERNAL_TOKEN?.trim() ?? '',
     discoveryWorkerToken: environment.DISCOVERY_WORKER_TOKEN?.trim() ?? '',
+    missionDatabaseUrl: environment.MISSION_DATABASE_URL?.trim() ?? '',
+    missionWorkerToken: environment.MISSION_WORKER_TOKEN?.trim() ?? '',
     qweatherApiHost: environment.QWEATHER_API_HOST?.trim() ?? '',
     sunsetBotBaseUrl: environment.SUNSETBOT_BASE_URL?.trim() || 'https://sunsetbot.top',
     sevenTimerBaseUrl: environment.SEVEN_TIMER_BASE_URL?.trim() || 'https://www.7timer.info',
@@ -2255,6 +2373,9 @@ export async function createBrokerServices(environment = process.env, {
   const sessionInstallationRegistry = await new SessionInstallationRegistry({
     filePath: `${dataDirectory}/session-installations.json`,
   }).initialize();
+  const missionStore = new MissionStore({
+    connectionString: defaults.missionDatabaseUrl,
+  });
   const appServer = createTokenBrokerServer({
     runtimeConfig,
     weatherCache,
@@ -2277,6 +2398,7 @@ export async function createBrokerServices(environment = process.env, {
     requestRateLimiter,
     trustedProxyAddresses: defaults.trustedProxyAddresses,
     sessionInstallationRegistry,
+    missionStore,
     simulationRegistry,
     providerFactsService,
     operationalObservability,

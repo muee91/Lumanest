@@ -57,6 +57,11 @@ services:
       DISCOVERY_SERVICE_URL: http://discovery-api:8001
       DISCOVERY_INTERNAL_TOKEN: ${DISCOVERY_INTERNAL_TOKEN:?Set DISCOVERY_INTERNAL_TOKEN}
       DISCOVERY_WORKER_TOKEN: ${DISCOVERY_WORKER_TOKEN:?Set DISCOVERY_WORKER_TOKEN}
+      # Mission is disabled until the operator supplies a dedicated role
+      # connection and worker token. The migration role is never injected into
+      # the long-running Broker container.
+      MISSION_DATABASE_URL: ${MISSION_DATABASE_URL:-}
+      MISSION_WORKER_TOKEN: ${MISSION_WORKER_TOKEN:-}
       REDIS_URL: redis://redis:6379/0
       LUMANEST_RASTER_SERVICE_URL: ${LUMANEST_RASTER_SERVICE_URL:-}
       LUMANEST_RASTER_SERVICE_TOKEN: ${LUMANEST_RASTER_SERVICE_TOKEN:-}
@@ -326,6 +331,42 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  mission-worker:
+    profiles: ["mission"]
+    build:
+      context: .
+      dockerfile: ${BROKER_DOCKERFILE:-Dockerfile}
+      args:
+        <<: [*build-proxy-args, *base-image-args]
+      extra_hosts: *build-extra-hosts
+    container_name: lumanest-mission-worker
+    restart: unless-stopped
+    environment:
+      MISSION_WORKER_DATABASE_URL: ${MISSION_WORKER_DATABASE_URL:-}
+      MISSION_BROKER_URL: http://qweather-token-broker:8787
+      MISSION_WORKER_TOKEN: ${MISSION_WORKER_TOKEN:-}
+      NODE_OPTIONS: "--use-env-proxy"
+      HTTP_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      HTTPS_PROXY: ${LUMANEST_OUTBOUND_PROXY_URL:-}
+      NO_PROXY: 127.0.0.1,localhost,qweather-token-broker,postgres
+    command: ["node", "src/mission-worker.mjs"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      qweather-token-broker:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -n \"$$MISSION_WORKER_DATABASE_URL\" && test -n \"$$MISSION_WORKER_TOKEN\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   postgres:
     image: postgis/postgis:17-3.5@sha256:4e8c30197f7ce4190cf11a1b8c44bea35a58507558cffa48570814beba77b099

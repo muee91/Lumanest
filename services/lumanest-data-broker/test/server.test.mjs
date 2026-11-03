@@ -19,6 +19,41 @@ import { SessionInstallationRegistry } from '../src/session/installation-registr
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 const ownerSecret = 'owner-secret-abcdefghijklmnopqrstuvwxyz-0123456789';
 
+class FakeMissionStore {
+  configured = true;
+  mission = {
+    id: 'mis_0123456789abcdef0123456789abcdef',
+    state: 'planning',
+    destination: { name: '西湖', latitude: 30.24, longitude: 120.15, system: 'wgs84' },
+    intent: 'photography', locale: 'zh-CN', watchEnabled: true,
+    startsAt: null, endsAt: null, version: 1, nextCheckAt: null,
+    lastCheckedAt: null, createdAt: '2026-11-03T00:00:00.000Z',
+    updatedAt: '2026-11-03T00:00:00.000Z',
+  };
+
+  async create({ ownerId, request }) {
+    this.ownerId = ownerId;
+    this.mission = { ...this.mission, ...request, destination: request.destination };
+    return { ok: true, status: 201, body: this.mission };
+  }
+
+  async list(ownerId) {
+    return { ok: true, body: ownerId === this.ownerId ? [this.mission] : [] };
+  }
+
+  async get(ownerId, id) {
+    return { ok: true, body: ownerId === this.ownerId && id === this.mission.id ? this.mission : null };
+  }
+
+  async patch({ ownerId, id, request }) {
+    if (ownerId !== this.ownerId || id !== this.mission.id) return { ok: false, error: 'not_found' };
+    this.mission = { ...this.mission, version: this.mission.version + 1 };
+    return { ok: true, status: 200, body: this.mission };
+  }
+
+  async events() { return { ok: true, body: [] }; }
+}
+
 // Parses a text/event-stream body into ordered { event, data } records. The
 // assistant endpoint streams status/delta/done events instead of one JSON body.
 async function readSseEvents(response) {
@@ -53,6 +88,8 @@ async function withServer(run, {
   discoveryServiceUrl = '',
   discoveryInternalToken = '',
   discoveryWorkerToken = '',
+  missionWorkerToken = '',
+  missionStore,
   discoverySearchProfile,
   qweatherApiHost = 'https://project.qweatherapi.com',
   weatherCache,
@@ -90,6 +127,8 @@ async function withServer(run, {
     discoveryServiceUrl,
     discoveryInternalToken,
     discoveryWorkerToken,
+    missionWorkerToken,
+    missionStore,
     discoverySearchProfile,
     qweatherApiHost,
     weatherCache,
@@ -253,6 +292,57 @@ test('session bootstrap rejects a different owner secret for the same installati
     });
     assert.equal(missing.status, 400);
   }, { sessionInstallationRegistry: registry });
+});
+
+test('mission API requires a device session and scopes operations to its subject', async () => {
+  const missionStore = new FakeMissionStore();
+  await withServer(async (baseUrl) => {
+    const issued = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx', ownerSecret }),
+    });
+    const { accessToken } = await issued.json();
+    const authorization = { Authorization: `Bearer ${accessToken}` };
+    const requestBody = {
+      destination: { name: '西湖', latitude: 30.24, longitude: 120.15, system: 'wgs84' },
+      intent: 'photography', locale: 'zh-CN', startsAt: null, endsAt: null, watchEnabled: true,
+    };
+    const created = await fetch(`${baseUrl}/v1/missions`, {
+      method: 'POST',
+      headers: { ...authorization, 'Content-Type': 'application/json', 'Idempotency-Key': 'create-mission-0001' },
+      body: JSON.stringify(requestBody),
+    });
+    assert.equal(created.status, 201);
+    assert.equal((await created.json()).destination.name, '西湖');
+
+    const listed = await fetch(`${baseUrl}/v1/missions`, { headers: authorization });
+    assert.equal(listed.status, 200);
+    assert.equal((await listed.json()).length, 1);
+
+    const patched = await fetch(`${baseUrl}/v1/missions/mis_0123456789abcdef0123456789abcdef`, {
+      method: 'PATCH',
+      headers: { ...authorization, 'Content-Type': 'application/json', 'Idempotency-Key': 'start-mission-0001' },
+      body: JSON.stringify({ expectedVersion: 1, operation: 'start', watchEnabled: null, destination: null }),
+    });
+    assert.equal(patched.status, 200);
+
+    const legacy = await fetch(`${baseUrl}/v1/missions`, {
+      headers: { Authorization: 'Bearer test-service-token' },
+    });
+    assert.equal(legacy.status, 401);
+  }, { missionStore });
+});
+
+test('mission evaluator is private to the dedicated worker token', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/internal/v1/mission/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(response.status, 401);
+  }, { missionWorkerToken: 'mission-worker-secret' });
 });
 
 test('session issuance is capped per installation over a rolling window', async () => {
