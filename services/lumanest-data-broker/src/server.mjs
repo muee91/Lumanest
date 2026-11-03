@@ -110,7 +110,10 @@ import {
   mergeAssistantSources,
 } from './assistant/context-envelope.mjs';
 import { apiErrorCodes } from './api/error-codes.mjs';
-import { SessionInstallationRegistry } from './session/installation-registry.mjs';
+import {
+  SessionInstallationRegistry,
+  isValidOwnerSecret,
+} from './session/installation-registry.mjs';
 
 const amapBaseUrl = 'https://restapi.amap.com';
 const maximumVerifiedPlaceMediaBytes = 8 * 1024 * 1024;
@@ -191,6 +194,7 @@ function issueSessionToken({ installationId, signingKey, now }) {
     accessToken: signSessionPayload({
       sub: installationId,
       scope: 'app',
+      binding: 'device-v1',
       iat: issuedAt,
       exp: expiresAt,
     }, signingKey),
@@ -219,7 +223,8 @@ function sessionAuthorization(header, signingKey, now) {
   try {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
     const nowSeconds = Math.floor(now.getTime() / 1_000);
-    return payload?.scope === 'app' && validInstallationId(payload.sub) &&
+    return payload?.scope === 'app' && payload?.binding === 'device-v1' &&
+      validInstallationId(payload.sub) &&
       Number.isInteger(payload.exp) && payload.exp > nowSeconds &&
       Number.isInteger(payload.iat) && payload.iat <= nowSeconds + 300
       ? payload
@@ -1091,8 +1096,9 @@ export function createTokenBrokerServer({
 
     // Public bootstrap for mobile installs. The installation identifier is
     // deliberately not treated as a secret; it is the quota and revocation
-    // handle: issuance is accounted per identifier with a rolling cap, and a
-    // revoked identifier is refused new tokens and loses the ones it holds.
+    // handle. The companion owner secret is generated and retained by the
+    // device, then stored by the broker only as a digest to bind that
+    // identifier to its first owner.
     // The returned short-lived token only authorizes the App surface and the
     // endpoint is rate-limited separately from the protected business APIs,
     // so release builds need no shared bearer secret embedded in the APK.
@@ -1111,8 +1117,9 @@ export function createTokenBrokerServer({
         return;
       }
       const body = await readJsonBody(request, 512);
-      if (body == null || Object.keys(body).length !== 1 ||
-          !validInstallationId(body.installationId)) {
+      if (body == null || Object.keys(body).length !== 2 ||
+          !validInstallationId(body.installationId) ||
+          !isValidOwnerSecret(body.ownerSecret)) {
         writeJson(response, 400, { error: apiErrorCodes.invalidRequest });
         return;
       }
@@ -1123,10 +1130,15 @@ export function createTokenBrokerServer({
       }
       const issuance = await sessionInstallationRegistry.recordIssuance({
         installationId: body.installationId,
+        ownerSecret: body.ownerSecret,
       });
       if (!issuance.allowed) {
         if (issuance.status === 403) {
-          writeJson(response, 403, { error: apiErrorCodes.installationRevoked });
+          writeJson(response, 403, {
+            error: issuance.reason === 'identity_mismatch'
+              ? apiErrorCodes.unauthorized
+              : apiErrorCodes.installationRevoked,
+          });
           return;
         }
         writeJson(response, 429, { error: apiErrorCodes.rateLimited }, {
