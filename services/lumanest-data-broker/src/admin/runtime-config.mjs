@@ -217,6 +217,8 @@ function buildSnapshot(defaults, overrides, revision) {
     discoveryServiceUrl: defaults.discoveryServiceUrl ?? '',
     discoveryInternalToken: defaults.discoveryInternalToken ?? '',
     discoveryWorkerToken: defaults.discoveryWorkerToken ?? '',
+    missionDatabaseUrl: defaults.missionDatabaseUrl ?? '',
+    missionWorkerToken: defaults.missionWorkerToken ?? '',
     qweatherApiHost: defaults.qweatherApiHost ?? '',
     sunsetBotBaseUrl: defaults.sunsetBotBaseUrl ?? 'https://sunsetbot.top',
     port: defaults.port,

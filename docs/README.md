@@ -24,6 +24,7 @@
 - 生态来源：`ecology-data-sources.md`
 - Provider 运维：`provider-operations-runbook.md`
 - 可观测性：`operational-observability.md`
+- Mission Engine 运维契约：`../services/lumanest-data-broker/docs/mission-engine.md`
 
 ## 历史材料处理规则
 

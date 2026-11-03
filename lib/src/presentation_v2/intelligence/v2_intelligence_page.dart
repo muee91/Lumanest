@@ -487,6 +487,11 @@ class _IntelligenceWorkspaceState
             ? const _TripTaskCommandResult('当前没有进行中的出行任务。')
             : _cancelTripTask(controller, task),
       ),
+      TripTaskCommandType.stopWatch => Future.value(
+        task == null
+            ? const _TripTaskCommandResult('当前没有进行中的出行任务。')
+            : _stopTripWatch(controller, task),
+      ),
     };
     setState(() {
       _appendTurn(intent, result.message, 'template');
@@ -580,6 +585,16 @@ class _IntelligenceWorkspaceState
     if (!task.isOpen) return const _TripTaskCommandResult('当前任务已经结束。');
     controller.cancel();
     return _TripTaskCommandResult('已取消「${task.destinationName}」这次出行任务。');
+  }
+
+  _TripTaskCommandResult _stopTripWatch(
+    TripTaskController controller,
+    TripTask task,
+  ) {
+    if (!task.isOpen) return const _TripTaskCommandResult('当前任务已经结束。');
+    if (!task.watchEnabled) return const _TripTaskCommandResult('这次出行的守候已经关闭。');
+    controller.setWatchEnabled(false);
+    return _TripTaskCommandResult('已停止守候「${task.destinationName}」，这次出行仍然保留。');
   }
 
   List<String> _assistantEventIds(InspirationNote? note) {

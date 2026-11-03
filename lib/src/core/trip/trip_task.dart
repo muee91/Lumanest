@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/mission/mission_providers.dart';
+import 'package:luma_nest/src/core/mission/mission_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The single user-facing task that connects planning, departure and field
@@ -16,7 +18,14 @@ enum TripTaskStage { planning, enRoute, field, completed, cancelled }
 
 enum TripTravelMode { driving, walking }
 
-enum TripTaskCommandType { plan, start, enterField, complete, cancel }
+enum TripTaskCommandType {
+  plan,
+  start,
+  enterField,
+  complete,
+  cancel,
+  stopWatch,
+}
 
 @immutable
 class TripTaskCommand {
@@ -48,7 +57,10 @@ abstract final class TripTaskCommandParser {
     if (RegExp(r'(?:结束这次|完成这次|结束任务|完成任务)').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.complete);
     }
-    if (RegExp(r'(?:取消任务|停止这次|停止守候)').hasMatch(text)) {
+    if (RegExp(r'(?:停止守候|关闭守候)').hasMatch(text)) {
+      return const TripTaskCommand(TripTaskCommandType.stopWatch);
+    }
+    if (RegExp(r'(?:取消任务|停止这次)').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.cancel);
     }
     return null;
@@ -69,6 +81,11 @@ class TripTask {
     this.completedAt,
     this.sessionId,
     this.targetId,
+    this.remoteMissionId,
+    this.remoteMissionVersion,
+    this.remoteMissionStage,
+    this.remoteMissionWatchEnabled,
+    this.watchEnabled = true,
   });
 
   final String id;
@@ -82,6 +99,11 @@ class TripTask {
   final DateTime? completedAt;
   final String? sessionId;
   final String? targetId;
+  final String? remoteMissionId;
+  final int? remoteMissionVersion;
+  final MissionRemoteStage? remoteMissionStage;
+  final bool? remoteMissionWatchEnabled;
+  final bool watchEnabled;
 
   bool get isOpen =>
       stage != TripTaskStage.completed && stage != TripTaskStage.cancelled;
@@ -91,7 +113,7 @@ class TripTask {
   bool get isInField => stage == TripTaskStage.field;
 
   Map<String, Object?> toJson() => {
-    'version': 1,
+    'version': 2,
     'id': id,
     'destinationName': destinationName,
     'destination': {
@@ -108,10 +130,20 @@ class TripTask {
     if (completedAt != null) 'completedAt': completedAt!.toIso8601String(),
     if (sessionId != null) 'sessionId': sessionId,
     if (targetId != null) 'targetId': targetId,
+    if (remoteMissionId != null) 'remoteMissionId': remoteMissionId,
+    if (remoteMissionVersion != null)
+      'remoteMissionVersion': remoteMissionVersion,
+    if (remoteMissionStage != null)
+      'remoteMissionStage': remoteMissionStage!.name,
+    if (remoteMissionWatchEnabled != null)
+      'remoteMissionWatchEnabled': remoteMissionWatchEnabled,
+    'watchEnabled': watchEnabled,
   };
 
   static TripTask? fromJson(Object? raw) {
-    if (raw is! Map || raw['version'] != 1) return null;
+    if (raw is! Map || (raw['version'] != 1 && raw['version'] != 2)) {
+      return null;
+    }
     final destination = raw['destination'];
     if (destination is! Map) return null;
     final latitude = _finite(destination['latitude'], -90, 90);
@@ -125,6 +157,21 @@ class TripTask {
     final id = _boundedString(raw['id'], 96);
     final destinationName = _boundedString(raw['destinationName'], 120);
     final createdAt = _date(raw['createdAt']);
+    final remoteMissionId = raw['remoteMissionId'] is String
+        ? raw['remoteMissionId'] as String
+        : null;
+    final remoteMissionVersion = raw['remoteMissionVersion'] is int
+        ? raw['remoteMissionVersion'] as int
+        : null;
+    final remoteMissionStage = raw['remoteMissionStage'] is String
+        ? _enumByName(MissionRemoteStage.values, raw['remoteMissionStage'])
+        : null;
+    final remoteMissionWatchEnabled = raw['remoteMissionWatchEnabled'] is bool
+        ? raw['remoteMissionWatchEnabled'] as bool
+        : null;
+    final watchEnabled = raw['watchEnabled'] is bool
+        ? raw['watchEnabled'] as bool
+        : true;
     if (latitude == null ||
         longitude == null ||
         coordinateSystem == null ||
@@ -151,6 +198,11 @@ class TripTask {
       completedAt: _date(raw['completedAt']),
       sessionId: _boundedString(raw['sessionId'], 128),
       targetId: _boundedString(raw['targetId'], 128),
+      remoteMissionId: remoteMissionId,
+      remoteMissionVersion: remoteMissionVersion,
+      remoteMissionStage: remoteMissionStage,
+      remoteMissionWatchEnabled: remoteMissionWatchEnabled,
+      watchEnabled: watchEnabled,
     );
   }
 
@@ -200,6 +252,11 @@ class TripTask {
     DateTime? startedAt,
     DateTime? fieldEnteredAt,
     DateTime? completedAt,
+    String? remoteMissionId,
+    int? remoteMissionVersion,
+    MissionRemoteStage? remoteMissionStage,
+    bool? remoteMissionWatchEnabled,
+    bool? watchEnabled,
   }) => TripTask(
     id: id,
     destinationName: destinationName,
@@ -212,6 +269,12 @@ class TripTask {
     completedAt: completedAt ?? this.completedAt,
     sessionId: sessionId,
     targetId: targetId,
+    remoteMissionId: remoteMissionId ?? this.remoteMissionId,
+    remoteMissionVersion: remoteMissionVersion ?? this.remoteMissionVersion,
+    remoteMissionStage: remoteMissionStage ?? this.remoteMissionStage,
+    remoteMissionWatchEnabled:
+        remoteMissionWatchEnabled ?? this.remoteMissionWatchEnabled,
+    watchEnabled: watchEnabled ?? this.watchEnabled,
   );
 
   void _requireOpen(String operation) {
@@ -295,6 +358,7 @@ class TripTaskController extends Notifier<TripTask?> {
   bool _restored = false;
   late Future<void> _restoreFuture;
   Future<void> _writeQueue = Future<void>.value();
+  Future<void> _missionSyncQueue = Future<void>.value();
 
   @override
   TripTask? build() {
@@ -358,6 +422,7 @@ class TripTaskController extends Notifier<TripTask?> {
     _mutationRevision += 1;
     _persist(task);
     _projectRouteContext(task);
+    _scheduleMissionSync(task);
     return task;
   }
 
@@ -370,6 +435,7 @@ class TripTaskController extends Notifier<TripTask?> {
     _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
+    _scheduleMissionSync(state!);
   }
 
   void enterField({DateTime? at}) {
@@ -381,6 +447,7 @@ class TripTaskController extends Notifier<TripTask?> {
     _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
+    _scheduleMissionSync(state!);
   }
 
   void complete({DateTime? at}) {
@@ -392,6 +459,7 @@ class TripTaskController extends Notifier<TripTask?> {
     _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
+    _scheduleMissionSync(state!);
   }
 
   void cancel() {
@@ -403,6 +471,17 @@ class TripTaskController extends Notifier<TripTask?> {
     _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
+    _scheduleMissionSync(state!);
+  }
+
+  void setWatchEnabled(bool enabled) {
+    final current = state;
+    if (current == null || current.watchEnabled == enabled) return;
+    final next = current._copy(stage: current.stage, watchEnabled: enabled);
+    state = next;
+    _mutationRevision += 1;
+    _persist(next);
+    _scheduleMissionSync(next);
   }
 
   void clear() {
@@ -414,6 +493,128 @@ class TripTaskController extends Notifier<TripTask?> {
 
   void _persist(TripTask task) {
     _enqueuePersistence((store) => store.write(task));
+  }
+
+  void _scheduleMissionSync(TripTask task) {
+    final repository = ref.read(missionRemoteRepositoryProvider);
+    if (repository == null) return;
+    final queued = _missionSyncQueue
+        .catchError((Object error, StackTrace stack) {})
+        .then((_) => _syncMission(repository, task));
+    _missionSyncQueue = queued;
+    unawaited(
+      queued.catchError((Object error, StackTrace stack) {
+        debugPrint('Mission synchronization failed: $error');
+      }),
+    );
+  }
+
+  Future<void> _syncMission(
+    MissionRemoteRepository repository,
+    TripTask task,
+  ) async {
+    if (state?.id != task.id) return;
+    var remoteId = task.remoteMissionId;
+    var remoteVersion = task.remoteMissionVersion;
+    var remoteStage = task.remoteMissionStage ?? MissionRemoteStage.planning;
+    var remoteWatchEnabled =
+        task.remoteMissionWatchEnabled ?? task.watchEnabled;
+    if (remoteId == null || remoteVersion == null) {
+      final created = await repository.create(
+        MissionDraft(
+          destinationName: task.destinationName,
+          latitude: task.destination.latitude,
+          longitude: task.destination.longitude,
+          intent: 'photography',
+          locale: 'zh-CN',
+          watchEnabled: task.watchEnabled,
+        ),
+        operationId: _missionOperationId(task, 'create'),
+      );
+      if (created == null || state?.id != task.id) return;
+      remoteId = created.id;
+      remoteVersion = created.version;
+      remoteStage = created.stage;
+      remoteWatchEnabled = created.watchEnabled;
+      _attachMission(task.id, created);
+    } else {
+      // The local stage remains authoritative for the immediate UI; the
+      // persisted remote stage is used to make a missed sync retryable.
+    }
+    final missionId = remoteId;
+    var expectedVersion = remoteVersion;
+    final desired = _remoteStageFor(task.stage);
+    if (desired != remoteStage) {
+      final operations = _missionOperations(remoteStage, desired);
+      for (final operation in operations) {
+        final updated = await repository.patch(
+          missionId,
+          expectedVersion: expectedVersion,
+          operation: operation,
+          operationId: _missionOperationId(task, operation, expectedVersion),
+        );
+        if (updated == null || state?.id != task.id) return;
+        expectedVersion = updated.version;
+        remoteStage = updated.stage;
+        _attachMission(task.id, updated);
+      }
+    }
+    if (remoteWatchEnabled != task.watchEnabled) {
+      final updated = await repository.patch(
+        missionId,
+        expectedVersion: expectedVersion,
+        operation: 'setWatch',
+        operationId: _missionOperationId(task, 'setWatch', expectedVersion),
+        watchEnabled: task.watchEnabled,
+      );
+      if (updated == null || state?.id != task.id) return;
+      _attachMission(task.id, updated);
+    }
+  }
+
+  void _attachMission(String taskId, MissionRemoteSnapshot snapshot) {
+    final current = state;
+    if (current == null || current.id != taskId) return;
+    final next = current._copy(
+      stage: current.stage,
+      remoteMissionId: snapshot.id,
+      remoteMissionVersion: snapshot.version,
+      remoteMissionStage: snapshot.stage,
+      remoteMissionWatchEnabled: snapshot.watchEnabled,
+      watchEnabled: snapshot.watchEnabled,
+    );
+    state = next;
+    _persist(next);
+  }
+
+  static MissionRemoteStage _remoteStageFor(TripTaskStage stage) =>
+      MissionRemoteStage.values.firstWhere((value) => value.name == stage.name);
+
+  static List<String> _missionOperations(
+    MissionRemoteStage current,
+    MissionRemoteStage desired,
+  ) {
+    if (desired == MissionRemoteStage.cancelled) return const ['cancel'];
+    const progression = [
+      MissionRemoteStage.planning,
+      MissionRemoteStage.enRoute,
+      MissionRemoteStage.field,
+      MissionRemoteStage.completed,
+    ];
+    final start = progression.indexOf(current);
+    final end = progression.indexOf(desired);
+    if (start < 0 || end <= start) return const [];
+    const names = ['start', 'arrive', 'complete'];
+    return names.sublist(start, end);
+  }
+
+  static String _missionOperationId(
+    TripTask task,
+    String operation, [
+    int? version,
+  ]) {
+    final suffix = version == null ? '' : '-$version';
+    return '${task.id}-$operation$suffix';
   }
 
   void _enqueuePersistence(
