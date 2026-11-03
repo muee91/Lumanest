@@ -635,6 +635,7 @@ def evaluate(
             "primaryPollutant": request.weather.primary_pollutant,
             "airQualityObservedAt": request.weather.air_quality_observed_at,
             "airQualityStale": request.weather.air_quality_stale,
+            "officialWarningsStatus": request.weather.official_warnings_status,
         },
         "sunMoon": {
             "dayPhase": solar.day_phase,

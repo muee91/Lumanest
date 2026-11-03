@@ -268,6 +268,14 @@ class DataBrokerContextRepository implements RemoteContextRepository {
     final weatherType = WeatherType.values
         .where((value) => value.name == weatherState['condition'])
         .firstOrNull;
+    final officialWarningsStatus =
+        weatherState['officialWarningsStatus'] == null
+        ? OfficialWarningsStatus.available
+        : OfficialWarningsStatus.values
+              .where(
+                (value) => value.name == weatherState['officialWarningsStatus'],
+              )
+              .firstOrNull;
     final sunDayPhase = DayPhase.values
         .where((value) => value.name == sunMoon['dayPhase'])
         .firstOrNull;
@@ -309,6 +317,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         weatherFreshness == null ||
         weatherObservedAt == null ||
         weatherType == null ||
+        officialWarningsStatus == null ||
         sunDayPhase == null ||
         moonPhase == null ||
         astronomy == null ||
@@ -396,6 +405,7 @@ class DataBrokerContextRepository implements RemoteContextRepository {
         '${weatherState['airQualityObservedAt'] ?? ''}',
       )?.toUtc(),
       airQualityStale: weatherState['airQualityStale'] == true,
+      officialWarningsStatus: officialWarningsStatus,
       solarElevationDegrees: (sunMoon['sunElevationDegrees'] as num?)
           ?.toDouble(),
       solarAzimuthDegrees: (sunMoon['sunAzimuthDegrees'] as num?)?.toDouble(),

@@ -135,6 +135,9 @@ class WeatherInput(ApiModel):
     )
     air_quality_observed_at: datetime | None = Field(None, alias="airQualityObservedAt")
     air_quality_stale: bool = Field(True, alias="airQualityStale")
+    official_warnings_status: Literal["available", "unavailable"] = Field(
+        "available", alias="officialWarningsStatus"
+    )
 
     @model_validator(mode="after")
     def require_complete_air_quality(self) -> "WeatherInput":
@@ -369,6 +372,9 @@ class WeatherState(ApiModel):
     )
     air_quality_observed_at: datetime | None = Field(None, alias="airQualityObservedAt")
     air_quality_stale: bool = Field(True, alias="airQualityStale")
+    official_warnings_status: Literal["available", "unavailable"] = Field(
+        "available", alias="officialWarningsStatus"
+    )
 
 
 class SunMoonState(ApiModel):

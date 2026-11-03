@@ -1952,7 +1952,10 @@ export function createTokenBrokerServer({
           aridLand: false,
           settlement: false,
         },
-        weather: weather.body.weather,
+        weather: {
+          ...weather.body.weather,
+          officialWarningsStatus: weather.body.officialWarningsStatus,
+        },
         forecast: weather.body.forecast,
         officialWarnings: allOfficialWarnings.map((warning) => ({
           id: warning.id,
