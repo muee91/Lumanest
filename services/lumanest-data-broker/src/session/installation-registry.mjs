@@ -1,6 +1,6 @@
 import * as defaultFileSystem from 'node:fs/promises';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname } from 'node:path';
-import { randomBytes } from 'node:crypto';
 
 const documentVersion = 1;
 
@@ -13,14 +13,32 @@ const defaultMaximumIssuances = 20;
 
 // Records that neither renewed nor were revoked within the retention window
 // are pruned on save; revoked records are kept forever because dropping one
-// would silently un-revoke that installation.
+// would silently un-revoke that installation. The owner secret is stored only
+// as a one-way digest, so the registry can enforce device binding without
+// retaining a reusable credential.
 const defaultRetentionMilliseconds = 30 * 24 * 60 * 60 * 1_000;
 const defaultMaximumTrackedInstallations = 10_000;
 
 const installationIdPattern = /^[A-Za-z0-9_-]{22,80}$/;
+const ownerSecretPattern = /^[A-Za-z0-9_-]{43,128}$/;
 
 export function isValidInstallationId(value) {
   return typeof value === 'string' && installationIdPattern.test(value);
+}
+
+export function isValidOwnerSecret(value) {
+  return typeof value === 'string' && ownerSecretPattern.test(value);
+}
+
+function ownerSecretHash(value) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function matchesOwnerSecret(expectedHash, value) {
+  if (typeof expectedHash !== 'string' || !isValidOwnerSecret(value)) return false;
+  const actual = Buffer.from(ownerSecretHash(value), 'hex');
+  const expected = Buffer.from(expectedHash, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 function emptyRecord(now) {
@@ -31,6 +49,7 @@ function emptyRecord(now) {
     totalIssuances: 0,
     revoked: false,
     revokedAt: null,
+    ownerSecretHash: null,
   };
 }
 
@@ -55,6 +74,9 @@ function sanitizeRecord(value, now) {
       : issuances.length,
     revoked: value.revoked === true,
     revokedAt: value.revoked === true ? revokedAt : null,
+    ownerSecretHash: typeof value.ownerSecretHash === 'string' && /^[a-f0-9]{64}$/.test(value.ownerSecretHash)
+      ? value.ownerSecretHash
+      : null,
   };
 }
 
@@ -151,16 +173,21 @@ export class SessionInstallationRegistry {
   // The quota uses a rolling window of recorded issuance timestamps; when the
   // window is exhausted the caller receives how long to wait, not a permanent
   // refusal.
-  async recordIssuance({ installationId }) {
+  async recordIssuance({ installationId, ownerSecret }) {
     this.#requireInitialized();
-    if (!isValidInstallationId(installationId)) {
-      throw new TypeError('installationId is required');
+    if (!isValidInstallationId(installationId) || !isValidOwnerSecret(ownerSecret)) {
+      throw new TypeError('installationId and ownerSecret are required');
     }
     const now = this.#now();
     const record = this.#installations.get(installationId) ?? emptyRecord(now);
     if (record.revoked) {
       return { allowed: false, status: 403 };
     }
+    if (record.ownerSecretHash != null && !matchesOwnerSecret(record.ownerSecretHash, ownerSecret)) {
+      return { allowed: false, status: 403, reason: 'identity_mismatch' };
+    }
+    const newlyBound = record.ownerSecretHash == null;
+    if (newlyBound) record.ownerSecretHash = ownerSecretHash(ownerSecret);
     const windowStart = now.getTime() - this.#windowMilliseconds;
     record.issuances = record.issuances.filter(
       (entry) => Date.parse(entry) > windowStart,
@@ -168,6 +195,7 @@ export class SessionInstallationRegistry {
     if (record.issuances.length >= this.#maximumIssuances) {
       const oldestAllowedAt = Date.parse(record.issuances[0]) + this.#windowMilliseconds;
       this.#installations.set(installationId, record);
+      if (newlyBound) await this.#persist();
       return {
         allowed: false,
         status: 429,
@@ -200,10 +228,8 @@ export class SessionInstallationRegistry {
     this.#requireInitialized();
     const record = this.#installations.get(installationId);
     if (record == null) return null;
-    return {
-      installationId,
-      ...structuredClone(record),
-    };
+    const { ownerSecretHash: _, ...safeRecord } = structuredClone(record);
+    return { installationId, ...safeRecord, bound: record.ownerSecretHash != null };
   }
 
   list({ limit = 50 } = {}) {
@@ -212,7 +238,10 @@ export class SessionInstallationRegistry {
     return [...this.#installations.entries()]
       .sort(([, a], [, b]) => Date.parse(b.lastIssuedAt) - Date.parse(a.lastIssuedAt))
       .slice(0, limit)
-      .map(([installationId, record]) => ({ installationId, ...structuredClone(record) }));
+      .map(([installationId, record]) => {
+        const { ownerSecretHash: _, ...safeRecord } = structuredClone(record);
+        return { installationId, ...safeRecord, bound: record.ownerSecretHash != null };
+      });
   }
 
   async #persist() {

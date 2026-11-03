@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+const ownerSecret = 'owner-secret-abcdefghijklmnopqrstuvwxyz-0123456789';
+
 import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
 
 async function withTemporaryRegistry(run, options = {}) {
@@ -31,24 +33,24 @@ test('validates constructor limits', () => {
 test('caps issuance per installation over a rolling window', async () => {
   let clock = new Date('2026-11-01T00:00:00Z');
   await withTemporaryRegistry(async ({ registry }) => {
-    const first = await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    const first = await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     assert.deepEqual(first, { allowed: true });
-    const second = await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    const second = await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     assert.deepEqual(second, { allowed: true });
 
-    const limited = await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    const limited = await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     assert.equal(limited.allowed, false);
     assert.equal(limited.status, 429);
     // Retry-After points at when the oldest issuance leaves the window.
     assert.equal(limited.retryAfterSeconds, 3_600);
 
     // A different identifier has its own bucket.
-    const other = await registry.recordIssuance({ installationId: 'zyxwvutsrqponmlkjihgfedcba' });
+    const other = await registry.recordIssuance({ ownerSecret, installationId: 'zyxwvutsrqponmlkjihgfedcba' });
     assert.deepEqual(other, { allowed: true });
 
     // Once the oldest issuance leaves the window, issuance is allowed again.
     clock = new Date('2026-11-01T01:00:01Z');
-    const recovered = await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    const recovered = await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     assert.deepEqual(recovered, { allowed: true });
   }, {
     maximumIssuances: 2,
@@ -59,15 +61,16 @@ test('caps issuance per installation over a rolling window', async () => {
 
 test('revocation blocks issuance and survives restarts', async () => {
   await withTemporaryRegistry(async ({ registry, filePath }) => {
-    await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     await registry.setRevoked('abcdefghijklmnopqrstuvwx', true);
     assert.equal(registry.isRevoked('abcdefghijklmnopqrstuvwx'), true);
-    const refused = await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    const refused = await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     assert.deepEqual(refused, { allowed: false, status: 403 });
 
     const restarted = await new SessionInstallationRegistry({ filePath }).initialize();
     assert.equal(restarted.isRevoked('abcdefghijklmnopqrstuvwx'), true);
     const stillRefused = await restarted.recordIssuance({
+      ownerSecret,
       installationId: 'abcdefghijklmnopqrstuvwx',
     });
     assert.deepEqual(stillRefused, { allowed: false, status: 403 });
@@ -75,9 +78,35 @@ test('revocation blocks issuance and survives restarts', async () => {
     await restarted.setRevoked('abcdefghijklmnopqrstuvwx', false);
     assert.equal(restarted.isRevoked('abcdefghijklmnopqrstuvwx'), false);
     const restored = await restarted.recordIssuance({
+      ownerSecret,
       installationId: 'abcdefghijklmnopqrstuvwx',
     });
     assert.deepEqual(restored, { allowed: true });
+  });
+});
+
+test('binds an installation to its first owner secret and persists the binding', async () => {
+  await withTemporaryRegistry(async ({ registry, filePath }) => {
+    const installationId = 'abcdefghijklmnopqrstuvwx';
+    assert.deepEqual(
+      await registry.recordIssuance({ installationId, ownerSecret }),
+      { allowed: true },
+    );
+    assert.equal(registry.describe(installationId).bound, true);
+
+    const refused = await registry.recordIssuance({
+      installationId,
+      ownerSecret: 'owner-secret-zyxwvutsrqponmlkjihgfedcba-9876543210',
+    });
+    assert.deepEqual(refused, { allowed: false, status: 403, reason: 'identity_mismatch' });
+
+    const restarted = await new SessionInstallationRegistry({ filePath }).initialize();
+    assert.equal(restarted.describe(installationId).bound, true);
+    assert.deepEqual(
+      await restarted.recordIssuance({ installationId, ownerSecret }),
+      { allowed: true },
+    );
+    assert.equal(restarted.describe(installationId).ownerSecretHash, undefined);
   });
 });
 
@@ -90,7 +119,7 @@ test('prunes stale records on save but keeps revoked ones', async () => {
       retentionMilliseconds: 60 * 60 * 1_000,
       windowMilliseconds: 30 * 60 * 1_000,
     }).initialize();
-    await first.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+    await first.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
     await first.setRevoked('zyxwvutsrqponmlkjihgfedcba', true);
 
     clock = new Date('2026-11-01T03:00:00Z');
@@ -104,7 +133,7 @@ test('prunes stale records on save but keeps revoked ones', async () => {
 
     // A fresh issuance triggers a save, which prunes the stale inactive record
     // but must never drop the revoked one.
-    await restarted.recordIssuance({ installationId: '0123456789abcdefghijklmn' });
+    await restarted.recordIssuance({ ownerSecret, installationId: '0123456789abcdefghijklmn' });
     const document = JSON.parse(await readFile(filePath, 'utf8'));
     assert.equal(document.installations['abcdefghijklmnopqrstuvwx'], undefined);
     assert.equal(document.installations['zyxwvutsrqponmlkjihgfedcba'].revoked, true);
@@ -114,8 +143,8 @@ test('prunes stale records on save but keeps revoked ones', async () => {
 
 test('reports installations ordered by recent issuance', async () => {
   await withTemporaryRegistry(async ({ registry }) => {
-    await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
-    await registry.recordIssuance({ installationId: 'zyxwvutsrqponmlkjihgfedcba' });
+    await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' });
+    await registry.recordIssuance({ ownerSecret, installationId: 'zyxwvutsrqponmlkjihgfedcba' });
     const installations = registry.list();
     assert.equal(installations.length, 2);
     assert.equal(installations[0].installationId, 'zyxwvutsrqponmlkjihgfedcba');
@@ -142,7 +171,7 @@ test('a corrupted document fails initialization instead of dropping revocations'
 test('works without persistence when no file path is configured', async () => {
   const registry = await new SessionInstallationRegistry().initialize();
   assert.deepEqual(
-    await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    await registry.recordIssuance({ ownerSecret, installationId: 'abcdefghijklmnopqrstuvwx' }),
     { allowed: true },
   );
   assert.equal(registry.list().length, 1);
@@ -151,11 +180,18 @@ test('works without persistence when no file path is configured', async () => {
 test('rejects malformed installation identifiers', async () => {
   const registry = await new SessionInstallationRegistry().initialize();
   await assert.rejects(
-    registry.recordIssuance({ installationId: 'short' }),
+    registry.recordIssuance({ ownerSecret, installationId: 'short' }),
     /installationId/,
   );
   await assert.rejects(
     registry.setRevoked('also-short', true),
+    /installationId/,
+  );
+  await assert.rejects(
+    registry.recordIssuance({
+      installationId: 'abcdefghijklmnopqrstuvwx',
+      ownerSecret: 'too-short',
+    }),
     /installationId/,
   );
 });

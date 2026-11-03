@@ -14,6 +14,7 @@ import { SimulationRegistry } from '../src/context/simulation.mjs';
 import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
 
 const testMasterKey = Buffer.alloc(32, 7).toString('base64');
+const ownerSecret = 'owner-secret-abcdefghijklmnopqrstuvwxyz-0123456789';
 
 async function withAdmin(run, {
   simulationEnabled = false,
@@ -665,7 +666,7 @@ test('operational observability is authenticated and excludes raw private contex
 
 test('session installations are listed and revoked through the admin API', async () => {
   const registry = await new SessionInstallationRegistry().initialize();
-  await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx' });
+  await registry.recordIssuance({ installationId: 'abcdefghijklmnopqrstuvwx', ownerSecret });
   await withAdmin(async ({ baseUrl }) => {
     const { cookie, csrf } = await login(baseUrl);
 

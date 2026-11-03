@@ -33,16 +33,17 @@ class _StubAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-EnvironmentConfig _sessionConfig() => EnvironmentConfig(
-  dataBrokerBaseUrl: 'https://broker.example',
-);
+EnvironmentConfig _sessionConfig() =>
+    EnvironmentConfig(dataBrokerBaseUrl: 'https://broker.example');
 
 Dio _dio(_StubAdapter adapter) {
-  final dio = Dio(BaseOptions(
-    connectTimeout: const Duration(milliseconds: 200),
-    receiveTimeout: const Duration(milliseconds: 200),
-    sendTimeout: const Duration(milliseconds: 200),
-  ));
+  final dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(milliseconds: 200),
+      receiveTimeout: const Duration(milliseconds: 200),
+      sendTimeout: const Duration(milliseconds: 200),
+    ),
+  );
   dio.httpClientAdapter = adapter;
   return dio;
 }
@@ -67,10 +68,7 @@ void main() {
     );
     final dio = _dio(adapter);
 
-    final bootstrap = await bootstrapBrokerSession(
-      _sessionConfig(),
-      dio: dio,
-    );
+    final bootstrap = await bootstrapBrokerSession(_sessionConfig(), dio: dio);
 
     expect(adapter.lastRequest?.method, 'POST');
     expect(
@@ -78,16 +76,27 @@ void main() {
       'https://broker.example/v1/session',
     );
     final body = adapter.lastBody as Map;
-    // The contract is a single field: the installation identifier is the
-    // quota and revocation handle.
-    expect(body.keys.length, 1);
+    // The installation identifier remains public metadata; the owner secret
+    // is the private device binding used to mint a session.
+    expect(body.keys.length, 2);
     expect(body.containsKey('installationId'), true);
     expect((body['installationId'] as String).length, greaterThanOrEqualTo(22));
+    expect(body.containsKey('ownerSecret'), true);
+    expect(
+      RegExp(
+        r'^[A-Za-z0-9_-]{43,128}$',
+      ).hasMatch(body['ownerSecret'] as String),
+      true,
+    );
 
-    expect(bootstrap.config.lumaNestServiceToken,
-        'issued-session-token-0123456789abcdefghij');
-    expect(bootstrap.credentials?.accessToken,
-        'issued-session-token-0123456789abcdefghij');
+    expect(
+      bootstrap.config.lumaNestServiceToken,
+      'issued-session-token-0123456789abcdefghij',
+    );
+    expect(
+      bootstrap.credentials?.accessToken,
+      'issued-session-token-0123456789abcdefghij',
+    );
     expect(bootstrap.credentials?.expiresAt, DateTime.utc(2026, 11, 2));
     dio.close(force: true);
   });
@@ -126,22 +135,24 @@ void main() {
     dio.close(force: true);
   });
 
-  test('an embedded debug bearer skips the session endpoint entirely',
-      () async {
-    final adapter = _StubAdapter((_) async => fail('must not be called'));
-    final dio = _dio(adapter);
+  test(
+    'an embedded debug bearer skips the session endpoint entirely',
+    () async {
+      final adapter = _StubAdapter((_) async => fail('must not be called'));
+      final dio = _dio(adapter);
 
-    final config = EnvironmentConfig(
-      dataBrokerBaseUrl: 'https://broker.example',
-      lumaNestServiceToken: 'embedded-debug-bearer',
-    );
-    final bootstrap = await bootstrapBrokerSession(config, dio: dio);
+      final config = EnvironmentConfig(
+        dataBrokerBaseUrl: 'https://broker.example',
+        lumaNestServiceToken: 'embedded-debug-bearer',
+      );
+      final bootstrap = await bootstrapBrokerSession(config, dio: dio);
 
-    expect(adapter.lastRequest, isNull);
-    expect(bootstrap.credentials, isNull);
-    expect(bootstrap.config.lumaNestServiceToken, 'embedded-debug-bearer');
-    dio.close(force: true);
-  });
+      expect(adapter.lastRequest, isNull);
+      expect(bootstrap.credentials, isNull);
+      expect(bootstrap.config.lumaNestServiceToken, 'embedded-debug-bearer');
+      dio.close(force: true);
+    },
+  );
 
   test('rotates a corrupted installation id before requesting', () async {
     SharedPreferences.setMockInitialValues({
@@ -166,10 +177,36 @@ void main() {
     );
     expect(installationId.contains(' '), false);
 
-    final stored =
-        await SharedPreferencesAsync().getString('lumanest.installation_id');
-    expect(stored, installationId,
-        reason: 'the rotated id must persist for the next launch');
+    final stored = await SharedPreferencesAsync().getString(
+      'lumanest.installation_id',
+    );
+    expect(
+      stored,
+      installationId,
+      reason: 'the rotated id must persist for the next launch',
+    );
+    dio.close(force: true);
+  });
+
+  test('reuses the persisted owner secret across session renewals', () async {
+    final bodies = <Map<Object?, Object?>>[];
+    final adapter = _StubAdapter(
+      (options) async {
+        bodies.add(Map<Object?, Object?>.from(options.data as Map));
+        return ResponseBody.fromString(
+          '{"accessToken":"issued-session-token-0123456789abcdefghij"}',
+          200,
+        );
+      },
+    );
+    final dio = _dio(adapter);
+
+    await bootstrapBrokerSession(_sessionConfig(), dio: dio);
+    await bootstrapBrokerSession(_sessionConfig(), dio: dio);
+
+    expect(bodies, hasLength(2));
+    expect(bodies[0]['ownerSecret'], bodies[1]['ownerSecret']);
+    expect(bodies[0]['installationId'], bodies[1]['installationId']);
     dio.close(force: true);
   });
 }

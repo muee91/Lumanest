@@ -17,6 +17,7 @@ import { SimulationRegistry } from '../src/context/simulation.mjs';
 import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
+const ownerSecret = 'owner-secret-abcdefghijklmnopqrstuvwxyz-0123456789';
 
 // Parses a text/event-stream body into ordered { event, data } records. The
 // assistant endpoint streams status/delta/done events instead of one JSON body.
@@ -193,6 +194,7 @@ test('anonymous mobile session issues a short-lived App token without the shared
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 'abcdefghijklmnopqrstuvwx',
+        ownerSecret,
       }),
     });
     assert.equal(session.status, 200);
@@ -220,6 +222,39 @@ test('anonymous mobile session issues a short-lived App token without the shared
   });
 });
 
+test('session bootstrap rejects a different owner secret for the same installation', async () => {
+  const registry = await new SessionInstallationRegistry().initialize();
+  await withServer(async (baseUrl) => {
+    const first = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        installationId: 'abcdefghijklmnopqrstuvwx',
+        ownerSecret,
+      }),
+    });
+    assert.equal(first.status, 200);
+
+    const wrong = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        installationId: 'abcdefghijklmnopqrstuvwx',
+        ownerSecret: 'owner-secret-zyxwvutsrqponmlkjihgfedcba-9876543210',
+      }),
+    });
+    assert.equal(wrong.status, 403);
+    assert.equal((await wrong.json()).error, 'unauthorized');
+
+    const missing = await fetch(`${baseUrl}/v1/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    });
+    assert.equal(missing.status, 400);
+  }, { sessionInstallationRegistry: registry });
+});
+
 test('session issuance is capped per installation over a rolling window', async () => {
   const registry = new SessionInstallationRegistry({
     maximumIssuances: 2,
@@ -230,7 +265,7 @@ test('session issuance is capped per installation over a rolling window', async 
     fetch(`${baseUrl}/v1/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ installationId }),
+      body: JSON.stringify({ installationId, ownerSecret }),
     });
   await withServer(async (baseUrl) => {
     assert.equal((await issue(baseUrl)).status, 200);
@@ -251,7 +286,7 @@ test('a revoked installation cannot issue or keep using session tokens', async (
   const issue = (baseUrl) => fetch(`${baseUrl}/v1/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+    body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx', ownerSecret }),
   });
   const snapshotWith = (baseUrl, token) => fetch(`${baseUrl}/v1/context/snapshot`, {
     method: 'POST',
@@ -282,7 +317,7 @@ test('an independent session signing key issues and validates app tokens', async
     const issued = await fetch(`${baseUrl}/v1/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx', ownerSecret }),
     });
     assert.equal(issued.status, 200);
     const { accessToken } = await issued.json();
@@ -310,7 +345,7 @@ test('a session token is bound to the deployment signing key', async () => {
     const issued = await fetch(`${baseUrl}/v1/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx', ownerSecret }),
     });
     assert.equal(issued.status, 200);
     foreignToken = (await issued.json()).accessToken;
@@ -337,7 +372,7 @@ test('a short dedicated session signing key disables issuance', async () => {
     const response = await fetch(`${baseUrl}/v1/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx' }),
+      body: JSON.stringify({ installationId: 'abcdefghijklmnopqrstuvwx', ownerSecret }),
     });
     assert.equal(response.status, 503);
     assert.equal((await response.json()).error, 'not_configured');

@@ -6,6 +6,7 @@ import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _installationIdKey = 'lumanest.installation_id';
+const _ownerSecretKey = 'lumanest.device_owner_secret';
 
 /// The short-lived App-scoped credentials returned by `POST /v1/session`.
 class BrokerSessionCredentials {
@@ -75,6 +76,7 @@ Future<BrokerSessionCredentials?> fetchBrokerSessionCredentials(
 
   final store = preferences ?? SharedPreferencesAsync();
   final installationId = await _installationId(store);
+  final ownerSecret = await _ownerSecret(store);
   final client =
       dio ??
       Dio(
@@ -87,17 +89,16 @@ Future<BrokerSessionCredentials?> fetchBrokerSessionCredentials(
   try {
     final response = await client.post<Map<String, Object?>>(
       '${config.dataBrokerBaseUrl}/v1/session',
-      data: {'installationId': installationId},
+      data: {'installationId': installationId, 'ownerSecret': ownerSecret},
     );
     final token = response.data?['accessToken'];
     if (token is! String || token.length < 40) return null;
     final rawExpiresAt = response.data?['expiresAt'];
     return BrokerSessionCredentials(
       accessToken: token,
-      expiresAt:
-          rawExpiresAt is String
-              ? DateTime.tryParse(rawExpiresAt)?.toUtc()
-              : null,
+      expiresAt: rawExpiresAt is String
+          ? DateTime.tryParse(rawExpiresAt)?.toUtc()
+          : null,
     );
   } on DioException {
     return null;
@@ -116,6 +117,17 @@ Future<String> _installationId(SharedPreferencesAsync store) async {
   }
   final created = _randomToken(32);
   await store.setString(_installationIdKey, created);
+  return created;
+}
+
+Future<String> _ownerSecret(SharedPreferencesAsync store) async {
+  final existing = await store.getString(_ownerSecretKey);
+  if (existing != null &&
+      RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(existing)) {
+    return existing;
+  }
+  final created = _randomToken(32);
+  await store.setString(_ownerSecretKey, created);
   return created;
 }
 
