@@ -375,11 +375,18 @@ function validContextResponse(body) {
       !['fresh', 'stale'].includes(freshness.context) || !['fresh', 'stale'].includes(freshness.weather) ||
       typeof freshness.weatherObservedAt !== 'string' || !Number.isFinite(Date.parse(freshness.weatherObservedAt))) return false;
   const weather = environment.weather;
-  if (!exactKeys(weather, new Set([
+  const weatherKeys = new Set([
     'condition', 'temperatureCelsius', 'windSpeedMps', 'windDirectionDegrees', 'precipitationMm',
     'visibilityKm', 'cloudCoverPercent', 'thunder', 'airQualityIndex', 'airQualityCategory',
     'primaryPollutant', 'airQualityObservedAt', 'airQualityStale',
-  ])) || !['clear', 'cloudy', 'rain', 'snow', 'dust', 'unknown'].includes(weather.condition) ||
+    'officialWarningsStatus',
+  ]);
+  if (!exactKeys(weather, weather.officialWarningsStatus == null
+    ? new Set([...weatherKeys].filter((key) => key !== 'officialWarningsStatus'))
+    : weatherKeys) ||
+      (weather.officialWarningsStatus != null &&
+        !['available', 'unavailable'].includes(weather.officialWarningsStatus)) ||
+      !['clear', 'cloudy', 'rain', 'snow', 'dust', 'unknown'].includes(weather.condition) ||
       (weather.temperatureCelsius != null && !finiteIn(weather.temperatureCelsius, -100, 100)) ||
       !finiteIn(weather.windSpeedMps, 0, 150) ||
       (weather.windDirectionDegrees != null &&

@@ -128,6 +128,7 @@ void main() {
           environment['weather'] = {
             ...(environment['weather']! as Map),
             'condition': 'unknown',
+            'officialWarningsStatus': 'unavailable',
             'airQualityIndex': null,
             'airQualityCategory': null,
             'primaryPollutant': null,
@@ -152,6 +153,7 @@ void main() {
       expect(result.weather, WeatherType.unknown);
       expect(result.airQualityIndex, isNull);
       expect(result.airQualityStale, isTrue);
+      expect(result.officialWarningsStatus, OfficialWarningsStatus.unavailable);
       expect(result.events, isEmpty);
     },
   );
@@ -378,31 +380,35 @@ void main() {
     );
   });
 
-  test('rejects malformed astronomy geometry before it reaches UI state', () async {
-    final transport = _FakeTransport()
-      ..mutateResponse = (body) {
-        (_environment(body)['astronomy']! as Map)['moonAltitudeDegrees'] = 120;
-      };
-    final repository = DataBrokerContextRepository(
-      brokerBaseUrl: 'https://broker.example',
-      serviceToken: 'service-token',
-      transport: transport,
-    );
+  test(
+    'rejects malformed astronomy geometry before it reaches UI state',
+    () async {
+      final transport = _FakeTransport()
+        ..mutateResponse = (body) {
+          (_environment(body)['astronomy']! as Map)['moonAltitudeDegrees'] =
+              120;
+        };
+      final repository = DataBrokerContextRepository(
+        brokerBaseUrl: 'https://broker.example',
+        serviceToken: 'service-token',
+        transport: transport,
+      );
 
-    await expectLater(
-      repository.fetchSnapshot(
-        location: _location(),
-        observedAt: DateTime.utc(2026, 7, 14, 2),
-      ),
-      throwsA(
-        isA<RemoteContextFailure>().having(
-          (failure) => failure.kind,
-          'kind',
-          RemoteContextFailureKind.response,
+      await expectLater(
+        repository.fetchSnapshot(
+          location: _location(),
+          observedAt: DateTime.utc(2026, 7, 14, 2),
         ),
-      ),
-    );
-  });
+        throwsA(
+          isA<RemoteContextFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            RemoteContextFailureKind.response,
+          ),
+        ),
+      );
+    },
+  );
 
   test(
     'Broker returns structured official wildlifeSafety event: it enters both '
@@ -547,7 +553,9 @@ void main() {
   test('fresh 快照保留拍摄窗口 entry 与动作', () async {
     final transport = _FakeTransport()
       ..mutateResponse = (response) {
-        response['entries'] = [_entryV5Body(surfaces: ['today'])];
+        response['entries'] = [
+          _entryV5Body(surfaces: ['today']),
+        ];
       };
     final repository = DataBrokerContextRepository(
       brokerBaseUrl: 'https://broker.example',
@@ -561,8 +569,10 @@ void main() {
     );
 
     expect(result.isStale, isFalse);
-    expect(result.entries.single.actions.single.type,
-        EntryActionType.openShootingWindow);
+    expect(
+      result.entries.single.actions.single.type,
+      EntryActionType.openShootingWindow,
+    );
   });
 
   test('服务端授予的通知表面原样到达客户端，未知表面被丢弃', () async {
@@ -585,11 +595,11 @@ void main() {
       observedAt: DateTime.utc(2026, 7, 14, 2),
     );
 
-    expect(
-      result.entries.single.allowedSurfaces,
-      {EntrySurface.today, EntrySurface.notification, EntrySurface.widget},
-      reason: '能否不请自来是服务端的结论，客户端不得静默丢掉这份授权',
-    );
+    expect(result.entries.single.allowedSurfaces, {
+      EntrySurface.today,
+      EntrySurface.notification,
+      EntrySurface.widget,
+    }, reason: '能否不请自来是服务端的结论，客户端不得静默丢掉这份授权');
   });
 
   test('天气观测时刻与快照生成时刻不混为一谈', () async {
@@ -649,11 +659,7 @@ Map<String, Object?> _entryV5Body({
   'geoScope': 'region',
   'allowedSurfaces': surfaces,
   'actions': [
-    {
-      'type': actionType,
-      'targetId': 'session.water.evening',
-      'query': null,
-    },
+    {'type': actionType, 'targetId': 'session.water.evening', 'query': null},
   ],
   'presentation': {
     'variant': variant,

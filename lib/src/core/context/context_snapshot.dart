@@ -13,6 +13,8 @@ enum WeatherType { clear, cloudy, rain, snow, dust, unknown }
 
 enum ContextDataFreshness { fresh, stale }
 
+enum OfficialWarningsStatus { available, unavailable }
+
 enum MoonPhase {
   newMoon,
   waxingCrescent,
@@ -107,6 +109,7 @@ class ContextSnapshot {
     this.primaryPollutant,
     this.airQualityObservedAt,
     this.airQualityStale = true,
+    this.officialWarningsStatus = OfficialWarningsStatus.available,
     this.solarElevationDegrees,
     this.solarAzimuthDegrees,
     this.sunrise,
@@ -158,6 +161,7 @@ class ContextSnapshot {
   final String? primaryPollutant;
   final DateTime? airQualityObservedAt;
   final bool airQualityStale;
+  final OfficialWarningsStatus officialWarningsStatus;
   final double? solarElevationDegrees;
   final double? solarAzimuthDegrees;
   final DateTime? sunrise;
@@ -223,6 +227,7 @@ class ContextSnapshot {
       primaryPollutant: primaryPollutant,
       airQualityObservedAt: airQualityObservedAt,
       airQualityStale: true,
+      officialWarningsStatus: officialWarningsStatus,
       solarElevationDegrees: solarElevationDegrees,
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,
@@ -292,6 +297,7 @@ class ContextSnapshot {
       primaryPollutant: primaryPollutant,
       airQualityObservedAt: airQualityObservedAt,
       airQualityStale: airQualityStale,
+      officialWarningsStatus: officialWarningsStatus,
       solarElevationDegrees: solarElevationDegrees,
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,
@@ -343,6 +349,7 @@ class ContextSnapshot {
       primaryPollutant: primaryPollutant,
       airQualityObservedAt: airQualityObservedAt,
       airQualityStale: airQualityStale,
+      officialWarningsStatus: officialWarningsStatus,
       solarElevationDegrees: elevationDegrees,
       solarAzimuthDegrees: azimuthDegrees,
       sunrise: sunrise,
@@ -409,6 +416,7 @@ class ContextSnapshot {
       primaryPollutant: primaryPollutant,
       airQualityObservedAt: airQualityObservedAt,
       airQualityStale: airQualityStale,
+      officialWarningsStatus: officialWarningsStatus,
       solarElevationDegrees: solarElevationDegrees,
       solarAzimuthDegrees: solarAzimuthDegrees,
       sunrise: sunrise,

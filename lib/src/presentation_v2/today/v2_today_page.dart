@@ -196,7 +196,10 @@ class _V2TodayContentState extends State<_V2TodayContent> {
                     primary: location.description,
                     secondary: date,
                     trailing: safety == null
-                        ? null
+                        ? snapshot.officialWarningsStatus ==
+                                  OfficialWarningsStatus.unavailable
+                              ? const _V2WarningSourceStatus()
+                              : null
                         : _V2SafetyAlertButton(
                             entry: safety,
                             onTap: () => EntryActionDispatcher.dispatch(
@@ -652,6 +655,43 @@ class _V2SafetyAlertButton extends StatelessWidget {
               style: TextStyle(
                 color: context.v2Danger,
                 fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _V2WarningSourceStatus extends StatelessWidget {
+  const _V2WarningSourceStatus();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: '官方天气预警来源暂时不可用',
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.v2DangerSoft,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              CupertinoIcons.question_circle,
+              color: context.v2Danger,
+              size: 15,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              '预警源不可用',
+              style: TextStyle(
+                color: context.v2Danger,
+                fontSize: 11,
                 fontWeight: FontWeight.w900,
               ),
             ),

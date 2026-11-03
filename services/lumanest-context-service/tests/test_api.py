@@ -98,6 +98,20 @@ def test_internal_evaluate_requires_the_separate_service_token(monkeypatch):
         assert "latitude" not in body and "longitude" not in body
 
 
+def test_internal_evaluate_preserves_unavailable_warning_source(monkeypatch):
+    monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
+    request = payload()
+    request["weather"]["officialWarningsStatus"] = "unavailable"
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/v1/evaluate",
+            json=request,
+            headers={"X-Internal-Service-Token": "internal-test-token"},
+        )
+        assert response.status_code == 200
+        assert response.json()["environment"]["weather"]["officialWarningsStatus"] == "unavailable"
+
+
 def test_internal_evaluate_rejects_removed_v4_contract(monkeypatch):
     monkeypatch.setenv("CONTEXT_INTERNAL_TOKEN", "internal-test-token")
     old = payload()

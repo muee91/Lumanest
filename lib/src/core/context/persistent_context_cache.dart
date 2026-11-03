@@ -113,6 +113,7 @@ class PersistentContextCache implements ContextCache {
         ?.toUtc()
         .toIso8601String(),
     'airQualityStale': value.airQualityStale,
+    'officialWarningsStatus': value.officialWarningsStatus.name,
     'solarElevationDegrees': value.solarElevationDegrees,
     'solarAzimuthDegrees': value.solarAzimuthDegrees,
     'sunrise': value.sunrise?.toUtc().toIso8601String(),
@@ -197,6 +198,12 @@ class PersistentContextCache implements ContextCache {
           : null,
       airQualityObservedAt: _date(raw['airQualityObservedAt']),
       airQualityStale: raw['airQualityStale'] != false,
+      officialWarningsStatus:
+          _enumByName(
+            OfficialWarningsStatus.values,
+            raw['officialWarningsStatus'],
+          ) ??
+          OfficialWarningsStatus.available,
       solarElevationDegrees: _double(raw['solarElevationDegrees']),
       solarAzimuthDegrees: _double(raw['solarAzimuthDegrees']),
       sunrise: _date(raw['sunrise']),
