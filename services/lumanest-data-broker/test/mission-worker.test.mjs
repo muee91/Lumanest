@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { validMissionCreateRequest, validMissionPatchRequest } from '../src/mission/contract.mjs';
+import { validContextRequest } from '../src/context/proxy.mjs';
 import { MissionWorker } from '../src/mission/worker.mjs';
 
 const mission = {
@@ -46,6 +47,7 @@ test('mission worker evaluates a leased mission and deduplicates facts in the st
       assert.equal(url.pathname, '/internal/v1/mission/check');
       assert.equal(options.headers['X-Mission-Worker-Token'], 'worker-token');
       const body = JSON.parse(options.body);
+      assert.equal(validContextRequest(body), true);
       assert.equal(body.coordinate.latitude, 30.24);
       return new Response(JSON.stringify({
         contextId: 'ctx_0123456789abcdef01234567',

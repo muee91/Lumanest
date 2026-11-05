@@ -25,6 +25,7 @@ CREATE ROLE mission_migrator LOGIN PASSWORD '<migration-password>';
 CREATE ROLE mission_api LOGIN PASSWORD '<api-password>';
 CREATE ROLE mission_worker LOGIN PASSWORD '<worker-password>';
 GRANT CONNECT ON DATABASE lumanest TO mission_migrator, mission_api, mission_worker;
+CREATE SCHEMA IF NOT EXISTS mission AUTHORIZATION mission_migrator;
 ```
 
 Run `node scripts/migrate-mission.mjs` with

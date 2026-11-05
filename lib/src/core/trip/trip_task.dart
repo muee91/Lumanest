@@ -25,6 +25,7 @@ enum TripTaskCommandType {
   complete,
   cancel,
   stopWatch,
+  startWatch,
 }
 
 @immutable
@@ -60,6 +61,9 @@ abstract final class TripTaskCommandParser {
     if (RegExp(r'(?:停止守候|关闭守候)').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.stopWatch);
     }
+    if (RegExp(r'(?:开启守候|开始守候)').hasMatch(text)) {
+      return const TripTaskCommand(TripTaskCommandType.startWatch);
+    }
     if (RegExp(r'(?:取消任务|停止这次)').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.cancel);
     }
@@ -85,7 +89,7 @@ class TripTask {
     this.remoteMissionVersion,
     this.remoteMissionStage,
     this.remoteMissionWatchEnabled,
-    this.watchEnabled = true,
+    this.watchEnabled = false,
   });
 
   final String id;
@@ -171,7 +175,7 @@ class TripTask {
         : null;
     final watchEnabled = raw['watchEnabled'] is bool
         ? raw['watchEnabled'] as bool
-        : true;
+        : false;
     if (latitude == null ||
         longitude == null ||
         coordinateSystem == null ||

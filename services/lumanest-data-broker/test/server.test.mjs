@@ -15,6 +15,7 @@ import { MemoryWeatherCache } from '../src/context/weather-cache.mjs';
 import { ContextSnapshotStore } from '../src/context/context-snapshot-store.mjs';
 import { SimulationRegistry } from '../src/context/simulation.mjs';
 import { SessionInstallationRegistry } from '../src/session/installation-registry.mjs';
+import { MissionWorker } from '../src/mission/worker.mjs';
 
 const { privateKey: testQWeatherPrivateKey } = generateKeyPairSync('ed25519');
 const ownerSecret = 'owner-secret-abcdefghijklmnopqrstuvwxyz-0123456789';
@@ -345,6 +346,54 @@ test('mission evaluator is private to the dedicated worker token', async () => {
     });
     assert.equal(response.status, 401);
   }, { missionWorkerToken: 'mission-worker-secret' });
+});
+
+test('mission worker reaches the real Broker Context V5 boundary', async () => {
+  let contextReached = false;
+  let finished;
+  await withServer(async (baseUrl) => {
+    const worker = new MissionWorker({
+      brokerUrl: baseUrl, workerToken: 'mission-worker-secret', id: 'worker-test',
+      now: () => new Date('2026-07-14T02:02:00Z'),
+      store: {
+        async claimDue() { return { ok: true, mission: {
+          id: 'mis_0123456789abcdef0123456789abcdef', version: 1,
+          destination: { name: '西湖', latitude: 30.25, longitude: 120.15, system: 'wgs84' },
+          locale: 'zh-CN', intent: 'photography',
+        } }; },
+        async finishCheck(value) { finished = value; return { ok: true }; },
+      },
+    });
+    await worker.runOnce();
+  }, {
+    missionWorkerToken: 'mission-worker-secret',
+    contextServiceUrl: 'http://context-service:8000',
+    contextInternalToken: 'internal-context-token',
+    now: () => new Date('2026-07-14T02:02:00Z'),
+    fetcher: async (url) => {
+      if (url.hostname.endsWith('.qweatherapi.com')) {
+        const bodies = {
+          '/weather/v1/current/30.25/120.15': {
+            updateTime: '2026-07-14T10:00:00+08:00', condition: { code: '100' },
+            temperature: { value: 26 }, wind: { speed: { value: 2 }, direction: { degree: 90 } },
+            visibility: { value: 20000 }, precipitation: { amount: { value: 0 } }, cloudCover: 0.12,
+          },
+          '/weather/v1/hourly/30.25/120.15': { hours: [] },
+          '/v7/minutely/5m': { code: '200', minutely: [] },
+          '/weatheralert/v1/current/30.25/120.15': { alerts: [] },
+        };
+        return new Response(JSON.stringify(bodies[url.pathname] ?? {}), { status: 200 });
+      }
+      if (url.hostname === 'restapi.amap.com') return new Response('{"status":"1","regeocode":{}}');
+      if (url.hostname === 'context-service') {
+        contextReached = true;
+        return new Response(JSON.stringify(v5SnapshotBody()), { status: 200 });
+      }
+      return new Response('{}', { status: 503 });
+    },
+  });
+  assert.equal(contextReached, true);
+  assert.equal(finished.check.ok, true);
 });
 
 test('session issuance is capped per installation over a rolling window', async () => {
