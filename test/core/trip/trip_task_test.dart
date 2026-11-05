@@ -276,11 +276,11 @@ void main() {
       expect(mission.operations, ['create', 'start']);
       expect(container.read(tripTaskProvider)?.remoteMissionVersion, 2);
 
-      controller.setWatchEnabled(false);
+      controller.setWatchEnabled(true);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
       expect(mission.operations, ['create', 'start', 'setWatch']);
-      expect(container.read(tripTaskProvider)?.watchEnabled, false);
+      expect(container.read(tripTaskProvider)?.watchEnabled, true);
     },
   );
 }
@@ -351,6 +351,7 @@ class _FakeMissionRepository implements MissionRemoteRepository {
   final operations = <String>[];
   int version = 1;
   MissionRemoteStage currentStage = MissionRemoteStage.planning;
+  bool currentWatch = false;
 
   @override
   Future<MissionRemoteSnapshot?> create(
@@ -358,6 +359,7 @@ class _FakeMissionRepository implements MissionRemoteRepository {
     required String operationId,
   }) async {
     operations.add('create');
+    currentWatch = draft.watchEnabled;
     return MissionRemoteSnapshot(
       id: 'mis_0123456789abcdef0123456789abcdef',
       stage: MissionRemoteStage.planning,
@@ -384,11 +386,12 @@ class _FakeMissionRepository implements MissionRemoteRepository {
       _ => currentStage,
     };
     currentStage = stage;
+    currentWatch = watchEnabled ?? currentWatch;
     return MissionRemoteSnapshot(
       id: missionId,
       stage: stage,
       version: version,
-      watchEnabled: watchEnabled ?? true,
+      watchEnabled: currentWatch,
     );
   }
 }

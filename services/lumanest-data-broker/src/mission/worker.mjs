@@ -16,7 +16,11 @@ function validSnapshot(value) {
 function contextRequest(mission, observedAt) {
   return {
     contractVersion: 5,
-    coordinate: mission.destination,
+    coordinate: {
+      latitude: mission.destination.latitude,
+      longitude: mission.destination.longitude,
+      system: mission.destination.system,
+    },
     observedAt: observedAt.toISOString(),
     locale: mission.locale,
     intent: mission.intent,
