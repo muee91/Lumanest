@@ -48,13 +48,17 @@ export class MissionStore {
     if (this.#ownsPool) await this.#pool.end();
   }
 
-  async create({ ownerId, request, operation }) {
+  async create({ ownerId, bindingHash, request, operation }) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
     if (!operationId(operation)) return { ok: false, error: apiErrorCodes.invalidOperation };
     const client = await this.#pool.connect();
     const now = new Date();
     try {
       await client.query('BEGIN');
+      if (!await this.#ensureBinding(client, ownerId, bindingHash, now)) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: apiErrorCodes.unauthorized };
+      }
       const replay = await this.#replayOperation(client, ownerId, operation);
       if (replay != null) {
         await client.query('COMMIT');
@@ -93,8 +97,11 @@ export class MissionStore {
     }
   }
 
-  async list(ownerId) {
+  async list(ownerId, bindingHash) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
+    if (!await this.#ensureBinding(this.#pool, ownerId, bindingHash, new Date())) {
+      return { ok: false, error: apiErrorCodes.unauthorized };
+    }
     const result = await this.#pool.query(
       `SELECT * FROM mission.missions WHERE owner_id = $1
        ORDER BY updated_at DESC LIMIT 50`,
@@ -103,8 +110,11 @@ export class MissionStore {
     return { ok: true, body: result.rows.map(missionResponse) };
   }
 
-  async get(ownerId, id) {
+  async get(ownerId, bindingHash, id) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
+    if (!await this.#ensureBinding(this.#pool, ownerId, bindingHash, new Date())) {
+      return { ok: false, error: apiErrorCodes.unauthorized };
+    }
     const result = await this.#pool.query(
       'SELECT * FROM mission.missions WHERE owner_id = $1 AND id = $2',
       [ownerId, id],
@@ -112,13 +122,17 @@ export class MissionStore {
     return { ok: true, body: result.rows.length === 0 ? null : missionResponse(result.rows[0]) };
   }
 
-  async patch({ ownerId, id, request, operation }) {
+  async patch({ ownerId, bindingHash, id, request, operation }) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
     if (!operationId(operation)) return { ok: false, error: apiErrorCodes.invalidOperation };
     const client = await this.#pool.connect();
     const now = new Date();
     try {
       await client.query('BEGIN');
+      if (!await this.#ensureBinding(client, ownerId, bindingHash, now)) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: apiErrorCodes.unauthorized };
+      }
       const replay = await this.#replayOperation(client, ownerId, operation);
       if (replay != null) {
         await client.query('COMMIT');
@@ -195,8 +209,11 @@ export class MissionStore {
     }
   }
 
-  async events(ownerId, missionIdValue) {
+  async events(ownerId, bindingHash, missionIdValue) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
+    if (!await this.#ensureBinding(this.#pool, ownerId, bindingHash, new Date())) {
+      return { ok: false, error: apiErrorCodes.unauthorized };
+    }
     const mission = await this.#pool.query(
       'SELECT 1 FROM mission.missions WHERE owner_id = $1 AND id = $2',
       [ownerId, missionIdValue],
@@ -317,6 +334,40 @@ export class MissionStore {
     );
     if (result.rows.length === 0) return null;
     return { status: result.rows[0].status, body: result.rows[0].response };
+  }
+
+  async #ensureBinding(queryable, ownerId, bindingHash, now) {
+    if (typeof ownerId !== 'string' || !/^[A-Za-z0-9_-]{22,80}$/.test(ownerId) ||
+        typeof bindingHash !== 'string' || !/^[a-f0-9]{64}$/.test(bindingHash)) {
+      return false;
+    }
+    const existing = await queryable.query(
+      'SELECT owner_secret_hash, revoked_at FROM mission.device_bindings WHERE principal_id = $1',
+      [ownerId],
+    );
+    if (existing.rows.length === 0) {
+      await queryable.query(
+        `INSERT INTO mission.device_bindings
+          (principal_id, installation_id, owner_secret_hash, bound_at, last_seen_at)
+         SELECT $1, $1, $2, $3, $3
+          WHERE NOT EXISTS (SELECT 1 FROM mission.missions WHERE owner_id = $1)
+         ON CONFLICT DO NOTHING`,
+        [ownerId, bindingHash, now],
+      );
+    }
+    const bound = await queryable.query(
+      'SELECT owner_secret_hash, revoked_at FROM mission.device_bindings WHERE principal_id = $1',
+      [ownerId],
+    );
+    const row = bound.rows[0];
+    if (row == null || row.revoked_at != null || row.owner_secret_hash !== bindingHash) {
+      return false;
+    }
+    await queryable.query(
+      'UPDATE mission.device_bindings SET last_seen_at = $1 WHERE principal_id = $2',
+      [now, ownerId],
+    );
+    return true;
   }
 
   async #saveOperation(client, ownerId, operation, missionIdValue, status, body, now) {

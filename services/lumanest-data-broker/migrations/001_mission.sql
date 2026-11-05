@@ -2,6 +2,15 @@
 -- migration role. The API and Worker roles must not receive DDL privileges.
 CREATE SCHEMA IF NOT EXISTS mission;
 
+CREATE TABLE IF NOT EXISTS mission.device_bindings (
+  principal_id TEXT PRIMARY KEY,
+  installation_id TEXT NOT NULL UNIQUE,
+  owner_secret_hash TEXT NOT NULL CHECK (owner_secret_hash ~ '^[a-f0-9]{64}$'),
+  bound_at TIMESTAMPTZ NOT NULL,
+  last_seen_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS mission.missions (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,

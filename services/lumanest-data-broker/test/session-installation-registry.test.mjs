@@ -88,10 +88,13 @@ test('revocation blocks issuance and survives restarts', async () => {
 test('binds an installation to its first owner secret and persists the binding', async () => {
   await withTemporaryRegistry(async ({ registry, filePath }) => {
     const installationId = 'abcdefghijklmnopqrstuvwx';
-    assert.deepEqual(
-      await registry.recordIssuance({ installationId, ownerSecret }),
-      { allowed: true },
-    );
+    const first = await registry.recordIssuance({
+      installationId,
+      ownerSecret,
+      includeBindingHash: true,
+    });
+    assert.equal(first.allowed, true);
+    assert.match(first.bindingHash, /^[a-f0-9]{64}$/);
     assert.equal(registry.describe(installationId).bound, true);
 
     const refused = await registry.recordIssuance({
@@ -102,10 +105,12 @@ test('binds an installation to its first owner secret and persists the binding',
 
     const restarted = await new SessionInstallationRegistry({ filePath }).initialize();
     assert.equal(restarted.describe(installationId).bound, true);
-    assert.deepEqual(
-      await restarted.recordIssuance({ installationId, ownerSecret }),
-      { allowed: true },
-    );
+    const renewed = await restarted.recordIssuance({
+      installationId,
+      ownerSecret,
+      includeBindingHash: true,
+    });
+    assert.deepEqual(renewed, { allowed: true, bindingHash: first.bindingHash });
     assert.equal(restarted.describe(installationId).ownerSecretHash, undefined);
   });
 });

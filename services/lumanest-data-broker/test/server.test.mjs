@@ -31,8 +31,9 @@ class FakeMissionStore {
     updatedAt: '2026-11-03T00:00:00.000Z',
   };
 
-  async create({ ownerId, request }) {
+  async create({ ownerId, bindingHash, request }) {
     this.ownerId = ownerId;
+    this.bindingHash = bindingHash;
     this.mission = { ...this.mission, ...request, destination: request.destination };
     return { ok: true, status: 201, body: this.mission };
   }
@@ -315,6 +316,7 @@ test('mission API requires a device session and scopes operations to its subject
     });
     assert.equal(created.status, 201);
     assert.equal((await created.json()).destination.name, '西湖');
+    assert.match(missionStore.bindingHash, /^[a-f0-9]{64}$/);
 
     const listed = await fetch(`${baseUrl}/v1/missions`, { headers: authorization });
     assert.equal(listed.status, 200);
