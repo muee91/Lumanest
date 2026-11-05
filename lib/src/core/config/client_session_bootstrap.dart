@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,6 +35,34 @@ class BrokerSessionBootstrap {
   final BrokerSessionCredentials? credentials;
 }
 
+/// The device-bound secret must survive app restarts without being kept in a
+/// general preferences database. Tests inject an in-memory implementation;
+/// production uses Android Keystore / iOS Keychain through this boundary.
+abstract interface class DeviceSecretStore {
+  Future<String?> read(String key);
+
+  Future<void> write(String key, String value);
+
+  Future<void> delete(String key);
+}
+
+class FlutterDeviceSecretStore implements DeviceSecretStore {
+  FlutterDeviceSecretStore([FlutterSecureStorage? storage])
+    : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+
+  @override
+  Future<String?> read(String key) => _storage.read(key: key);
+
+  @override
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
+
+  @override
+  Future<void> delete(String key) => _storage.delete(key: key);
+}
+
 /// Obtains a short-lived App-scoped Broker token without embedding the shared
 /// server bearer in release builds. The installation identifier is the
 /// server-side quota and revocation handle, not a credential; the access token
@@ -42,6 +71,7 @@ Future<BrokerSessionBootstrap> bootstrapBrokerSession(
   EnvironmentConfig config, {
   Dio? dio,
   SharedPreferencesAsync? preferences,
+  DeviceSecretStore? secureStorage,
 }) async {
   if (!config.isBrokerBaseConfigured ||
       config.lumaNestServiceToken.isNotEmpty) {
@@ -51,6 +81,7 @@ Future<BrokerSessionBootstrap> bootstrapBrokerSession(
     config,
     dio: dio,
     preferences: preferences,
+    secureStorage: secureStorage,
   );
   if (credentials == null) {
     return BrokerSessionBootstrap(config: config);
@@ -69,14 +100,23 @@ Future<BrokerSessionCredentials?> fetchBrokerSessionCredentials(
   EnvironmentConfig config, {
   Dio? dio,
   SharedPreferencesAsync? preferences,
+  DeviceSecretStore? secureStorage,
 }) async {
   if (!config.isBrokerBaseConfigured) {
     return null;
   }
+  final brokerUri = Uri.tryParse(config.dataBrokerBaseUrl);
+  if (brokerUri == null ||
+      brokerUri.scheme != 'https' ||
+      brokerUri.host.isEmpty) {
+    return null;
+  }
 
   final store = preferences ?? SharedPreferencesAsync();
+  final deviceSecrets = secureStorage ?? FlutterDeviceSecretStore();
   final installationId = await _installationId(store);
-  final ownerSecret = await _ownerSecret(store);
+  final ownerSecret = await _ownerSecret(store, deviceSecrets);
+  if (ownerSecret == null) return null;
   final client =
       dio ??
       Dio(
@@ -120,15 +160,48 @@ Future<String> _installationId(SharedPreferencesAsync store) async {
   return created;
 }
 
-Future<String> _ownerSecret(SharedPreferencesAsync store) async {
-  final existing = await store.getString(_ownerSecretKey);
-  if (existing != null &&
-      RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(existing)) {
-    return existing;
+Future<String?> _ownerSecret(
+  SharedPreferencesAsync preferences,
+  DeviceSecretStore secureStorage,
+) async {
+  String? secureValue;
+  try {
+    secureValue = await secureStorage.read(_ownerSecretKey);
+  } on Object {
+    // A secure-store read failure must never mint a replacement identity.
+    return null;
   }
+  if (secureValue != null) {
+    return RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(secureValue)
+        ? secureValue
+        : null;
+  }
+
+  // Migrate the old preferences value once, preserving the existing owner
+  // rather than silently creating a second cloud identity after an upgrade.
+  String? legacy;
+  try {
+    legacy = await preferences.getString(_ownerSecretKey);
+  } on Object {
+    return null;
+  }
+  if (legacy != null && RegExp(r'^[A-Za-z0-9_-]{43,128}$').hasMatch(legacy)) {
+    try {
+      await secureStorage.write(_ownerSecretKey, legacy);
+      await preferences.remove(_ownerSecretKey);
+      return legacy;
+    } on Object {
+      return null;
+    }
+  }
+
   final created = _randomToken(32);
-  await store.setString(_ownerSecretKey, created);
-  return created;
+  try {
+    await secureStorage.write(_ownerSecretKey, created);
+    return created;
+  } on Object {
+    return null;
+  }
 }
 
 String _randomToken(int bytes) {

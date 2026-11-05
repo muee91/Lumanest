@@ -189,7 +189,7 @@ function validInstallationId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{22,80}$/.test(value);
 }
 
-function issueSessionToken({ installationId, signingKey, now }) {
+function issueSessionToken({ installationId, bindingHash, signingKey, now }) {
   const issuedAt = Math.floor(now.getTime() / 1_000);
   const expiresAt = issuedAt + sessionTokenLifetimeMilliseconds / 1_000;
   return {
@@ -197,6 +197,7 @@ function issueSessionToken({ installationId, signingKey, now }) {
       sub: installationId,
       scope: 'app',
       binding: 'device-v1',
+      bindingHash,
       iat: issuedAt,
       exp: expiresAt,
     }, signingKey),
@@ -226,6 +227,7 @@ function sessionAuthorization(header, signingKey, now) {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
     const nowSeconds = Math.floor(now.getTime() / 1_000);
     return payload?.scope === 'app' && payload?.binding === 'device-v1' &&
+      typeof payload?.bindingHash === 'string' && /^[a-f0-9]{64}$/.test(payload.bindingHash) &&
       validInstallationId(payload.sub) &&
       Number.isInteger(payload.exp) && payload.exp > nowSeconds &&
       Number.isInteger(payload.iat) && payload.iat <= nowSeconds + 300
@@ -1255,6 +1257,7 @@ export function createTokenBrokerServer({
       const issuance = await sessionInstallationRegistry.recordIssuance({
         installationId: body.installationId,
         ownerSecret: body.ownerSecret,
+        includeBindingHash: true,
       });
       if (!issuance.allowed) {
         if (issuance.status === 403) {
@@ -1272,6 +1275,7 @@ export function createTokenBrokerServer({
       }
       writeJson(response, 200, issueSessionToken({
         installationId: body.installationId,
+        bindingHash: issuance.bindingHash,
         signingKey,
         now: now(),
       }));
@@ -1444,7 +1448,7 @@ export function createTokenBrokerServer({
     if (missionMatch != null) {
       // A service bearer is intentionally insufficient here. Mission data is
       // private to the short-lived, device-bound session subject.
-      if (sessionPayload == null) {
+      if (sessionPayload == null || sessionPayload.bindingHash == null) {
         writeJson(response, 401, { error: apiErrorCodes.unauthorized });
         return;
       }
@@ -1455,19 +1459,35 @@ export function createTokenBrokerServer({
       const missionIdValue = missionMatch[1] ?? null;
       const isEvents = missionMatch[2] === '/events';
       if (request.method === 'GET' && missionIdValue == null) {
-        const result = await missionStore.list(sessionPayload.sub);
+        const result = await missionStore.list(sessionPayload.sub, sessionPayload.bindingHash);
+        if (!result.ok) {
+          writeJson(response, 403, { error: apiErrorCodes.unauthorized });
+          return;
+        }
         writeJson(response, 200, result.body);
         return;
       }
       if (request.method === 'GET' && missionIdValue != null && isEvents) {
-        const result = await missionStore.events(sessionPayload.sub, missionIdValue);
+        const result = await missionStore.events(
+          sessionPayload.sub, sessionPayload.bindingHash, missionIdValue,
+        );
+        if (!result.ok) {
+          writeJson(response, 403, { error: apiErrorCodes.unauthorized });
+          return;
+        }
         writeJson(response, result.body == null ? 404 : 200, result.body ?? {
           error: apiErrorCodes.notFound,
         });
         return;
       }
       if (request.method === 'GET' && missionIdValue != null) {
-        const result = await missionStore.get(sessionPayload.sub, missionIdValue);
+        const result = await missionStore.get(
+          sessionPayload.sub, sessionPayload.bindingHash, missionIdValue,
+        );
+        if (!result.ok) {
+          writeJson(response, 403, { error: apiErrorCodes.unauthorized });
+          return;
+        }
         writeJson(response, result.body == null ? 404 : 200, result.body ?? {
           error: apiErrorCodes.notFound,
         });
@@ -1482,14 +1502,18 @@ export function createTokenBrokerServer({
       if (request.method === 'POST' && missionIdValue == null && validMissionCreateRequest(body)) {
         const result = await missionStore.create({
           ownerId: sessionPayload.sub,
+          bindingHash: sessionPayload.bindingHash,
           request: body,
           operation,
         });
         if (!result.ok) {
-          writeJson(response, result.error === 'not_configured' ? 503 : 409, {
-            error: result.error === 'not_configured'
+          writeJson(response, result.error === apiErrorCodes.notConfigured ? 503 :
+            result.error === apiErrorCodes.unauthorized ? 403 : 409, {
+            error: result.error === apiErrorCodes.notConfigured
               ? apiErrorCodes.missionUnconfigured
-              : apiErrorCodes.missionConflict,
+              : result.error === apiErrorCodes.unauthorized
+                ? apiErrorCodes.unauthorized
+                : apiErrorCodes.missionConflict,
           });
           return;
         }
@@ -1500,12 +1524,14 @@ export function createTokenBrokerServer({
           validMissionPatchRequest(body)) {
         const result = await missionStore.patch({
           ownerId: sessionPayload.sub,
+          bindingHash: sessionPayload.bindingHash,
           id: missionIdValue,
           request: body,
           operation,
         });
         if (!result.ok) {
-          const status = result.error === 'not_found' ? 404 : 409;
+          const status = result.error === apiErrorCodes.notFound ? 404 :
+            result.error === apiErrorCodes.unauthorized ? 403 : 409;
           writeJson(response, status, {
             error: status === 404 ? apiErrorCodes.notFound : apiErrorCodes.missionConflict,
             ...(result.current == null ? {} : { current: result.current }),

@@ -7,6 +7,16 @@ Context V5 checks. Remote push is deliberately not part of this contract:
 events are persisted with `deliveryState: not_sent` until a notification
 transport is separately implemented.
 
+The App keeps `ownerSecret` in Android Keystore or iOS Keychain through
+`flutter_secure_storage`. Existing preferences values are migrated once; a
+secure-store read or write failure refuses bootstrap instead of silently
+rotating the device identity. The `device_bindings` table anchors the session
+binding hash independently of the expiring installation registry.
+Existing Mission owners without a database binding are refused access until an
+operator backfills their verified binding from the private installation
+registry. This prevents the first post-upgrade request from claiming an older
+Mission. Session bootstrap must use HTTPS.
+
 The database must use separate credentials. Run the role setup once as a
 PostgreSQL administrator, replacing the placeholders outside source control:
 
@@ -24,6 +34,7 @@ they need:
 
 ```sql
 GRANT USAGE ON SCHEMA mission TO mission_api, mission_worker;
+GRANT SELECT, INSERT, UPDATE ON mission.device_bindings TO mission_api;
 GRANT SELECT, INSERT, UPDATE ON mission.missions TO mission_api, mission_worker;
 GRANT SELECT, INSERT ON mission.mission_operations TO mission_api;
 GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_worker;

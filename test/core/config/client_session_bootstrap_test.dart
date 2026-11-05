@@ -33,6 +33,27 @@ class _StubAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+class _FakeDeviceSecretStore implements DeviceSecretStore {
+  final values = <String, String>{};
+  bool failRead = false;
+
+  @override
+  Future<String?> read(String key) async {
+    if (failRead) throw StateError('secure storage unavailable');
+    return values[key];
+  }
+
+  @override
+  Future<void> write(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    values.remove(key);
+  }
+}
+
 EnvironmentConfig _sessionConfig() =>
     EnvironmentConfig(dataBrokerBaseUrl: 'https://broker.example');
 
@@ -51,8 +72,11 @@ Dio _dio(_StubAdapter adapter) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  late _FakeDeviceSecretStore secrets;
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    secrets = _FakeDeviceSecretStore();
   });
 
   test('issues a session token for a session-eligible config', () async {
@@ -68,7 +92,11 @@ void main() {
     );
     final dio = _dio(adapter);
 
-    final bootstrap = await bootstrapBrokerSession(_sessionConfig(), dio: dio);
+    final bootstrap = await bootstrapBrokerSession(
+      _sessionConfig(),
+      dio: dio,
+      secureStorage: secrets,
+    );
 
     expect(adapter.lastRequest?.method, 'POST');
     expect(
@@ -114,7 +142,11 @@ void main() {
     final dio = _dio(adapter);
 
     final config = _sessionConfig();
-    final bootstrap = await bootstrapBrokerSession(config, dio: dio);
+    final bootstrap = await bootstrapBrokerSession(
+      config,
+      dio: dio,
+      secureStorage: secrets,
+    );
 
     expect(identical(bootstrap.config, config), true);
     expect(bootstrap.credentials, isNull);
@@ -128,7 +160,11 @@ void main() {
     final dio = _dio(adapter);
 
     final config = _sessionConfig();
-    final bootstrap = await bootstrapBrokerSession(config, dio: dio);
+    final bootstrap = await bootstrapBrokerSession(
+      config,
+      dio: dio,
+      secureStorage: secrets,
+    );
 
     expect(bootstrap.config.lumaNestServiceToken, '');
     expect(bootstrap.credentials, isNull);
@@ -145,7 +181,11 @@ void main() {
         dataBrokerBaseUrl: 'https://broker.example',
         lumaNestServiceToken: 'embedded-debug-bearer',
       );
-      final bootstrap = await bootstrapBrokerSession(config, dio: dio);
+      final bootstrap = await bootstrapBrokerSession(
+        config,
+        dio: dio,
+        secureStorage: secrets,
+      );
 
       expect(adapter.lastRequest, isNull);
       expect(bootstrap.credentials, isNull);
@@ -166,7 +206,11 @@ void main() {
     );
     final dio = _dio(adapter);
 
-    await bootstrapBrokerSession(_sessionConfig(), dio: dio);
+    await bootstrapBrokerSession(
+      _sessionConfig(),
+      dio: dio,
+      secureStorage: secrets,
+    );
 
     final body = adapter.lastBody as Map;
     final installationId = body['installationId'] as String;
@@ -190,23 +234,75 @@ void main() {
 
   test('reuses the persisted owner secret across session renewals', () async {
     final bodies = <Map<Object?, Object?>>[];
-    final adapter = _StubAdapter(
-      (options) async {
-        bodies.add(Map<Object?, Object?>.from(options.data as Map));
-        return ResponseBody.fromString(
-          '{"accessToken":"issued-session-token-0123456789abcdefghij"}',
-          200,
-        );
-      },
-    );
+    final adapter = _StubAdapter((options) async {
+      bodies.add(Map<Object?, Object?>.from(options.data as Map));
+      return ResponseBody.fromString(
+        '{"accessToken":"issued-session-token-0123456789abcdefghij"}',
+        200,
+      );
+    });
     final dio = _dio(adapter);
 
-    await bootstrapBrokerSession(_sessionConfig(), dio: dio);
-    await bootstrapBrokerSession(_sessionConfig(), dio: dio);
+    await bootstrapBrokerSession(
+      _sessionConfig(),
+      dio: dio,
+      secureStorage: secrets,
+    );
+    await bootstrapBrokerSession(
+      _sessionConfig(),
+      dio: dio,
+      secureStorage: secrets,
+    );
 
     expect(bodies, hasLength(2));
     expect(bodies[0]['ownerSecret'], bodies[1]['ownerSecret']);
     expect(bodies[0]['installationId'], bodies[1]['installationId']);
+    dio.close(force: true);
+  });
+
+  test(
+    'migrates the legacy preferences secret without rotating identity',
+    () async {
+      const legacy =
+          'owner-secret-legacy-abcdefghijklmnopqrstuvwxyz-0123456789';
+      final preferences = SharedPreferencesAsync();
+      await preferences.setString('lumanest.device_owner_secret', legacy);
+      final adapter = _StubAdapter(
+        (_) async => ResponseBody.fromString(
+          '{"accessToken":"issued-session-token-0123456789abcdefghij"}',
+          200,
+        ),
+      );
+      final dio = _dio(adapter);
+
+      await bootstrapBrokerSession(
+        _sessionConfig(),
+        dio: dio,
+        preferences: preferences,
+        secureStorage: secrets,
+      );
+
+      expect(secrets.values['lumanest.device_owner_secret'], legacy);
+      expect(
+        await preferences.getString('lumanest.device_owner_secret'),
+        isNull,
+      );
+      dio.close(force: true);
+    },
+  );
+
+  test('secure-store read failure does not issue a new identity', () async {
+    secrets.failRead = true;
+    final adapter = _StubAdapter((_) async => fail('must not call the broker'));
+    final dio = _dio(adapter);
+    final result = await bootstrapBrokerSession(
+      _sessionConfig(),
+      dio: dio,
+      secureStorage: secrets,
+    );
+    expect(result.credentials, isNull);
+    expect(secrets.values, isEmpty);
+    expect(adapter.lastRequest, isNull);
     dio.close(force: true);
   });
 }

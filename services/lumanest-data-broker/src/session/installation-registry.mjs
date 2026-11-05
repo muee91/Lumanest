@@ -173,7 +173,7 @@ export class SessionInstallationRegistry {
   // The quota uses a rolling window of recorded issuance timestamps; when the
   // window is exhausted the caller receives how long to wait, not a permanent
   // refusal.
-  async recordIssuance({ installationId, ownerSecret }) {
+  async recordIssuance({ installationId, ownerSecret, includeBindingHash = false }) {
     this.#requireInitialized();
     if (!isValidInstallationId(installationId) || !isValidOwnerSecret(ownerSecret)) {
       throw new TypeError('installationId and ownerSecret are required');
@@ -207,7 +207,9 @@ export class SessionInstallationRegistry {
     record.totalIssuances += 1;
     this.#installations.set(installationId, record);
     await this.#persist();
-    return { allowed: true };
+    return includeBindingHash
+      ? { allowed: true, bindingHash: record.ownerSecretHash }
+      : { allowed: true };
   }
 
   async setRevoked(installationId, revoked) {
