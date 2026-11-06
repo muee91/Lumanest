@@ -82,7 +82,7 @@ mission_profile_ready() {
 
 compose_live() {
   profile_args=
-  if mission_profile_ready "$LIVE_DIR/qweather-token-broker.env"; then
+  if [ "$MISSION_ROLLBACK_PROFILE_ENABLED" = 1 ] && mission_profile_ready "$LIVE_DIR/qweather-token-broker.env"; then
     profile_args="--profile mission"
   fi
   # Word splitting is intentional: profile arguments are fixed literals.
