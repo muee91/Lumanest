@@ -17,6 +17,7 @@ BACKUP_HELPER_IMAGE=${BACKUP_HELPER_IMAGE:-redis:7.4-alpine@sha256:6ab0b6e738177
 HEALTHCHECK_ATTEMPTS=${HEALTHCHECK_ATTEMPTS:-60}
 HEALTHCHECK_INTERVAL_SECONDS=${HEALTHCHECK_INTERVAL_SECONDS:-3}
 ROLLBACK_PHASE=preflight
+MISSION_ROLLBACK_PROFILE_ENABLED=1
 
 canonical_dir() {
   (CDPATH= cd -- "$1" 2>/dev/null && pwd -P)
@@ -110,6 +111,7 @@ compose_current() {
 }
 
 verify_mission_runtime() {
+  [ "$MISSION_ROLLBACK_PROFILE_ENABLED" = 1 ] || return 0
   mission_profile_ready "$LIVE_DIR/qweather-token-broker.env" || return 0
   echo "Checking Mission migrations and restricted runtime privileges after rollback."
   compose_live run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=api \
@@ -454,6 +456,18 @@ for required in "$LIVE_DIR/compose.yaml" "$LIVE_DIR/qweather-token-broker.env"; 
     exit 1
   fi
 done
+
+if [ "$HAS_IMAGE_BACKUP" -eq 1 ] && {
+  [ ! -f "$BACKUP_DIR/application-images.txt" ] ||
+  ! grep -q '^mission-worker|' "$BACKUP_DIR/application-images.txt";
+}; then
+  MISSION_ROLLBACK_PROFILE_ENABLED=0
+  echo "Mission Worker remains disabled during rollback because no previous Worker image was archived." >&2
+fi
+if [ ! -f "$LIVE_DIR/src/mission/preflight.mjs" ]; then
+  MISSION_ROLLBACK_PROFILE_ENABLED=0
+  echo "Mission Worker remains disabled during rollback because the restored release has no runtime preflight." >&2
+fi
 
 ROLLBACK_PHASE=starting-previous
 if [ "$HAS_IMAGE_BACKUP" -eq 1 ]; then
