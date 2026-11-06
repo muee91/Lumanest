@@ -287,18 +287,11 @@ export function createAdminServer({
       const revoking = url.pathname.endsWith('/revoke');
       let missionRevocationPending = false;
       try {
-        if (revoking) {
-          // Cut off token issuance before attempting the remote transaction.
-          // A filesystem or database failure must leave the local side closed.
-          await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
-        }
         if (missionStore?.configured) {
           if (revoking) {
-            // Persist the intent before touching the database. If the broker
-            // dies or the Mission DB is unavailable, startup reconciliation
-            // can resume the durable revoke instead of trusting this process's
-            // in-memory state.
-            await sessionInstallationRegistry.markMissionRevocationPending(
+            // Cut off token issuance and persist the Mission compensation
+            // obligation in one atomic registry commit before touching SQL.
+            await sessionInstallationRegistry.setRevokedAndQueueMission(
               parsed.value.installationId,
             );
           }
@@ -322,6 +315,9 @@ export function createAdminServer({
               parsed.value.installationId,
             );
           }
+        }
+        if (revoking && !missionStore?.configured) {
+          await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
         }
         const installation = revoking
           ? sessionInstallationRegistry.describe(parsed.value.installationId)
