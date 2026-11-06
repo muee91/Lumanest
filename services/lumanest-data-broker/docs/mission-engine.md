@@ -74,3 +74,11 @@ checks, idempotent operations, leased checks, and event deduplication. A
 cancelled or watch-disabled Mission is revalidated before a Worker commits any
 event. If the database URL is absent, the App returns `mission_unconfigured`
 and the default Compose profile does not start the Worker.
+
+Device revocation is a two-part operation. The admin API blocks the local
+installation immediately, then revokes the persistent `device_bindings` row and
+disables open Missions in one Mission transaction. If that transaction fails,
+the local registry stores a `mission_revocation_pending` obligation in
+`session-installations.json`; the Broker retries it at startup and on a timer.
+The admin response remains `503` until PostgreSQL confirms the revoke, and the
+Worker continues to use the database binding as its final execution gate.
