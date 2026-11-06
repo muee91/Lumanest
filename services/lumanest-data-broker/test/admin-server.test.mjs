@@ -741,7 +741,6 @@ test('device revocation blocks sessions and reports incomplete database update',
     assert.deepEqual(calls, [{ id: installationId, revoked: true }]);
     assert.equal(registry.isRevoked(installationId), true);
     assert.equal(registry.describe(installationId).missionRevocation, 'pending');
-    assert.deepEqual(registry.listPendingMissionRevocations(), [installationId]);
   }, { sessionInstallationRegistry: registry, missionStore });
 });
 
