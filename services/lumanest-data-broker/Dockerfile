@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
+COPY migrations ./migrations
 RUN mkdir -p /var/lib/lumanest && chown -R node:node /var/lib/lumanest
 
 USER node
