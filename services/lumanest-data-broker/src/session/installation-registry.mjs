@@ -67,7 +67,7 @@ function sanitizeRecord(value, now) {
     : null;
   const missionRevocation = value.missionRevocation === 'pending' || value.missionRevocation === 'confirmed'
     ? value.missionRevocation
-    : null;
+    : value.revoked === true ? 'pending' : null;
   const missionRevocationAt = typeof value.missionRevocationAt === 'string' && !Number.isNaN(Date.parse(value.missionRevocationAt))
     ? value.missionRevocationAt
     : null;
@@ -240,6 +240,32 @@ export class SessionInstallationRegistry {
     const record = this.#installations.get(installationId) ?? emptyRecord(now);
     record.revoked = revoked === true;
     record.revokedAt = record.revoked ? now.toISOString() : null;
+    if (!record.revoked) {
+      record.missionRevocation = null;
+      record.missionRevocationAt = null;
+      record.missionRevocationAttempts = 0;
+      record.missionRevocationNextRetryAt = null;
+    }
+    this.#installations.set(installationId, record);
+    await this.#persist();
+    return this.describe(installationId);
+  }
+
+  // Local session revocation and the durable Mission compensation obligation
+  // must share one atomic file commit. Keeping them as two public calls leaves
+  // a crash window where the session is blocked but the database revoke is
+  // forgotten on restart.
+  async setRevokedAndQueueMission(installationId) {
+    this.#requireInitialized();
+    if (!isValidInstallationId(installationId)) throw new TypeError('installationId is required');
+    const now = this.#now();
+    const record = this.#installations.get(installationId) ?? emptyRecord(now);
+    record.revoked = true;
+    record.revokedAt = now.toISOString();
+    record.missionRevocation = 'pending';
+    record.missionRevocationAt = now.toISOString();
+    record.missionRevocationAttempts = 0;
+    record.missionRevocationNextRetryAt = now.toISOString();
     this.#installations.set(installationId, record);
     await this.#persist();
     return this.describe(installationId);

@@ -108,6 +108,20 @@ test('persists Mission revocation obligations until the database confirms them',
   }, { now: () => clock });
 });
 
+test('commits local revocation and Mission compensation in one registry update', async () => {
+  await withTemporaryRegistry(async ({ registry, filePath }) => {
+    const installationId = 'abcdefghijklmnopqrstuvwx';
+    await registry.recordIssuance({ installationId, ownerSecret });
+    const record = await registry.setRevokedAndQueueMission(installationId);
+    assert.equal(record.revoked, true);
+    assert.equal(record.missionRevocation, 'pending');
+
+    const restarted = await new SessionInstallationRegistry({ filePath }).initialize();
+    assert.equal(restarted.isRevoked(installationId), true);
+    assert.deepEqual(restarted.listPendingMissionRevocations(), [installationId]);
+  });
+});
+
 test('binds an installation to its first owner secret and persists the binding', async () => {
   await withTemporaryRegistry(async ({ registry, filePath }) => {
     const installationId = 'abcdefghijklmnopqrstuvwx';
