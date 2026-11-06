@@ -33,11 +33,24 @@ Run `node scripts/migrate-mission.mjs` with
 has completed, grant the long-running roles only the schema and table access
 they need:
 
+The migrator records applied versions in `mission.schema_migrations` and runs
+under an advisory transaction lock. Upgrade an existing database with the same
+command after backing it up. Operations recorded before the request-fingerprint
+migration have no verifiable request body and are rejected on replay; clients
+can query `GET /v1/mission-operations` with the device session and the original
+`Idempotency-Key` to find the associated Mission, then read its current state.
+The result is only evidence of the operation's historical association; it does
+not authenticate the original request body. If the Mission or its destination
+cannot be matched safely, the client leaves the operation unresolved.
+Do not enable the Mission Worker for legacy watches until their consent has
+been reviewed and the server-side authorization migration is available.
+
 ```sql
 GRANT USAGE ON SCHEMA mission TO mission_api, mission_worker;
 GRANT SELECT, INSERT, UPDATE ON mission.device_bindings TO mission_api;
 GRANT SELECT, INSERT, UPDATE ON mission.missions TO mission_api, mission_worker;
 GRANT SELECT, INSERT ON mission.mission_operations TO mission_api;
+GRANT SELECT, INSERT ON mission.watch_authorization_audit TO mission_api;
 GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_worker;
 GRANT SELECT ON mission.mission_events TO mission_api;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_worker;

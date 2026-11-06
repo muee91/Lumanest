@@ -47,6 +47,12 @@ class FakeMissionStore {
     return { ok: true, body: ownerId === this.ownerId && id === this.mission.id ? this.mission : null };
   }
 
+  async getOperation(ownerId, bindingHash, operation) {
+    if (bindingHash !== this.bindingHash) return { ok: false, error: 'unauthorized' };
+    return { ok: true, body: ownerId === this.ownerId && operation === 'create-mission-0001'
+      ? { missionId: this.mission.id, status: 201, verifiable: false } : null };
+  }
+
   async patch({ ownerId, id, request }) {
     if (ownerId !== this.ownerId || id !== this.mission.id) return { ok: false, error: 'not_found' };
     this.mission = { ...this.mission, version: this.mission.version + 1 };
@@ -318,6 +324,18 @@ test('mission API requires a device session and scopes operations to its subject
     assert.equal(created.status, 201);
     assert.equal((await created.json()).destination.name, '西湖');
     assert.match(missionStore.bindingHash, /^[a-f0-9]{64}$/);
+
+    const operationResult = await fetch(`${baseUrl}/v1/mission-operations`, {
+      headers: { ...authorization, 'Idempotency-Key': 'create-mission-0001' },
+    });
+    assert.equal(operationResult.status, 200);
+    assert.deepEqual(await operationResult.json(), {
+      missionId: 'mis_0123456789abcdef0123456789abcdef', status: 201, verifiable: false,
+    });
+    const serviceLookup = await fetch(`${baseUrl}/v1/mission-operations`, {
+      headers: { Authorization: 'Bearer test-service-token', 'Idempotency-Key': 'create-mission-0001' },
+    });
+    assert.equal(serviceLookup.status, 401);
 
     const listed = await fetch(`${baseUrl}/v1/missions`, { headers: authorization });
     assert.equal(listed.status, 200);

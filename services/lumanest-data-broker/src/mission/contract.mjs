@@ -1,6 +1,6 @@
 const missionIntents = new Set(['photography', 'food', 'supplies', 'fuel', 'wildlife']);
 const missionStates = new Set(['planning', 'enRoute', 'field', 'completed', 'cancelled']);
-const missionOperations = new Set(['start', 'arrive', 'complete', 'cancel', 'setWatch', 'updateDestination']);
+const missionOperations = new Set(['start', 'arrive', 'complete', 'cancel', 'setWatch', 'authorizeWatch', 'updateDestination']);
 
 function object(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -39,13 +39,18 @@ export function validMissionCreateRequest(value) {
 }
 
 export function validMissionPatchRequest(value) {
-  if (!exactKeys(value, new Set(['expectedVersion', 'operation', 'watchEnabled', 'destination']))) {
+  const keys = new Set(['expectedVersion', 'operation', 'watchEnabled', 'destination']);
+  if (!exactKeys(value, keys) && !exactKeys(value, new Set([...keys, 'intentRevision']))) {
     return false;
   }
   if (!Number.isInteger(value.expectedVersion) || value.expectedVersion < 1 ||
       !missionOperations.has(value.operation)) return false;
+  if (value.intentRevision != null && (!Number.isSafeInteger(value.intentRevision) || value.intentRevision < 1)) return false;
   if (value.operation === 'setWatch') {
     return typeof value.watchEnabled === 'boolean' && value.destination == null;
+  }
+  if (value.operation === 'authorizeWatch') {
+    return value.watchEnabled === true && value.destination == null;
   }
   if (value.operation === 'updateDestination') {
     return value.watchEnabled == null && validDestination(value.destination);
@@ -59,6 +64,13 @@ export function isMissionState(value) {
 
 export function missionResponse(row) {
   if (row == null) return null;
+  const safeInteger = (value, field) => {
+    const parsed = BigInt(value ?? 0);
+    if (parsed > BigInt(Number.MAX_SAFE_INTEGER) || parsed < 0n) {
+      throw new Error(`Mission ${field} exceeds JSON safe integer range`);
+    }
+    return Number(parsed);
+  };
   return {
     id: row.id,
     state: row.state,
@@ -73,6 +85,8 @@ export function missionResponse(row) {
     lastCheckedAt: row.last_checked_at == null ? null : new Date(row.last_checked_at).toISOString(),
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
+    watchIntentRevision: safeInteger(row.watch_intent_revision, 'watch_intent_revision'),
+    watchAuthorizationEpoch: safeInteger(row.watch_authorization_epoch, 'watch_authorization_epoch'),
   };
 }
 

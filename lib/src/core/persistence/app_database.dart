@@ -341,10 +341,14 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.inMemory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (migrator) async {
+      await migrator.createAll();
+      await _createTripTaskState();
+    },
     onUpgrade: (migrator, from, to) async {
       if (from < 18) {
         // Pre-release schemas are still intentionally rebuilt. They contain
@@ -355,6 +359,7 @@ class AppDatabase extends _$AppDatabase {
           );
         }
         await migrator.createAll();
+        await _createTripTaskState();
         return;
       }
       if (from < 19) {
@@ -374,7 +379,13 @@ class AppDatabase extends _$AppDatabase {
         // first data-preserving migration is introduced.
         await migrator.createAll();
       }
+      if (from < 20) await _createTripTaskState();
     },
+  );
+
+  Future<void> _createTripTaskState() => customStatement(
+    'CREATE TABLE IF NOT EXISTS trip_task_state '
+    '(id INTEGER PRIMARY KEY CHECK (id = 1), snapshot TEXT)',
   );
 
   Future<void> clearDerivedCaches() async {

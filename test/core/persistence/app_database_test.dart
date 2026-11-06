@@ -108,7 +108,7 @@ void main() {
     );
   });
 
-  test('pre-release schemas rebuild to the schema 19 baseline', () async {
+  test('pre-release schemas rebuild to the current baseline', () async {
     await database.close();
     final directory = await Directory.systemTemp.createTemp(
       'lumanest-clean-schema-',
@@ -143,8 +143,42 @@ void main() {
       await current.select(current.watchedShootingSessions).get(),
       isEmpty,
     );
-    expect(current.schemaVersion, 19);
+    expect(current.schemaVersion, 20);
   });
+
+  test(
+    'schema 19 retains existing data while adding trip task storage',
+    () async {
+      await database.close();
+      final directory = await Directory.systemTemp.createTemp(
+        'lumanest-trip-migration-',
+      );
+      final file = File('${directory.path}/lumanest.sqlite');
+      addTearDown(() async {
+        if (await file.exists()) await file.delete();
+        if (await directory.exists()) await directory.delete();
+      });
+      final old = sqlite.sqlite3.open(file.path);
+      old.execute('CREATE TABLE existing_data (value TEXT NOT NULL)');
+      old.execute("INSERT INTO existing_data VALUES ('preserved')");
+      old.execute('PRAGMA user_version = 19');
+      old.close();
+      final current = AppDatabase(NativeDatabase(file));
+      addTearDown(current.close);
+      final rows = await current
+          .customSelect('SELECT value FROM existing_data')
+          .get();
+      expect(rows.single.read<String>('value'), 'preserved');
+      await current.customStatement(
+        "INSERT INTO trip_task_state VALUES (1, NULL)",
+      );
+      expect(
+        (await current.customSelect('SELECT id FROM trip_task_state').get())
+            .length,
+        1,
+      );
+    },
+  );
 
   test('schema 18 saved places migrate without guessing their datum', () async {
     await database.close();
@@ -178,7 +212,7 @@ void main() {
 
     final row = (await current.select(current.savedPlaces).get()).single;
     expect(row.coordinateSystem, 'unknown');
-    expect(current.schemaVersion, 19);
+    expect(current.schemaVersion, 20);
   });
 
   test('base region is a replaceable local singleton', () async {

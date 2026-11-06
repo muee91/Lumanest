@@ -286,13 +286,19 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
         ),
       );
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       _syncDeparturePlan(snapshot);
       if (_syncedRouteRevision != _routeRevision) {
         _syncedRouteRevision = _routeRevision;
+        final revision = _routeRevision;
+        await ref.read(tripTaskProvider.notifier).ready;
+        if (!context.mounted || revision != _routeRevision) return;
+        if (!_syncPlannedRoute()) {
+          context.go('/today');
+          return;
+        }
         _replaceCorridor(departureAt: DateTime.now());
-        _syncPlannedRoute();
       }
       if (_fitOnce || _controller == null || points.isEmpty) return;
       _fitOnce = true;
@@ -490,7 +496,25 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
         );
   }
 
-  void _syncPlannedRoute() {
+  bool _syncPlannedRoute() {
+    try {
+      ref
+          .read(tripTaskProvider.notifier)
+          .plan(
+            destinationName: widget.destination.name,
+            destination: widget.destination.point,
+            travelMode: widget.destination.travelMode == RouteTravelMode.walking
+                ? TripTravelMode.walking
+                : TripTravelMode.driving,
+            sessionId: widget.activeShootingIntent?.sessionId,
+            targetId: widget.activeShootingIntent?.targetId,
+          );
+    } on StateError catch (error) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tripTaskPlanErrorMessage(error))));
+      return false;
+    }
     final mode = widget.destination.travelMode == RouteTravelMode.walking
         ? ContextRouteMode.hiking
         : ContextRouteMode.driving;
@@ -504,20 +528,10 @@ class _V2LiveRouteState extends ConsumerState<_V2LiveRoute> {
             mode: mode,
           ),
         );
-    ref
-        .read(tripTaskProvider.notifier)
-        .plan(
-          destinationName: widget.destination.name,
-          destination: widget.destination.point,
-          travelMode: widget.destination.travelMode == RouteTravelMode.walking
-              ? TripTravelMode.walking
-              : TripTravelMode.driving,
-          sessionId: widget.activeShootingIntent?.sessionId,
-          targetId: widget.activeShootingIntent?.targetId,
-        );
     unawaited(
       ref.read(userLibraryProvider.notifier).saveRecentRoute(_savedDestination),
     );
+    return true;
   }
 
   /// Keep the bounded, transient corridor alongside the route presentation.
