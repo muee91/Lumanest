@@ -17,7 +17,7 @@ function fakePool({ unsafeRevision = false } = {}) {
     async query(sql, params = []) {
       if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) || sql.includes('pg_advisory_xact_lock')) return { rows: [] };
       if (sql.includes('SELECT owner_secret_hash')) return { rows: [{ owner_secret_hash: bindingHash, revoked_at: null }] };
-      if (sql.includes('UPDATE mission.device_bindings')) return { rows: [] };
+      if (sql.includes('UPDATE mission.device_bindings')) return { rows: [{ principal_id: ownerId }] };
       if (sql.includes('SELECT status, response, request_fingerprint')) {
         const row = operations.get(params[1]);
         return { rows: row ? [row] : [] };
