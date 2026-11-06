@@ -285,28 +285,56 @@ export function createAdminServer({
         return json(response, 400, { error: apiErrorCodes.invalidRequest });
       }
       const revoking = url.pathname.endsWith('/revoke');
+      let missionRevocationPending = false;
       try {
+        if (revoking) {
+          // Cut off token issuance before attempting the remote transaction.
+          // A filesystem or database failure must leave the local side closed.
+          await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
+        }
         if (missionStore?.configured) {
+          if (revoking) {
+            // Persist the intent before touching the database. If the broker
+            // dies or the Mission DB is unavailable, startup reconciliation
+            // can resume the durable revoke instead of trusting this process's
+            // in-memory state.
+            await sessionInstallationRegistry.markMissionRevocationPending(
+              parsed.value.installationId,
+            );
+          }
           try {
             await missionStore.setInstallationRevoked(parsed.value.installationId, revoking);
           } catch (error) {
-            // The database failure means background suspension is unconfirmed.
-            // Still block sessions locally and report the incomplete revoke.
             if (revoking) {
-              await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
+              missionRevocationPending = true;
+              await sessionInstallationRegistry.recordMissionRevocationFailure(
+                parsed.value.installationId,
+              );
             }
             throw error;
           }
+          if (revoking) {
+            await sessionInstallationRegistry.markMissionRevocationApplied(
+              parsed.value.installationId,
+            );
+          } else {
+            await sessionInstallationRegistry.clearMissionRevocation(
+              parsed.value.installationId,
+            );
+          }
         }
-        const installation = await sessionInstallationRegistry.setRevoked(
-          parsed.value.installationId,
-          revoking,
-        );
+        const installation = revoking
+          ? sessionInstallationRegistry.describe(parsed.value.installationId)
+          : await sessionInstallationRegistry.setRevoked(parsed.value.installationId, false);
         auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'ok' });
         return json(response, 200, { installation });
       } catch (error) {
         auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'failed' });
-        return json(response, 503, { error: apiErrorCodes.internalError });
+        return json(response, 503, {
+          error: missionRevocationPending
+            ? apiErrorCodes.missionRevocationPending
+            : apiErrorCodes.internalError,
+        });
       }
     }
     if (request.method === 'POST' && url.pathname === '/admin-api/logout') {
