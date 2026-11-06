@@ -237,7 +237,9 @@ jobs:
           psql "$MISSION_ADMIN_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE mission_ci_migrator LOGIN PASSWORD 'lumanest_ci_only'; CREATE ROLE mission_ci_api LOGIN PASSWORD 'lumanest_ci_only'; CREATE ROLE mission_ci_worker LOGIN PASSWORD 'lumanest_ci_only'; CREATE SCHEMA mission AUTHORIZATION mission_ci_migrator;"
           node scripts/migrate-mission.mjs
           node scripts/migrate-mission.mjs
-          psql "$MISSION_ADMIN_URL" -v ON_ERROR_STOP=1 -c 'GRANT USAGE ON SCHEMA mission TO mission_ci_api, mission_ci_worker; GRANT SELECT, INSERT, UPDATE ON mission.device_bindings TO mission_ci_api; GRANT SELECT, INSERT, UPDATE ON mission.missions TO mission_ci_api, mission_ci_worker; GRANT SELECT, INSERT ON mission.mission_operations, mission.watch_authorization_audit TO mission_ci_api; GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_ci_worker; GRANT SELECT ON mission.mission_events TO mission_ci_api; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_ci_worker;'
+          psql "$MISSION_ADMIN_URL" -v ON_ERROR_STOP=1 -c 'GRANT USAGE ON SCHEMA mission TO mission_ci_api, mission_ci_worker; GRANT SELECT, INSERT, UPDATE ON mission.device_bindings TO mission_ci_api; GRANT SELECT, INSERT, UPDATE ON mission.missions TO mission_ci_api, mission_ci_worker; GRANT SELECT, INSERT ON mission.mission_operations, mission.watch_authorization_audit TO mission_ci_api; GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_ci_worker; GRANT SELECT ON mission.mission_events, mission.schema_migrations TO mission_ci_api; GRANT SELECT ON mission.schema_migrations TO mission_ci_worker; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_ci_worker;'
+          MISSION_PREFLIGHT_ROLE=api MISSION_DATABASE_URL="$MISSION_TEST_DATABASE_URL" node src/mission/preflight.mjs
+          MISSION_PREFLIGHT_ROLE=worker MISSION_WORKER_DATABASE_URL="$MISSION_TEST_WORKER_DATABASE_URL" node src/mission/preflight.mjs
           node --test test/mission-postgres.integration.test.mjs test/mission-postgres.migration.test.mjs
 
   context-service:
