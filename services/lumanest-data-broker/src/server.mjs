@@ -2435,21 +2435,33 @@ export async function createBrokerServices(environment = process.env, {
   const missionStore = new MissionStore({
     connectionString: defaults.missionDatabaseUrl,
   });
+  // Session restore/revoke requests and background Mission compensation must
+  // observe one serialized state transition. Without a process-wide queue, a
+  // timer that already selected a pending revoke could re-apply it after an
+  // administrator restored the installation.
+  let missionMutationTail = Promise.resolve();
+  const runMissionMutation = (operation) => {
+    const next = missionMutationTail.then(operation, operation);
+    missionMutationTail = next.catch(() => {});
+    return next;
+  };
   const reconcileMissionRevocations = async () => {
     if (!missionStore.configured) return;
-    for (const installationId of sessionInstallationRegistry.listPendingMissionRevocations()) {
-      try {
-        await missionStore.setInstallationRevoked(installationId, true);
-        await sessionInstallationRegistry.markMissionRevocationApplied(installationId);
-      } catch (error) {
-        await sessionInstallationRegistry.recordMissionRevocationFailure(installationId).catch(() => {});
-        console.error(JSON.stringify({
-          evt: 'mission.revocation_reconcile_failed',
-          installationId,
-          error: error instanceof Error ? error.name : 'unknown',
-        }));
+    await runMissionMutation(async () => {
+      for (const installationId of sessionInstallationRegistry.listPendingMissionRevocations()) {
+        try {
+          await missionStore.setInstallationRevoked(installationId, true);
+          await sessionInstallationRegistry.markMissionRevocationApplied(installationId);
+        } catch (error) {
+          await sessionInstallationRegistry.recordMissionRevocationFailure(installationId).catch(() => {});
+          console.error(JSON.stringify({
+            evt: 'mission.revocation_reconcile_failed',
+            installationId,
+            error: error instanceof Error ? error.name : 'unknown',
+          }));
+        }
       }
-    }
+    });
   };
   // A pending revoke is a durable safety obligation. Reconcile once at boot
   // and periodically while the broker is alive; the timer is unref'd so it
@@ -2490,6 +2502,7 @@ export async function createBrokerServices(environment = process.env, {
     auditLog,
     sessionInstallationRegistry,
     missionStore,
+    runMissionMutation,
     allowedHosts: defaults.adminAllowedHosts,
     secureCookies: defaults.adminSecureCookies,
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),

@@ -215,6 +215,7 @@ export function createAdminServer({
   simulationRegistry = null,
   sessionInstallationRegistry = null,
   missionStore = null,
+  runMissionMutation = async (operation) => operation(),
   clearCache = async () => {},
   restart = async () => {},
   outboundNetworkController = null,
@@ -286,42 +287,49 @@ export function createAdminServer({
       }
       const revoking = url.pathname.endsWith('/revoke');
       let missionRevocationPending = false;
+      let installation;
       try {
-        if (missionStore?.configured) {
-          if (revoking) {
-            // Cut off token issuance and persist the Mission compensation
-            // obligation in one atomic registry commit before touching SQL.
-            await sessionInstallationRegistry.setRevokedAndQueueMission(
-              parsed.value.installationId,
-            );
-          }
-          try {
-            await missionStore.setInstallationRevoked(parsed.value.installationId, revoking);
-          } catch (error) {
+        await runMissionMutation(async () => {
+          if (missionStore?.configured) {
             if (revoking) {
-              missionRevocationPending = true;
-              await sessionInstallationRegistry.recordMissionRevocationFailure(
+              // Cut off token issuance and persist the Mission compensation
+              // obligation in one atomic registry commit before touching SQL.
+              await sessionInstallationRegistry.setRevokedAndQueueMission(
                 parsed.value.installationId,
               );
             }
-            throw error;
+            try {
+              await missionStore.setInstallationRevoked(parsed.value.installationId, revoking);
+            } catch (error) {
+              if (revoking) {
+                missionRevocationPending = true;
+                await sessionInstallationRegistry.recordMissionRevocationFailure(
+                  parsed.value.installationId,
+                );
+              }
+              throw error;
+            }
+            if (revoking) {
+              await sessionInstallationRegistry.markMissionRevocationApplied(
+                parsed.value.installationId,
+              );
+            } else {
+              await sessionInstallationRegistry.clearMissionRevocation(
+                parsed.value.installationId,
+              );
+            }
           }
-          if (revoking) {
-            await sessionInstallationRegistry.markMissionRevocationApplied(
+          if (revoking && !missionStore?.configured) {
+            await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
+          }
+          if (!revoking) {
+            installation = await sessionInstallationRegistry.setRevoked(
               parsed.value.installationId,
-            );
-          } else {
-            await sessionInstallationRegistry.clearMissionRevocation(
-              parsed.value.installationId,
+              false,
             );
           }
-        }
-        if (revoking && !missionStore?.configured) {
-          await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
-        }
-        const installation = revoking
-          ? sessionInstallationRegistry.describe(parsed.value.installationId)
-          : await sessionInstallationRegistry.setRevoked(parsed.value.installationId, false);
+        });
+        installation ??= sessionInstallationRegistry.describe(parsed.value.installationId);
         auditLog.record({ operation: revoking ? 'session_revoke' : 'session_restore', result: 'ok' });
         return json(response, 200, { installation });
       } catch (error) {
