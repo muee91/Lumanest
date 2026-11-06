@@ -109,6 +109,15 @@ compose_current() {
     "$@"
 }
 
+verify_mission_runtime() {
+  mission_profile_ready "$LIVE_DIR/qweather-token-broker.env" || return 0
+  echo "Checking Mission migrations and restricted runtime privileges after rollback."
+  compose_live run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=api \
+    qweather-token-broker node src/mission/preflight.mjs
+  compose_live run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=worker \
+    mission-worker node src/mission/preflight.mjs
+}
+
 restore_volume() {
   volume=$1
   archive=$volume.tar.gz
@@ -454,6 +463,7 @@ else
   compose_live up -d --build --remove-orphans
 fi
 ROLLBACK_PHASE=verifying-previous
+verify_mission_runtime
 verify_http_boundary
 verify_live_context
 verify_live_discovery
