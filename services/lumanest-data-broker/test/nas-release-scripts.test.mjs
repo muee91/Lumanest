@@ -27,6 +27,7 @@ test('cached NAS builds reuse application images without reinstalling dependenci
     /ARG BROKER_BASE_IMAGE=qweather-token-broker-qweather-token-broker:latest\nFROM \$\{BROKER_BASE_IMAGE\}/,
   );
   assert.match(brokerDockerfile, /COPY src \.\/src/);
+  assert.match(brokerDockerfile, /COPY migrations \.\/migrations/);
   assert.doesNotMatch(brokerDockerfile, /npm (?:ci|install)|package-lock\.json/);
 
   assert.match(
@@ -430,6 +431,7 @@ test('release state writes and recovery failures remain explicit', async () => {
   assert.match(rollback, /mission_profile_ready/);
   assert.match(rollback, /profile_args="--profile mission"/);
   assert.match(rollback, /verify_mission_runtime/);
+  assert.match(rollback, /MISSION_ROLLBACK_PROFILE_ENABLED" = 1 \] && mission_profile_ready/);
   assert.match(rollback, /no previous Worker image was archived/);
   assert.match(rollback, /restored release has no runtime preflight/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
