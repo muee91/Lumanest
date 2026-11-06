@@ -183,6 +183,15 @@ mission_profile_ready() {
     [ -n "$mission_worker_token" ]
 }
 
+verify_mission_runtime() {
+  [ "$MISSION_ENABLED" = 1 ] || return 0
+  echo "Checking Mission migrations and restricted runtime privileges before deployment."
+  compose_release run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=api \
+    qweather-token-broker node src/mission/preflight.mjs
+  compose_release run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=worker \
+    mission-worker node src/mission/preflight.mjs
+}
+
 upsert_environment_value() {
   name=$1
   value=$2
@@ -311,7 +320,7 @@ backup_application_images() {
   broker_backed_up=0
   : > "$images_tmp"
 
-  for service in qweather-token-broker context-service discovery-api discovery-worker discovery-feed-worker lumanest-raster-service lumanest-terrain-service; do
+  for service in qweather-token-broker mission-worker context-service discovery-api discovery-worker discovery-feed-worker lumanest-raster-service lumanest-terrain-service; do
     if ! printf '%s\n' "$services" | grep -qx "$service"; then
       continue
     fi
@@ -848,6 +857,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
   # shellcheck disable=SC2086
   compose_release build $base_image_args
 fi
+  verify_mission_runtime
 docker image inspect "$BACKUP_HELPER_IMAGE" >/dev/null 2>&1 || docker pull "$BACKUP_HELPER_IMAGE"
 
 mkdir -p "$BACKUP_DIR/volumes"
