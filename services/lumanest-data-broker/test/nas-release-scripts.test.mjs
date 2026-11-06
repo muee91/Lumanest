@@ -412,6 +412,9 @@ test('release state writes and recovery failures remain explicit', async () => {
     /while ! compose_release exec -T discovery-feed-worker python -c/,
   );
   assert.match(deploy, /sky_data_ready/);
+  assert.match(deploy, /mission_profile_ready/);
+  assert.match(deploy, /MISSION_DATABASE_URL, MISSION_WORKER_DATABASE_URL and MISSION_WORKER_TOKEN/);
+  assert.match(deploy, /profile_args="\$profile_args --profile mission"/);
   assert.match(deploy, /derive_build_proxy_url/);
   assert.match(deploy, /verify_build_proxy_endpoint/);
   assert.ok(deploy.indexOf('compose_release build') < deploy.indexOf('compose_previous stop'));
@@ -419,6 +422,8 @@ test('release state writes and recovery failures remain explicit', async () => {
   assert.match(deploy, /acquire_deploy_lock/);
   assert.match(deploy, /release_deploy_lock/);
   assert.match(rollback, /verify_http_boundary/);
+  assert.match(rollback, /mission_profile_ready/);
+  assert.match(rollback, /profile_args="--profile mission"/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });
 
