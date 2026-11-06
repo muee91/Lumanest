@@ -50,6 +50,10 @@ function emptyRecord(now) {
     revoked: false,
     revokedAt: null,
     ownerSecretHash: null,
+    missionRevocation: null,
+    missionRevocationAt: null,
+    missionRevocationAttempts: 0,
+    missionRevocationNextRetryAt: null,
   };
 }
 
@@ -60,6 +64,15 @@ function sanitizeRecord(value, now) {
     : [];
   const revokedAt = typeof value.revokedAt === 'string' && !Number.isNaN(Date.parse(value.revokedAt))
     ? value.revokedAt
+    : null;
+  const missionRevocation = value.missionRevocation === 'pending' || value.missionRevocation === 'confirmed'
+    ? value.missionRevocation
+    : null;
+  const missionRevocationAt = typeof value.missionRevocationAt === 'string' && !Number.isNaN(Date.parse(value.missionRevocationAt))
+    ? value.missionRevocationAt
+    : null;
+  const missionRevocationNextRetryAt = typeof value.missionRevocationNextRetryAt === 'string' && !Number.isNaN(Date.parse(value.missionRevocationNextRetryAt))
+    ? value.missionRevocationNextRetryAt
     : null;
   return {
     firstSeenAt: typeof value.firstSeenAt === 'string' && !Number.isNaN(Date.parse(value.firstSeenAt))
@@ -77,6 +90,12 @@ function sanitizeRecord(value, now) {
     ownerSecretHash: typeof value.ownerSecretHash === 'string' && /^[a-f0-9]{64}$/.test(value.ownerSecretHash)
       ? value.ownerSecretHash
       : null,
+    missionRevocation,
+    missionRevocationAt,
+    missionRevocationAttempts: Number.isInteger(value.missionRevocationAttempts) && value.missionRevocationAttempts >= 0
+      ? value.missionRevocationAttempts
+      : 0,
+    missionRevocationNextRetryAt,
   };
 }
 
@@ -226,6 +245,72 @@ export class SessionInstallationRegistry {
     return this.describe(installationId);
   }
 
+  async markMissionRevocationPending(installationId) {
+    this.#requireInitialized();
+    if (!isValidInstallationId(installationId)) throw new TypeError('installationId is required');
+    const now = this.#now();
+    const record = this.#installations.get(installationId) ?? emptyRecord(now);
+    record.missionRevocation = 'pending';
+    record.missionRevocationAt = now.toISOString();
+    record.missionRevocationNextRetryAt = now.toISOString();
+    this.#installations.set(installationId, record);
+    await this.#persist();
+    return this.describe(installationId);
+  }
+
+  async markMissionRevocationApplied(installationId) {
+    this.#requireInitialized();
+    if (!isValidInstallationId(installationId)) throw new TypeError('installationId is required');
+    const now = this.#now();
+    const record = this.#installations.get(installationId) ?? emptyRecord(now);
+    record.missionRevocation = 'confirmed';
+    record.missionRevocationAt = now.toISOString();
+    record.missionRevocationAttempts = 0;
+    record.missionRevocationNextRetryAt = null;
+    this.#installations.set(installationId, record);
+    await this.#persist();
+    return this.describe(installationId);
+  }
+
+  async clearMissionRevocation(installationId) {
+    this.#requireInitialized();
+    if (!isValidInstallationId(installationId)) throw new TypeError('installationId is required');
+    const record = this.#installations.get(installationId);
+    if (record == null) return null;
+    record.missionRevocation = null;
+    record.missionRevocationAt = null;
+    record.missionRevocationAttempts = 0;
+    record.missionRevocationNextRetryAt = null;
+    await this.#persist();
+    return this.describe(installationId);
+  }
+
+  async recordMissionRevocationFailure(installationId) {
+    this.#requireInitialized();
+    if (!isValidInstallationId(installationId)) throw new TypeError('installationId is required');
+    const now = this.#now();
+    const record = this.#installations.get(installationId) ?? emptyRecord(now);
+    record.missionRevocation = 'pending';
+    record.missionRevocationAt ??= now.toISOString();
+    record.missionRevocationAttempts += 1;
+    const delay = Math.min(15 * 60 * 1_000, 1_000 * (2 ** Math.min(record.missionRevocationAttempts, 10)));
+    record.missionRevocationNextRetryAt = new Date(now.getTime() + delay).toISOString();
+    this.#installations.set(installationId, record);
+    await this.#persist();
+    return this.describe(installationId);
+  }
+
+  listPendingMissionRevocations({ limit = 100 } = {}) {
+    this.#requireInitialized();
+    if (!Number.isInteger(limit) || limit < 1) throw new TypeError('limit must be a positive integer');
+    const now = this.#now().getTime();
+    return [...this.#installations.entries()]
+      .filter(([, record]) => record.missionRevocation === 'pending' &&
+        (record.missionRevocationNextRetryAt == null || Date.parse(record.missionRevocationNextRetryAt) <= now))
+      .slice(0, limit)
+      .map(([installationId]) => installationId);
+  }
+
   describe(installationId) {
     this.#requireInitialized();
     const record = this.#installations.get(installationId);
@@ -259,7 +344,7 @@ export class SessionInstallationRegistry {
     const windowStart = now.getTime() - this.#windowMilliseconds;
     const pruned = new Map();
     for (const [installationId, record] of this.#installations) {
-      if (record.revoked) {
+      if (record.revoked || record.missionRevocation === 'pending') {
         pruned.set(installationId, record);
         continue;
       }
@@ -272,7 +357,7 @@ export class SessionInstallationRegistry {
       // Drop the least recently issued non-revoked record first.
       let oldest = null;
       for (const [installationId, record] of pruned) {
-        if (record.revoked) continue;
+        if (record.revoked || record.missionRevocation === 'pending') continue;
         if (oldest == null || Date.parse(record.lastIssuedAt) < Date.parse(pruned.get(oldest).lastIssuedAt)) {
           oldest = installationId;
         }
