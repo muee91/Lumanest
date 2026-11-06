@@ -99,6 +99,7 @@ class TripTask {
     this.remoteCreationPending = false,
     this.pendingWatchEnabled,
     this.pendingWatchVersion,
+    this.pendingWatchIntentRevision,
     this.pendingTransition,
     this.pendingTransitionVersion,
     this.watchEnabled = false,
@@ -125,6 +126,11 @@ class TripTask {
   final bool remoteCreationPending;
   final bool? pendingWatchEnabled;
   final int? pendingWatchVersion;
+
+  /// The immutable intent revision captured when the pending watch request
+  /// was queued. A later local toggle must not change the request body that
+  /// will be replayed after a lost response or restart.
+  final int? pendingWatchIntentRevision;
   final String? pendingTransition;
   final int? pendingTransitionVersion;
   final bool watchEnabled;
@@ -167,6 +173,8 @@ class TripTask {
     'remoteCreationPending': remoteCreationPending,
     if (pendingWatchEnabled != null) 'pendingWatchEnabled': pendingWatchEnabled,
     if (pendingWatchVersion != null) 'pendingWatchVersion': pendingWatchVersion,
+    if (pendingWatchIntentRevision != null)
+      'pendingWatchIntentRevision': pendingWatchIntentRevision,
     if (pendingTransition != null) 'pendingTransition': pendingTransition,
     if (pendingTransitionVersion != null)
       'pendingTransitionVersion': pendingTransitionVersion,
@@ -246,6 +254,12 @@ class TripTask {
               raw['pendingWatchVersion'] is int
           ? raw['pendingWatchVersion'] as int
           : null,
+      pendingWatchIntentRevision:
+          (!legacy || raw['pendingWatchEnabled'] == false) &&
+              raw['pendingWatchIntentRevision'] is int &&
+              (raw['pendingWatchIntentRevision'] as int) >= 0
+          ? raw['pendingWatchIntentRevision'] as int
+          : null,
       pendingTransition: raw['pendingTransition'] is String
           ? raw['pendingTransition'] as String
           : null,
@@ -314,6 +328,7 @@ class TripTask {
     bool? remoteCreationPending,
     bool? pendingWatchEnabled,
     int? pendingWatchVersion,
+    int? pendingWatchIntentRevision,
     bool clearPendingWatch = false,
     String? pendingTransition,
     int? pendingTransitionVersion,
@@ -344,6 +359,9 @@ class TripTask {
     pendingWatchVersion: clearPendingWatch
         ? null
         : pendingWatchVersion ?? this.pendingWatchVersion,
+    pendingWatchIntentRevision: clearPendingWatch
+        ? null
+        : pendingWatchIntentRevision ?? this.pendingWatchIntentRevision,
     pendingTransition: clearPendingTransition
         ? null
         : pendingTransition ?? this.pendingTransition,
@@ -842,6 +860,7 @@ class TripTaskController extends Notifier<TripTask?> {
         stage: current.stage,
         pendingWatchEnabled: current.watchEnabled,
         pendingWatchVersion: expectedVersion,
+        pendingWatchIntentRevision: current.watchIntentRevision,
       );
       state = pending;
       _persist(pending);
@@ -905,6 +924,8 @@ class TripTaskController extends Notifier<TripTask?> {
   ) async {
     final enabled = task.pendingWatchEnabled!;
     final version = task.pendingWatchVersion!;
+    final intentRevision =
+        task.pendingWatchIntentRevision ?? task.watchIntentRevision;
     MissionRemoteSnapshot? updated;
     try {
       updated = await repository.patch(
@@ -917,7 +938,7 @@ class TripTaskController extends Notifier<TripTask?> {
           version,
         ),
         watchEnabled: enabled,
-        intentRevision: task.watchIntentRevision,
+        intentRevision: intentRevision,
       );
     } on MissionVersionConflict catch (conflict) {
       await _reconcileVersionConflict(

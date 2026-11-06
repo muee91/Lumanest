@@ -53,14 +53,20 @@ GRANT SELECT, INSERT ON mission.mission_operations TO mission_api;
 GRANT SELECT, INSERT ON mission.watch_authorization_audit TO mission_api;
 GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_worker;
 GRANT SELECT ON mission.mission_events TO mission_api;
+GRANT SELECT ON mission.schema_migrations TO mission_api, mission_worker;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_worker;
 ```
 
 The Broker receives `MISSION_DATABASE_URL` and the Worker receives
 `MISSION_WORKER_DATABASE_URL`; neither receives the migration URL. The Worker
 also needs `MISSION_WORKER_TOKEN`, which is accepted only on the private
-`/internal/v1/mission/check` route. Enable the Compose `mission` profile after
-the migration and role grants are complete:
+`/internal/v1/mission/check` route. After the migration and role grants are
+complete, set the three runtime values below. `scripts/nas-deploy.sh` detects
+that complete set on Ubuntu/NAS and automatically enables the Compose
+`mission` profile for the release and rollback source (including the rollback
+script). If any value is absent,
+the profile remains disabled and no Worker is started. For a manual Compose
+operation, pass `--profile mission` explicitly:
 
 ```text
 MISSION_DATABASE_URL=postgresql://mission_api:<api-password>@postgres/lumanest
@@ -68,6 +74,16 @@ MISSION_WORKER_DATABASE_URL=postgresql://mission_worker:<worker-password>@postgr
 MISSION_MIGRATION_DATABASE_URL=postgresql://mission_migrator:<migration-password>@postgres/lumanest
 MISSION_WORKER_TOKEN=<random-private-token>
 ```
+
+```sh
+docker compose --profile mission up -d --build
+```
+
+The Ubuntu/NAS deployment script runs a read-only preflight inside the built
+Broker and Worker images before stopping the old stack. It checks that all four
+migration ledger entries are present and that each restricted runtime role has
+the table privileges listed above. A failed preflight aborts the deployment;
+credentials alone do not enable the Worker.
 
 The database enforces one open Mission per device subject, optimistic version
 checks, idempotent operations, leased checks, and event deduplication. A

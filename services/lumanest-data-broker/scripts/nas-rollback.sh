@@ -69,20 +69,53 @@ manifest_value() {
   awk -F= -v key="$key" '$1 == key {print substr($0, index($0, "=") + 1)}' "$MANIFEST"
 }
 
+mission_profile_ready() {
+  source_file=$1
+  mission_database_url=$(awk -v key='MISSION_DATABASE_URL' 'index($0, key "=") == 1 {print substr($0, length(key) + 2)}' "$source_file")
+  mission_worker_database_url=$(awk -v key='MISSION_WORKER_DATABASE_URL' 'index($0, key "=") == 1 {print substr($0, length(key) + 2)}' "$source_file")
+  mission_worker_token=$(awk -v key='MISSION_WORKER_TOKEN' 'index($0, key "=") == 1 {print substr($0, length(key) + 2)}' "$source_file")
+  [ -n "$mission_database_url" ] && \
+    [ -n "$mission_worker_database_url" ] && \
+    [ -n "$mission_worker_token" ]
+}
+
 compose_live() {
+  profile_args=
+  if mission_profile_ready "$LIVE_DIR/qweather-token-broker.env"; then
+    profile_args="--profile mission"
+  fi
+  # Word splitting is intentional: profile arguments are fixed literals.
+  # shellcheck disable=SC2086
   docker compose \
     -p "$PROJECT_NAME" \
     --env-file "$LIVE_DIR/qweather-token-broker.env" \
     -f "$LIVE_DIR/compose.yaml" \
+    $profile_args \
     "$@"
 }
 
 compose_current() {
+  profile_args=
+  if mission_profile_ready "$CURRENT_RELEASE/qweather-token-broker.env"; then
+    profile_args="--profile mission"
+  fi
+  # Word splitting is intentional: profile arguments are fixed literals.
+  # shellcheck disable=SC2086
   docker compose \
     -p "$PROJECT_NAME" \
     --env-file "$CURRENT_RELEASE/qweather-token-broker.env" \
     -f "$CURRENT_RELEASE/compose.yaml" \
+    $profile_args \
     "$@"
+}
+
+verify_mission_runtime() {
+  mission_profile_ready "$LIVE_DIR/qweather-token-broker.env" || return 0
+  echo "Checking Mission migrations and restricted runtime privileges after rollback."
+  compose_live run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=api \
+    qweather-token-broker node src/mission/preflight.mjs
+  compose_live run --rm --no-deps -e MISSION_PREFLIGHT_ROLE=worker \
+    mission-worker node src/mission/preflight.mjs
 }
 
 restore_volume() {
@@ -430,6 +463,7 @@ else
   compose_live up -d --build --remove-orphans
 fi
 ROLLBACK_PHASE=verifying-previous
+verify_mission_runtime
 verify_http_boundary
 verify_live_context
 verify_live_discovery

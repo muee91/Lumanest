@@ -627,6 +627,7 @@ void main() {
       }
       expect(store.value?.pendingWatchEnabled, isTrue);
       expect(mission.currentWatch, isTrue);
+      expect(store.value?.pendingWatchIntentRevision, 1);
       controller.setWatchEnabled(false);
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(Duration.zero);
@@ -634,6 +635,7 @@ void main() {
       expect(mission.watchKeys.length, 3);
       expect(mission.watchKeys[0], mission.watchKeys[1]);
       expect(mission.watchKeys[2], isNot(mission.watchKeys[1]));
+      expect(mission.watchIntentRevisions, [1, 1, 2]);
       expect(mission.currentWatch, isFalse);
       expect(container.read(tripTaskProvider)?.pendingWatchVersion, isNull);
       expect(
@@ -1072,6 +1074,7 @@ class _LostCreateResponseRepository extends _FakeMissionRepository {
 
 class _LostWatchResponseRepository extends _FakeMissionRepository {
   final watchKeys = <String>[];
+  final watchIntentRevisions = <int?>[];
   MissionRemoteSnapshot? firstResponse;
   bool offline = false;
 
@@ -1095,6 +1098,7 @@ class _LostWatchResponseRepository extends _FakeMissionRepository {
       );
     }
     watchKeys.add(operationId);
+    watchIntentRevisions.add(intentRevision);
     if (watchKeys.length == 2) return firstResponse;
     final response = await super.patch(
       missionId,
