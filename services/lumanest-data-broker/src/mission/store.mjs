@@ -96,7 +96,7 @@ export class MissionStore {
         }
       }
       await client.query('COMMIT');
-      return { ok: true, changed: bindings.rows.length > 0 };
+      return { ok: true };
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;

@@ -35,22 +35,10 @@ test('Mission device revocation is idempotent across retries and restore', async
   };
   const store = new MissionStore({ pool });
 
-  assert.deepEqual(await store.setInstallationRevoked(installationId, true), {
-    ok: true,
-    changed: true,
-  });
-  assert.deepEqual(await store.setInstallationRevoked(installationId, true), {
-    ok: true,
-    changed: false,
-  });
-  assert.deepEqual(await store.setInstallationRevoked(installationId, false), {
-    ok: true,
-    changed: true,
-  });
-  assert.deepEqual(await store.setInstallationRevoked(installationId, false), {
-    ok: true,
-    changed: false,
-  });
+  assert.deepEqual(await store.setInstallationRevoked(installationId, true), { ok: true });
+  assert.deepEqual(await store.setInstallationRevoked(installationId, true), { ok: true });
+  assert.deepEqual(await store.setInstallationRevoked(installationId, false), { ok: true });
+  assert.deepEqual(await store.setInstallationRevoked(installationId, false), { ok: true });
   assert.equal(missionUpdates, 1);
   assert.equal(auditRows, 1);
 });
