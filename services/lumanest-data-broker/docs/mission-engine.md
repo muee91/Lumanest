@@ -53,6 +53,7 @@ GRANT SELECT, INSERT ON mission.mission_operations TO mission_api;
 GRANT SELECT, INSERT ON mission.watch_authorization_audit TO mission_api;
 GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_worker;
 GRANT SELECT ON mission.mission_events TO mission_api;
+GRANT SELECT ON mission.schema_migrations TO mission_api, mission_worker;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_worker;
 ```
 
@@ -77,6 +78,12 @@ MISSION_WORKER_TOKEN=<random-private-token>
 ```sh
 docker compose --profile mission up -d --build
 ```
+
+The Ubuntu/NAS deployment script runs a read-only preflight inside the built
+Broker and Worker images before stopping the old stack. It checks that all four
+migration ledger entries are present and that each restricted runtime role has
+the table privileges listed above. A failed preflight aborts the deployment;
+credentials alone do not enable the Worker.
 
 The database enforces one open Mission per device subject, optimistic version
 checks, idempotent operations, leased checks, and event deduplication. A
