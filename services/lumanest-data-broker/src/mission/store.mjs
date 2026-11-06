@@ -512,19 +512,20 @@ export class MissionStore {
         [ownerId, bindingHash, now],
       );
     }
+    // Re-check the binding and update its heartbeat in one conditional
+    // statement. Write callers hold the row lock until their surrounding
+    // transaction commits, so an administrator revoking the device cannot
+    // race a stale pre-check into a Mission mutation.
     const bound = await queryable.query(
-      'SELECT owner_secret_hash, revoked_at FROM mission.device_bindings WHERE principal_id = $1',
-      [ownerId],
+      `UPDATE mission.device_bindings
+          SET last_seen_at = $1
+        WHERE principal_id = $2
+          AND owner_secret_hash = $3
+          AND revoked_at IS NULL
+      RETURNING principal_id`,
+      [now, ownerId, bindingHash],
     );
-    const row = bound.rows[0];
-    if (row == null || row.revoked_at != null || row.owner_secret_hash !== bindingHash) {
-      return false;
-    }
-    await queryable.query(
-      'UPDATE mission.device_bindings SET last_seen_at = $1 WHERE principal_id = $2',
-      [now, ownerId],
-    );
-    return true;
+    return bound.rows.length === 1;
   }
 
   async #saveOperation(client, ownerId, operation, missionIdValue, status, body, now, fingerprint) {
