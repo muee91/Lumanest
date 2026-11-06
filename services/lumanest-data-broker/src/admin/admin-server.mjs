@@ -214,6 +214,7 @@ export function createAdminServer({
   simulationEnabled = false,
   simulationRegistry = null,
   sessionInstallationRegistry = null,
+  missionStore = null,
   clearCache = async () => {},
   restart = async () => {},
   outboundNetworkController = null,
@@ -285,6 +286,18 @@ export function createAdminServer({
       }
       const revoking = url.pathname.endsWith('/revoke');
       try {
+        if (missionStore?.configured) {
+          try {
+            await missionStore.setInstallationRevoked(parsed.value.installationId, revoking);
+          } catch (error) {
+            // The database failure means background suspension is unconfirmed.
+            // Still block sessions locally and report the incomplete revoke.
+            if (revoking) {
+              await sessionInstallationRegistry.setRevoked(parsed.value.installationId, true);
+            }
+            throw error;
+          }
+        }
         const installation = await sessionInstallationRegistry.setRevoked(
           parsed.value.installationId,
           revoking,

@@ -548,17 +548,24 @@ class _V2OpportunityStageState extends ConsumerState<_V2OpportunityStage>
     final point = target.coordinate.coordinateSystem == CoordinateSystem.gcj02
         ? ChinaCoordinateConverter.gcj02ToWgs84(target.coordinate)
         : target.coordinate;
-    ref.read(tripTaskProvider.notifier)
-      ..plan(
-        destinationName: target.name,
-        destination: point,
-        travelMode: target.accessModes.contains(ShootingTravelMode.driving)
-            ? TripTravelMode.driving
-            : TripTravelMode.walking,
-        sessionId: widget.session.id,
-        targetId: target.id,
-      )
-      ..enterField();
+    try {
+      ref.read(tripTaskProvider.notifier)
+        ..plan(
+          destinationName: target.name,
+          destination: point,
+          travelMode: target.accessModes.contains(ShootingTravelMode.driving)
+              ? TripTravelMode.driving
+              : TripTravelMode.walking,
+          sessionId: widget.session.id,
+          targetId: target.id,
+        )
+        ..enterField();
+    } on StateError catch (error) {
+      setState(() => _arrivalOverride = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(tripTaskPlanErrorMessage(error))));
+    }
   }
 
   void _primaryAction(

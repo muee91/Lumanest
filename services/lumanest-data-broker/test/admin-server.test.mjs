@@ -27,6 +27,7 @@ async function withAdmin(run, {
   allowedHosts = [],
   secureCookies = false,
   sessionInstallationRegistry = null,
+  missionStore = null,
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'lumanest-admin-server-'));
   const authService = new AdminAuthService({
@@ -62,6 +63,7 @@ async function withAdmin(run, {
     allowedHosts,
     secureCookies,
     sessionInstallationRegistry,
+    missionStore,
     testConnection: async () => ({ status: 'ok' }),
     getSevenTimerHealth: async () => sevenTimer?.health ?? ({ provider: '7timer', enabled: true, status: 'unknown', products: [] }),
     testSevenTimer: async (query) => sevenTimer?.test?.(query) ?? ({ ok: true, traceId: 'trace-test', body: { points: [{}], sourceInitAt: '2026-07-19T00:00:00.000Z', sourceStatus: 'fresh' } }),
@@ -717,6 +719,27 @@ test('session admin routes report unconfigured when no registry is wired', async
     });
     assert.equal(listed.status, 503);
   });
+});
+
+test('device revocation blocks sessions and reports incomplete database update', async () => {
+  const registry = await new SessionInstallationRegistry().initialize();
+  const installationId = 'abcdefghijklmnopqrstuvwx';
+  await registry.recordIssuance({ installationId, ownerSecret });
+  const calls = [];
+  const missionStore = { configured: true, async setInstallationRevoked(id, revoked) {
+    calls.push({ id, revoked });
+    throw new Error('database unavailable');
+  } };
+  await withAdmin(async ({ baseUrl }) => {
+    const { cookie, csrf } = await login(baseUrl);
+    const response = await fetch(`${baseUrl}/admin-api/sessions/revoke`, {
+      method: 'POST', headers: { Cookie: cookie, 'X-CSRF-Token': csrf, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installationId }),
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(calls, [{ id: installationId, revoked: true }]);
+    assert.equal(registry.isRevoked(installationId), true);
+  }, { sessionInstallationRegistry: registry, missionStore });
 });
 
 test('an unexpected admin handler throw answers 500 instead of hanging', async () => {

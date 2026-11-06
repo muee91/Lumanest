@@ -454,6 +454,7 @@ const ratePolicies = [
   { path: '/v1/sky-opportunities/daily', limit: 8, windowMs: 60 * 1_000, key: 'sky-opportunity-daily' },
   { path: '/v1/session', limit: 8, windowMs: 60 * 1_000, key: 'session' },
   { path: '/v1/missions', limit: 30, windowMs: 60 * 1_000, key: 'missions' },
+  { path: '/v1/mission-operations', limit: 30, windowMs: 60 * 1_000, key: 'mission-operations' },
   { path: '/v1/weather/7timer', limit: 20, windowMs: 60 * 1_000, key: 'seven-timer' },
   { path: '/v1/explore/discover', limit: 6, windowMs: 60 * 1_000, key: 'discovery' },
   { path: '/v1/explore/brief', limit: 6, windowMs: 60 * 1_000, key: 'region-brief' },
@@ -1444,6 +1445,29 @@ export function createTokenBrokerServer({
       return;
     }
 
+    if (requestUrl.pathname === '/v1/mission-operations' && request.method === 'GET') {
+      if (sessionPayload == null || sessionPayload.bindingHash == null) {
+        writeJson(response, 401, { error: apiErrorCodes.unauthorized });
+        return;
+      }
+      if (!missionStore.configured) {
+        writeJson(response, 503, { error: apiErrorCodes.missionUnconfigured });
+        return;
+      }
+      const operation = request.headers['idempotency-key'];
+      if (typeof operation !== 'string' || !/^[A-Za-z0-9._-]{16,128}$/.test(operation)) {
+        writeJson(response, 400, { error: apiErrorCodes.invalidMissionRequest });
+        return;
+      }
+      const result = await missionStore.getOperation(sessionPayload.sub, sessionPayload.bindingHash, operation);
+      if (!result.ok) {
+        writeJson(response, 403, { error: apiErrorCodes.unauthorized });
+        return;
+      }
+      writeJson(response, result.body == null ? 404 : 200, result.body ?? { error: apiErrorCodes.notFound });
+      return;
+    }
+
     const missionMatch = requestUrl.pathname.match(/^\/v1\/missions(?:\/(mis_[a-f0-9]{32})(\/events)?)?$/);
     if (missionMatch != null) {
       // A service bearer is intentionally insufficient here. Mission data is
@@ -1508,11 +1532,15 @@ export function createTokenBrokerServer({
         });
         if (!result.ok) {
           writeJson(response, result.error === apiErrorCodes.notConfigured ? 503 :
-            result.error === apiErrorCodes.unauthorized ? 403 : 409, {
+            [apiErrorCodes.unauthorized, apiErrorCodes.missionConsentRequired].includes(result.error) ? 403 : 409, {
             error: result.error === apiErrorCodes.notConfigured
               ? apiErrorCodes.missionUnconfigured
               : result.error === apiErrorCodes.unauthorized
                 ? apiErrorCodes.unauthorized
+                : result.error === apiErrorCodes.missionConsentRequired
+                  ? apiErrorCodes.missionConsentRequired
+                : [apiErrorCodes.missionLegacyOperationUnverifiable, apiErrorCodes.missionIdempotencyMismatch].includes(result.error)
+                  ? result.error
                 : apiErrorCodes.missionConflict,
           });
           return;
@@ -1531,9 +1559,14 @@ export function createTokenBrokerServer({
         });
         if (!result.ok) {
           const status = result.error === apiErrorCodes.notFound ? 404 :
-            result.error === apiErrorCodes.unauthorized ? 403 : 409;
+            [apiErrorCodes.unauthorized, apiErrorCodes.missionConsentRequired].includes(result.error) ? 403 : 409;
           writeJson(response, status, {
-            error: status === 404 ? apiErrorCodes.notFound : apiErrorCodes.missionConflict,
+            error: status === 404 ? apiErrorCodes.notFound :
+              result.error === apiErrorCodes.missionConsentRequired ? apiErrorCodes.missionConsentRequired :
+              result.error === apiErrorCodes.staleWatchIntent ? apiErrorCodes.staleWatchIntent :
+              status === 403 ? apiErrorCodes.unauthorized :
+                [apiErrorCodes.missionLegacyOperationUnverifiable, apiErrorCodes.missionIdempotencyMismatch].includes(result.error)
+                  ? result.error : apiErrorCodes.missionConflict,
             ...(result.current == null ? {} : { current: result.current }),
           });
           return;
@@ -2434,6 +2467,7 @@ export async function createBrokerServices(environment = process.env, {
     runtimeConfig,
     auditLog,
     sessionInstallationRegistry,
+    missionStore,
     allowedHosts: defaults.adminAllowedHosts,
     secureCookies: defaults.adminSecureCookies,
     getSevenTimerHealth: () => sevenTimerService.healthSnapshot(),

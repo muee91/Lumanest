@@ -528,6 +528,7 @@ class _IntelligenceWorkspaceState
       final point = result.point.coordinateSystem == CoordinateSystem.gcj02
           ? ChinaCoordinateConverter.gcj02ToWgs84(result.point)
           : result.point;
+      await controller.ready;
       final task = controller.plan(
         destinationName: result.name,
         destination: point,
@@ -537,6 +538,8 @@ class _IntelligenceWorkspaceState
         '已为你建立前往「${task.destinationName}」的出行任务。',
         openRoute: true,
       );
+    } on StateError catch (error) {
+      return _TripTaskCommandResult(tripTaskPlanErrorMessage(error));
     } on Object {
       return const _TripTaskCommandResult('目的地搜索暂时不可用，保留当前页面，你可以稍后再试。');
     }
@@ -597,16 +600,22 @@ class _IntelligenceWorkspaceState
     TripTask task,
   ) {
     if (!task.isOpen) return const _TripTaskCommandResult('当前任务已经结束。');
-    if (!task.watchEnabled) return const _TripTaskCommandResult('这次出行的守候已经关闭。');
+    if (!task.watchEnabled) {
+      return const _TripTaskCommandResult('已请求关闭守候；云端状态需要联网确认。');
+    }
     controller.setWatchEnabled(false);
-    return _TripTaskCommandResult('已停止守候「${task.destinationName}」，这次出行仍然保留。');
+    return _TripTaskCommandResult(
+      '已请求关闭「${task.destinationName}」的守候，云端状态需要联网确认；这次出行仍然保留。',
+    );
   }
 
   _TripTaskCommandResult _startTripWatch(
     TripTaskController controller,
     TripTask task,
   ) {
-    if (task.watchEnabled) return const _TripTaskCommandResult('这次出行的守候已经开启。');
+    if (task.watchEnabled) {
+      return const _TripTaskCommandResult('已请求开启守候；云端状态需要联网确认。');
+    }
     controller.setWatchEnabled(true);
     return _TripTaskCommandResult(
       '已请求开启「${task.destinationName}」的云端守候，联网同步后生效。',

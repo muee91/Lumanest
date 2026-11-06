@@ -40,12 +40,24 @@ class MissionRemoteSnapshot {
     required this.stage,
     required this.version,
     required this.watchEnabled,
+    this.watchIntentRevision = 0,
+    this.destinationName,
+    this.destinationLatitude,
+    this.destinationLongitude,
+    this.destinationSystem,
+    this.intent,
   });
 
   final String id;
   final MissionRemoteStage stage;
   final int version;
   final bool watchEnabled;
+  final int watchIntentRevision;
+  final String? destinationName;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
+  final String? destinationSystem;
+  final String? intent;
 
   static MissionRemoteSnapshot? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -62,11 +74,31 @@ class MissionRemoteSnapshot {
     }
     final stage = _stage(state);
     if (stage == null || version < 1) return null;
+    final destination = raw['destination'];
     return MissionRemoteSnapshot(
       id: id,
       stage: stage,
       version: version,
       watchEnabled: watchEnabled,
+      watchIntentRevision:
+          raw['watchIntentRevision'] is int &&
+              (raw['watchIntentRevision'] as int) >= 0
+          ? raw['watchIntentRevision'] as int
+          : 0,
+      destinationName: destination is Map && destination['name'] is String
+          ? destination['name'] as String
+          : null,
+      destinationLatitude: destination is Map && destination['latitude'] is num
+          ? (destination['latitude'] as num).toDouble()
+          : null,
+      destinationLongitude:
+          destination is Map && destination['longitude'] is num
+          ? (destination['longitude'] as num).toDouble()
+          : null,
+      destinationSystem: destination is Map && destination['system'] is String
+          ? destination['system'] as String
+          : null,
+      intent: raw['intent'] is String ? raw['intent'] as String : null,
     );
   }
 
@@ -78,7 +110,33 @@ class MissionRemoteSnapshot {
   }
 }
 
+/// The server rejected this operation before applying it because the Mission
+/// version has advanced. An idempotency mismatch does not carry this proof.
+class MissionVersionConflict implements Exception {
+  const MissionVersionConflict(this.current);
+  final MissionRemoteSnapshot current;
+}
+
+class MissionLegacyOperationUnverifiable implements Exception {
+  const MissionLegacyOperationUnverifiable();
+}
+
+class MissionOperationRecord {
+  const MissionOperationRecord({
+    required this.missionId,
+    required this.verifiable,
+    required this.status,
+  });
+  final String? missionId;
+  final bool verifiable;
+  final int status;
+}
+
 abstract interface class MissionRemoteRepository {
+  Future<MissionRemoteSnapshot?> get(String missionId);
+
+  Future<MissionOperationRecord?> getOperation(String operationId);
+
   Future<MissionRemoteSnapshot?> create(
     MissionDraft draft, {
     required String operationId,
@@ -90,6 +148,7 @@ abstract interface class MissionRemoteRepository {
     required String operation,
     required String operationId,
     bool? watchEnabled,
+    int? intentRevision,
   });
 }
 
@@ -103,6 +162,48 @@ class DioMissionRemoteRepository implements MissionRemoteRepository {
   final String brokerBaseUrl;
   final String serviceToken;
   final Dio dio;
+
+  @override
+  Future<MissionOperationRecord?> getOperation(String operationId) async {
+    try {
+      final response = await dio.get<Object?>(
+        Uri.parse(brokerBaseUrl).resolve('/v1/mission-operations').toString(),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $serviceToken',
+            'Idempotency-Key': operationId,
+          },
+        ),
+      );
+      final data = response.data;
+      if (data is! Map ||
+          data['verifiable'] is! bool ||
+          data['status'] is! int ||
+          (data['missionId'] != null && data['missionId'] is! String)) {
+        return null;
+      }
+      return MissionOperationRecord(
+        missionId: data['missionId'] as String?,
+        verifiable: data['verifiable'] as bool,
+        status: data['status'] as int,
+      );
+    } on DioException {
+      return null;
+    }
+  }
+
+  @override
+  Future<MissionRemoteSnapshot?> get(String missionId) async {
+    try {
+      final response = await dio.get<Object?>(
+        Uri.parse(brokerBaseUrl).resolve('/v1/missions/$missionId').toString(),
+        options: Options(headers: {'Authorization': 'Bearer $serviceToken'}),
+      );
+      return MissionRemoteSnapshot.fromJson(response.data);
+    } on DioException {
+      return null;
+    }
+  }
 
   @override
   Future<MissionRemoteSnapshot?> create(
@@ -121,7 +222,13 @@ class DioMissionRemoteRepository implements MissionRemoteRepository {
         ),
       );
       return MissionRemoteSnapshot.fromJson(response.data);
-    } on DioException {
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 409 &&
+          error.response?.data is Map &&
+          (error.response!.data as Map)['error'] ==
+              'legacy_operation_unverifiable') {
+        throw const MissionLegacyOperationUnverifiable();
+      }
       return null;
     }
   }
@@ -133,6 +240,7 @@ class DioMissionRemoteRepository implements MissionRemoteRepository {
     required String operation,
     required String operationId,
     bool? watchEnabled,
+    int? intentRevision,
   }) async {
     try {
       final response = await dio.patch<Object?>(
@@ -141,6 +249,7 @@ class DioMissionRemoteRepository implements MissionRemoteRepository {
           'expectedVersion': expectedVersion,
           'operation': operation,
           'watchEnabled': watchEnabled,
+          'intentRevision': intentRevision,
           'destination': null,
         },
         options: Options(
@@ -151,7 +260,21 @@ class DioMissionRemoteRepository implements MissionRemoteRepository {
         ),
       );
       return MissionRemoteSnapshot.fromJson(response.data);
-    } on DioException {
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (error.response?.statusCode == 409 &&
+          data is Map &&
+          data['error'] == 'legacy_operation_unverifiable') {
+        throw const MissionLegacyOperationUnverifiable();
+      }
+      if (error.response?.statusCode == 409 && data is Map) {
+        final current = MissionRemoteSnapshot.fromJson(data['current']);
+        if (current != null &&
+            current.id == missionId &&
+            current.version > expectedVersion) {
+          throw MissionVersionConflict(current);
+        }
+      }
       return null;
     }
   }

@@ -70,7 +70,7 @@ export class MissionWorker {
   }
 
   async runOnce() {
-    const claimed = await this.store.claimDue({ workerId: this.id, now: this.now() });
+    const claimed = await this.store.claimDue({ workerId: this.id });
     if (!claimed.ok || claimed.mission == null) return claimed;
     const mission = claimed.mission;
     const startedAt = this.now();
@@ -105,7 +105,6 @@ export class MissionWorker {
       workerId: this.id,
       check,
       events,
-      now: this.now(),
     });
   }
 }

@@ -189,6 +189,19 @@ jobs:
     name: Test data broker
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: lumanest_ci_only
+          POSTGRES_DB: lumanest_mission_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lumanest_mission_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
       - name: Check out source
@@ -208,6 +221,24 @@ jobs:
       - name: Run data broker tests
         working-directory: services/lumanest-data-broker
         run: npm test
+
+      - name: Migrate and test Mission with PostgreSQL
+        working-directory: services/lumanest-data-broker
+        env:
+          MISSION_ADMIN_URL: postgresql://postgres:lumanest_ci_only@127.0.0.1:5432/lumanest_mission_test
+          MISSION_MIGRATION_DATABASE_URL: postgresql://mission_ci_migrator:lumanest_ci_only@127.0.0.1:5432/lumanest_mission_test
+          MISSION_TEST_DATABASE_URL: postgresql://mission_ci_api:lumanest_ci_only@127.0.0.1:5432/lumanest_mission_test
+          MISSION_TEST_WORKER_DATABASE_URL: postgresql://mission_ci_worker:lumanest_ci_only@127.0.0.1:5432/lumanest_mission_test
+          MISSION_TEST_CLEANUP_DATABASE_URL: postgresql://postgres:lumanest_ci_only@127.0.0.1:5432/lumanest_mission_test
+          MISSION_TEST_MIGRATION_ADMIN_URL: postgresql://postgres:lumanest_ci_only@127.0.0.1:5432/lumanest_mission_test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql "$MISSION_ADMIN_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE mission_ci_migrator LOGIN PASSWORD 'lumanest_ci_only'; CREATE ROLE mission_ci_api LOGIN PASSWORD 'lumanest_ci_only'; CREATE ROLE mission_ci_worker LOGIN PASSWORD 'lumanest_ci_only'; CREATE SCHEMA mission AUTHORIZATION mission_ci_migrator;"
+          node scripts/migrate-mission.mjs
+          node scripts/migrate-mission.mjs
+          psql "$MISSION_ADMIN_URL" -v ON_ERROR_STOP=1 -c 'GRANT USAGE ON SCHEMA mission TO mission_ci_api, mission_ci_worker; GRANT SELECT, INSERT, UPDATE ON mission.device_bindings TO mission_ci_api; GRANT SELECT, INSERT, UPDATE ON mission.missions TO mission_ci_api, mission_ci_worker; GRANT SELECT, INSERT ON mission.mission_operations, mission.watch_authorization_audit TO mission_ci_api; GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_ci_worker; GRANT SELECT ON mission.mission_events TO mission_ci_api; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_ci_worker;'
+          node --test test/mission-postgres.integration.test.mjs test/mission-postgres.migration.test.mjs
 
   context-service:
     name: Test context service

@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import pg from 'pg';
 
 import { apiErrorCodes } from '../api/error-codes.mjs';
@@ -31,6 +31,19 @@ function operationId(value) {
     : null;
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value != null && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function requestFingerprint(kind, missionIdValue, request) {
+  return createHash('sha256').update(canonicalJson({ fingerprintVersion: 1, kind, missionId: missionIdValue, request })).digest('hex');
+}
+
 export class MissionStore {
   #pool;
   #ownsPool;
@@ -48,19 +61,66 @@ export class MissionStore {
     if (this.#ownsPool) await this.#pool.end();
   }
 
+  async setInstallationRevoked(installationId, revoked) {
+    if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
+    const client = await this.#pool.connect();
+    const now = new Date();
+    try {
+      await client.query('BEGIN');
+      // Binding first, Mission second: the API uses the same lock order.
+      const bindings = await client.query(
+        `UPDATE mission.device_bindings SET revoked_at = $2
+         WHERE installation_id = $1 RETURNING principal_id`,
+        [installationId, revoked ? now : null],
+      );
+      if (revoked) {
+        const owners = [...new Set([installationId, ...bindings.rows.map((row) => row.principal_id)])];
+        const missions = await client.query(
+          `UPDATE mission.missions SET watch_enabled = FALSE, watch_consent_version = NULL,
+             watch_consented_at = NULL, next_check_at = NULL, lease_owner = NULL,
+             lease_until = NULL, version = version + 1, updated_at = $1
+           WHERE owner_id = ANY($2::text[]) AND state IN ('planning', 'enRoute', 'field')
+           RETURNING id`, [now, owners],
+        );
+        for (const mission of missions.rows) {
+          await client.query(
+            `INSERT INTO mission.watch_authorization_audit (id, mission_id, action, created_at)
+             VALUES ($1, $2, 'device_revoked', $3)`,
+            [`revoke-${randomBytes(16).toString('hex')}`, mission.id, now],
+          );
+        }
+      }
+      await client.query('COMMIT');
+      return { ok: true };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async create({ ownerId, bindingHash, request, operation }) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
     if (!operationId(operation)) return { ok: false, error: apiErrorCodes.invalidOperation };
+    // A create is not an explicit authorization to run background checks.
+    if (request.watchEnabled) return { ok: false, error: apiErrorCodes.missionConsentRequired };
     const client = await this.#pool.connect();
     const now = new Date();
+    const fingerprint = requestFingerprint('create', null, request);
     try {
       await client.query('BEGIN');
       if (!await this.#ensureBinding(client, ownerId, bindingHash, now)) {
         await client.query('ROLLBACK');
         return { ok: false, error: apiErrorCodes.unauthorized };
       }
-      const replay = await this.#replayOperation(client, ownerId, operation);
+      await this.#lockOperation(client, ownerId, operation);
+      const replay = await this.#replayOperation(client, ownerId, operation, fingerprint);
       if (replay != null) {
+        if (replay.conflict) {
+          await client.query('ROLLBACK');
+          return { ok: false, error: replay.error };
+        }
         await client.query('COMMIT');
         return { ok: true, replayed: true, status: replay.status, body: replay.body };
       }
@@ -69,8 +129,9 @@ export class MissionStore {
         `INSERT INTO mission.missions
           (id, owner_id, state, destination, intent, locale, watch_enabled,
            starts_at, ends_at, version, next_check_at, created_at, updated_at)
-         VALUES ($1, $2, 'planning', $3::jsonb, $4, $5, $6, $7, $8, 1,
-                 CASE WHEN $6 THEN COALESCE($7, $9) ELSE NULL END, $9, $9)
+         VALUES ($1, $2, 'planning', $3::jsonb, $4, $5, $6, $7::timestamptz, $8::timestamptz, 1,
+                 CASE WHEN $6 THEN COALESCE($7::timestamptz, $9::timestamptz) ELSE NULL END,
+                 $9::timestamptz, $9::timestamptz)
          RETURNING *`,
         [
           id,
@@ -85,7 +146,7 @@ export class MissionStore {
         ],
       );
       const body = missionResponse(result.rows[0]);
-      await this.#saveOperation(client, ownerId, operation, id, 201, body, now);
+      await this.#saveOperation(client, ownerId, operation, id, 201, body, now, fingerprint);
       await client.query('COMMIT');
       return { ok: true, replayed: false, status: 201, body };
     } catch (error) {
@@ -122,19 +183,45 @@ export class MissionStore {
     return { ok: true, body: result.rows.length === 0 ? null : missionResponse(result.rows[0]) };
   }
 
+  async getOperation(ownerId, bindingHash, operation) {
+    if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
+    if (!operationId(operation)) return { ok: false, error: apiErrorCodes.invalidOperation };
+    if (!await this.#ensureBinding(this.#pool, ownerId, bindingHash, new Date())) {
+      return { ok: false, error: apiErrorCodes.unauthorized };
+    }
+    const result = await this.#pool.query(
+      `SELECT mission_id, status, request_fingerprint, request_fingerprint_version
+       FROM mission.mission_operations WHERE owner_id = $1 AND operation_id = $2`,
+      [ownerId, operation],
+    );
+    if (result.rows.length === 0) return { ok: true, body: null };
+    const row = result.rows[0];
+    return { ok: true, body: {
+      missionId: row.mission_id,
+      status: row.status,
+      verifiable: row.request_fingerprint != null && row.request_fingerprint_version === 1,
+    } };
+  }
+
   async patch({ ownerId, bindingHash, id, request, operation }) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
     if (!operationId(operation)) return { ok: false, error: apiErrorCodes.invalidOperation };
     const client = await this.#pool.connect();
     const now = new Date();
+    const fingerprint = requestFingerprint('patch', id, request);
     try {
       await client.query('BEGIN');
       if (!await this.#ensureBinding(client, ownerId, bindingHash, now)) {
         await client.query('ROLLBACK');
         return { ok: false, error: apiErrorCodes.unauthorized };
       }
-      const replay = await this.#replayOperation(client, ownerId, operation);
+      await this.#lockOperation(client, ownerId, operation);
+      const replay = await this.#replayOperation(client, ownerId, operation, fingerprint);
       if (replay != null) {
+        if (replay.conflict) {
+          await client.query('ROLLBACK');
+          return { ok: false, error: replay.error };
+        }
         await client.query('COMMIT');
         return { ok: true, replayed: true, status: replay.status, body: replay.body };
       }
@@ -153,6 +240,24 @@ export class MissionStore {
       }
       let state = current.state;
       let watchEnabled = current.watch_enabled;
+      let consentVersion = current.watch_consent_version;
+      let consentedAt = current.watch_consented_at;
+      let authorizationEpoch = BigInt(current.watch_authorization_epoch ?? 0);
+      const currentIntentRevision = BigInt(current.watch_intent_revision ?? 0);
+      if (request.operation === 'authorizeWatch' && request.intentRevision == null) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: apiErrorCodes.missionConsentRequired };
+      }
+      const intentRevision = request.intentRevision != null
+        ? BigInt(request.intentRevision)
+        : (request.operation === 'setWatch' && request.watchEnabled === false
+          ? currentIntentRevision + 1n
+          : currentIntentRevision);
+      if (request.intentRevision != null && BigInt(request.intentRevision) <= currentIntentRevision) {
+        await client.query('ROLLBACK');
+        return { ok: false, error: apiErrorCodes.staleWatchIntent, current: missionResponse(current) };
+      }
+      let consentAudit = null;
       let destination = current.destination;
       if (request.operation === 'cancel') {
         if (!['planning', 'enRoute', 'field'].includes(state)) {
@@ -165,7 +270,24 @@ export class MissionStore {
           await client.query('ROLLBACK');
           return { ok: false, error: apiErrorCodes.conflict, current: missionResponse(current) };
         }
-        watchEnabled = request.watchEnabled;
+        if (request.watchEnabled) {
+          await client.query('ROLLBACK');
+          return { ok: false, error: apiErrorCodes.missionConsentRequired };
+        }
+        watchEnabled = false;
+        consentVersion = null;
+        consentedAt = null;
+        consentAudit = 'disabled';
+      } else if (request.operation === 'authorizeWatch') {
+        if (['completed', 'cancelled'].includes(state)) {
+          await client.query('ROLLBACK');
+          return { ok: false, error: apiErrorCodes.conflict, current: missionResponse(current) };
+        }
+        watchEnabled = true;
+        consentVersion = 1;
+        consentedAt = now;
+        authorizationEpoch += 1n;
+        consentAudit = 'authorized';
       } else if (request.operation === 'updateDestination') {
         if (state !== 'planning') {
           await client.query('ROLLBACK');
@@ -180,6 +302,12 @@ export class MissionStore {
         }
         state = transition[1];
       }
+      if (['completed', 'cancelled'].includes(state)) {
+        if (watchEnabled || consentVersion != null) consentAudit = 'disabled';
+        watchEnabled = false;
+        consentVersion = null;
+        consentedAt = null;
+      }
       const nextCheckAt = watchEnabled && !['completed', 'cancelled'].includes(state)
         ? new Date(now.getTime() + checkIntervalMilliseconds)
         : null;
@@ -187,17 +315,26 @@ export class MissionStore {
         `UPDATE mission.missions
             SET state = $1, destination = $2::jsonb, watch_enabled = $3,
                 version = version + 1, next_check_at = $4,
-                updated_at = $5, completed_at = CASE WHEN $1 IN ('completed', 'cancelled') THEN $5 ELSE completed_at END
+                updated_at = $5, completed_at = CASE WHEN $1 IN ('completed', 'cancelled') THEN $5 ELSE completed_at END,
+                watch_consent_version = $9, watch_consented_at = $10,
+                watch_intent_revision = $11, watch_authorization_epoch = $12
           WHERE owner_id = $6 AND id = $7 AND version = $8
           RETURNING *`,
-        [state, JSON.stringify(destination), watchEnabled, nextCheckAt, now, ownerId, id, request.expectedVersion],
+        [state, JSON.stringify(destination), watchEnabled, nextCheckAt, now, ownerId, id, request.expectedVersion, consentVersion, consentedAt, intentRevision.toString(), authorizationEpoch.toString()],
       );
       if (result.rows.length === 0) {
         await client.query('ROLLBACK');
         return { ok: false, error: apiErrorCodes.conflict };
       }
       const body = missionResponse(result.rows[0]);
-      await this.#saveOperation(client, ownerId, operation, id, 200, body, now);
+      if (consentAudit != null) {
+        await client.query(
+          `INSERT INTO mission.watch_authorization_audit (id, mission_id, action, created_at)
+           VALUES ($1, $2, $3, $4)`,
+          [`consent-${randomBytes(16).toString('hex')}`, id, consentAudit, now],
+        );
+      }
+      await this.#saveOperation(client, ownerId, operation, id, 200, body, now, fingerprint);
       await client.query('COMMIT');
       return { ok: true, replayed: false, status: 200, body };
     } catch (error) {
@@ -230,7 +367,7 @@ export class MissionStore {
     return { ok: true, body: result.rows.map(missionEventResponse) };
   }
 
-  async claimDue({ workerId, now = new Date() } = {}) {
+  async claimDue({ workerId, now = null } = {}) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
     const client = await this.#pool.connect();
     try {
@@ -239,8 +376,10 @@ export class MissionStore {
         `SELECT * FROM mission.missions
           WHERE state IN ('planning', 'enRoute', 'field')
             AND watch_enabled = TRUE
-            AND next_check_at IS NOT NULL AND next_check_at <= $1
-            AND (lease_until IS NULL OR lease_until < $1)
+            AND watch_consent_version = 1 AND watch_consented_at IS NOT NULL
+            AND next_check_at IS NOT NULL AND next_check_at <= COALESCE($1::timestamptz, clock_timestamp())
+            AND (ends_at IS NULL OR ends_at > COALESCE($1::timestamptz, clock_timestamp()))
+            AND (lease_until IS NULL OR lease_until < COALESCE($1::timestamptz, clock_timestamp()))
           ORDER BY next_check_at ASC
           FOR UPDATE SKIP LOCKED LIMIT 1`,
         [now],
@@ -250,13 +389,15 @@ export class MissionStore {
         return { ok: true, mission: null };
       }
       const mission = result.rows[0];
-      const leaseUntil = new Date(now.getTime() + leaseMilliseconds);
       const leased = await client.query(
         `UPDATE mission.missions
-            SET lease_owner = $1, lease_until = $2, updated_at = $3
-          WHERE id = $4 AND version = $5 AND watch_enabled = TRUE
+            SET lease_owner = $1,
+                lease_until = COALESCE($2::timestamptz, clock_timestamp()) + interval '2 minutes',
+                lease_epoch = lease_epoch + 1,
+                updated_at = COALESCE($2::timestamptz, clock_timestamp())
+          WHERE id = $3 AND version = $4 AND watch_enabled = TRUE
           RETURNING *`,
-        [workerId, leaseUntil, now, mission.id, mission.version],
+        [workerId, now, mission.id, mission.version],
       );
       await client.query('COMMIT');
       return { ok: true, mission: leased.rows.length === 0 ? null : leased.rows[0] };
@@ -268,16 +409,22 @@ export class MissionStore {
     }
   }
 
-  async finishCheck({ mission, workerId, check, events = [], now = new Date() }) {
+  async finishCheck({ mission, workerId, check, events = [], now = null }) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
+    const effectiveNow = now ?? new Date();
     const client = await this.#pool.connect();
     try {
       await client.query('BEGIN');
       const currentResult = await client.query(
         `SELECT * FROM mission.missions
           WHERE id = $1 AND version = $2 AND lease_owner = $3
+            AND lease_until > COALESCE($4::timestamptz, clock_timestamp())
+            AND (ends_at IS NULL OR ends_at > COALESCE($4::timestamptz, clock_timestamp()))
+            AND lease_until = $5 AND lease_epoch = $6
+            AND watch_consent_version = 1 AND watch_consented_at IS NOT NULL
+            AND watch_authorization_epoch = $7
           FOR UPDATE`,
-        [mission.id, mission.version, workerId],
+        [mission.id, mission.version, workerId, now, mission.lease_until, mission.lease_epoch, mission.watch_authorization_epoch],
       );
       if (currentResult.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -287,14 +434,14 @@ export class MissionStore {
       const stillActive = current.watch_enabled &&
         ['planning', 'enRoute', 'field'].includes(current.state);
       const nextCheckAt = stillActive
-        ? new Date(now.getTime() + checkIntervalMilliseconds)
+        ? new Date(effectiveNow.getTime() + checkIntervalMilliseconds)
         : null;
       await client.query(
         `UPDATE mission.missions
             SET lease_owner = NULL, lease_until = NULL, last_checked_at = $1,
                 next_check_at = $2, updated_at = $1
           WHERE id = $3 AND version = $4 AND lease_owner = $5`,
-        [now, nextCheckAt, mission.id, mission.version, workerId],
+        [effectiveNow, nextCheckAt, mission.id, mission.version, workerId],
       );
       let insertedEvents = 0;
       if (stillActive && check.ok) {
@@ -305,7 +452,7 @@ export class MissionStore {
              VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
              ON CONFLICT (mission_id, dedupe_key) DO NOTHING`,
             [mission.id, event.dedupeKey, event.kind, event.source, asDate(event.observedAt),
-              asDate(event.expiresAt), JSON.stringify(event.payload), now],
+              asDate(event.expiresAt), JSON.stringify(event.payload), effectiveNow],
           );
           insertedEvents += inserted.rowCount;
         }
@@ -314,8 +461,8 @@ export class MissionStore {
         `INSERT INTO mission.mission_checks
           (mission_id, worker_id, started_at, finished_at, status, context_id, error_code, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [mission.id, workerId, asDate(check.startedAt), now, check.ok ? 'completed' : 'failed',
-          check.contextId ?? null, check.ok ? null : check.error ?? 'evaluation_failed', now],
+        [mission.id, workerId, asDate(check.startedAt), effectiveNow, check.ok ? 'completed' : 'failed',
+          check.contextId ?? null, check.ok ? null : check.error ?? 'evaluation_failed', effectiveNow],
       );
       await client.query('COMMIT');
       return { ok: true, insertedEvents };
@@ -327,12 +474,22 @@ export class MissionStore {
     }
   }
 
-  async #replayOperation(client, ownerId, operation) {
+  async #lockOperation(client, ownerId, operation) {
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`${ownerId}:${operation}`]);
+  }
+
+  async #replayOperation(client, ownerId, operation, fingerprint) {
     const result = await client.query(
-      'SELECT status, response FROM mission.mission_operations WHERE owner_id = $1 AND operation_id = $2',
+      'SELECT status, response, request_fingerprint, request_fingerprint_version FROM mission.mission_operations WHERE owner_id = $1 AND operation_id = $2',
       [ownerId, operation],
     );
     if (result.rows.length === 0) return null;
+    if (result.rows[0].request_fingerprint == null) {
+      return { conflict: true, error: apiErrorCodes.missionLegacyOperationUnverifiable };
+    }
+    if (result.rows[0].request_fingerprint_version !== 1 || result.rows[0].request_fingerprint !== fingerprint) {
+      return { conflict: true, error: apiErrorCodes.missionIdempotencyMismatch };
+    }
     return { status: result.rows[0].status, body: result.rows[0].response };
   }
 
@@ -370,12 +527,12 @@ export class MissionStore {
     return true;
   }
 
-  async #saveOperation(client, ownerId, operation, missionIdValue, status, body, now) {
+  async #saveOperation(client, ownerId, operation, missionIdValue, status, body, now, fingerprint) {
     await client.query(
       `INSERT INTO mission.mission_operations
-        (owner_id, operation_id, mission_id, status, response, created_at)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
-      [ownerId, operation, missionIdValue, status, JSON.stringify(body), now],
+        (owner_id, operation_id, mission_id, status, response, created_at, request_fingerprint, request_fingerprint_version)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, 1)`,
+      [ownerId, operation, missionIdValue, status, JSON.stringify(body), now, fingerprint],
     );
   }
 }

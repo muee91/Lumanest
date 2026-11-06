@@ -8,6 +8,7 @@ import 'package:luma_nest/src/core/context/route_context_state.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
 import 'package:luma_nest/src/core/mission/mission_providers.dart';
 import 'package:luma_nest/src/core/mission/mission_repository.dart';
+import 'package:luma_nest/src/core/persistence/app_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// The single user-facing task that connects planning, departure and field
@@ -17,6 +18,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum TripTaskStage { planning, enRoute, field, completed, cancelled }
 
 enum TripTravelMode { driving, walking }
+
+String tripTaskPlanErrorMessage(StateError error) => switch (error.message) {
+  'trip_restore_pending' => '正在恢复之前的出行，请稍后重试。',
+  'trip_restore_failed' => '无法读取之前的出行，请检查本地存储并重启应用。',
+  _ => '当前出行已有云端任务，请先确认云端任务已结束，再更换目的地。',
+};
 
 enum TripTaskCommandType {
   plan,
@@ -89,7 +96,13 @@ class TripTask {
     this.remoteMissionVersion,
     this.remoteMissionStage,
     this.remoteMissionWatchEnabled,
+    this.remoteCreationPending = false,
+    this.pendingWatchEnabled,
+    this.pendingWatchVersion,
+    this.pendingTransition,
+    this.pendingTransitionVersion,
     this.watchEnabled = false,
+    this.watchIntentRevision = 0,
   });
 
   final String id;
@@ -107,7 +120,15 @@ class TripTask {
   final int? remoteMissionVersion;
   final MissionRemoteStage? remoteMissionStage;
   final bool? remoteMissionWatchEnabled;
+
+  /// A create may have reached the server even if its response was lost.
+  final bool remoteCreationPending;
+  final bool? pendingWatchEnabled;
+  final int? pendingWatchVersion;
+  final String? pendingTransition;
+  final int? pendingTransitionVersion;
   final bool watchEnabled;
+  final int watchIntentRevision;
 
   bool get isOpen =>
       stage != TripTaskStage.completed && stage != TripTaskStage.cancelled;
@@ -117,7 +138,7 @@ class TripTask {
   bool get isInField => stage == TripTaskStage.field;
 
   Map<String, Object?> toJson() => {
-    'version': 2,
+    'version': 4,
     'id': id,
     'destinationName': destinationName,
     'destination': {
@@ -142,10 +163,17 @@ class TripTask {
     if (remoteMissionWatchEnabled != null)
       'remoteMissionWatchEnabled': remoteMissionWatchEnabled,
     'watchEnabled': watchEnabled,
+    'watchIntentRevision': watchIntentRevision,
+    'remoteCreationPending': remoteCreationPending,
+    if (pendingWatchEnabled != null) 'pendingWatchEnabled': pendingWatchEnabled,
+    if (pendingWatchVersion != null) 'pendingWatchVersion': pendingWatchVersion,
+    if (pendingTransition != null) 'pendingTransition': pendingTransition,
+    if (pendingTransitionVersion != null)
+      'pendingTransitionVersion': pendingTransitionVersion,
   };
 
   static TripTask? fromJson(Object? raw) {
-    if (raw is! Map || (raw['version'] != 1 && raw['version'] != 2)) {
+    if (raw is! Map || ![1, 2, 3, 4].contains(raw['version'])) {
       return null;
     }
     final destination = raw['destination'];
@@ -170,12 +198,13 @@ class TripTask {
     final remoteMissionStage = raw['remoteMissionStage'] is String
         ? _enumByName(MissionRemoteStage.values, raw['remoteMissionStage'])
         : null;
+    // Older snapshots cannot establish that background monitoring was
+    // explicitly authorized. Preserve the trip, but request suspension.
+    final legacy = raw['version'] != 4;
     final remoteMissionWatchEnabled = raw['remoteMissionWatchEnabled'] is bool
         ? raw['remoteMissionWatchEnabled'] as bool
         : null;
-    final watchEnabled = raw['watchEnabled'] is bool
-        ? raw['watchEnabled'] as bool
-        : false;
+    final watchEnabled = !legacy && raw['watchEnabled'] == true;
     if (latitude == null ||
         longitude == null ||
         coordinateSystem == null ||
@@ -206,7 +235,29 @@ class TripTask {
       remoteMissionVersion: remoteMissionVersion,
       remoteMissionStage: remoteMissionStage,
       remoteMissionWatchEnabled: remoteMissionWatchEnabled,
+      remoteCreationPending: raw['remoteCreationPending'] == true,
+      pendingWatchEnabled:
+          (!legacy || raw['pendingWatchEnabled'] == false) &&
+              raw['pendingWatchEnabled'] is bool
+          ? raw['pendingWatchEnabled'] as bool
+          : null,
+      pendingWatchVersion:
+          (!legacy || raw['pendingWatchEnabled'] == false) &&
+              raw['pendingWatchVersion'] is int
+          ? raw['pendingWatchVersion'] as int
+          : null,
+      pendingTransition: raw['pendingTransition'] is String
+          ? raw['pendingTransition'] as String
+          : null,
+      pendingTransitionVersion: raw['pendingTransitionVersion'] is int
+          ? raw['pendingTransitionVersion'] as int
+          : null,
       watchEnabled: watchEnabled,
+      watchIntentRevision:
+          raw['watchIntentRevision'] is int &&
+              (raw['watchIntentRevision'] as int) >= 0
+          ? raw['watchIntentRevision'] as int
+          : 0,
     );
   }
 
@@ -260,7 +311,15 @@ class TripTask {
     int? remoteMissionVersion,
     MissionRemoteStage? remoteMissionStage,
     bool? remoteMissionWatchEnabled,
+    bool? remoteCreationPending,
+    bool? pendingWatchEnabled,
+    int? pendingWatchVersion,
+    bool clearPendingWatch = false,
+    String? pendingTransition,
+    int? pendingTransitionVersion,
+    bool clearPendingTransition = false,
     bool? watchEnabled,
+    int? watchIntentRevision,
   }) => TripTask(
     id: id,
     destinationName: destinationName,
@@ -278,7 +337,21 @@ class TripTask {
     remoteMissionStage: remoteMissionStage ?? this.remoteMissionStage,
     remoteMissionWatchEnabled:
         remoteMissionWatchEnabled ?? this.remoteMissionWatchEnabled,
+    remoteCreationPending: remoteCreationPending ?? this.remoteCreationPending,
+    pendingWatchEnabled: clearPendingWatch
+        ? null
+        : pendingWatchEnabled ?? this.pendingWatchEnabled,
+    pendingWatchVersion: clearPendingWatch
+        ? null
+        : pendingWatchVersion ?? this.pendingWatchVersion,
+    pendingTransition: clearPendingTransition
+        ? null
+        : pendingTransition ?? this.pendingTransition,
+    pendingTransitionVersion: clearPendingTransition
+        ? null
+        : pendingTransitionVersion ?? this.pendingTransitionVersion,
     watchEnabled: watchEnabled ?? this.watchEnabled,
+    watchIntentRevision: watchIntentRevision ?? this.watchIntentRevision,
   );
 
   void _requireOpen(String operation) {
@@ -352,17 +425,82 @@ class SharedPreferencesTripTaskStore implements TripTaskStore {
   Future<void> clear() => _preferences.remove(_key);
 }
 
+/// Stores the task and its pending recovery marker in a single SQLite row.
+/// A null snapshot is a tombstone so an old preferences value cannot reappear.
+class DriftTripTaskStore implements TripTaskStore {
+  DriftTripTaskStore(this._database, this._preferences);
+
+  final AppDatabase _database;
+  final SharedPreferencesAsync _preferences;
+
+  @override
+  Future<TripTask?> read() async {
+    var row = await _database
+        .customSelect('SELECT snapshot FROM trip_task_state WHERE id = 1')
+        .getSingleOrNull();
+    if (row == null) {
+      final legacy = await _preferences.getString(
+        SharedPreferencesTripTaskStore._key,
+      );
+      // Validate before copying; a corrupt value must never be silently lost.
+      if (legacy != null) _decode(legacy);
+      await _database.customStatement(
+        'INSERT OR IGNORE INTO trip_task_state (id, snapshot) VALUES (1, ?)',
+        [legacy],
+      );
+      row = await _database
+          .customSelect('SELECT snapshot FROM trip_task_state WHERE id = 1')
+          .getSingle();
+    }
+    final snapshot = row.readNullable<String>('snapshot');
+    final task = snapshot == null ? null : _decode(snapshot);
+    // SQLite is authoritative only after its row has committed and decoded.
+    // Cleanup is best effort; the row (including a tombstone) always wins.
+    try {
+      await _preferences.remove(SharedPreferencesTripTaskStore._key);
+    } on Object catch (error) {
+      debugPrint('TripTask legacy cleanup failed: $error');
+    }
+    return task;
+  }
+
+  TripTask _decode(String snapshot) {
+    final task = TripTask.fromJson(jsonDecode(snapshot));
+    if (task == null) throw const FormatException('Invalid trip task snapshot');
+    return task;
+  }
+
+  @override
+  Future<void> write(TripTask task) => _setSnapshot(jsonEncode(task.toJson()));
+
+  @override
+  Future<void> clear() => _setSnapshot(null);
+
+  Future<void> _setSnapshot(String? snapshot) => _database.customStatement(
+    'INSERT INTO trip_task_state (id, snapshot) VALUES (1, ?) '
+    'ON CONFLICT(id) DO UPDATE SET snapshot = excluded.snapshot',
+    [snapshot],
+  );
+}
+
 final tripTaskStoreProvider = Provider<TripTaskStore>(
-  (ref) => SharedPreferencesTripTaskStore(SharedPreferencesAsync()),
+  (ref) => DriftTripTaskStore(
+    ref.watch(appDatabaseProvider),
+    SharedPreferencesAsync(),
+  ),
 );
 
 class TripTaskController extends Notifier<TripTask?> {
   int _nextId = 0;
   int _mutationRevision = 0;
   bool _restored = false;
+  bool _restoreFailed = false;
   late Future<void> _restoreFuture;
   Future<void> _writeQueue = Future<void>.value();
   Future<void> _missionSyncQueue = Future<void>.value();
+  int _versionConflictRetries = 0;
+
+  Future<void> get ready => _restoreFuture;
 
   @override
   TripTask? build() {
@@ -375,9 +513,11 @@ class TripTaskController extends Notifier<TripTask?> {
     TripTask? restored;
     try {
       restored = await store.read();
-    } on Object {
-      // A read failure must not leave the write queue permanently blocked;
-      // the next accepted command can still establish a valid snapshot.
+    } on Object catch (error) {
+      // A failed read leaves the previous cloud state unknown. Do not let a
+      // new task overwrite that snapshot until recovery succeeds.
+      _restoreFailed = true;
+      debugPrint('TripTask restore failed: $error');
       _restored = true;
       return;
     }
@@ -389,11 +529,24 @@ class TripTaskController extends Notifier<TripTask?> {
     if (revisionAtStart != _mutationRevision) return;
     if (restored == null) return;
     if (!restored.isOpen) {
+      if (restored.remoteCreationPending ||
+          (restored.remoteMissionId != null &&
+              restored.remoteMissionStage != MissionRemoteStage.completed &&
+              restored.remoteMissionStage != MissionRemoteStage.cancelled)) {
+        state = restored;
+        _persist(restored);
+        _scheduleMissionSync(restored);
+        return;
+      }
       unawaited(store.clear());
       return;
     }
     state = restored;
+    _persist(restored);
     _projectRouteContext(restored);
+    if (restored.remoteMissionId != null || restored.remoteCreationPending) {
+      _scheduleMissionSync(restored);
+    }
   }
 
   TripTask plan({
@@ -403,6 +556,8 @@ class TripTaskController extends Notifier<TripTask?> {
     String? sessionId,
     String? targetId,
   }) {
+    if (!_restored) throw StateError('trip_restore_pending');
+    if (_restoreFailed) throw StateError('trip_restore_failed');
     final current = state;
     if (current != null &&
         current.isOpen &&
@@ -411,6 +566,14 @@ class TripTaskController extends Notifier<TripTask?> {
         current.sessionId == sessionId &&
         current.targetId == targetId) {
       return current;
+    }
+    if (current != null &&
+        (current.remoteCreationPending ||
+            (current.remoteMissionId != null &&
+                current.remoteMissionStage != MissionRemoteStage.completed &&
+                current.remoteMissionStage != MissionRemoteStage.cancelled) ||
+            (current.isOpen && current.watchEnabled))) {
+      throw StateError('cloud_trip_requires_reconciliation');
     }
     final task = TripTask(
       id: 'trip_${DateTime.now().microsecondsSinceEpoch}_${_nextId++}',
@@ -480,8 +643,17 @@ class TripTaskController extends Notifier<TripTask?> {
 
   void setWatchEnabled(bool enabled) {
     final current = state;
-    if (current == null || current.watchEnabled == enabled) return;
-    final next = current._copy(stage: current.stage, watchEnabled: enabled);
+    if (current == null) return;
+    final remoteAlreadyMatches = current.remoteMissionWatchEnabled == enabled;
+    if (current.watchEnabled == enabled && remoteAlreadyMatches) return;
+    final next = current._copy(
+      stage: current.stage,
+      watchEnabled: enabled,
+      watchIntentRevision: current.watchIntentRevision + 1,
+      remoteCreationPending:
+          current.remoteCreationPending ||
+          (enabled && current.remoteMissionId == null),
+    );
     state = next;
     _mutationRevision += 1;
     _persist(next);
@@ -489,6 +661,15 @@ class TripTaskController extends Notifier<TripTask?> {
   }
 
   void clear() {
+    if (!_restored) throw StateError('trip_restore_pending');
+    if (_restoreFailed) throw StateError('trip_restore_failed');
+    final current = state;
+    if (current?.remoteCreationPending == true ||
+        (current?.remoteMissionId != null &&
+            current?.remoteMissionStage != MissionRemoteStage.completed &&
+            current?.remoteMissionStage != MissionRemoteStage.cancelled)) {
+      throw StateError('cloud_trip_requires_reconciliation');
+    }
     state = null;
     _mutationRevision += 1;
     _enqueuePersistence((store) => store.clear());
@@ -500,11 +681,18 @@ class TripTaskController extends Notifier<TripTask?> {
   }
 
   void _scheduleMissionSync(TripTask task) {
+    if (task.remoteMissionId == null && !task.remoteCreationPending) return;
     final repository = ref.read(missionRemoteRepositoryProvider);
     if (repository == null) return;
     final queued = _missionSyncQueue
         .catchError((Object error, StackTrace stack) {})
-        .then((_) => _syncMission(repository, task));
+        .then((_) async {
+          // Do not send a create if writing its recovery marker fails.
+          await _writeQueue;
+          final current = state;
+          if (current == null || current.id != task.id) return;
+          await _syncMission(repository, current);
+        });
     _missionSyncQueue = queued;
     unawaited(
       queued.catchError((Object error, StackTrace stack) {
@@ -521,71 +709,351 @@ class TripTaskController extends Notifier<TripTask?> {
     var remoteId = task.remoteMissionId;
     var remoteVersion = task.remoteMissionVersion;
     var remoteStage = task.remoteMissionStage ?? MissionRemoteStage.planning;
+    // Unknown remote state is not evidence that the desired state is active.
+    // Force an explicit setWatch reconciliation instead of guessing.
     var remoteWatchEnabled =
-        task.remoteMissionWatchEnabled ?? task.watchEnabled;
+        task.remoteMissionWatchEnabled ?? !task.watchEnabled;
     if (remoteId == null || remoteVersion == null) {
-      final created = await repository.create(
-        MissionDraft(
-          destinationName: task.destinationName,
-          latitude: task.destination.latitude,
-          longitude: task.destination.longitude,
-          intent: 'photography',
-          locale: 'zh-CN',
-          watchEnabled: task.watchEnabled,
-        ),
-        operationId: _missionOperationId(task, 'create'),
-      );
+      final createOperation = _missionOperationId(task, 'create');
+      MissionRemoteSnapshot? created;
+      try {
+        created = await repository.create(
+          MissionDraft(
+            destinationName: task.destinationName,
+            latitude: task.destination.latitude,
+            longitude: task.destination.longitude,
+            intent: 'photography',
+            locale: 'zh-CN',
+            // Create dormant: an opt-out while this request is in flight must
+            // never turn on background checks as a side effect of recovery.
+            watchEnabled: false,
+          ),
+          operationId: createOperation,
+        );
+      } on MissionLegacyOperationUnverifiable {
+        final record = await repository.getOperation(createOperation);
+        if (record == null ||
+            record.verifiable ||
+            record.status != 201 ||
+            record.missionId == null) {
+          return;
+        }
+        final recovered = await repository.get(record.missionId!);
+        if (recovered == null ||
+            recovered.id != record.missionId ||
+            recovered.destinationName != task.destinationName ||
+            recovered.destinationLatitude != task.destination.latitude ||
+            recovered.destinationLongitude != task.destination.longitude ||
+            recovered.destinationSystem != 'wgs84' ||
+            recovered.intent != 'photography') {
+          return;
+        }
+        created = recovered;
+      }
       if (created == null || state?.id != task.id) return;
-      remoteId = created.id;
-      remoteVersion = created.version;
-      remoteStage = created.stage;
-      remoteWatchEnabled = created.watchEnabled;
-      _attachMission(task.id, created);
+      final latest = await repository.get(created.id);
+      if (latest == null ||
+          latest.id != created.id ||
+          latest.version < created.version ||
+          state?.id != task.id) {
+        return;
+      }
+      remoteId = latest.id;
+      remoteVersion = latest.version;
+      remoteStage = latest.stage;
+      remoteWatchEnabled = latest.watchEnabled;
+      _attachMission(task.id, latest);
+      // The user may have changed their mind while create was in flight.
+      task = state!;
     } else {
       // The local stage remains authoritative for the immediate UI; the
       // persisted remote stage is used to make a missed sync retryable.
     }
     final missionId = remoteId;
     var expectedVersion = remoteVersion;
+    if (task.pendingTransition != null &&
+        task.pendingTransitionVersion != null) {
+      final replayed = await _sendPendingTransition(
+        repository,
+        task,
+        missionId,
+      );
+      if (replayed == null || state?.id != task.id) return;
+      expectedVersion = replayed.version;
+      remoteStage = replayed.stage;
+      remoteWatchEnabled = replayed.watchEnabled;
+      task = state!;
+    }
+    if (task.pendingWatchVersion != null && task.pendingWatchEnabled != null) {
+      final replayed = await _sendPendingWatch(repository, task, missionId);
+      if (replayed == null || state?.id != task.id) return;
+      expectedVersion = replayed.version;
+      remoteStage = replayed.stage;
+      remoteWatchEnabled = replayed.watchEnabled;
+      task = state!;
+    }
+    // Replayed operations acknowledge historical results. Only the current
+    // server record may be used as the basis for another transition.
+    final latest = await repository.get(missionId);
+    if (latest == null ||
+        latest.id != missionId ||
+        latest.version < expectedVersion ||
+        state?.id != task.id) {
+      return;
+    }
+    expectedVersion = latest.version;
+    remoteStage = latest.stage;
+    remoteWatchEnabled = latest.watchEnabled;
+    _attachMission(task.id, latest);
+    task = state!;
     final desired = _remoteStageFor(task.stage);
     if (desired != remoteStage) {
       final operations = _missionOperations(remoteStage, desired);
       for (final operation in operations) {
-        final updated = await repository.patch(
+        final current = state;
+        if (current == null ||
+            current.id != task.id ||
+            current.stage != task.stage) {
+          return;
+        }
+        final pending = current._copy(
+          stage: current.stage,
+          pendingTransition: operation,
+          pendingTransitionVersion: expectedVersion,
+        );
+        state = pending;
+        _persist(pending);
+        await _writeQueue;
+        final updated = await _sendPendingTransition(
+          repository,
+          pending,
           missionId,
-          expectedVersion: expectedVersion,
-          operation: operation,
-          operationId: _missionOperationId(task, operation, expectedVersion),
         );
         if (updated == null || state?.id != task.id) return;
         expectedVersion = updated.version;
         remoteStage = updated.stage;
-        _attachMission(task.id, updated);
+        remoteWatchEnabled = updated.watchEnabled;
       }
     }
-    if (remoteWatchEnabled != task.watchEnabled) {
-      final updated = await repository.patch(
-        missionId,
-        expectedVersion: expectedVersion,
-        operation: 'setWatch',
-        operationId: _missionOperationId(task, 'setWatch', expectedVersion),
-        watchEnabled: task.watchEnabled,
+    final current = state;
+    if (current == null || current.id != task.id || !current.isOpen) return;
+    if (remoteWatchEnabled != current.watchEnabled) {
+      final pending = current._copy(
+        stage: current.stage,
+        pendingWatchEnabled: current.watchEnabled,
+        pendingWatchVersion: expectedVersion,
       );
-      if (updated == null || state?.id != task.id) return;
-      _attachMission(task.id, updated);
+      state = pending;
+      _persist(pending);
+      // The operation and its exact payload must be stored before sending.
+      await _writeQueue;
+      await _sendPendingWatch(repository, pending, missionId);
     }
   }
 
-  void _attachMission(String taskId, MissionRemoteSnapshot snapshot) {
+  Future<MissionRemoteSnapshot?> _sendPendingTransition(
+    MissionRemoteRepository repository,
+    TripTask task,
+    String missionId,
+  ) async {
+    final operation = task.pendingTransition!;
+    final version = task.pendingTransitionVersion!;
+    MissionRemoteSnapshot? updated;
+    try {
+      updated = await repository.patch(
+        missionId,
+        expectedVersion: version,
+        operation: operation,
+        operationId: _missionOperationId(task, operation, version),
+      );
+    } on MissionVersionConflict catch (conflict) {
+      await _reconcileVersionConflict(
+        repository,
+        task,
+        missionId,
+        version,
+        conflict.current,
+        clearTransition: true,
+      );
+      return null;
+    } on MissionLegacyOperationUnverifiable {
+      return _recoverLegacyOperation(
+        repository,
+        task,
+        missionId,
+        _missionOperationId(task, operation, version),
+        clearTransition: true,
+      );
+    }
+    if (updated == null || state?.id != task.id) return null;
+    final latest = await repository.get(missionId);
+    if (latest == null ||
+        latest.id != missionId ||
+        latest.version < updated.version ||
+        state?.id != task.id) {
+      return null;
+    }
+    _attachMission(task.id, latest, clearPendingTransition: true);
+    _versionConflictRetries = 0;
+    return latest;
+  }
+
+  Future<MissionRemoteSnapshot?> _sendPendingWatch(
+    MissionRemoteRepository repository,
+    TripTask task,
+    String missionId,
+  ) async {
+    final enabled = task.pendingWatchEnabled!;
+    final version = task.pendingWatchVersion!;
+    MissionRemoteSnapshot? updated;
+    try {
+      updated = await repository.patch(
+        missionId,
+        expectedVersion: version,
+        operation: enabled ? 'authorizeWatch' : 'setWatch',
+        operationId: _missionOperationId(
+          task,
+          enabled ? 'setWatch-on' : 'setWatch-off',
+          version,
+        ),
+        watchEnabled: enabled,
+        intentRevision: task.watchIntentRevision,
+      );
+    } on MissionVersionConflict catch (conflict) {
+      await _reconcileVersionConflict(
+        repository,
+        task,
+        missionId,
+        version,
+        conflict.current,
+        clearTransition: false,
+      );
+      return null;
+    } on MissionLegacyOperationUnverifiable {
+      return _recoverLegacyOperation(
+        repository,
+        task,
+        missionId,
+        _missionOperationId(
+          task,
+          enabled ? 'setWatch-on' : 'setWatch-off',
+          version,
+        ),
+        clearTransition: false,
+      );
+    }
+    if (updated == null || state?.id != task.id) return null;
+    final latest = await repository.get(missionId);
+    if (latest == null ||
+        latest.id != missionId ||
+        latest.version < updated.version ||
+        state?.id != task.id) {
+      return null;
+    }
+    _attachMission(task.id, latest, clearPendingWatch: true);
+    _versionConflictRetries = 0;
+    return latest;
+  }
+
+  Future<MissionRemoteSnapshot?> _recoverLegacyOperation(
+    MissionRemoteRepository repository,
+    TripTask task,
+    String missionId,
+    String operationId, {
+    required bool clearTransition,
+  }) async {
+    final record = await repository.getOperation(operationId);
+    if (record == null ||
+        record.verifiable ||
+        record.status != 200 ||
+        record.missionId != missionId) {
+      return null;
+    }
+    final latest = await repository.get(missionId);
+    if (latest == null || latest.id != missionId || state?.id != task.id) {
+      return null;
+    }
+    final current = state!;
+    if (current.remoteMissionId == missionId &&
+        current.remoteMissionVersion != null &&
+        latest.version < current.remoteMissionVersion!) {
+      return null;
+    }
+    _attachMission(
+      task.id,
+      latest,
+      clearPendingTransition: clearTransition,
+      clearPendingWatch: !clearTransition,
+    );
+    final currentAfterReconcile = state;
+    if (currentAfterReconcile != null &&
+        !clearTransition &&
+        currentAfterReconcile.watchEnabled != latest.watchEnabled) {
+      final rebased = currentAfterReconcile._copy(
+        stage: currentAfterReconcile.stage,
+        watchIntentRevision: latest.watchIntentRevision + 1,
+      );
+      state = rebased;
+      _persist(rebased);
+    }
+    return latest;
+  }
+
+  Future<void> _reconcileVersionConflict(
+    MissionRemoteRepository repository,
+    TripTask task,
+    String missionId,
+    int rejectedVersion,
+    MissionRemoteSnapshot conflict, {
+    required bool clearTransition,
+  }) async {
+    if (conflict.id != missionId || conflict.version <= rejectedVersion) return;
+    final latest = await repository.get(missionId);
+    if (latest == null ||
+        latest.id != missionId ||
+        latest.version < conflict.version ||
+        state?.id != task.id) {
+      return;
+    }
+    _attachMission(
+      task.id,
+      latest,
+      clearPendingTransition: clearTransition,
+      clearPendingWatch: !clearTransition,
+    );
+    // A bounded immediate retry handles ordinary races without spinning if a
+    // second device continuously changes the same Mission.
+    if (++_versionConflictRetries <= 3 && state != null) {
+      _scheduleMissionSync(state!);
+    }
+  }
+
+  void _attachMission(
+    String taskId,
+    MissionRemoteSnapshot snapshot, {
+    bool clearPendingWatch = false,
+    bool clearPendingTransition = false,
+  }) {
     final current = state;
     if (current == null || current.id != taskId) return;
+    if (current.remoteMissionId == snapshot.id &&
+        current.remoteMissionVersion != null &&
+        snapshot.version < current.remoteMissionVersion!) {
+      return;
+    }
     final next = current._copy(
       stage: current.stage,
       remoteMissionId: snapshot.id,
       remoteMissionVersion: snapshot.version,
       remoteMissionStage: snapshot.stage,
       remoteMissionWatchEnabled: snapshot.watchEnabled,
-      watchEnabled: snapshot.watchEnabled,
+      watchIntentRevision:
+          snapshot.watchIntentRevision > current.watchIntentRevision
+          ? snapshot.watchIntentRevision
+          : current.watchIntentRevision,
+      remoteCreationPending: false,
+      clearPendingWatch: clearPendingWatch,
+      clearPendingTransition: clearPendingTransition,
     );
     state = next;
     _persist(next);
