@@ -173,6 +173,16 @@ sky_data_ready() {
     [ "$(file_sha256 "$dem_file")" = "$(printf '%s' "$dem_sha256" | tr 'A-F' 'a-f')" ]
 }
 
+mission_profile_ready() {
+  source_file=$1
+  mission_database_url=$(environment_value_from "$source_file" MISSION_DATABASE_URL)
+  mission_worker_database_url=$(environment_value_from "$source_file" MISSION_WORKER_DATABASE_URL)
+  mission_worker_token=$(environment_value_from "$source_file" MISSION_WORKER_TOKEN)
+  [ -n "$mission_database_url" ] && \
+    [ -n "$mission_worker_database_url" ] && \
+    [ -n "$mission_worker_token" ]
+}
+
 upsert_environment_value() {
   name=$1
   value=$2
@@ -264,28 +274,34 @@ verify_build_proxy_endpoint() {
 }
 
 compose_release() {
+  profile_args=
   if [ "$SKY_DATA_ENABLED" = 1 ]; then
-    docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" --profile sky-data "$@"
-  else
-    docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+    profile_args="$profile_args --profile sky-data"
   fi
+  if [ "$MISSION_ENABLED" = 1 ]; then
+    profile_args="$profile_args --profile mission"
+  fi
+  # Word splitting is intentional: profile arguments are fixed literals.
+  # shellcheck disable=SC2086
+  docker compose -p "$PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" $profile_args "$@"
 }
 
 compose_previous() {
+  profile_args=
   if [ "$PREVIOUS_SKY_DATA_ENABLED" = 1 ]; then
-    docker compose \
-      -p "$PROJECT_NAME" \
-      --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
-      -f "$PREVIOUS_RELEASE/compose.yaml" \
-      --profile sky-data \
-      "$@"
-  else
-    docker compose \
-      -p "$PROJECT_NAME" \
-      --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
-      -f "$PREVIOUS_RELEASE/compose.yaml" \
-      "$@"
+    profile_args="$profile_args --profile sky-data"
   fi
+  if [ "$PREVIOUS_MISSION_ENABLED" = 1 ]; then
+    profile_args="$profile_args --profile mission"
+  fi
+  # Word splitting is intentional: profile arguments are fixed literals.
+  # shellcheck disable=SC2086
+  docker compose \
+    -p "$PROJECT_NAME" \
+    --env-file "$PREVIOUS_RELEASE/qweather-token-broker.env" \
+    -f "$PREVIOUS_RELEASE/compose.yaml" \
+    $profile_args \
+    "$@"
 }
 
 backup_application_images() {
@@ -769,6 +785,18 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 require_file "$ENV_FILE"
 ensure_outbound_network_environment
+if mission_profile_ready "$ENV_FILE"; then
+  MISSION_ENABLED=1
+  echo "Mission profile enabled: database and Worker credentials are configured."
+else
+  MISSION_ENABLED=0
+  echo "Mission profile disabled: configure MISSION_DATABASE_URL, MISSION_WORKER_DATABASE_URL and MISSION_WORKER_TOKEN to start mission-worker."
+fi
+if mission_profile_ready "$PREVIOUS_RELEASE/qweather-token-broker.env"; then
+  PREVIOUS_MISSION_ENABLED=1
+else
+  PREVIOUS_MISSION_ENABLED=0
+fi
 
 command -v docker >/dev/null
 command -v curl >/dev/null
