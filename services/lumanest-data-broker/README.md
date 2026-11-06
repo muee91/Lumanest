@@ -23,7 +23,7 @@
   `LUMANEST_SERVICE_TOKEN` 仅保留给 debug/兼容客户端，不应编译进正式 APK。
   发放按安装 ID 记账：每个安装在一个 24 小时滚动窗口内最多换取 20 个 Token，超出返回 429 并附带 `Retry-After`；
   记录持久化在 NAS 数据卷 `session-installations.json`，可通过管理台「安全与维护 → App 设备会话」查看并撤销——
-  撤销后该安装立即无法换取新 Token，已持有的 Token 也一并失效。
+  撤销后该安装立即无法换取新 Token，已持有的 Token 也一并失效。Mission 数据库暂时不可用时，撤销意图会以待处理状态持久保存，Broker 重启或数据库恢复后自动重试；在数据库确认前管理台会返回 `mission_revocation_pending`。
 
 ## 朝霞与晚霞 Provider
 
