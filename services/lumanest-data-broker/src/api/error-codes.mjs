@@ -78,6 +78,7 @@ export const apiErrorCodes = Object.freeze({
   missionLegacyOperationUnverifiable: 'legacy_operation_unverifiable',
   missionIdempotencyMismatch: 'idempotency_mismatch',
   missionConsentRequired: 'mission_consent_required',
+  missionRevocationPending: 'mission_revocation_pending',
   staleWatchIntent: 'stale_watch_intent',
   missionUnconfigured: 'mission_unconfigured',
   notConfigured: 'not_configured',
