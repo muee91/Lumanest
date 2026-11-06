@@ -10,7 +10,7 @@ const draft = {
   intent: 'photography', locale: 'zh-CN', startsAt: null, endsAt: null, watchEnabled: false,
 };
 
-function fakePool() {
+function fakePool({ unsafeRevision = false } = {}) {
   const operations = new Map();
   let creates = 0;
   const client = {
@@ -27,7 +27,9 @@ function fakePool() {
         return { rows: [{ id: params[0], owner_id: params[1], state: 'planning',
           destination: JSON.parse(params[2]), intent: params[3], locale: params[4],
           watch_enabled: params[5], starts_at: params[6], ends_at: params[7],
-          version: 1, created_at: params[8], updated_at: params[8] }] };
+          version: 1, created_at: params[8], updated_at: params[8],
+          watch_intent_revision: unsafeRevision ? '9007199254740992' : '0',
+          watch_authorization_epoch: '0' }] };
       }
       if (sql.includes('INSERT INTO mission.mission_operations')) {
         operations.set(params[1], { status: params[3], response: JSON.parse(params[4]), request_fingerprint: params[6], request_fingerprint_version: 1 });
@@ -59,4 +61,14 @@ test('operation ID replays the same request and rejects changed or legacy payloa
   assert.deepEqual(await store.create({ ownerId, bindingHash, request: draft, operation }),
     { ok: false, error: 'legacy_operation_unverifiable' });
   assert.equal(pool.creates, 1);
+});
+
+test('unsafe public BIGINT values fail before an operation can commit', async () => {
+  const pool = fakePool({ unsafeRevision: true });
+  const store = new MissionStore({ pool });
+  await assert.rejects(
+    store.create({ ownerId, bindingHash, request: draft, operation: `${operation}-unsafe` }),
+    /watch_intent_revision exceeds JSON safe integer range/,
+  );
+  assert.equal(pool.operations.has(`${operation}-unsafe`), false);
 });

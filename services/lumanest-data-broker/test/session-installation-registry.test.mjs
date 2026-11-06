@@ -85,6 +85,29 @@ test('revocation blocks issuance and survives restarts', async () => {
   });
 });
 
+test('persists Mission revocation obligations until the database confirms them', async () => {
+  let clock = new Date('2026-11-01T00:00:00Z');
+  await withTemporaryRegistry(async ({ registry, filePath }) => {
+    const installationId = 'abcdefghijklmnopqrstuvwx';
+    await registry.recordIssuance({ installationId, ownerSecret });
+    await registry.markMissionRevocationPending(installationId);
+    assert.deepEqual(registry.listPendingMissionRevocations(), [installationId]);
+
+    await registry.recordMissionRevocationFailure(installationId);
+    assert.deepEqual(registry.listPendingMissionRevocations(), []);
+    clock = new Date('2026-11-01T00:00:03Z');
+    const restarted = await new SessionInstallationRegistry({ filePath, now: () => clock }).initialize();
+    assert.deepEqual(restarted.listPendingMissionRevocations(), [installationId]);
+    assert.equal(restarted.describe(installationId).missionRevocation, 'pending');
+
+    await restarted.markMissionRevocationApplied(installationId);
+    assert.deepEqual(restarted.listPendingMissionRevocations(), []);
+    assert.equal(restarted.describe(installationId).missionRevocation, 'confirmed');
+    await restarted.clearMissionRevocation(installationId);
+    assert.equal(restarted.describe(installationId).missionRevocation, null);
+  }, { now: () => clock });
+});
+
 test('binds an installation to its first owner secret and persists the binding', async () => {
   await withTemporaryRegistry(async ({ registry, filePath }) => {
     const installationId = 'abcdefghijklmnopqrstuvwx';

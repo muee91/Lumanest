@@ -2435,6 +2435,28 @@ export async function createBrokerServices(environment = process.env, {
   const missionStore = new MissionStore({
     connectionString: defaults.missionDatabaseUrl,
   });
+  const reconcileMissionRevocations = async () => {
+    if (!missionStore.configured) return;
+    for (const installationId of sessionInstallationRegistry.listPendingMissionRevocations()) {
+      try {
+        await missionStore.setInstallationRevoked(installationId, true);
+        await sessionInstallationRegistry.markMissionRevocationApplied(installationId);
+      } catch (error) {
+        await sessionInstallationRegistry.recordMissionRevocationFailure(installationId).catch(() => {});
+        console.error(JSON.stringify({
+          evt: 'mission.revocation_reconcile_failed',
+          installationId,
+          error: error instanceof Error ? error.name : 'unknown',
+        }));
+      }
+    }
+  };
+  // A pending revoke is a durable safety obligation. Reconcile once at boot
+  // and periodically while the broker is alive; the timer is unref'd so it
+  // cannot keep a controlled shutdown process open.
+  await reconcileMissionRevocations();
+  const missionRevocationTimer = setInterval(reconcileMissionRevocations, 30 * 1_000);
+  missionRevocationTimer.unref?.();
   const appServer = createTokenBrokerServer({
     runtimeConfig,
     weatherCache,
@@ -2526,6 +2548,8 @@ export async function createBrokerServices(environment = process.env, {
   return {
     appServer,
     adminServer,
+    reconcileMissionRevocations,
+    missionRevocationTimer,
     appPort: defaults.port,
     adminPort: Number.parseInt(environment.ADMIN_PORT ?? '8788', 10),
   };

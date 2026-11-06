@@ -41,6 +41,10 @@ test('legacy migration freezes unconfirmed watch without losing its Mission',
         { code: '23514' });
       await assert.rejects(target.query("UPDATE mission.missions SET watch_intent_revision = 9007199254740992 WHERE id = 'mis_legacy'"),
         { code: '23514' });
+      await assert.rejects(target.query("UPDATE mission.missions SET watch_authorization_epoch = 9007199254740992 WHERE id = 'mis_legacy'"),
+        { code: '23514' });
+      const safeValues = await target.query("SELECT watch_intent_revision, watch_authorization_epoch FROM mission.missions WHERE id = 'mis_legacy'");
+      assert.deepEqual(safeValues.rows[0], { watch_intent_revision: '0', watch_authorization_epoch: '0' });
     } finally {
       await target?.end();
       await admin.query(`DROP DATABASE IF EXISTS ${database}`);
