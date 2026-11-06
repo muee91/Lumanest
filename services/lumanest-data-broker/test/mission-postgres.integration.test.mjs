@@ -208,3 +208,48 @@ test('two connections converge an authorize and a newer stop revision',
       await cleanupPool.end();
     }
   });
+
+test('legacy stop allocates one revision per operation and serializes distinct stops',
+  { skip: !databaseUrl }, async () => {
+    const pool = new Pool({ connectionString: databaseUrl });
+    const cleanupPool = new Pool({ connectionString: process.env.MISSION_TEST_CLEANUP_DATABASE_URL ?? databaseUrl });
+    const store = new MissionStore({ pool });
+    const ownerId = randomBytes(16).toString('hex');
+    const bindingHash = randomBytes(32).toString('hex');
+    const operation = `integration-${randomBytes(16).toString('hex')}`;
+    try {
+      const created = await store.create({ ownerId, bindingHash, operation, request: {
+        destination: { name: '西湖', latitude: 30.2, longitude: 120.1, system: 'wgs84' },
+        intent: 'photography', locale: 'zh-CN', startsAt: null, endsAt: null, watchEnabled: false,
+      } });
+      const request = { expectedVersion: 1, operation: 'setWatch', watchEnabled: false, destination: null };
+      const duplicate = await Promise.all([
+        store.patch({ ownerId, bindingHash, id: created.body.id, operation: `${operation}-same`, request }),
+        store.patch({ ownerId, bindingHash, id: created.body.id, operation: `${operation}-same`, request }),
+      ]);
+      assert.equal(duplicate.filter((result) => result.ok).length, 2);
+      assert.equal(duplicate.filter((result) => result.replayed === true).length, 1);
+      assert.equal(new Set(duplicate.map((result) => result.body.watchIntentRevision)).size, 1);
+      assert.equal((await store.get(ownerId, bindingHash, created.body.id)).body.watchIntentRevision, 1);
+
+      const replay = await store.patch({ ownerId, bindingHash, id: created.body.id,
+        operation: `${operation}-same`, request });
+      assert.equal(replay.replayed, true);
+      assert.equal((await store.get(ownerId, bindingHash, created.body.id)).body.watchIntentRevision, 1);
+
+      const nextRequest = { ...request, expectedVersion: 2 };
+      const distinct = await Promise.all([
+        store.patch({ ownerId, bindingHash, id: created.body.id, operation: `${operation}-next-a`, request: nextRequest }),
+        store.patch({ ownerId, bindingHash, id: created.body.id, operation: `${operation}-next-b`, request: nextRequest }),
+      ]);
+      assert.equal(distinct.filter((result) => result.ok).length, 1);
+      assert.equal(distinct.filter((result) => result.error === 'conflict').length, 1);
+      assert.equal((await store.get(ownerId, bindingHash, created.body.id)).body.watchIntentRevision, 2);
+    } finally {
+      await cleanupPool.query('DELETE FROM mission.mission_operations WHERE owner_id = $1', [ownerId]);
+      await cleanupPool.query('DELETE FROM mission.missions WHERE owner_id = $1', [ownerId]);
+      await cleanupPool.query('DELETE FROM mission.device_bindings WHERE principal_id = $1', [ownerId]);
+      await pool.end();
+      await cleanupPool.end();
+    }
+  });
