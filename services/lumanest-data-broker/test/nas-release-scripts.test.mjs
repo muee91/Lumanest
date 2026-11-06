@@ -419,6 +419,7 @@ test('release state writes and recovery failures remain explicit', async () => {
   assert.match(deploy, /MISSION_PREFLIGHT_ROLE=api/);
   assert.match(deploy, /MISSION_PREFLIGHT_ROLE=worker/);
   assert.match(deploy, /for service in qweather-token-broker mission-worker context-service/);
+  assert.match(deploy, /previous Mission profile has no mission-worker container/);
   assert.match(deploy, /derive_build_proxy_url/);
   assert.match(deploy, /verify_build_proxy_endpoint/);
   assert.ok(deploy.indexOf('compose_release build') < deploy.indexOf('compose_previous stop'));
@@ -429,6 +430,8 @@ test('release state writes and recovery failures remain explicit', async () => {
   assert.match(rollback, /mission_profile_ready/);
   assert.match(rollback, /profile_args="--profile mission"/);
   assert.match(rollback, /verify_mission_runtime/);
+  assert.match(rollback, /no previous Worker image was archived/);
+  assert.match(rollback, /restored release has no runtime preflight/);
   assert.match(rollback, /atomic_write "\$LUMANEST_ROOT\/current-release"/);
 });
 
