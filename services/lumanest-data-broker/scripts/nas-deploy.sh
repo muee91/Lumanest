@@ -330,6 +330,10 @@ backup_application_images() {
     # resolving the image to archive.
     container_id=$(compose_previous ps --all -q "$service") || return 1
     if [ -z "$container_id" ]; then
+      if [ "$service" = "mission-worker" ]; then
+        echo "The previous Mission profile has no mission-worker container; continuing without a Worker image backup."
+        continue
+      fi
       echo "Cannot archive image because the previous $service container is missing." >&2
       return 1
     fi

@@ -81,9 +81,13 @@ docker compose --profile mission up -d --build
 
 The Ubuntu/NAS deployment script runs a read-only preflight inside the built
 Broker and Worker images before stopping the old stack. It checks that all four
-migration ledger entries are present and that each restricted runtime role has
-the table privileges listed above. A failed preflight aborts the deployment;
-credentials alone do not enable the Worker.
+migration ledger entries and their source SQL checksums are present, and that
+each restricted runtime role has the table privileges listed above without
+schema DDL privilege. A failed preflight aborts the deployment; credentials
+alone do not enable the Worker. During rollback, if the old Worker image was
+not archived or the restored release has no preflight program, the rollback
+keeps the Mission Worker disabled and reports that condition for a separate
+Ubuntu/NAS verification.
 
 The database enforces one open Mission per device subject, optimistic version
 checks, idempotent operations, leased checks, and event deduplication. A

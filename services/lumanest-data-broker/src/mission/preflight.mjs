@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 
 const { Pool } = pg;
@@ -8,6 +10,12 @@ const requiredMigrations = [
   '003_watch_authorization.sql',
   '004_mission_generations.sql',
 ];
+
+const expectedChecksums = new Map();
+for (const migration of requiredMigrations) {
+  const sql = await readFile(new URL(`../../migrations/${migration}`, import.meta.url), 'utf8');
+  expectedChecksums.set(migration, createHash('sha256').update(sql).digest('hex'));
+}
 
 const role = process.env.MISSION_PREFLIGHT_ROLE?.trim();
 const connectionString = role === 'worker'
@@ -54,9 +62,12 @@ const privileges = role === 'api'
       ['mission.schema_migrations', 'SELECT'],
     ];
 
-const [schemaResult, privilegeResult] = await Promise.all([
+const [identityResult, schemaResult, privilegeResult] = await Promise.all([
+  pool.query(`SELECT current_user AS role,
+                     has_schema_privilege(current_user, 'mission', 'USAGE') AS schema_usage,
+                     has_schema_privilege(current_user, 'mission', 'CREATE') AS schema_create`),
   pool.query(
-    'SELECT version FROM mission.schema_migrations WHERE version = ANY($1::text[])',
+    'SELECT version, checksum FROM mission.schema_migrations WHERE version = ANY($1::text[])',
     [requiredMigrations],
   ),
   pool.query(
@@ -69,10 +80,24 @@ const [schemaResult, privilegeResult] = await Promise.all([
   ),
 ]);
 
-const applied = new Set(schemaResult.rows.map((row) => row.version));
+const identity = identityResult.rows[0];
+if (!identity?.role || !identity.role.endsWith(`_${role}`)) {
+  throw new Error(`Mission preflight connected as an unexpected role for ${role}`);
+}
+if (identity.schema_usage !== true || identity.schema_create === true) {
+  throw new Error(`Mission ${role} schema privileges are unsafe`);
+}
+
+const applied = new Map(schemaResult.rows.map((row) => [row.version, row.checksum]));
 const missingMigrations = requiredMigrations.filter((migration) => !applied.has(migration));
 if (missingMigrations.length !== 0) {
   throw new Error(`Mission migrations are incomplete: ${missingMigrations.join(', ')}`);
+}
+const checksumMismatches = requiredMigrations
+  .filter((migration) => applied.get(migration) !== expectedChecksums.get(migration))
+  .map((migration) => migration);
+if (checksumMismatches.length !== 0) {
+  throw new Error(`Mission migration checksums do not match: ${checksumMismatches.join(', ')}`);
 }
 
 const granted = new Set(privilegeResult.rows.map((row) => `${row.table_name}:${row.privilege_type}`));
