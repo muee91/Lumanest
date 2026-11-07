@@ -12,6 +12,7 @@ TripTask _task({
   bool? pendingWatchEnabled,
   MissionRemoteStage? remoteStage,
   String? pendingTransition,
+  DateTime? remoteEndsAt,
 }) => TripTask(
   id: 'trip_1',
   destinationName: '贡嘎山',
@@ -27,6 +28,7 @@ TripTask _task({
   remoteMissionId: remoteId,
   remoteMissionWatchEnabled: remoteWatchEnabled,
   remoteMissionStage: remoteStage,
+  remoteMissionEndsAt: remoteEndsAt,
   pendingWatchEnabled: pendingWatchEnabled,
   pendingTransition: pendingTransition,
 );
@@ -68,6 +70,20 @@ void main() {
 
     expect(scene.watchStatus, MissionWatchStatus.acknowledged);
     expect(scene.watchDescription, contains('远程推送尚未接入'));
+  });
+
+  test('acknowledged watch exposes the server expiry', () {
+    final scene = MissionNowScene.fromTask(
+      _task(
+        watchEnabled: true,
+        remoteId: 'mis_123',
+        remoteWatchEnabled: true,
+        remoteStage: MissionRemoteStage.planning,
+        remoteEndsAt: DateTime.utc(2026, 11, 8),
+      ),
+    );
+
+    expect(scene.watchDescription, contains('有效至'));
   });
 
   test('local stop cannot claim the server has stopped checking', () {
