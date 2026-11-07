@@ -67,7 +67,6 @@ class V2NowMissionStage extends StatelessWidget {
     final status = scene.watchDescription;
     final planning = task.stage == TripTaskStage.planning;
     final traveling = task.stage == TripTaskStage.enRoute;
-    final field = task.stage == TripTaskStage.field;
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         key: const Key('v2-now-mission-stage'),
