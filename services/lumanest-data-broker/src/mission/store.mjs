@@ -67,13 +67,18 @@ export class MissionStore {
     const now = new Date();
     try {
       await client.query('BEGIN');
-      // Binding first, Mission second: the API uses the same lock order.
+      // Binding first, Mission second: the API uses the same lock order. The
+      // transition predicate makes retries idempotent, so a repeated revoke
+      // cannot bump Mission versions or append duplicate audit rows.
       const bindings = await client.query(
         `UPDATE mission.device_bindings SET revoked_at = $2
-         WHERE installation_id = $1 RETURNING principal_id`,
-        [installationId, revoked ? now : null],
+         WHERE installation_id = $1
+           AND (($3::boolean AND revoked_at IS NULL) OR
+                (NOT $3::boolean AND revoked_at IS NOT NULL))
+         RETURNING principal_id`,
+        [installationId, revoked ? now : null, revoked],
       );
-      if (revoked) {
+      if (revoked && bindings.rows.length > 0) {
         const owners = [...new Set([installationId, ...bindings.rows.map((row) => row.principal_id)])];
         const missions = await client.query(
           `UPDATE mission.missions SET watch_enabled = FALSE, watch_consent_version = NULL,
