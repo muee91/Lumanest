@@ -214,23 +214,23 @@ class V2NowMissionStage extends StatelessWidget {
                       onPressed: onOpenRoute,
                       child: const Text('先查看路线'),
                     ),
-                  if (planning || traveling)
-                    task.watchEnabled
-                        ? OutlinedButton(
-                            onPressed: () => onWatchChange(false),
-                            child: const Text('停止守候'),
-                          )
-                        : OutlinedButton(
-                            onPressed: () => _confirm(
-                              context,
-                              title: '请求云端守候？',
-                              detail:
-                                  '仅为这次明确目标启动后台检查。需要网络与服务端确认；目前不提供远程推送或必达保证。',
-                              actionLabel: '确认开启',
-                              action: () => onWatchChange(true),
-                            ),
-                            child: const Text('开启守候'),
-                          ),
+                  if (task.watchEnabled)
+                    OutlinedButton(
+                      onPressed: () => onWatchChange(false),
+                      child: const Text('停止守候'),
+                    )
+                  else if (planning || traveling)
+                    OutlinedButton(
+                      onPressed: () => _confirm(
+                        context,
+                        title: '请求云端守候？',
+                        detail:
+                            '仅为这次明确目标启动后台检查。需要网络与服务端确认；目前不提供远程推送或必达保证。',
+                        actionLabel: '确认开启',
+                        action: () => onWatchChange(true),
+                      ),
+                      child: const Text('开启守候'),
+                    ),
                   if (traveling)
                     OutlinedButton(
                       onPressed: onEnterField,
