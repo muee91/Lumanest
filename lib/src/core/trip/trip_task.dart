@@ -612,6 +612,9 @@ class TripTaskController extends Notifier<TripTask?> {
       createdAt: DateTime.now().toUtc(),
       sessionId: sessionId,
       targetId: targetId,
+      // Mirror every newly planned task when a device session is available.
+      // Watch remains opt-in and is reconciled separately after creation.
+      remoteCreationPending: true,
     );
     state = task;
     _mutationRevision += 1;
