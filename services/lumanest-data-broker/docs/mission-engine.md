@@ -42,6 +42,10 @@ can query `GET /v1/mission-operations` with the device session and the original
 The result is only evidence of the operation's historical association; it does
 not authenticate the original request body. If the Mission or its destination
 cannot be matched safely, the client leaves the operation unresolved.
+
+Authorizing a Mission watch with no explicit `endsAt` assigns a 24-hour server
+expiry. The Worker disables expired watches, clears pending checks and leases,
+and records an `expired` authorization audit row before claiming new work.
 Do not enable the Mission Worker for legacy watches until their consent has
 been reviewed and the server-side authorization migration is available.
 
@@ -52,6 +56,7 @@ GRANT SELECT, INSERT, UPDATE ON mission.missions TO mission_api, mission_worker;
 GRANT SELECT, INSERT ON mission.mission_operations TO mission_api;
 GRANT SELECT, INSERT ON mission.watch_authorization_audit TO mission_api;
 GRANT SELECT, INSERT ON mission.mission_events, mission.mission_checks TO mission_worker;
+GRANT INSERT ON mission.watch_authorization_audit TO mission_worker;
 GRANT SELECT ON mission.mission_events TO mission_api;
 GRANT SELECT ON mission.schema_migrations TO mission_api, mission_worker;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mission TO mission_worker;

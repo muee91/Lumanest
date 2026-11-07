@@ -106,6 +106,7 @@ class TripTask {
     this.remoteMissionVersion,
     this.remoteMissionStage,
     this.remoteMissionWatchEnabled,
+    this.remoteMissionEndsAt,
     this.remoteCreationPending = false,
     this.remoteCreationAttempted = false,
     this.pendingWatchEnabled,
@@ -132,6 +133,7 @@ class TripTask {
   final int? remoteMissionVersion;
   final MissionRemoteStage? remoteMissionStage;
   final bool? remoteMissionWatchEnabled;
+  final DateTime? remoteMissionEndsAt;
 
   /// A create may have reached the server even if its response was lost.
   final bool remoteCreationPending;
@@ -183,6 +185,8 @@ class TripTask {
       'remoteMissionStage': remoteMissionStage!.name,
     if (remoteMissionWatchEnabled != null)
       'remoteMissionWatchEnabled': remoteMissionWatchEnabled,
+    if (remoteMissionEndsAt != null)
+      'remoteMissionEndsAt': remoteMissionEndsAt!.toIso8601String(),
     'watchEnabled': watchEnabled,
     'watchIntentRevision': watchIntentRevision,
     'remoteCreationPending': remoteCreationPending,
@@ -235,6 +239,7 @@ class TripTask {
     final remoteMissionWatchEnabled = raw['remoteMissionWatchEnabled'] is bool
         ? raw['remoteMissionWatchEnabled'] as bool
         : null;
+    final remoteMissionEndsAt = _date(raw['remoteMissionEndsAt']);
     final watchEnabled = !legacy && raw['watchEnabled'] == true;
     if (latitude == null ||
         longitude == null ||
@@ -266,6 +271,7 @@ class TripTask {
       remoteMissionVersion: remoteMissionVersion,
       remoteMissionStage: remoteMissionStage,
       remoteMissionWatchEnabled: remoteMissionWatchEnabled,
+      remoteMissionEndsAt: remoteMissionEndsAt,
       remoteCreationPending: remoteCreationPending,
       remoteCreationAttempted: remoteCreationAttempted,
       pendingWatchEnabled:
@@ -349,6 +355,7 @@ class TripTask {
     int? remoteMissionVersion,
     MissionRemoteStage? remoteMissionStage,
     bool? remoteMissionWatchEnabled,
+    DateTime? remoteMissionEndsAt,
     bool? remoteCreationPending,
     bool? remoteCreationAttempted,
     bool? pendingWatchEnabled,
@@ -377,6 +384,7 @@ class TripTask {
     remoteMissionStage: remoteMissionStage ?? this.remoteMissionStage,
     remoteMissionWatchEnabled:
         remoteMissionWatchEnabled ?? this.remoteMissionWatchEnabled,
+    remoteMissionEndsAt: remoteMissionEndsAt ?? this.remoteMissionEndsAt,
     remoteCreationPending: remoteCreationPending ?? this.remoteCreationPending,
     remoteCreationAttempted:
         remoteCreationAttempted ?? this.remoteCreationAttempted,
@@ -1192,6 +1200,7 @@ class TripTaskController extends Notifier<TripTask?> {
       remoteMissionVersion: snapshot.version,
       remoteMissionStage: snapshot.stage,
       remoteMissionWatchEnabled: snapshot.watchEnabled,
+      remoteMissionEndsAt: snapshot.endsAt,
       watchIntentRevision:
           snapshot.watchIntentRevision > current.watchIntentRevision
           ? snapshot.watchIntentRevision

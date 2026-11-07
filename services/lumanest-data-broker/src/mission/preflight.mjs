@@ -9,6 +9,7 @@ const requiredMigrations = [
   '002_mission_operation_fingerprint.sql',
   '003_watch_authorization.sql',
   '004_mission_generations.sql',
+  '005_mission_watch_expiry.sql',
 ];
 
 const expectedChecksums = new Map();
@@ -59,6 +60,7 @@ const privileges = role === 'api'
       ['mission.mission_events', 'INSERT'],
       ['mission.mission_checks', 'SELECT'],
       ['mission.mission_checks', 'INSERT'],
+      ['mission.watch_authorization_audit', 'INSERT'],
       ['mission.schema_migrations', 'SELECT'],
     ];
 
