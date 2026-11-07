@@ -461,6 +461,10 @@ class _IntelligenceWorkspaceState
     TripTaskCommand command,
   ) async {
     final controller = ref.read(tripTaskProvider.notifier);
+    // TripTask is restored asynchronously. The assistant is often the first
+    // consumer to access it, so never interpret a cold null as "no task".
+    await controller.ready;
+    if (!mounted) return;
     final task = ref.read(tripTaskProvider);
     final needsConfirmation =
         command.type != TripTaskCommandType.stopWatch &&
