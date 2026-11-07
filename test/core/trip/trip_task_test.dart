@@ -392,7 +392,7 @@ void main() {
     store.releaseCurrentWrite();
   });
 
-  test('local tasks stay local until watch is explicitly enabled', () async {
+  test('new tasks mirror to Mission while watch stays opt-in', () async {
     final store = _FakeTripTaskStore(null);
     final mission = _FakeMissionRepository();
     final container = ProviderContainer(
@@ -412,16 +412,20 @@ void main() {
     );
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
-    expect(container.read(tripTaskProvider)?.remoteMissionId, isNull);
-    expect(mission.operations, isEmpty);
-
-    controller.setWatchEnabled(true);
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
     expect(
       container.read(tripTaskProvider)?.remoteMissionId,
       startsWith('mis_'),
     );
+    expect(mission.operations, ['create']);
+    expect(container.read(tripTaskProvider)?.watchEnabled, isFalse);
+    expect(
+      container.read(tripTaskProvider)?.remoteMissionWatchEnabled,
+      isFalse,
+    );
+
+    controller.setWatchEnabled(true);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
     expect(mission.operations, ['create', 'authorizeWatch']);
 
     controller.start(at: createdAt);
@@ -605,12 +609,15 @@ void main() {
         destination: destination,
         travelMode: TripTravelMode.driving,
       );
-      controller.setWatchEnabled(true);
       for (var i = 0; i < 5; i++) {
         await Future<void>.delayed(Duration.zero);
       }
       expect(store.value?.remoteCreationPending, isTrue);
       expect(mission.createKeys.length, 1);
+      controller.setWatchEnabled(true);
+      for (var i = 0; i < 8; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
       first.dispose();
       final second = makeContainer();
       addTearDown(second.dispose);
@@ -644,6 +651,9 @@ void main() {
         destination: destination,
         travelMode: TripTravelMode.driving,
       );
+      for (var i = 0; i < 8; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
       controller.setWatchEnabled(true);
       for (var i = 0; i < 8; i++) {
         await Future<void>.delayed(Duration.zero);
@@ -687,6 +697,9 @@ void main() {
         destination: destination,
         travelMode: TripTravelMode.driving,
       );
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
       controller.setWatchEnabled(true);
       for (var i = 0; i < 8; i++) {
         await Future<void>.delayed(Duration.zero);
@@ -890,6 +903,9 @@ void main() {
         destination: destination,
         travelMode: TripTravelMode.driving,
       );
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
       controller.setWatchEnabled(true);
       for (var i = 0; i < 10; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 5));
