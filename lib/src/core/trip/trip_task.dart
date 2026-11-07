@@ -107,6 +107,7 @@ class TripTask {
     this.remoteMissionStage,
     this.remoteMissionWatchEnabled,
     this.remoteCreationPending = false,
+    this.remoteCreationAttempted = false,
     this.pendingWatchEnabled,
     this.pendingWatchVersion,
     this.pendingWatchIntentRevision,
@@ -134,6 +135,10 @@ class TripTask {
 
   /// A create may have reached the server even if its response was lost.
   final bool remoteCreationPending;
+  /// Whether the client has crossed the point where a create request may have
+  /// reached the server. This is deliberately separate from the durable
+  /// pending marker so an offline task can be cancelled and replaced safely.
+  final bool remoteCreationAttempted;
   final bool? pendingWatchEnabled;
   final int? pendingWatchVersion;
 
@@ -181,6 +186,7 @@ class TripTask {
     'watchEnabled': watchEnabled,
     'watchIntentRevision': watchIntentRevision,
     'remoteCreationPending': remoteCreationPending,
+    'remoteCreationAttempted': remoteCreationAttempted,
     if (pendingWatchEnabled != null) 'pendingWatchEnabled': pendingWatchEnabled,
     if (pendingWatchVersion != null) 'pendingWatchVersion': pendingWatchVersion,
     if (pendingWatchIntentRevision != null)
@@ -216,6 +222,13 @@ class TripTask {
     final remoteMissionStage = raw['remoteMissionStage'] is String
         ? _enumByName(MissionRemoteStage.values, raw['remoteMissionStage'])
         : null;
+    final remoteCreationPending = raw['remoteCreationPending'] == true;
+    // Version 4 snapshots predate the separate attempted marker. Treat an
+    // old pending create conservatively as possibly submitted to preserve
+    // idempotent recovery after an interrupted request.
+    final remoteCreationAttempted = raw['remoteCreationAttempted'] is bool
+        ? raw['remoteCreationAttempted'] as bool
+        : remoteCreationPending;
     // Older snapshots cannot establish that background monitoring was
     // explicitly authorized. Preserve the trip, but request suspension.
     final legacy = raw['version'] != 4;
@@ -253,7 +266,8 @@ class TripTask {
       remoteMissionVersion: remoteMissionVersion,
       remoteMissionStage: remoteMissionStage,
       remoteMissionWatchEnabled: remoteMissionWatchEnabled,
-      remoteCreationPending: raw['remoteCreationPending'] == true,
+      remoteCreationPending: remoteCreationPending,
+      remoteCreationAttempted: remoteCreationAttempted,
       pendingWatchEnabled:
           (!legacy || raw['pendingWatchEnabled'] == false) &&
               raw['pendingWatchEnabled'] is bool
@@ -336,6 +350,7 @@ class TripTask {
     MissionRemoteStage? remoteMissionStage,
     bool? remoteMissionWatchEnabled,
     bool? remoteCreationPending,
+    bool? remoteCreationAttempted,
     bool? pendingWatchEnabled,
     int? pendingWatchVersion,
     int? pendingWatchIntentRevision,
@@ -363,6 +378,8 @@ class TripTask {
     remoteMissionWatchEnabled:
         remoteMissionWatchEnabled ?? this.remoteMissionWatchEnabled,
     remoteCreationPending: remoteCreationPending ?? this.remoteCreationPending,
+    remoteCreationAttempted:
+        remoteCreationAttempted ?? this.remoteCreationAttempted,
     pendingWatchEnabled: clearPendingWatch
         ? null
         : pendingWatchEnabled ?? this.pendingWatchEnabled,
@@ -527,12 +544,15 @@ class TripTaskController extends Notifier<TripTask?> {
   Future<void> _writeQueue = Future<void>.value();
   Future<void> _missionSyncQueue = Future<void>.value();
   int _versionConflictRetries = 0;
+  Timer? _missionRetryTimer;
+  int _missionRetryAttempt = 0;
 
   Future<void> get ready => _restoreFuture;
 
   @override
   TripTask? build() {
     final store = ref.watch(tripTaskStoreProvider);
+    ref.onDispose(() => _missionRetryTimer?.cancel());
     _restoreFuture = _restore(store, _mutationRevision);
     return null;
   }
@@ -557,7 +577,8 @@ class TripTaskController extends Notifier<TripTask?> {
     if (revisionAtStart != _mutationRevision) return;
     if (restored == null) return;
     if (!restored.isOpen) {
-      if (restored.remoteCreationPending ||
+      if ((restored.remoteCreationPending &&
+              restored.remoteCreationAttempted) ||
           (restored.remoteMissionId != null &&
               restored.remoteMissionStage != MissionRemoteStage.completed &&
               restored.remoteMissionStage != MissionRemoteStage.cancelled)) {
@@ -596,7 +617,7 @@ class TripTaskController extends Notifier<TripTask?> {
       return current;
     }
     if (current != null &&
-        (current.remoteCreationPending ||
+        (current.remoteCreationPending && current.remoteCreationAttempted ||
             (current.remoteMissionId != null &&
                 current.remoteMissionStage != MissionRemoteStage.completed &&
                 current.remoteMissionStage != MissionRemoteStage.cancelled) ||
@@ -615,6 +636,7 @@ class TripTaskController extends Notifier<TripTask?> {
       // Mirror every newly planned task when a device session is available.
       // Watch remains opt-in and is reconciled separately after creation.
       remoteCreationPending: true,
+      remoteCreationAttempted: false,
     );
     state = task;
     _mutationRevision += 1;
@@ -665,7 +687,14 @@ class TripTaskController extends Notifier<TripTask?> {
     if (current == null) return;
     final next = current.cancel();
     if (identical(next, current)) return;
-    state = next;
+    state = next._copy(
+      stage: next.stage,
+      // No repository call has happened yet, so this cancelled local task
+      // must not block the next destination or retain a phantom cloud task.
+      remoteCreationPending: current.remoteCreationAttempted
+          ? next.remoteCreationPending
+          : false,
+    );
     _mutationRevision += 1;
     _persist(state!);
     _projectRouteContext(state!);
@@ -695,7 +724,8 @@ class TripTaskController extends Notifier<TripTask?> {
     if (!_restored) throw StateError('trip_restore_pending');
     if (_restoreFailed) throw StateError('trip_restore_failed');
     final current = state;
-    if (current?.remoteCreationPending == true ||
+    if ((current?.remoteCreationPending == true &&
+            current?.remoteCreationAttempted == true) ||
         (current?.remoteMissionId != null &&
             current?.remoteMissionStage != MissionRemoteStage.completed &&
             current?.remoteMissionStage != MissionRemoteStage.cancelled)) {
@@ -725,11 +755,73 @@ class TripTaskController extends Notifier<TripTask?> {
           await _syncMission(repository, current);
         });
     _missionSyncQueue = queued;
-    unawaited(
-      queued.catchError((Object error, StackTrace stack) {
-        debugPrint('Mission synchronization failed: $error');
-      }),
-    );
+    unawaited(queued.then((_) {
+      final current = state;
+      if (current == null || current.id != task.id) return;
+      if (_needsMissionSync(current)) {
+        _scheduleMissionRetry(current);
+      } else {
+        _missionRetryAttempt = 0;
+        _missionRetryTimer?.cancel();
+        _missionRetryTimer = null;
+      }
+    }).catchError((Object error, StackTrace stack) {
+      debugPrint('Mission synchronization failed: $error');
+      final current = state;
+      if (current != null && current.id == task.id) {
+        _scheduleMissionRetry(current);
+      }
+    }));
+  }
+
+  /// Replays a persisted remote operation after session renewal or foreground
+  /// recovery. The returned future includes the current queued attempt so
+  /// callers and tests can observe a deterministic reconciliation boundary.
+  Future<void> reconcileRemoteMission() async {
+    await ready;
+    final current = state;
+    if (current == null || !_needsMissionSync(current)) return;
+    _missionRetryTimer?.cancel();
+    _missionRetryTimer = null;
+    _scheduleMissionSync(current);
+    await _missionSyncQueue.catchError((Object error, StackTrace stack) {});
+  }
+
+  bool _needsMissionSync(TripTask task) {
+    if (task.remoteMissionId == null) return task.remoteCreationPending;
+    if (task.remoteMissionVersion == null || task.remoteMissionStage == null) {
+      return true;
+    }
+    if (task.pendingTransition != null ||
+        task.pendingWatchEnabled != null ||
+        task.pendingWatchVersion != null) {
+      return true;
+    }
+    final desiredStage = _remoteStageFor(task.stage);
+    if (task.remoteMissionStage != desiredStage) return true;
+    return task.isOpen &&
+        task.remoteMissionWatchEnabled != task.watchEnabled;
+  }
+
+  void _scheduleMissionRetry(TripTask task) {
+    if (_missionRetryTimer != null ||
+        ref.read(missionRemoteRepositoryProvider) == null) {
+      return;
+    }
+    const delays = [
+      Duration(seconds: 5),
+      Duration(seconds: 20),
+      Duration(minutes: 1),
+    ];
+    final delay = delays[_missionRetryAttempt.clamp(0, delays.length - 1)];
+    _missionRetryAttempt++;
+    _missionRetryTimer = Timer(delay, () {
+      _missionRetryTimer = null;
+      final current = state;
+      if (current != null && current.id == task.id) {
+        _scheduleMissionSync(current);
+      }
+    });
   }
 
   Future<void> _syncMission(
@@ -745,6 +837,25 @@ class TripTaskController extends Notifier<TripTask?> {
     var remoteWatchEnabled =
         task.remoteMissionWatchEnabled ?? !task.watchEnabled;
     if (remoteId == null || remoteVersion == null) {
+      final currentBeforeCreate = state;
+      if (currentBeforeCreate == null || currentBeforeCreate.id != task.id) {
+        return;
+      }
+      if (currentBeforeCreate.stage == TripTaskStage.cancelled &&
+          !currentBeforeCreate.remoteCreationAttempted) {
+        return;
+      }
+      if (!currentBeforeCreate.remoteCreationAttempted) {
+        final marked = currentBeforeCreate._copy(
+          stage: currentBeforeCreate.stage,
+          remoteCreationAttempted: true,
+        );
+        state = marked;
+        _persist(marked);
+        await _writeQueue;
+        if (state?.id != task.id) return;
+        task = state!;
+      }
       final createOperation = _missionOperationId(task, 'create');
       MissionRemoteSnapshot? created;
       try {
@@ -1086,6 +1197,7 @@ class TripTaskController extends Notifier<TripTask?> {
           ? snapshot.watchIntentRevision
           : current.watchIntentRevision,
       remoteCreationPending: false,
+      remoteCreationAttempted: false,
       clearPendingWatch: clearPendingWatch,
       clearPendingTransition: clearPendingTransition,
     );

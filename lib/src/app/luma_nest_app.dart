@@ -11,6 +11,7 @@ import 'package:luma_nest/src/core/config/broker_session_controller.dart';
 import 'package:luma_nest/src/core/config/client_session_bootstrap.dart';
 import 'package:luma_nest/src/core/config/environment_config.dart';
 import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/core/context/environment_refresh_policy.dart';
 import 'package:luma_nest/src/core/context/environment_providers.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
@@ -447,6 +448,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
       onConfigChanged: (next) {
         if (!mounted) return;
         ref.read(environmentConfigControllerProvider.notifier).replace(next);
+        unawaited(
+          ref.read(tripTaskProvider.notifier).reconcileRemoteMission(),
+        );
       },
     )..start();
   }
@@ -457,6 +461,9 @@ class _LumaNestRootState extends ConsumerState<_LumaNestRoot>
       _brokerSessionController?.checkForRenewalOnResume();
       ref.invalidate(deviceEnergyProvider);
       unawaited(_refreshEnvironment(force: false));
+      unawaited(
+        ref.read(tripTaskProvider.notifier).reconcileRemoteMission(),
+      );
     }
   }
 }
