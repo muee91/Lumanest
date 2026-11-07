@@ -178,6 +178,26 @@ void main() {
     expect(restored?.remoteMissionStage, MissionRemoteStage.field);
   });
 
+  test('persists whether a pending Mission create was attempted', () {
+    final task = TripTask(
+      id: 'trip_create_marker',
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+      stage: TripTaskStage.planning,
+      createdAt: createdAt,
+      remoteCreationPending: true,
+      remoteCreationAttempted: false,
+    );
+    final restored = TripTask.fromJson(task.toJson());
+    expect(restored?.remoteCreationPending, isTrue);
+    expect(restored?.remoteCreationAttempted, isFalse);
+
+    final legacyJson = task.toJson()..remove('remoteCreationAttempted');
+    final legacyRestored = TripTask.fromJson(legacyJson);
+    expect(legacyRestored?.remoteCreationAttempted, isTrue);
+  });
+
   test('legacy watch is suspended without discarding the trip', () {
     final task = TripTask(
       id: 'legacy',
@@ -446,6 +466,74 @@ void main() {
     expect(container.read(tripTaskProvider)?.watchEnabled, false);
   });
 
+  test('offline cancellation clears an unsubmitted create marker', () async {
+    final store = _FakeTripTaskStore(null);
+    final container = ProviderContainer(
+      overrides: [
+        tripTaskStoreProvider.overrideWithValue(store),
+        missionRemoteRepositoryProvider.overrideWithValue(null),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(tripTaskProvider.notifier);
+    await controller.ready;
+    controller.plan(
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+    );
+    expect(container.read(tripTaskProvider)?.remoteCreationPending, isTrue);
+    expect(
+      container.read(tripTaskProvider)?.remoteCreationAttempted,
+      isFalse,
+    );
+
+    controller.cancel();
+    expect(container.read(tripTaskProvider)?.remoteCreationPending, isFalse);
+    expect(
+      () => controller.plan(
+        destinationName: '杭州',
+        destination: const GeoPoint(latitude: 30.3, longitude: 120.2),
+        travelMode: TripTravelMode.driving,
+      ),
+      returnsNormally,
+    );
+  });
+
+  test('session recovery replays a transient Mission create failure', () async {
+    final mission = _FlakyCreateMissionRepository();
+    final container = ProviderContainer(
+      overrides: [
+        tripTaskStoreProvider.overrideWithValue(_FakeTripTaskStore(null)),
+        missionRemoteRepositoryProvider.overrideWithValue(mission),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(tripTaskProvider.notifier);
+    await controller.ready;
+    controller.plan(
+      destinationName: '西湖',
+      destination: destination,
+      travelMode: TripTravelMode.driving,
+    );
+    for (var i = 0; i < 6; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(mission.createAttempts, 1);
+    expect(container.read(tripTaskProvider)?.remoteCreationPending, isTrue);
+    expect(
+      container.read(tripTaskProvider)?.remoteCreationAttempted,
+      isTrue,
+    );
+
+    await controller.reconcileRemoteMission();
+    expect(mission.createAttempts, 2);
+    expect(container.read(tripTaskProvider)?.remoteMissionId, isNotNull);
+    expect(container.read(tripTaskProvider)?.remoteCreationPending, isFalse);
+  });
+
   test(
     'cannot replace a cloud trip while cancellation is unconfirmed',
     () async {
@@ -503,6 +591,7 @@ void main() {
       controller.setWatchEnabled(true);
       await mission.started.future;
       expect(store.value?.remoteCreationPending, isTrue);
+      expect(store.value?.remoteCreationAttempted, isTrue);
       controller.setWatchEnabled(false);
       expect(
         () => controller.plan(
@@ -821,6 +910,7 @@ void main() {
           stage: TripTaskStage.cancelled,
           createdAt: createdAt,
           remoteCreationPending: true,
+          remoteCreationAttempted: true,
         ),
       );
       final container = ProviderContainer(
@@ -858,6 +948,7 @@ void main() {
         stage: TripTaskStage.planning,
         createdAt: createdAt,
         remoteCreationPending: true,
+        remoteCreationAttempted: true,
       ),
     );
     final container = ProviderContainer(
@@ -1089,6 +1180,20 @@ class _BlockingCreateMissionRepository extends _FakeMissionRepository {
   }) async {
     started.complete();
     await release.future;
+    return super.create(draft, operationId: operationId);
+  }
+}
+
+class _FlakyCreateMissionRepository extends _FakeMissionRepository {
+  int createAttempts = 0;
+
+  @override
+  Future<MissionRemoteSnapshot?> create(
+    MissionDraft draft, {
+    required String operationId,
+  }) async {
+    createAttempts++;
+    if (createAttempts == 1) return null;
     return super.create(draft, operationId: operationId);
   }
 }
