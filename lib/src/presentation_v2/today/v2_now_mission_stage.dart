@@ -236,7 +236,7 @@ class V2NowMissionStage extends StatelessWidget {
                       onPressed: onEnterField,
                       child: const Text('我已到现场（手动）'),
                     ),
-                  if (field) ...[
+                  if (task.stage == TripTaskStage.field) ...[
                     OutlinedButton(
                       onPressed: onOpenRoute,
                       child: const Text('回看路线'),
