@@ -599,10 +599,12 @@ class TripTaskController extends Notifier<TripTask?> {
       return;
     }
     state = restored;
-    _persist(restored);
-    _projectRouteContext(restored);
-    if (restored.remoteMissionId != null || restored.remoteCreationPending) {
-      _scheduleMissionSync(restored);
+    _expireLocalWatchIfNeeded();
+    final current = state!;
+    _persist(current);
+    _projectRouteContext(current);
+    if (current.remoteMissionId != null || current.remoteCreationPending) {
+      _scheduleMissionSync(current);
     }
   }
 
@@ -787,10 +789,12 @@ class TripTaskController extends Notifier<TripTask?> {
   /// callers and tests can observe a deterministic reconciliation boundary.
   Future<void> reconcileRemoteMission() async {
     await ready;
+    _expireLocalWatchIfNeeded();
     final current = state;
     if (current == null || !_needsMissionSync(current)) return;
     _missionRetryTimer?.cancel();
     _missionRetryTimer = null;
+    _missionRetryAttempt = 0;
     _scheduleMissionSync(current);
     await _missionSyncQueue.catchError((Object error, StackTrace stack) {});
   }
@@ -812,6 +816,7 @@ class TripTaskController extends Notifier<TripTask?> {
   }
 
   void _scheduleMissionRetry(TripTask task) {
+    if (_missionRetryAttempt >= 3) return;
     if (_missionRetryTimer != null ||
         ref.read(missionRemoteRepositoryProvider) == null) {
       return;
@@ -1194,6 +1199,12 @@ class TripTaskController extends Notifier<TripTask?> {
         snapshot.version < current.remoteMissionVersion!) {
       return;
     }
+    final remoteExpired = snapshot.endsAt != null &&
+        !snapshot.endsAt!.isAfter(DateTime.now().toUtc());
+    final remoteIntentRevision = snapshot.watchIntentRevision >
+            current.watchIntentRevision
+        ? snapshot.watchIntentRevision
+        : current.watchIntentRevision;
     final next = current._copy(
       stage: current.stage,
       remoteMissionId: snapshot.id,
@@ -1201,10 +1212,10 @@ class TripTaskController extends Notifier<TripTask?> {
       remoteMissionStage: snapshot.stage,
       remoteMissionWatchEnabled: snapshot.watchEnabled,
       remoteMissionEndsAt: snapshot.endsAt,
-      watchIntentRevision:
-          snapshot.watchIntentRevision > current.watchIntentRevision
-          ? snapshot.watchIntentRevision
-          : current.watchIntentRevision,
+      watchEnabled: remoteExpired ? false : null,
+      watchIntentRevision: remoteExpired && current.watchEnabled
+          ? remoteIntentRevision + 1
+          : remoteIntentRevision,
       remoteCreationPending: false,
       remoteCreationAttempted: false,
       clearPendingWatch: clearPendingWatch,
@@ -1212,6 +1223,24 @@ class TripTaskController extends Notifier<TripTask?> {
     );
     state = next;
     _persist(next);
+  }
+
+  void _expireLocalWatchIfNeeded() {
+    final current = state;
+    final endsAt = current?.remoteMissionEndsAt;
+    if (current == null ||
+        !current.watchEnabled ||
+        endsAt == null ||
+        endsAt.isAfter(DateTime.now().toUtc())) {
+      return;
+    }
+    final expired = current._copy(
+      stage: current.stage,
+      watchEnabled: false,
+      watchIntentRevision: current.watchIntentRevision + 1,
+    );
+    state = expired;
+    _persist(expired);
   }
 
   static MissionRemoteStage _remoteStageFor(TripTaskStage stage) =>

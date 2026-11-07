@@ -446,7 +446,6 @@ export class MissionStore {
 
   async finishCheck({ mission, workerId, check, events = [], now = null }) {
     if (!this.#pool) return { ok: false, error: apiErrorCodes.notConfigured };
-    const effectiveNow = now ?? new Date();
     const client = await this.#pool.connect();
     try {
       await client.query('BEGIN');
@@ -465,7 +464,12 @@ export class MissionStore {
         return { ok: false, error: apiErrorCodes.leaseLost };
       }
       const current = currentResult.rows[0];
-      if (current.ends_at != null && new Date(current.ends_at).getTime() <= effectiveNow.getTime()) {
+      const databaseNowResult = await client.query(
+        'SELECT COALESCE($1::timestamptz, clock_timestamp()) AS now',
+        [now],
+      );
+      const commitNow = new Date(databaseNowResult.rows[0].now);
+      if (current.ends_at != null && new Date(current.ends_at).getTime() <= commitNow.getTime()) {
         await client.query(
           `UPDATE mission.missions
               SET watch_enabled = FALSE, watch_consent_version = NULL,
@@ -473,12 +477,12 @@ export class MissionStore {
                   lease_owner = NULL, lease_until = NULL,
                   version = version + 1, updated_at = $1
             WHERE id = $2 AND version = $3 AND lease_owner = $4`,
-          [effectiveNow, mission.id, mission.version, workerId],
+          [commitNow, mission.id, mission.version, workerId],
         );
         await client.query(
           `INSERT INTO mission.watch_authorization_audit (id, mission_id, action, created_at)
            VALUES ($1, $2, 'expired', $3)`,
-          [`expire-${randomBytes(16).toString('hex')}`, mission.id, effectiveNow],
+          [`expire-${randomBytes(16).toString('hex')}`, mission.id, commitNow],
         );
         await client.query('COMMIT');
         return { ok: false, error: apiErrorCodes.leaseLost };
@@ -486,14 +490,14 @@ export class MissionStore {
       const stillActive = current.watch_enabled &&
         ['planning', 'enRoute', 'field'].includes(current.state);
       const nextCheckAt = stillActive
-        ? new Date(effectiveNow.getTime() + checkIntervalMilliseconds)
+        ? new Date(commitNow.getTime() + checkIntervalMilliseconds)
         : null;
       await client.query(
         `UPDATE mission.missions
             SET lease_owner = NULL, lease_until = NULL, last_checked_at = $1,
                 next_check_at = $2, updated_at = $1
           WHERE id = $3 AND version = $4 AND lease_owner = $5`,
-        [effectiveNow, nextCheckAt, mission.id, mission.version, workerId],
+        [commitNow, nextCheckAt, mission.id, mission.version, workerId],
       );
       let insertedEvents = 0;
       if (stillActive && check.ok) {
@@ -504,7 +508,7 @@ export class MissionStore {
              VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
              ON CONFLICT (mission_id, dedupe_key) DO NOTHING`,
             [mission.id, event.dedupeKey, event.kind, event.source, asDate(event.observedAt),
-              asDate(event.expiresAt), JSON.stringify(event.payload), effectiveNow],
+              asDate(event.expiresAt), JSON.stringify(event.payload), commitNow],
           );
           insertedEvents += inserted.rowCount;
         }
@@ -513,8 +517,8 @@ export class MissionStore {
         `INSERT INTO mission.mission_checks
           (mission_id, worker_id, started_at, finished_at, status, context_id, error_code, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [mission.id, workerId, asDate(check.startedAt), effectiveNow, check.ok ? 'completed' : 'failed',
-          check.contextId ?? null, check.ok ? null : check.error ?? 'evaluation_failed', effectiveNow],
+        [mission.id, workerId, asDate(check.startedAt), commitNow, check.ok ? 'completed' : 'failed',
+          check.contextId ?? null, check.ok ? null : check.error ?? 'evaluation_failed', commitNow],
       );
       await client.query('COMMIT');
       return { ok: true, insertedEvents };

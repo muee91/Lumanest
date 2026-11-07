@@ -37,6 +37,17 @@ test('legacy migration freezes unconfirmed watch without losing its Mission',
         next_check_at: null, lease_owner: null, lease_until: null });
       const audit = await target.query("SELECT action FROM mission.watch_authorization_audit WHERE mission_id = 'mis_legacy'");
       assert.deepEqual(audit.rows, [{ action: 'legacy_suspended' }]);
+      await target.query(`INSERT INTO mission.missions
+        (id, owner_id, state, destination, intent, locale, watch_enabled, watch_consent_version,
+         watch_consented_at, version, next_check_at, created_at, updated_at)
+        VALUES ('mis_old_watch', 'owner_old_watch', 'planning', '{}'::jsonb, 'photography',
+          'zh-CN', TRUE, 1, now(), 1, now(), now(), now())`);
+      await target.query("DELETE FROM mission.schema_migrations WHERE version = '005_mission_watch_expiry.sql'");
+      await execFileAsync(process.execPath, [script], { env });
+      const oldWatch = await target.query("SELECT watch_enabled, next_check_at, lease_owner FROM mission.missions WHERE id = 'mis_old_watch'");
+      assert.deepEqual(oldWatch.rows[0], { watch_enabled: false, next_check_at: null, lease_owner: null });
+      const oldWatchAudit = await target.query("SELECT action FROM mission.watch_authorization_audit WHERE mission_id = 'mis_old_watch'");
+      assert.deepEqual(oldWatchAudit.rows, [{ action: 'expired' }]);
       await assert.rejects(target.query("UPDATE mission.missions SET watch_enabled = TRUE WHERE id = 'mis_legacy'"),
         { code: '23514' });
       await assert.rejects(target.query("UPDATE mission.missions SET watch_intent_revision = 9007199254740992 WHERE id = 'mis_legacy'"),

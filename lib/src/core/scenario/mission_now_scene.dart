@@ -50,10 +50,17 @@ class MissionNowScene {
     MissionWatchStatus.awaitingEnable =>
       '守候请求尚未得到服务端确认；不能依赖后台检查或远程提醒。',
     MissionWatchStatus.acknowledged =>
-      '上次同步显示云端检查已启用；这不是实时在线证明，远程推送尚未接入。',
+      '上次同步显示云端检查已启用$_endsAtLabel；这不是实时在线证明，远程推送尚未接入。',
     MissionWatchStatus.awaitingDisable =>
       '已在本机停止守候，但服务端停止状态待确认；网络恢复后仍需核对。',
   };
+
+  String get _endsAtLabel {
+    final endsAt = task?.remoteMissionEndsAt;
+    if (endsAt == null) return '';
+    final local = endsAt.toLocal().toString();
+    return '，有效至 ${local.length >= 16 ? local.substring(0, 16) : local}';
+  }
 
   bool get stageSyncPending {
     final current = task;
