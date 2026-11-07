@@ -9,7 +9,7 @@ if (!connectionString) {
   throw new Error('MISSION_MIGRATION_DATABASE_URL is required');
 }
 
-const migrations = ['001_mission.sql', '002_mission_operation_fingerprint.sql', '003_watch_authorization.sql', '004_mission_generations.sql', '005_mission_watch_expiry.sql'];
+const migrations = ['001_mission.sql', '002_mission_operation_fingerprint.sql', '003_watch_authorization.sql', '004_mission_generations.sql', '005_mission_watch_expiry.sql', '006_mission_legacy_watch_cleanup.sql'];
 const baselineColumns = {
   missions: ['id', 'owner_id', 'state', 'destination', 'intent', 'locale', 'watch_enabled', 'starts_at', 'ends_at', 'version', 'next_check_at', 'last_checked_at', 'completed_at', 'lease_owner', 'lease_until', 'created_at', 'updated_at'],
   mission_operations: ['owner_id', 'operation_id', 'mission_id', 'status', 'response', 'created_at'],

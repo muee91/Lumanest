@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -10,8 +10,31 @@ import pg from 'pg';
 const adminUrl = process.env.MISSION_TEST_MIGRATION_ADMIN_URL;
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
+const historicalMigrations = [
+  '001_mission.sql',
+  '002_mission_operation_fingerprint.sql',
+  '003_watch_authorization.sql',
+  '004_mission_generations.sql',
+  '005_mission_watch_expiry.sql',
+];
 
-test('legacy migration freezes unconfirmed watch without losing its Mission',
+async function applyHistoricalMigrations(target) {
+  await target.query(await readFile(new URL('../migrations/001_mission.sql', import.meta.url), 'utf8'));
+  await target.query(`CREATE TABLE mission.schema_migrations (
+    version TEXT PRIMARY KEY, checksum TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  for (const migration of historicalMigrations) {
+    const sql = await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8');
+    if (migration !== historicalMigrations[0]) await target.query(sql);
+    await target.query(
+      'INSERT INTO mission.schema_migrations (version, checksum) VALUES ($1, $2)',
+      [migration, createHash('sha256').update(sql).digest('hex')],
+    );
+  }
+}
+
+test('incremental migration keeps the published 005 checksum and freezes legacy watches',
   { skip: !adminUrl }, async () => {
     const admin = new Pool({ connectionString: adminUrl });
     const database = `lumanest_migration_${randomBytes(6).toString('hex')}`;
@@ -21,12 +44,17 @@ test('legacy migration freezes unconfirmed watch without losing its Mission',
     try {
       await admin.query(`CREATE DATABASE ${database}`);
       target = new Pool({ connectionString: targetUrl.toString() });
-      await target.query(await readFile(new URL('../migrations/001_mission.sql', import.meta.url), 'utf8'));
+      await applyHistoricalMigrations(target);
+      const published005 = await readFile(
+        new URL('../migrations/005_mission_watch_expiry.sql', import.meta.url),
+        'utf8',
+      );
       await target.query(`INSERT INTO mission.missions
-        (id, owner_id, state, destination, intent, locale, watch_enabled, version,
-         next_check_at, lease_owner, lease_until, created_at, updated_at)
+        (id, owner_id, state, destination, intent, locale, watch_enabled,
+         watch_consent_version, watch_consented_at, version, next_check_at,
+         lease_owner, lease_until, created_at, updated_at)
         VALUES ('mis_legacy', 'owner_legacy', 'planning', '{}'::jsonb, 'photography',
-          'zh-CN', TRUE, 1, now(), 'old-worker', now() + interval '1 hour', now(), now())`);
+          'zh-CN', TRUE, 1, now(), 1, now(), 'old-worker', now() + interval '1 hour', now(), now())`);
       const env = { ...process.env, MISSION_MIGRATION_DATABASE_URL: targetUrl.toString() };
       const script = fileURLToPath(new URL('../scripts/migrate-mission.mjs', import.meta.url));
       await execFileAsync(process.execPath, [script], { env });
@@ -36,18 +64,15 @@ test('legacy migration freezes unconfirmed watch without losing its Mission',
       assert.deepEqual(result.rows[0], { watch_enabled: false, version: 2,
         next_check_at: null, lease_owner: null, lease_until: null });
       const audit = await target.query("SELECT action FROM mission.watch_authorization_audit WHERE mission_id = 'mis_legacy'");
-      assert.deepEqual(audit.rows, [{ action: 'legacy_suspended' }]);
-      await target.query(`INSERT INTO mission.missions
-        (id, owner_id, state, destination, intent, locale, watch_enabled, watch_consent_version,
-         watch_consented_at, version, next_check_at, created_at, updated_at)
-        VALUES ('mis_old_watch', 'owner_old_watch', 'planning', '{}'::jsonb, 'photography',
-          'zh-CN', TRUE, 1, now(), 1, now(), now(), now())`);
-      await target.query("DELETE FROM mission.schema_migrations WHERE version = '005_mission_watch_expiry.sql'");
-      await execFileAsync(process.execPath, [script], { env });
-      const oldWatch = await target.query("SELECT watch_enabled, next_check_at, lease_owner FROM mission.missions WHERE id = 'mis_old_watch'");
-      assert.deepEqual(oldWatch.rows[0], { watch_enabled: false, next_check_at: null, lease_owner: null });
-      const oldWatchAudit = await target.query("SELECT action FROM mission.watch_authorization_audit WHERE mission_id = 'mis_old_watch'");
-      assert.deepEqual(oldWatchAudit.rows, [{ action: 'expired' }]);
+      assert.deepEqual(audit.rows, [{ action: 'expired' }]);
+      const checksum = await target.query(
+        "SELECT checksum FROM mission.schema_migrations WHERE version = '005_mission_watch_expiry.sql'",
+      );
+      assert.equal(checksum.rows[0].checksum, createHash('sha256').update(published005).digest('hex'));
+      const auditCount = await target.query(
+        "SELECT count(*)::int AS count FROM mission.watch_authorization_audit WHERE mission_id = 'mis_legacy'",
+      );
+      assert.equal(auditCount.rows[0].count, 1);
       await assert.rejects(target.query("UPDATE mission.missions SET watch_enabled = TRUE WHERE id = 'mis_legacy'"),
         { code: '23514' });
       await assert.rejects(target.query("UPDATE mission.missions SET watch_intent_revision = 9007199254740992 WHERE id = 'mis_legacy'"),

@@ -67,12 +67,10 @@ abstract final class TripTaskCommandParser {
     if (RegExp(r'^(?:开始出发|现在出发|我出发了|出发)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.start);
     }
-    if (RegExp(r'^(?:我到了(?:，进入现场)?|我已到达|已到达|进入现场|开启现场模式)$')
-        .hasMatch(text)) {
+    if (RegExp(r'^(?:我到了(?:，进入现场)?|我已到达|已到达|进入现场|开启现场模式)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.enterField);
     }
-    if (RegExp(r'^(?:结束这次(?:行程)?|完成这次(?:行程)?|结束任务|完成任务)$')
-        .hasMatch(text)) {
+    if (RegExp(r'^(?:结束这次(?:行程)?|完成这次(?:行程)?|结束任务|完成任务)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.complete);
     }
     if (RegExp(r'^(?:停止守候|关闭守候|暂停守候)$').hasMatch(text)) {
@@ -137,6 +135,7 @@ class TripTask {
 
   /// A create may have reached the server even if its response was lost.
   final bool remoteCreationPending;
+
   /// Whether the client has crossed the point where a create request may have
   /// reached the server. This is deliberately separate from the durable
   /// pending marker so an offline task can be cancelled and replaced safely.
@@ -553,6 +552,7 @@ class TripTaskController extends Notifier<TripTask?> {
   Future<void> _missionSyncQueue = Future<void>.value();
   int _versionConflictRetries = 0;
   Timer? _missionRetryTimer;
+  Timer? _missionExpiryTimer;
   int _missionRetryAttempt = 0;
 
   Future<void> get ready => _restoreFuture;
@@ -560,7 +560,10 @@ class TripTaskController extends Notifier<TripTask?> {
   @override
   TripTask? build() {
     final store = ref.watch(tripTaskStoreProvider);
-    ref.onDispose(() => _missionRetryTimer?.cancel());
+    ref.onDispose(() {
+      _missionRetryTimer?.cancel();
+      _missionExpiryTimer?.cancel();
+    });
     _restoreFuture = _restore(store, _mutationRevision);
     return null;
   }
@@ -602,6 +605,7 @@ class TripTaskController extends Notifier<TripTask?> {
     _expireLocalWatchIfNeeded();
     final current = state!;
     _persist(current);
+    _armMissionExpiryTimer(current);
     _projectRouteContext(current);
     if (current.remoteMissionId != null || current.remoteCreationPending) {
       _scheduleMissionSync(current);
@@ -765,23 +769,27 @@ class TripTaskController extends Notifier<TripTask?> {
           await _syncMission(repository, current);
         });
     _missionSyncQueue = queued;
-    unawaited(queued.then((_) {
-      final current = state;
-      if (current == null || current.id != task.id) return;
-      if (_needsMissionSync(current)) {
-        _scheduleMissionRetry(current);
-      } else {
-        _missionRetryAttempt = 0;
-        _missionRetryTimer?.cancel();
-        _missionRetryTimer = null;
-      }
-    }).catchError((Object error, StackTrace stack) {
-      debugPrint('Mission synchronization failed: $error');
-      final current = state;
-      if (current != null && current.id == task.id) {
-        _scheduleMissionRetry(current);
-      }
-    }));
+    unawaited(
+      queued
+          .then((_) {
+            final current = state;
+            if (current == null || current.id != task.id) return;
+            if (_needsMissionSync(current)) {
+              _scheduleMissionRetry(current);
+            } else {
+              _missionRetryAttempt = 0;
+              _missionRetryTimer?.cancel();
+              _missionRetryTimer = null;
+            }
+          })
+          .catchError((Object error, StackTrace stack) {
+            debugPrint('Mission synchronization failed: $error');
+            final current = state;
+            if (current != null && current.id == task.id) {
+              _scheduleMissionRetry(current);
+            }
+          }),
+    );
   }
 
   /// Replays a persisted remote operation after session renewal or foreground
@@ -811,8 +819,7 @@ class TripTaskController extends Notifier<TripTask?> {
     }
     final desiredStage = _remoteStageFor(task.stage);
     if (task.remoteMissionStage != desiredStage) return true;
-    return task.isOpen &&
-        task.remoteMissionWatchEnabled != task.watchEnabled;
+    return task.isOpen && task.remoteMissionWatchEnabled != task.watchEnabled;
   }
 
   void _scheduleMissionRetry(TripTask task) {
@@ -1063,17 +1070,19 @@ class TripTaskController extends Notifier<TripTask?> {
     final version = task.pendingWatchVersion!;
     final intentRevision =
         task.pendingWatchIntentRevision ?? task.watchIntentRevision;
+    final operationId = _missionOperationId(
+      task,
+      enabled ? 'setWatch-on' : 'setWatch-off',
+      version,
+      intentRevision,
+    );
     MissionRemoteSnapshot? updated;
     try {
       updated = await repository.patch(
         missionId,
         expectedVersion: version,
         operation: enabled ? 'authorizeWatch' : 'setWatch',
-        operationId: _missionOperationId(
-          task,
-          enabled ? 'setWatch-on' : 'setWatch-off',
-          version,
-        ),
+        operationId: operationId,
         watchEnabled: enabled,
         intentRevision: intentRevision,
       );
@@ -1087,16 +1096,21 @@ class TripTaskController extends Notifier<TripTask?> {
         clearTransition: false,
       );
       return null;
+    } on MissionStaleWatchIntent catch (conflict) {
+      return _reconcileStaleWatchIntent(
+        repository,
+        task,
+        missionId,
+        intentRevision,
+        enabled,
+        conflict.current,
+      );
     } on MissionLegacyOperationUnverifiable {
       return _recoverLegacyOperation(
         repository,
         task,
         missionId,
-        _missionOperationId(
-          task,
-          enabled ? 'setWatch-on' : 'setWatch-off',
-          version,
-        ),
+        operationId,
         clearTransition: false,
       );
     }
@@ -1111,6 +1125,61 @@ class TripTaskController extends Notifier<TripTask?> {
     _attachMission(task.id, latest, clearPendingWatch: true);
     _versionConflictRetries = 0;
     return latest;
+  }
+
+  Future<MissionRemoteSnapshot?> _reconcileStaleWatchIntent(
+    MissionRemoteRepository repository,
+    TripTask task,
+    String missionId,
+    int rejectedIntentRevision,
+    bool enabled,
+    MissionRemoteSnapshot conflict,
+  ) async {
+    if (conflict.id != missionId || state?.id != task.id) return null;
+    final latest = await repository.get(missionId);
+    if (latest == null ||
+        latest.id != missionId ||
+        latest.version < conflict.version ||
+        state?.id != task.id) {
+      return null;
+    }
+    final remote = latest.version >= conflict.version ? latest : conflict;
+    final current = state!;
+    // A concurrent writer may already have applied the exact desired state;
+    // acknowledge it without replaying an older intent revision.
+    if (remote.watchEnabled == enabled &&
+        remote.watchIntentRevision >= rejectedIntentRevision) {
+      _attachMission(task.id, remote, clearPendingWatch: true);
+      _versionConflictRetries = 0;
+      return remote;
+    }
+    final nextRevision =
+        [
+          current.watchIntentRevision,
+          current.pendingWatchIntentRevision ?? 0,
+          remote.watchIntentRevision,
+          rejectedIntentRevision,
+        ].reduce((left, right) => left > right ? left : right) +
+        1;
+    final rebased = current._copy(
+      stage: current.stage,
+      remoteMissionId: remote.id,
+      remoteMissionVersion: remote.version,
+      remoteMissionStage: remote.stage,
+      remoteMissionWatchEnabled: remote.watchEnabled,
+      remoteMissionEndsAt: remote.endsAt,
+      watchEnabled: enabled,
+      watchIntentRevision: nextRevision,
+      pendingWatchEnabled: enabled,
+      pendingWatchVersion: remote.version,
+      pendingWatchIntentRevision: nextRevision,
+    );
+    state = rebased;
+    _persist(rebased);
+    // A stale intent is a deterministic ordering conflict, so rebase and
+    // retry immediately rather than waiting for the network backoff timer.
+    _scheduleMissionSync(rebased);
+    return null;
   }
 
   Future<MissionRemoteSnapshot?> _recoverLegacyOperation(
@@ -1199,10 +1268,11 @@ class TripTaskController extends Notifier<TripTask?> {
         snapshot.version < current.remoteMissionVersion!) {
       return;
     }
-    final remoteExpired = snapshot.endsAt != null &&
+    final remoteExpired =
+        snapshot.endsAt != null &&
         !snapshot.endsAt!.isAfter(DateTime.now().toUtc());
-    final remoteIntentRevision = snapshot.watchIntentRevision >
-            current.watchIntentRevision
+    final remoteIntentRevision =
+        snapshot.watchIntentRevision > current.watchIntentRevision
         ? snapshot.watchIntentRevision
         : current.watchIntentRevision;
     final next = current._copy(
@@ -1223,6 +1293,30 @@ class TripTaskController extends Notifier<TripTask?> {
     );
     state = next;
     _persist(next);
+    _armMissionExpiryTimer(next);
+  }
+
+  void _armMissionExpiryTimer(TripTask task) {
+    _missionExpiryTimer?.cancel();
+    _missionExpiryTimer = null;
+    final endsAt = task.remoteMissionEndsAt;
+    if (endsAt == null ||
+        (!task.watchEnabled && task.remoteMissionWatchEnabled != true) ||
+        !endsAt.isAfter(DateTime.now().toUtc())) {
+      return;
+    }
+    final delay = endsAt.difference(DateTime.now().toUtc());
+    _missionExpiryTimer = Timer(delay, () {
+      _missionExpiryTimer = null;
+      final current = state;
+      if (current == null || current.id != task.id) return;
+      final wasEnabled = current.watchEnabled;
+      _expireLocalWatchIfNeeded();
+      final expired = state;
+      if (wasEnabled && expired != null && expired.id == task.id) {
+        _scheduleMissionSync(expired);
+      }
+    });
   }
 
   void _expireLocalWatchIfNeeded() {
@@ -1234,6 +1328,8 @@ class TripTaskController extends Notifier<TripTask?> {
         endsAt.isAfter(DateTime.now().toUtc())) {
       return;
     }
+    _missionExpiryTimer?.cancel();
+    _missionExpiryTimer = null;
     final expired = current._copy(
       stage: current.stage,
       watchEnabled: false,
@@ -1268,9 +1364,11 @@ class TripTaskController extends Notifier<TripTask?> {
     TripTask task,
     String operation, [
     int? version,
+    int? intentRevision,
   ]) {
     final suffix = version == null ? '' : '-$version';
-    return '${task.id}-$operation$suffix';
+    final revisionSuffix = intentRevision == null ? '' : '-r$intentRevision';
+    return '${task.id}-$operation$suffix$revisionSuffix';
   }
 
   void _enqueuePersistence(

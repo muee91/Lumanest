@@ -85,7 +85,7 @@ docker compose --profile mission up -d --build
 ```
 
 The Ubuntu/NAS deployment script runs a read-only preflight inside the built
-Broker and Worker images before stopping the old stack. It checks that all four
+Broker and Worker images before stopping the old stack. It checks that all six
 migration ledger entries and their source SQL checksums are present, and that
 each restricted runtime role has the table privileges listed above without
 schema DDL privilege. A failed preflight aborts the deployment; credentials
