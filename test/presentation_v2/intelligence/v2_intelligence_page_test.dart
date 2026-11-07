@@ -5,6 +5,7 @@ import 'package:luma_nest/src/core/assistant/assistant_model.dart';
 import 'package:luma_nest/src/core/context/context_fixture.dart';
 import 'package:luma_nest/src/core/context/context_snapshot.dart';
 import 'package:luma_nest/src/core/location/geo_point.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/design/luma_nest_theme.dart';
 import 'package:luma_nest/src/features/location/domain/location_search_result.dart';
 import 'package:luma_nest/src/presentation_v2/intelligence/v2_intelligence_page.dart';
@@ -136,6 +137,61 @@ void main() {
     expect(find.text('栖光规则 · 当前数据'), findsOneWidget);
   });
 
+  testWidgets('AI task mutation requires confirmation and can be cancelled', (
+    tester,
+  ) async {
+    final store = _InMemoryTripTaskStore(
+      TripTask(
+        id: 'trip_confirm',
+        destinationName: '西湖',
+        destination: const GeoPoint(latitude: 30.25, longitude: 120.15),
+        travelMode: TripTravelMode.driving,
+        stage: TripTaskStage.planning,
+        createdAt: DateTime.utc(2026, 11, 7),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          assistantModelProvider.overrideWithValue(null),
+          tripTaskStoreProvider.overrideWithValue(store),
+        ],
+        child: MaterialApp(
+          theme: LumaNestTheme.light,
+          home: V2IntelligencePage(
+            initialSnapshot: ContextFixtures.lakeSunset(
+              observedAt: DateTime.now(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> askToStart() async {
+      await tester.enterText(
+        find.byKey(const Key('v2-intelligence-input')),
+        '出发',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('v2-intelligence-send')));
+      await tester.pumpAndSettle();
+    }
+
+    await askToStart();
+    expect(find.text('确认开始前往「西湖」？'), findsOneWidget);
+    expect(store.task?.stage, TripTaskStage.planning);
+
+    await tester.tap(find.text('返回'));
+    await tester.pumpAndSettle();
+    expect(store.task?.stage, TripTaskStage.planning);
+
+    await askToStart();
+    await tester.tap(find.text('确认执行'));
+    await tester.pumpAndSettle();
+    expect(store.task?.stage, TripTaskStage.enRoute);
+  });
+
   testWidgets('keeps the conversation composer on the light canvas', (
     tester,
   ) async {
@@ -177,4 +233,23 @@ Future<void> _pump(WidgetTester tester) async {
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _InMemoryTripTaskStore implements TripTaskStore {
+  _InMemoryTripTaskStore(this.task);
+
+  TripTask? task;
+
+  @override
+  Future<TripTask?> read() async => task;
+
+  @override
+  Future<void> write(TripTask value) async {
+    task = value;
+  }
+
+  @override
+  Future<void> clear() async {
+    task = null;
+  }
 }
