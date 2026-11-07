@@ -99,6 +99,7 @@ test('restricted API and worker roles can complete a leased check',
       const authorized = await api.patch({ ownerId, bindingHash, id: created.body.id, operation: `${operation}-authorize`,
         request: { expectedVersion: 1, operation: 'authorizeWatch', watchEnabled: true, destination: null, intentRevision: 1 } });
       assert.equal(authorized.body.watchEnabled, true);
+      assert.ok(Date.parse(authorized.body.endsAt) > Date.now());
       const now = new Date(Date.now() + 11 * 60_000);
       const claim = await worker.claimDue({ workerId: 'integration-worker', now });
       assert.equal(claim.mission.id, created.body.id);
@@ -122,6 +123,7 @@ test('restricted API and worker roles can complete a leased check',
           watchEnabled: true, destination: null, intentRevision: 3,
         } });
       assert.equal(reauthorized.body.watchEnabled, true);
+      assert.ok(Date.parse(reauthorized.body.endsAt) > Date.now());
       await cleanupPool.query(
         "UPDATE mission.missions SET lease_epoch = 9007199254740993 WHERE id = $1",
         [created.body.id],
@@ -148,6 +150,20 @@ test('restricted API and worker roles can complete a leased check',
       const nextAt = new Date(renewedAt.getTime() + 11 * 60_000);
       const beforeRevoke = await worker.claimDue({ workerId: 'integration-worker', now: nextAt });
       assert.equal(beforeRevoke.mission.id, created.body.id);
+      await cleanupPool.query(
+        `UPDATE mission.missions
+            SET watch_enabled = TRUE, next_check_at = $1, ends_at = $1,
+                lease_owner = NULL, lease_until = NULL
+          WHERE id = $2`,
+        [new Date(nextAt.getTime() - 1_000), created.body.id],
+      );
+      const expiredClaim = await worker.claimDue({ workerId: 'integration-worker', now: nextAt });
+      assert.equal(expiredClaim.mission, null);
+      const expired = await cleanupPool.query(
+        'SELECT watch_enabled, next_check_at FROM mission.missions WHERE id = $1',
+        [created.body.id],
+      );
+      assert.deepEqual(expired.rows[0], { watch_enabled: false, next_check_at: null });
       assert.deepEqual(await api.setInstallationRevoked(ownerId, true), { ok: true });
       assert.deepEqual(await api.get(ownerId, bindingHash, created.body.id),
         { ok: false, error: 'unauthorized' });

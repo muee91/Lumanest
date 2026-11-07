@@ -41,6 +41,7 @@ class MissionRemoteSnapshot {
     required this.version,
     required this.watchEnabled,
     this.watchIntentRevision = 0,
+    this.endsAt,
     this.destinationName,
     this.destinationLatitude,
     this.destinationLongitude,
@@ -53,6 +54,7 @@ class MissionRemoteSnapshot {
   final int version;
   final bool watchEnabled;
   final int watchIntentRevision;
+  final DateTime? endsAt;
   final String? destinationName;
   final double? destinationLatitude;
   final double? destinationLongitude;
@@ -75,6 +77,9 @@ class MissionRemoteSnapshot {
     final stage = _stage(state);
     if (stage == null || version < 1) return null;
     final destination = raw['destination'];
+    final endsAt = raw['endsAt'] is String
+        ? DateTime.tryParse(raw['endsAt'] as String)?.toUtc()
+        : null;
     return MissionRemoteSnapshot(
       id: id,
       stage: stage,
@@ -85,6 +90,7 @@ class MissionRemoteSnapshot {
               (raw['watchIntentRevision'] as int) >= 0
           ? raw['watchIntentRevision'] as int
           : 0,
+      endsAt: endsAt,
       destinationName: destination is Map && destination['name'] is String
           ? destination['name'] as String
           : null,

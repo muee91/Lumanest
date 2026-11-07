@@ -12,6 +12,7 @@ const { Pool } = pg;
 
 const checkIntervalMilliseconds = 10 * 60 * 1_000;
 const leaseMilliseconds = 2 * 60 * 1_000;
+const defaultWatchDurationMilliseconds = 24 * 60 * 60 * 1_000;
 
 function missionId() {
   return `mis_${randomBytes(16).toString('hex')}`;
@@ -248,6 +249,7 @@ export class MissionStore {
       let consentVersion = current.watch_consent_version;
       let consentedAt = current.watch_consented_at;
       let authorizationEpoch = BigInt(current.watch_authorization_epoch ?? 0);
+      let endsAt = current.ends_at;
       const currentIntentRevision = BigInt(current.watch_intent_revision ?? 0);
       if (request.operation === 'authorizeWatch' && request.intentRevision == null) {
         await client.query('ROLLBACK');
@@ -288,6 +290,13 @@ export class MissionStore {
           await client.query('ROLLBACK');
           return { ok: false, error: apiErrorCodes.conflict, current: missionResponse(current) };
         }
+        if (endsAt != null && new Date(endsAt).getTime() <= now.getTime()) {
+          await client.query('ROLLBACK');
+          return { ok: false, error: apiErrorCodes.conflict, current: missionResponse(current) };
+        }
+        if (endsAt == null) {
+          endsAt = new Date(now.getTime() + defaultWatchDurationMilliseconds);
+        }
         watchEnabled = true;
         consentVersion = 1;
         consentedAt = now;
@@ -322,10 +331,11 @@ export class MissionStore {
                 version = version + 1, next_check_at = $4,
                 updated_at = $5, completed_at = CASE WHEN $1 IN ('completed', 'cancelled') THEN $5 ELSE completed_at END,
                 watch_consent_version = $9, watch_consented_at = $10,
-                watch_intent_revision = $11, watch_authorization_epoch = $12
+                watch_intent_revision = $11, watch_authorization_epoch = $12,
+                ends_at = $13
           WHERE owner_id = $6 AND id = $7 AND version = $8
           RETURNING *`,
-        [state, JSON.stringify(destination), watchEnabled, nextCheckAt, now, ownerId, id, request.expectedVersion, consentVersion, consentedAt, intentRevision.toString(), authorizationEpoch.toString()],
+        [state, JSON.stringify(destination), watchEnabled, nextCheckAt, now, ownerId, id, request.expectedVersion, consentVersion, consentedAt, intentRevision.toString(), authorizationEpoch.toString(), endsAt],
       );
       if (result.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -377,6 +387,26 @@ export class MissionStore {
     const client = await this.#pool.connect();
     try {
       await client.query('BEGIN');
+      const expired = await client.query(
+        `UPDATE mission.missions
+            SET watch_enabled = FALSE, watch_consent_version = NULL,
+                watch_consented_at = NULL, next_check_at = NULL,
+                lease_owner = NULL, lease_until = NULL,
+                version = version + 1, updated_at = COALESCE($1::timestamptz, clock_timestamp())
+          WHERE state IN ('planning', 'enRoute', 'field')
+            AND watch_enabled = TRUE
+            AND ends_at IS NOT NULL
+            AND ends_at <= COALESCE($1::timestamptz, clock_timestamp())
+          RETURNING id`,
+        [now],
+      );
+      for (const row of expired.rows) {
+        await client.query(
+          `INSERT INTO mission.watch_authorization_audit (id, mission_id, action, created_at)
+           VALUES ($1, $2, 'expired', COALESCE($3::timestamptz, clock_timestamp()))`,
+          [`expire-${randomBytes(16).toString('hex')}`, row.id, now],
+        );
+      }
       const result = await client.query(
         `SELECT * FROM mission.missions
           WHERE state IN ('planning', 'enRoute', 'field')
@@ -424,7 +454,6 @@ export class MissionStore {
         `SELECT * FROM mission.missions
           WHERE id = $1 AND version = $2 AND lease_owner = $3
             AND lease_until > COALESCE($4::timestamptz, clock_timestamp())
-            AND (ends_at IS NULL OR ends_at > COALESCE($4::timestamptz, clock_timestamp()))
             AND lease_until = $5 AND lease_epoch = $6
             AND watch_consent_version = 1 AND watch_consented_at IS NOT NULL
             AND watch_authorization_epoch = $7
@@ -436,6 +465,24 @@ export class MissionStore {
         return { ok: false, error: apiErrorCodes.leaseLost };
       }
       const current = currentResult.rows[0];
+      if (current.ends_at != null && new Date(current.ends_at).getTime() <= effectiveNow.getTime()) {
+        await client.query(
+          `UPDATE mission.missions
+              SET watch_enabled = FALSE, watch_consent_version = NULL,
+                  watch_consented_at = NULL, next_check_at = NULL,
+                  lease_owner = NULL, lease_until = NULL,
+                  version = version + 1, updated_at = $1
+            WHERE id = $2 AND version = $3 AND lease_owner = $4`,
+          [effectiveNow, mission.id, mission.version, workerId],
+        );
+        await client.query(
+          `INSERT INTO mission.watch_authorization_audit (id, mission_id, action, created_at)
+           VALUES ($1, $2, 'expired', $3)`,
+          [`expire-${randomBytes(16).toString('hex')}`, mission.id, effectiveNow],
+        );
+        await client.query('COMMIT');
+        return { ok: false, error: apiErrorCodes.leaseLost };
+      }
       const stillActive = current.watch_enabled &&
         ['planning', 'enRoute', 'field'].includes(current.state);
       const nextCheckAt = stillActive
@@ -543,4 +590,4 @@ export class MissionStore {
   }
 }
 
-export { checkIntervalMilliseconds };
+export { checkIntervalMilliseconds, defaultWatchDurationMilliseconds };

@@ -27,8 +27,10 @@ void main() {
       'state': 'field',
       'version': 3,
       'watchEnabled': true,
+      'endsAt': '2026-11-08T00:00:00Z',
     });
     expect(parsed?.stage, MissionRemoteStage.field);
     expect(parsed?.version, 3);
+    expect(parsed?.endsAt, DateTime.utc(2026, 11, 8));
   });
 }
