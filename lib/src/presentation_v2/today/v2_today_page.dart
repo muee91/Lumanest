@@ -18,6 +18,7 @@ import 'package:luma_nest/src/core/photography/active_shooting_intent.dart';
 import 'package:luma_nest/src/core/photography/shooting_session.dart';
 import 'package:luma_nest/src/core/scenario/scenario_providers.dart';
 import 'package:luma_nest/src/core/scenario/surface_composition.dart';
+import 'package:luma_nest/src/core/trip/trip_task.dart';
 import 'package:luma_nest/src/features/location/application/environment_location_display.dart';
 import 'package:luma_nest/src/features/location/application/manual_location_providers.dart';
 import 'package:luma_nest/src/features/location/presentation/manual_location_sheet.dart';
@@ -29,6 +30,7 @@ import 'package:luma_nest/src/features/today/application/environment_visualizati
 import 'package:luma_nest/src/presentation_v2/environment/v2_environment_gradients.dart';
 import 'package:luma_nest/src/presentation_v2/environment/v2_environment_icon.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_palette.dart';
+import 'package:luma_nest/src/presentation_v2/today/v2_now_mission_stage.dart';
 import 'package:luma_nest/src/presentation_v2/shared/v2_stage.dart';
 
 class V2TodayPage extends ConsumerWidget {
@@ -41,6 +43,60 @@ class V2TodayPage extends ConsumerWidget {
     final consentGranted = ref.watch(environmentConsentProvider);
     final manualLocation = ref.watch(manualLocationProvider);
     final hasManualLocation = manualLocation.asData?.value != null;
+    final task = ref.watch(tripTaskProvider);
+    if (task != null && task.isOpen) {
+      // The user's explicitly created task is accessible even when automatic
+      // location is denied. Environment evidence is optional, not invented.
+      final ContextSnapshot? taskSnapshot =
+          initialSnapshot ??
+          ((consentGranted || hasManualLocation)
+              ? ref.watch(environmentSnapshotProvider).asData?.value
+              : null);
+      final safetyEntry = taskSnapshot == null
+          ? null
+          : ref.watch(todaySurfaceCompositionProvider(taskSnapshot))[
+              CompositionSlot.blockingSafety
+            ];
+      final controller = ref.read(tripTaskProvider.notifier);
+      return V2PageStage(
+        child: V2NowMissionStage(
+          task: task,
+          onStart: () => controller.start(),
+          onEnterField: () => controller.enterField(),
+          onComplete: () => controller.complete(),
+          onCancel: () => controller.cancel(),
+          onWatchChange: controller.setWatchEnabled,
+          onOpenRoute: () => context.push('/route'),
+          onOpenEnvironment: () => context.push('/environment'),
+          onOpenShooting: () {
+            final sessionId = task.sessionId;
+            if (sessionId == null) {
+              context.push('/environment');
+              return;
+            }
+            final intent = ActiveShootingIntent(
+              sessionId: sessionId,
+              targetId: task.targetId,
+              createdAt: DateTime.now(),
+            );
+            context.push(
+              Uri(
+                path: '/session/${Uri.encodeComponent(sessionId)}',
+                queryParameters: intent.queryParameters,
+              ).toString(),
+            );
+          },
+          safetyTitle: safetyEntry?.presentation.title,
+          onOpenSafety: safetyEntry == null || taskSnapshot == null
+              ? null
+              : () => EntryActionDispatcher.dispatch(
+                  context,
+                  safetyEntry,
+                  snapshot: taskSnapshot,
+                ),
+        ),
+      );
+    }
     // An explicit manual place is a valid, privacy-preserving entry path. It
     // must not be blocked by automatic-location consent because the user has
     // already chosen the location used for the environment snapshot.
