@@ -461,7 +461,34 @@ class _IntelligenceWorkspaceState
     TripTaskCommand command,
   ) async {
     final controller = ref.read(tripTaskProvider.notifier);
+    // TripTask is restored asynchronously. The assistant is often the first
+    // consumer to access it, so never interpret a cold null as "no task".
+    await controller.ready;
+    if (!mounted) return;
     final task = ref.read(tripTaskProvider);
+    final needsConfirmation =
+        command.type != TripTaskCommandType.stopWatch &&
+        (command.type == TripTaskCommandType.plan || task?.isOpen == true);
+    if (needsConfirmation) {
+      final confirmed = await _confirmTripTaskAction(command, task);
+      if (!mounted) return;
+      if (!confirmed) {
+        _recordTripTaskResult(intent, '已取消操作，任务没有改变。');
+        return;
+      }
+      // An old dialog must never apply to a task that changed while the
+      // user was deciding. Read the current provider again before mutation.
+      final current = ref.read(tripTaskProvider);
+      if (task != null &&
+          (current == null ||
+              current.id != task.id ||
+              current.stage != task.stage ||
+              current.watchEnabled != task.watchEnabled ||
+              current.watchIntentRevision != task.watchIntentRevision)) {
+        _recordTripTaskResult(intent, '任务状态已变化，未执行操作；请重新确认。');
+        return;
+      }
+    }
     final result = await switch (command.type) {
       TripTaskCommandType.plan => _planTripTask(
         controller,
@@ -508,6 +535,60 @@ class _IntelligenceWorkspaceState
         if (mounted) context.go('/route');
       });
     }
+  }
+
+  void _recordTripTaskResult(AssistantIntent intent, String message) {
+    setState(() {
+      _appendTurn(intent, message, 'template');
+      _clearPending();
+    });
+    _scheduleScroll();
+  }
+
+  Future<bool> _confirmTripTaskAction(
+    TripTaskCommand command,
+    TripTask? task,
+  ) async {
+    final name = task?.destinationName ?? '当前目的地';
+    final title = switch (command.type) {
+      TripTaskCommandType.plan =>
+        '为「${command.destinationQuery ?? '所选地点'}」建立出行任务？',
+      TripTaskCommandType.start => '确认开始前往「$name」？',
+      TripTaskCommandType.enterField => '确认手动进入现场？',
+      TripTaskCommandType.complete => '确认结束本次行程？',
+      TripTaskCommandType.cancel => '确认取消「$name」任务？',
+      TripTaskCommandType.startWatch => '确认开启这次任务的后台守候？',
+      TripTaskCommandType.stopWatch => '停止守候',
+    };
+    final detail = switch (command.type) {
+      TripTaskCommandType.plan => '先确认出行意图，再搜索和核对目的地；不会自动启动导航。',
+      TripTaskCommandType.start => '这将更改任务阶段，但不会自动开启后台位置追踪。',
+      TripTaskCommandType.enterField =>
+        '这是你手动确认进入现场，不代表已经使用 GPS 验证抵达。',
+      TripTaskCommandType.complete => '任务将标记完成，服务器状态可能需要联网同步。',
+      TripTaskCommandType.cancel => '任务将终止，云端撤销可能需要联网同步。',
+      TripTaskCommandType.startWatch =>
+        '只为明确授权的地点启动云端检查。需要服务端确认，目前没有远程推送或必达保证。',
+      TripTaskCommandType.stopWatch => '停止请求可能需要联网同步。',
+    };
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(detail),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('返回'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('确认执行'),
+          ),
+        ],
+      ),
+    );
+    return mounted && accepted == true;
   }
 
   Future<_TripTaskCommandResult> _planTripTask(

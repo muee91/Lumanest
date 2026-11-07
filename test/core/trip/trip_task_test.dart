@@ -123,6 +123,29 @@ void main() {
       TripTaskCommandType.stopWatch,
     );
     expect(TripTaskCommandParser.parse('什么时候出发？'), isNull);
+    for (final question in [
+      '我到了没有？',
+      '我到了但没有信号',
+      '开启守候有用吗？',
+      '停止守候对电量有什么影响',
+      '你能帮我取消任务吗？',
+      '我们什么时候结束这次行程',
+      '今天出发来得及吗？',
+    ]) {
+      expect(
+        TripTaskCommandParser.parse(question),
+        isNull,
+        reason: 'Questions and explanations cannot mutate tasks: $question',
+      );
+    }
+    expect(
+      TripTaskCommandParser.parse('我到了！')?.type,
+      TripTaskCommandType.enterField,
+    );
+    expect(
+      TripTaskCommandParser.parse('结束这次行程。')?.type,
+      TripTaskCommandType.complete,
+    );
   });
 
   test('round-trips the persisted task contract', () {

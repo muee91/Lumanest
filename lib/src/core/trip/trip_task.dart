@@ -45,8 +45,16 @@ class TripTaskCommand {
 
 abstract final class TripTaskCommandParser {
   static TripTaskCommand? parse(String value) {
-    final text = value.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (text.isEmpty || text.length > 80) return null;
+    final raw = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    // A question mentioning an action is not an instruction to execute it.
+    // Fuzzy text remains ordinary Q&A, never a direct task mutation.
+    if (raw.isEmpty ||
+        raw.length > 80 ||
+        raw.contains('?') ||
+        raw.contains('？')) {
+      return null;
+    }
+    final text = raw.replaceFirst(RegExp(r'[。！!]+$'), '');
     final planMatch = RegExp(
       r'^(?:带我去|现在去|前往|去|想去)\s*(.{2,32})$',
     ).firstMatch(text);
@@ -59,19 +67,21 @@ abstract final class TripTaskCommandParser {
     if (RegExp(r'^(?:开始出发|现在出发|我出发了|出发)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.start);
     }
-    if (RegExp(r'(?:我到了|已到达|进入现场|开启现场模式)').hasMatch(text)) {
+    if (RegExp(r'^(?:我到了(?:，进入现场)?|我已到达|已到达|进入现场|开启现场模式)$')
+        .hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.enterField);
     }
-    if (RegExp(r'(?:结束这次|完成这次|结束任务|完成任务)').hasMatch(text)) {
+    if (RegExp(r'^(?:结束这次(?:行程)?|完成这次(?:行程)?|结束任务|完成任务)$')
+        .hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.complete);
     }
-    if (RegExp(r'(?:停止守候|关闭守候)').hasMatch(text)) {
+    if (RegExp(r'^(?:停止守候|关闭守候|暂停守候)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.stopWatch);
     }
-    if (RegExp(r'(?:开启守候|开始守候)').hasMatch(text)) {
+    if (RegExp(r'^(?:开启守候|开始守候)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.startWatch);
     }
-    if (RegExp(r'(?:取消任务|停止这次)').hasMatch(text)) {
+    if (RegExp(r'^(?:取消任务|停止这次|取消这次行程)$').hasMatch(text)) {
       return const TripTaskCommand(TripTaskCommandType.cancel);
     }
     return null;
