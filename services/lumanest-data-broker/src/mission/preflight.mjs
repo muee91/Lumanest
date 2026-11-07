@@ -10,6 +10,7 @@ const requiredMigrations = [
   '003_watch_authorization.sql',
   '004_mission_generations.sql',
   '005_mission_watch_expiry.sql',
+  '006_mission_legacy_watch_cleanup.sql',
 ];
 
 const expectedChecksums = new Map();

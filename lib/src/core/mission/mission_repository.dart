@@ -123,6 +123,11 @@ class MissionVersionConflict implements Exception {
   final MissionRemoteSnapshot current;
 }
 
+class MissionStaleWatchIntent implements Exception {
+  const MissionStaleWatchIntent(this.current);
+  final MissionRemoteSnapshot current;
+}
+
 class MissionLegacyOperationUnverifiable implements Exception {
   const MissionLegacyOperationUnverifiable();
 }
@@ -275,6 +280,9 @@ class DioMissionRemoteRepository implements MissionRemoteRepository {
       }
       if (error.response?.statusCode == 409 && data is Map) {
         final current = MissionRemoteSnapshot.fromJson(data['current']);
+        if (data['error'] == 'stale_watch_intent' && current != null) {
+          throw MissionStaleWatchIntent(current);
+        }
         if (current != null &&
             current.id == missionId &&
             current.version > expectedVersion) {

@@ -484,10 +484,7 @@ void main() {
       travelMode: TripTravelMode.driving,
     );
     expect(container.read(tripTaskProvider)?.remoteCreationPending, isTrue);
-    expect(
-      container.read(tripTaskProvider)?.remoteCreationAttempted,
-      isFalse,
-    );
+    expect(container.read(tripTaskProvider)?.remoteCreationAttempted, isFalse);
 
     controller.cancel();
     expect(container.read(tripTaskProvider)?.remoteCreationPending, isFalse);
@@ -523,10 +520,7 @@ void main() {
     }
     expect(mission.createAttempts, 1);
     expect(container.read(tripTaskProvider)?.remoteCreationPending, isTrue);
-    expect(
-      container.read(tripTaskProvider)?.remoteCreationAttempted,
-      isTrue,
-    );
+    expect(container.read(tripTaskProvider)?.remoteCreationAttempted, isTrue);
 
     await controller.reconcileRemoteMission();
     expect(mission.createAttempts, 2);
@@ -809,6 +803,81 @@ void main() {
         MissionRemoteStage.cancelled,
       );
       expect(container.read(tripTaskProvider)?.pendingTransition, isNull);
+    },
+  );
+
+  test(
+    'rebases a stale watch intent revision and converges the stop request',
+    () async {
+      final mission = _StaleWatchIntentRepository();
+      final store = _FakeTripTaskStore(null);
+      final container = ProviderContainer(
+        overrides: [
+          tripTaskStoreProvider.overrideWithValue(store),
+          missionRemoteRepositoryProvider.overrideWithValue(mission),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(tripTaskProvider.notifier);
+      await controller.ready;
+      controller.plan(
+        destinationName: '西湖',
+        destination: destination,
+        travelMode: TripTravelMode.driving,
+      );
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      controller.setWatchEnabled(true);
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      mission.version = 11;
+      mission.currentIntentRevision = 9;
+      mission.currentWatch = true;
+      controller.setWatchEnabled(false);
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(mission.watchIntentRevisions, contains(1));
+      expect(mission.watchIntentRevisions, contains(10));
+      expect(mission.watchOperationIds.last, contains('-r10'));
+      expect(mission.currentWatch, isFalse);
+      expect(container.read(tripTaskProvider)?.pendingWatchVersion, isNull);
+      expect(container.read(tripTaskProvider)?.watchIntentRevision, 10);
+    },
+  );
+
+  test(
+    'refreshes the local watch state when the foreground expiry deadline passes',
+    () async {
+      final mission = _ExpiringWatchMissionRepository();
+      final store = _FakeTripTaskStore(null);
+      final container = ProviderContainer(
+        overrides: [
+          tripTaskStoreProvider.overrideWithValue(store),
+          missionRemoteRepositoryProvider.overrideWithValue(mission),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(tripTaskProvider.notifier);
+      await controller.ready;
+      controller.plan(
+        destinationName: '西湖',
+        destination: destination,
+        travelMode: TripTravelMode.driving,
+      );
+      for (var i = 0; i < 10; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      controller.setWatchEnabled(true);
+      for (var i = 0; i < 40; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      final current = container.read(tripTaskProvider);
+      expect(current?.watchEnabled, isFalse);
+      expect(current?.remoteMissionWatchEnabled, isFalse);
+      expect(current?.remoteMissionEndsAt, isNotNull);
     },
   );
 
@@ -1316,6 +1385,105 @@ class _VersionConflictMissionRepository extends _FakeMissionRepository {
       operation: operation,
       operationId: operationId,
       watchEnabled: watchEnabled,
+    );
+  }
+}
+
+class _StaleWatchIntentRepository extends _FakeMissionRepository {
+  final watchIntentRevisions = <int?>[];
+  final watchOperationIds = <String>[];
+  int currentIntentRevision = 0;
+  bool staleOnce = true;
+
+  @override
+  Future<MissionRemoteSnapshot?> get(String missionId) async =>
+      MissionRemoteSnapshot(
+        id: missionId,
+        stage: currentStage,
+        version: version,
+        watchEnabled: currentWatch,
+        watchIntentRevision: currentIntentRevision,
+      );
+
+  @override
+  Future<MissionRemoteSnapshot?> patch(
+    String missionId, {
+    required int expectedVersion,
+    required String operation,
+    required String operationId,
+    bool? watchEnabled,
+    int? intentRevision,
+  }) async {
+    if (operation == 'setWatch' || operation == 'authorizeWatch') {
+      watchIntentRevisions.add(intentRevision);
+      watchOperationIds.add(operationId);
+      if (staleOnce && watchEnabled == false) {
+        staleOnce = false;
+        currentWatch = true;
+        currentIntentRevision = 9;
+        version = 11;
+        throw MissionStaleWatchIntent((await get(missionId))!);
+      }
+      final updated = await super.patch(
+        missionId,
+        expectedVersion: expectedVersion,
+        operation: operation,
+        operationId: operationId,
+        watchEnabled: watchEnabled,
+        intentRevision: intentRevision,
+      );
+      currentIntentRevision = intentRevision ?? currentIntentRevision;
+      return updated;
+    }
+    return super.patch(
+      missionId,
+      expectedVersion: expectedVersion,
+      operation: operation,
+      operationId: operationId,
+      watchEnabled: watchEnabled,
+      intentRevision: intentRevision,
+    );
+  }
+}
+
+class _ExpiringWatchMissionRepository extends _FakeMissionRepository {
+  DateTime? endsAt;
+
+  MissionRemoteSnapshot _withExpiry(MissionRemoteSnapshot snapshot) =>
+      MissionRemoteSnapshot(
+        id: snapshot.id,
+        stage: snapshot.stage,
+        version: snapshot.version,
+        watchEnabled: snapshot.watchEnabled,
+        watchIntentRevision: snapshot.watchIntentRevision,
+        endsAt: endsAt,
+      );
+
+  @override
+  Future<MissionRemoteSnapshot?> get(String missionId) async =>
+      _withExpiry((await super.get(missionId))!);
+
+  @override
+  Future<MissionRemoteSnapshot?> patch(
+    String missionId, {
+    required int expectedVersion,
+    required String operation,
+    required String operationId,
+    bool? watchEnabled,
+    int? intentRevision,
+  }) async {
+    if (watchEnabled == true) {
+      endsAt = DateTime.now().toUtc().add(const Duration(milliseconds: 80));
+    }
+    return _withExpiry(
+      (await super.patch(
+        missionId,
+        expectedVersion: expectedVersion,
+        operation: operation,
+        operationId: operationId,
+        watchEnabled: watchEnabled,
+        intentRevision: intentRevision,
+      ))!,
     );
   }
 }
