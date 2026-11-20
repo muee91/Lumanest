@@ -1,3 +1,5 @@
+> **历史工作记录。** 当前产品范围见 [栖光范围说明](../core-1.0-scope.md)。
+
 - 2026-07-18 18:35 开始审计 LumaNest 项目 UI 遮挡与逻辑链。
 - 2026-07-18 19:10 完成核心文件审阅（presentation_v2 五个主页面、shell、router、environment providers/consent/controller、map consent、manifest action handler、user library、driving route providers、inspiration bottle、manual location sheet、ambient canvas）。
 - 2026-07-18 19:25 产出审计报告 docs/code-audit-ui-logic-2026-07-18.md，共识别 5 项 UI 遮挡/适配问题、5 项逻辑链问题，其中 P0 1 项（Map consent 初始化崩溃）、P1 4 项（导航栏遮挡、键盘遮挡、AMapController 泄漏、manifest sheet 不可滚动）、P2 5 项。

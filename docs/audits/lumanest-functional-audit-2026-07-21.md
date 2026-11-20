@@ -1,3 +1,5 @@
+> **历史审计。** 当前产品范围见 [栖光范围说明](../core-1.0-scope.md)。
+
 # 栖光 LumaNest 项目功能审计报告
 
 **审计范围**:全部子系统(Flutter 客户端 / Context Service / Data Broker / Discovery Service / 端到端契约)
