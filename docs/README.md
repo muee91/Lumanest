@@ -10,7 +10,7 @@
 1. **产品范围权威**：`core-1.0-scope.md`（当前记录 2.0 运行范围）。
 2. **强制契约**：当前公开接口契约、隐私/安全边界、当前自动化测试。它们约束“怎么安全实现”，但不能自行扩大产品范围。
 3. **当前支持文档**：运维 runbook、数据源说明、当前 UI 清晰度规范、路线 scout 说明。
-4. **历史/版本化/审计文档**：`*-v1.md`、`*-v2.md`、`audits/` 以及已经被后续实现替代的设计说明。只用于追溯决策。
+4. **版本化参考**：`*-v1.md`、`*-v2.md` 和阶段性设计说明。用于查阅对应版本的设计和实现约束。
 
 发生冲突时，高一级文档优先。历史文档不能恢复已冻结、退役或尚未交付的 2.0 能力。
 
@@ -26,16 +26,13 @@
 - 可观测性：`operational-observability.md`
 - Mission Engine 运维契约：`../services/lumanest-data-broker/docs/mission-engine.md`
 
-## 历史审计与品牌原稿
+## 品牌原稿
 
-- 2026-07-18：[整改报告](audits/lumanest-code-audit-report.md)、[界面工作记录](audits/presentation-v2-work-log-2026-07-18.md)、[旧版设计验收](audits/design-qa.md)
-- 2026-07-21：[功能审计](audits/lumanest-functional-audit-2026-07-21.md)
-- 2026-07-22：[数据链审计](audits/data-chain-audit-2026-07-22.md)
 - [品牌标志设计原稿](brand/lumanest-logo/)。客户端资源位于 [`assets/brand/`](../assets/brand/)。
 
 ## 历史材料处理规则
 
-历史文件默认保留，不批量删除，因为它们仍有架构决策和验收背景价值。但：
+过时的阶段性报告、审计和验收日志从当前文档目录移除。仍用于开发或运维的版本说明随对应功能维护。
 
 - 不把历史数量目标（例如 48 个机会、96 个标签）当作当前交付目标；
 - 不因为旧文档出现一个页面/Provider/后台任务就重新实现；
