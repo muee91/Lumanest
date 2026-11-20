@@ -26,6 +26,13 @@
 - 可观测性：`operational-observability.md`
 - Mission Engine 运维契约：`../services/lumanest-data-broker/docs/mission-engine.md`
 
+## 历史审计与品牌原稿
+
+- 2026-07-18：[整改报告](audits/lumanest-code-audit-report.md)、[界面工作记录](audits/presentation-v2-work-log-2026-07-18.md)、[旧版设计验收](audits/design-qa.md)
+- 2026-07-21：[功能审计](audits/lumanest-functional-audit-2026-07-21.md)
+- 2026-07-22：[数据链审计](audits/data-chain-audit-2026-07-22.md)
+- [品牌标志设计原稿](brand/lumanest-logo/)。客户端资源位于 [`assets/brand/`](../assets/brand/)。
+
 ## 历史材料处理规则
 
 历史文件默认保留，不批量删除，因为它们仍有架构决策和验收背景价值。但：
